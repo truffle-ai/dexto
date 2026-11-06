@@ -237,6 +237,18 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     );
                     return summary?.balanceUsd ?? null;
                 },
+                assertLocalChat: async (id: string) => {
+                    const store = nodeChatSyncStore();
+                    for (const account of await store.listAccounts()) {
+                        const saved = await store.readChat(account, id);
+                        if (saved?.status === 'paused')
+                            throw new Error(
+                                saved.reason === 'move_in_progress'
+                                    ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
+                                    : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                            );
+                    }
+                },
                 ...(chatSync !== null && {
                     chatSync: { command: chatSync.command, onNotice: chatSync.onNotice },
                     chatMove: async (to: 'cloud' | 'local', id: string) => {
@@ -259,18 +271,6 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                         );
                         if (code !== 0) throw new Error(lines.join('\n'));
                         return lines.join('\n');
-                    },
-                    assertLocalChat: async (id: string) => {
-                        const store = nodeChatSyncStore();
-                        for (const account of await store.listAccounts()) {
-                            const saved = await store.readChat(account, id);
-                            if (saved?.status === 'paused')
-                                throw new Error(
-                                    saved.reason === 'move_in_progress'
-                                        ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
-                                        : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
-                                );
-                        }
                     },
                 }),
             });

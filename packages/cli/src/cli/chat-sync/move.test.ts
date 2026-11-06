@@ -1,6 +1,12 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { createCloudClient } from '@dexto/cloud-client';
-import { moveToCloud, downloadMoveObject, describeObject, startLocalReturn } from './move.js';
+import {
+    moveToCloud,
+    downloadMoveObject,
+    describeObject,
+    startLocalReturn,
+    waitForMove,
+} from './move.js';
 
 it('uploads declared bytes with signed headers before confirming and polling completion', async () => {
     const calls: string[] = [];
@@ -277,4 +283,61 @@ it('reports unresolved ownership when both polling and cancellation lose the con
             }
         )
     ).rejects.toMatchObject({ ownership: 'unknown' });
+});
+
+it('retries transient polling with Retry-After and judges expiry using server time', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2100-01-01T00:00:00Z'));
+    let polls = 0;
+    const delays: number[] = [];
+    const fetch: typeof globalThis.fetch = async () => {
+        polls += 1;
+        if (polls === 1) throw new TypeError('temporary disconnect');
+        if (polls === 2)
+            return Response.json(
+                { error: { code: 'rate_limited', message: 'wait' } },
+                {
+                    status: 429,
+                    headers: { 'Retry-After': '3', Date: 'Fri, 06 Nov 2026 00:00:00 GMT' },
+                }
+            );
+        return Response.json(
+            { id: 'move', status: 'completed' },
+            { headers: { Date: 'Fri, 06 Nov 2026 00:00:03 GMT' } }
+        );
+    };
+    const client = createCloudClient({
+        apiBaseUrl: 'https://api.invalid',
+        token: 'fake',
+        cloudProject: null,
+        fetch,
+    });
+    const transport = {
+        client,
+        fetch,
+        signal: new AbortController().signal,
+        sleep: async (ms: number) => {
+            delays.push(ms);
+        },
+    };
+    try {
+        const initial = {
+            id: 'move',
+            chat_id: 'chat',
+            object: 'synced_chat_move',
+            to: 'local',
+            status: 'exporting',
+            created_at: '2026-11-06T00:00:00Z',
+            expires_at: '2026-11-06T01:00:00Z',
+            failure: null,
+            uploads: [],
+            export: null,
+        } satisfies import('./move.js').ChatMove;
+        await expect(waitForMove(transport, 'chat', initial)).resolves.toMatchObject({
+            status: 'completed',
+        });
+        expect(polls).toBe(3);
+        expect(delays).toEqual([2_000, 2_000, 3_000]);
+    } finally {
+        clock.mockRestore();
+    }
 });

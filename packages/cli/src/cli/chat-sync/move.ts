@@ -59,22 +59,53 @@ export async function downloadMoveObject(
     return bytes;
 }
 
+/** Only transport failures and temporary server refusals are safe to retry automatically. */
+export function transientRetryDelay(error: unknown, attempt: number): number | null {
+    if (error instanceof CloudApiError) {
+        if (error.status !== 429 && error.status !== 408 && error.status < 500) return null;
+        if (error.retryAfterSeconds !== null) return Math.max(250, error.retryAfterSeconds * 1_000);
+    } else if (!(error instanceof TypeError)) return null;
+    return Math.min(2_000 * 2 ** attempt, 30_000);
+}
+
 export async function waitForMove(
     transport: MoveTransport,
     chatId: string,
     started: ChatMove
 ): Promise<ChatMove> {
     let move = started;
+    let delay = 2_000;
+    let failures = 0;
     while (move.status === 'importing' || move.status === 'exporting') {
-        if (Date.now() >= Date.parse(move.expires_at)) throw new Error('The chat move expired.');
         transport.signal.throwIfAborted();
-        await transport.sleep(2_000);
-        move = await unwrap(
-            await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
-                params: { path: { chat_id: chatId, move_id: move.id } },
-                signal: transport.signal,
-            })
-        );
+        await transport.sleep(delay);
+        try {
+            const response = await transport.client.GET(
+                '/v1/synced_chats/{chat_id}/moves/{move_id}',
+                {
+                    params: { path: { chat_id: chatId, move_id: move.id } },
+                    signal: transport.signal,
+                }
+            );
+            // Local wall clocks may be wrong. The server owns the move's expiry.
+            const serverNow = Date.parse(response.response.headers.get('date') ?? '');
+            if (response.error !== undefined && serverNow >= Date.parse(move.expires_at))
+                throw new Error('The chat move expired.');
+            move = await unwrap(response);
+            if (
+                (move.status === 'importing' || move.status === 'exporting') &&
+                serverNow >= Date.parse(move.expires_at)
+            )
+                throw new Error('The chat move expired.');
+            failures = 0;
+            delay = 2_000;
+        } catch (error) {
+            transport.signal.throwIfAborted();
+            const retry = transientRetryDelay(error, failures);
+            if (retry === null) throw error;
+            failures += 1;
+            delay = retry;
+        }
     }
     if (move.status === 'failed' || move.status === 'canceled' || move.status === 'expired')
         throw new Error(`Chat move ${move.status}: ${move.failure ?? move.status}.`);
