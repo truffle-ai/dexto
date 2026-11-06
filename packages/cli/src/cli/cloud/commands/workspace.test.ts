@@ -255,6 +255,111 @@ describe('dexto workspace', () => {
         ).toMatchObject({ cursor: 'chat-1:0', waitSeconds: 0 });
         expect(calls.some((call) => call.params.name === 'dexto_chat_cancel')).toBe(false);
     });
+    it.each(['follow', 'start'])(
+        'Ctrl-C during %s ends NDJSON with a resumable final record',
+        async (command) => {
+            followResponses = [page('running')];
+            const controller = new AbortController();
+            const interruptedHost: CloudHost = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    signal: controller.signal,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        const name = JSON.parse(await request.clone().text()).params?.name;
+                        const response = await host.runtime.fetch(request);
+                        if (name === 'dexto_chat_wait' || name === 'dexto_chat_follow')
+                            controller.abort();
+                        return response;
+                    },
+                },
+            };
+            const args =
+                command === 'start'
+                    ? ['chat', 'start', 'Hello', '--wait', '--json']
+                    : ['chat', 'follow', 'chat-1', '--json'];
+            expect(await runCloud(interruptedHost, args)).toBe(130);
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            expect(lines.at(-1)).toMatchObject({
+                type: 'final',
+                interrupted: true,
+                cursor: 'chat-1:1',
+                nextAction: {
+                    tool: 'dexto_chat_follow',
+                    arguments: { sessionId: 'chat-1', cursor: 'chat-1:1' },
+                },
+            });
+            expect(calls.some((call) => call.params.name === 'dexto_chat_cancel')).toBe(false);
+        }
+    );
+
+    it('a wait permission failure never grants and replays a billable start', async () => {
+        let grants = 0;
+        const waitingHost: CloudHost = {
+            ...host,
+            signInForScope: async () => {
+                grants++;
+                return true;
+            },
+            runtime: {
+                ...host.runtime,
+                stdoutIsTerminal: true,
+                prompt: async () => 'yes',
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_chat_wait')
+                        return Response.json({
+                            jsonrpc: '2.0',
+                            id: message.id,
+                            error: {
+                                code: -32602,
+                                message: 'Missing required scope: sessions:read',
+                                data: { kind: 'forbidden', scope: 'sessions:read' },
+                            },
+                        });
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(waitingHost, ['chat', 'start', 'Hello', '--wait'])).toBe(3);
+        expect(calls.filter((call) => call.params.name === 'dexto_chat_start')).toHaveLength(1);
+        expect(grants).toBe(0);
+        expect(stdout).toContain('dexto chat follow');
+    });
+    it('a follow transport error ends NDJSON with the last cursor', async () => {
+        followResponses = [page('running')];
+        let reads = 0;
+        const failingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_chat_follow' && reads++ > 0)
+                        throw new Error('Connection closed');
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(failingHost, ['chat', 'follow', 'chat-1', '--json'])).toBe(1);
+        const lines = stdout
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines.at(-1)).toMatchObject({
+            type: 'final',
+            outcome: 'error',
+            cursor: 'chat-1:1',
+            nextAction: { tool: 'dexto_chat_follow', arguments: { cursor: 'chat-1:1' } },
+        });
+    });
+
     it.each(['failed', 'cancelled'])('follow reports %s with a nonzero exit', async (outcome) => {
         followResponses = [page(outcome)];
         expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(1);

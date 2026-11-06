@@ -1,7 +1,7 @@
 // Discover local chats, import them, and start cloud chats with owned computer and browser choices.
 
 import { requireConsent } from '../../interaction.js';
-import { CommandFailure, type FailureKind } from '../../failure.js';
+import { CommandFailure, EXIT_CODES, type FailureKind } from '../../failure.js';
 
 import { z } from 'zod';
 
@@ -385,40 +385,80 @@ async function followChat(
     sessionId: string,
     cursor: string | undefined,
     deadline: number,
-    initial?: z.output<typeof FollowResultSchema>
+    firstTool: 'dexto_chat_wait' | 'dexto_chat_follow' = 'dexto_chat_follow'
 ): Promise<number> {
-    let page = initial;
-    for (;;) {
-        context.runtime.signal.throwIfAborted();
-        page ??= FollowResultSchema.parse(
-            await queryWorkspaceTool(context, 'dexto_chat_follow', {
-                sessionId,
-                ...(cursor === undefined ? {} : { cursor }),
-                waitSeconds: Math.min(25, Math.max(0, Math.ceil((deadline - Date.now()) / 1000))),
-            })
-        );
-        for (const event of page.events) {
-            if (context.output.json)
-                context.runtime.writeOutput(`${JSON.stringify({ type: 'event', event })}\n`);
-            else context.output.note(JSON.stringify(event));
+    let tool = firstTool;
+    try {
+        for (;;) {
+            context.runtime.signal.throwIfAborted();
+            const page = FollowResultSchema.parse(
+                await queryWorkspaceTool(context, tool, {
+                    sessionId,
+                    ...(cursor === undefined ? {} : { cursor }),
+                    waitSeconds: Math.min(
+                        25,
+                        Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+                    ),
+                })
+            );
+            tool = 'dexto_chat_follow';
+            for (const event of page.events) {
+                if (context.output.json)
+                    context.runtime.writeOutput(`${JSON.stringify({ type: 'event', event })}\n`);
+                else context.output.note(JSON.stringify(event));
+            }
+            cursor = page.cursor;
+            if ((!page.running && !page.hasMore) || Date.now() >= deadline) {
+                const { events: _events, ...result } = page;
+                if (context.output.json)
+                    context.runtime.writeOutput(
+                        `${JSON.stringify({ type: 'final', ...result })}\n`
+                    );
+                else
+                    context.output.result(
+                        result,
+                        `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\nCursor: ${cursor}`
+                    );
+                return page.outcome === 'failed' || page.outcome === 'cancelled'
+                    ? 1
+                    : page.running || page.hasMore
+                      ? 6
+                      : 0;
+            }
         }
-        cursor = page.cursor;
-        if ((!page.running && !page.hasMore) || Date.now() >= deadline) {
-            const { events: _events, ...result } = page;
-            if (context.output.json)
-                context.runtime.writeOutput(`${JSON.stringify({ type: 'final', ...result })}\n`);
-            else
-                context.output.result(
-                    result,
-                    `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\nCursor: ${cursor}`
-                );
-            return page.outcome === 'failed' || page.outcome === 'cancelled'
-                ? 1
-                : page.running || page.hasMore
-                  ? 6
-                  : 0;
-        }
-        page = undefined;
+    } catch (error) {
+        // A read failure must never reach the outer grant-and-rerun path after a billable start.
+        const interrupted = context.runtime.signal.aborted;
+        const failure =
+            error instanceof CommandFailure
+                ? error
+                : new CommandFailure(
+                      'failed',
+                      error instanceof Error ? error.message : 'Following the chat failed.',
+                      null
+                  );
+        const result = {
+            type: 'final',
+            ...(interrupted
+                ? { outcome: 'running', interrupted: true }
+                : {
+                      outcome: 'error',
+                      error: { kind: failure.kind, message: failure.message, fix: failure.fix },
+                  }),
+            session: { id: sessionId },
+            cursor: cursor ?? null,
+            nextAction: {
+                tool: 'dexto_chat_follow',
+                arguments: { sessionId, ...(cursor === undefined ? {} : { cursor }) },
+            },
+        };
+        if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(result)}\n`);
+        else
+            context.output.result(
+                result,
+                `Stopped following ${sessionId}.\n${interrupted ? 'Interrupted.' : failure.message}\n${interrupted || failure.fix === null ? '' : `${failure.fix}\n`}Resume: dexto chat follow ${sessionId}${cursor === undefined ? '' : ` --cursor ${cursor}`}`
+            );
+        return interrupted ? 130 : EXIT_CODES[failure.kind];
     }
 }
 
@@ -518,16 +558,13 @@ const start: Command = {
         if (flag(input, 'wait')) {
             const started = StartedChatSchema.safeParse(raw);
             if (started.success) {
-                const initial = FollowResultSchema.parse(
-                    await queryWorkspaceTool(context, 'dexto_chat_wait', {
-                        sessionId: started.data.session.id,
-                        waitSeconds: Math.min(
-                            25,
-                            Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-                        ),
-                    })
+                return followChat(
+                    context,
+                    started.data.session.id,
+                    undefined,
+                    deadline,
+                    'dexto_chat_wait'
                 );
-                return followChat(context, started.data.session.id, undefined, deadline, initial);
             }
         }
         const parsed = ChatStartResultSchema.safeParse(raw);

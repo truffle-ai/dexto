@@ -51,6 +51,11 @@ These rules are intended to prevent stack fragmentation and review churn.
 
 - Entry point: `packages/cli/src/cli/index.ts`
 - Static commands (e.g., `dexto init`, `dexto setup`): `packages/cli/src/cli/commands/`
+- Cloud commands that start work and then wait must handle wait failures inside that phase.
+  The outer command runner can grant a missing scope and repeat the whole command; after work
+  starts, return a cursor and resume command instead of allowing that retry to start it again.
+- Chat follow JSON output stays NDJSON through read errors and interruption, with one final
+  record. Stopping a follow never cancels the remote chat.
 
 ### TUI (`packages/tui`)
 
