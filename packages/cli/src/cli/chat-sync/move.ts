@@ -199,19 +199,25 @@ export async function moveToCloud(
         started = await start();
     } catch (error) {
         if (error instanceof CloudApiError && error.code === 'chat_in_cloud') return;
-        const open = await readOpenMove(transport, chatId, error);
-        if (open === null) throw error;
-        if (open.to !== 'cloud')
-            throw new Error('A return is already open. Finish it with --to local.');
-        const canceled = await cancelMove(transport, chatId, open.id);
-        if (canceled.status === 'completed') return;
-        if (
-            canceled.status !== 'canceled' &&
-            canceled.status !== 'expired' &&
-            canceled.status !== 'failed'
-        )
-            throw new CloudMoveFailure(error, 'unknown');
-        started = await start();
+        if (!(error instanceof CloudApiError) || error.code !== 'move_in_progress') throw error;
+        try {
+            const open = await readOpenMove(transport, chatId, error);
+            if (open === null) throw error;
+            if (open.to !== 'cloud')
+                throw new Error('A return is already open. Finish it with --to local.');
+            const canceled = await cancelMove(transport, chatId, open.id);
+            if (canceled.status === 'completed') return;
+            if (
+                canceled.status !== 'canceled' &&
+                canceled.status !== 'expired' &&
+                canceled.status !== 'failed'
+            )
+                throw new CloudMoveFailure(error, 'unknown');
+            started = await start();
+        } catch (reconciliationError) {
+            // A refused lookup/cancellation/restart cannot establish where the earlier move ran.
+            throw new CloudMoveFailure(reconciliationError, 'unknown');
+        }
     }
     try {
         for (const upload of started.uploads) {

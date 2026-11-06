@@ -248,7 +248,8 @@ async function toCloud(
             const local =
                 error instanceof CloudMoveFailure
                     ? error.ownership === 'local'
-                    : error instanceof CloudApiError &&
+                    : state.status !== 'paused' &&
+                      error instanceof CloudApiError &&
                       error.status < 500 &&
                       error.code !== 'move_in_progress';
             if (local)

@@ -4,14 +4,18 @@ import { createOutput } from '../output.js';
 import { nodeCloudRuntime } from '../runtime.js';
 import { chatMoveCommands } from './chat-move.js';
 
-const { readChat, writeChat, queryWorkspaceTool } = vi.hoisted(() => ({
+const { readChat, writeChat, queryWorkspaceTool, readCheckpoint } = vi.hoisted(() => ({
     readChat: vi.fn(),
     writeChat: vi.fn(),
     queryWorkspaceTool: vi.fn(),
+    readCheckpoint: vi.fn(),
 }));
 vi.mock('./workspace.js', () => ({ queryWorkspaceTool }));
 
 beforeEach(() => {
+    readCheckpoint.mockRejectedValue(
+        Object.assign(new Error('missing fixture checkpoint'), { code: 'ENOENT' })
+    );
     readChat.mockResolvedValue({
         status: 'paused',
         reason: 'chat_in_cloud',
@@ -37,11 +41,13 @@ vi.mock('../../chat-sync/node.js', () => ({
 vi.mock('node:fs/promises', async (original) => ({
     ...(await original<typeof import('node:fs/promises')>()),
     mkdir: vi.fn(),
-    readFile: async () => {
-        throw Object.assign(new Error('missing fixture checkpoint'), { code: 'ENOENT' });
-    },
+    readFile: readCheckpoint,
     writeFile: vi.fn(),
     rename: vi.fn(),
+}));
+vi.mock('../../chat-sync/return-tree.js', async (original) => ({
+    ...(await original<typeof import('../../chat-sync/return-tree.js')>()),
+    assertLocalTreeMatches: async () => undefined,
 }));
 vi.mock('../../chat-sync/working-tree.js', async (original) => ({
     ...(await original<typeof import('../../chat-sync/working-tree.js')>()),
@@ -230,3 +236,76 @@ it('watches through a transient failure and prints changed messages as one-line 
     expect(rows[0]).toMatchObject({ event: 'message', delta: 'hello' });
     expect(rows[1]).toMatchObject({ event: 'message', delta: ' again' });
 });
+
+for (const status of [429, 403]) {
+    for (const prior of ['paused', 'syncing']) {
+        for (const stage of ['start', 'read', 'cancel', 'restart']) {
+            if (prior === 'syncing' && stage === 'start') continue;
+            it(`keeps ${prior} ownership uncertain after ${status} during ${stage}`, async () => {
+                readChat.mockResolvedValue({
+                    status: prior,
+                    reason: 'move_in_progress',
+                    cloudChatId: 'cloud-chat',
+                    nextIndex: 5,
+                    sentCount: 5,
+                });
+                readCheckpoint.mockResolvedValue(
+                    JSON.stringify({
+                        phase: 'cloud',
+                        branch: 'main',
+                        head: 'a'.repeat(40),
+                        patchHash: 'fake',
+                    })
+                );
+                const h = harness(false);
+                let calls = 0;
+                const fetch: typeof globalThis.fetch = async () => {
+                    calls += 1;
+                    const failureAt =
+                        stage === 'start' ? 1 : stage === 'read' ? 2 : stage === 'cancel' ? 3 : 4;
+                    if (calls === failureAt)
+                        return Response.json(
+                            {
+                                error: {
+                                    code: status === 429 ? 'rate_limited' : 'forbidden',
+                                    message: 'fake refusal',
+                                    retryable: false,
+                                },
+                            },
+                            { status }
+                        );
+                    if (calls === 1)
+                        return Response.json(
+                            {
+                                error: {
+                                    code: 'move_in_progress',
+                                    message: 'open move',
+                                    details: { move_id: 'open' },
+                                    retryable: false,
+                                },
+                            },
+                            { status: 409 }
+                        );
+                    return Response.json({
+                        id: 'open',
+                        to: 'cloud',
+                        status: calls === 2 ? 'awaiting_upload' : 'canceled',
+                        uploads: [],
+                    });
+                };
+                const command = chatMoveCommands.find((item) => item.path[1] === 'move');
+                if (command === undefined) throw new Error('Missing move command');
+                await expect(
+                    command.run(
+                        { ...h.context, runtime: { ...h.context.runtime, fetch } },
+                        { positionals: ['local-chat'], values: { to: 'cloud' } }
+                    )
+                ).rejects.toMatchObject({ status });
+                expect(calls).toBe(
+                    stage === 'start' ? 1 : stage === 'read' ? 2 : stage === 'cancel' ? 3 : 4
+                );
+                expect(writeChat.mock.calls.map((call) => call[2].status)).toEqual(['paused']);
+            });
+        }
+    }
+}
