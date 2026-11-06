@@ -4,8 +4,10 @@ import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import {
     assertNetworkBindAllowed,
     createHttpAuthorization,
+    isHttpAuthRequired,
     resolveServerHostname,
 } from '../middleware/auth.js';
+import { createRequestGuard } from '../middleware/request-guard.js';
 import type { DextoApp } from '../types.js';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
@@ -39,6 +41,11 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     const { getAgent: _getAgent } = options;
     const webhookSubscriber = app.webhookSubscriber;
     const authorize = app.httpAuthorization ?? createHttpAuthorization();
+    const requestGuard =
+        app.requestGuard ??
+        createRequestGuard({
+            enforceLoopbackHost: app.authDisabled !== true && !isHttpAuthRequired(),
+        });
     const listenHostname =
         typeof options.port === 'number' ? resolveServerHostname(options.hostname) : undefined;
     if (listenHostname !== undefined) {
@@ -64,6 +71,18 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                 if (!authorization.allowed) {
                     res.writeHead(authorization.status, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify(authorization.body));
+                    return;
+                }
+                const guard = requestGuard({
+                    method: req.method ?? 'GET',
+                    header: (name) => {
+                        const value = req.headers[name.toLowerCase()];
+                        return Array.isArray(value) ? value.join(', ') : value;
+                    },
+                });
+                if (!guard.allowed) {
+                    res.writeHead(403, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Forbidden', message: guard.reason }));
                     return;
                 }
                 if (req.method === 'GET') {
