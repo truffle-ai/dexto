@@ -24,6 +24,15 @@
         "workspace describe": [],
         "workspace drive put": ["dexto_upload_prepare", "dexto_drive"],
         "workspace tools": [],
+        "cloud automations create": ["dexto_cloud_automations_create"],
+        "cloud automations delete": ["dexto_cloud_automations_delete"],
+        "cloud automations firings": ["dexto_cloud_automations_firings"],
+        "cloud automations get": ["dexto_cloud_automations_get"],
+        "cloud automations list": ["dexto_cloud_automations_list"],
+        "cloud automations pause": ["dexto_cloud_automations_pause"],
+        "cloud automations resume": ["dexto_cloud_automations_resume"],
+        "cloud automations run": ["dexto_cloud_automations_run"],
+        "cloud automations update": ["dexto_cloud_automations_update"],
         "cloud search": ["dexto_capability_describe", "dexto_capability_call"],
         "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"],
         "chat start": ["dexto_chat_start", "dexto_chat_wait"],
@@ -328,131 +337,14 @@
             ]
         },
         {
-            "name": "cloud-automations-create",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations create"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_create",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-delete",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations delete"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_delete",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-firings",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations firings"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_firings",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-pause",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations pause"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_pause",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-resume",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations resume"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_resume",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "cloud-automations-rotate-secret",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
+            "reason": "A webhook automation's signing secret is a credential, and MCP tool results never carry secrets: rotate it with the CLI or /v1.",
             "commands": ["cloud automations rotate-secret"],
             "closesWhen": [
                 {
                     "tool": "dexto_cloud_automations_rotate-secret",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-run",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations run"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_run",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-update",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations update"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_update",
                     "inputs": []
                 }
             ]
