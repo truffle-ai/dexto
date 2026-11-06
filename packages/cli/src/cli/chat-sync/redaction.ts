@@ -127,9 +127,9 @@ export function redactSecrets(text: string): string {
 
 /** File names whose contents never leave the machine, matched on the path's last segment. */
 const SECRET_FILE_NAME =
-    /^(?:(?!.*\.(?:example|sample|template|dist)$)(?:\.env(?:[.-].*)?|\.dev\.vars.*|.*\.env(?:[.-].*)?)|\.envrc|.*\.(?:pem|key|p8|ppk|p12|pfx|jks|keystore|tfstate.*)|id_(?:rsa|dsa|ecdsa|ed25519).*|\.npmrc|\.yarnrc\.yml|[._]netrc|\.pgpass|\.pypirc|\.htpasswd|\.git-credentials|\.dockercfg|\.vault-token|\.terraformrc|\.boto|\.s3cfg|kubeconfig|credentials(?!.*\.(?:ts|tsx|js|mjs|cjs|py|go|rs|sql|md|mdx)$).*|application_default_credentials\.json|client_secret.*\.json|.*firebase-adminsdk.*\.json|service-account.*\.json|secrets?\.(?:json|ya?ml|toml)|token\.txt)$/iu;
+    /^(?:(?!.*\.(?:example|sample|template|dist)$)(?:\.env(?:[.-].*)?|\.dev\.vars.*|(?:prod|production|staging|stage|dev|development|local|test|secret|secrets|private)\.env(?:[.-].*)?)|\.envrc|.*\.(?:pem|key|p8|ppk|p12|pfx|jks|keystore|tfstate.*)|id_(?:rsa|dsa|ecdsa|ed25519).*|\.npmrc|\.yarnrc\.yml|[._]netrc|\.pgpass|\.pypirc|\.htpasswd|\.git-credentials|\.dockercfg|\.vault-token|\.terraformrc|\.boto|\.s3cfg|kubeconfig|credentials(?!.*\.(?:ts|tsx|js|mjs|cjs|py|go|rs|sql|md|mdx|swift|kt|kts|java|scala|rb|cs|php|c|h|cc|cpp|m|mm)$).*|application_default_credentials\.json|client_secret.*\.json|.*firebase-adminsdk.*\.json|service-account.*\.json|secrets?\.(?:json|ya?ml|toml)|token\.txt)$/i;
 const SECRET_DIRECTORY =
-    /(?:^|[\\/])(?:\.(?:ssh|aws|azure|gnupg|kube|docker)(?:[\\/]|$)|\.claude[\\/]settings\.local\.json$)/iu;
+    /(?:^|[\\/])(?:\.(?:ssh|aws|azure|gnupg|kube|docker)(?:[\\/]|$)|\.claude[\\/]settings\.local\.json$|\.config[\\/](?:gcloud(?:[\\/]|$)|gh[\\/]hosts\.yml$))/i;
 /** Names a glob such as `.env*` or `.e?v` is tested against: a glob that could match one is secret. */
 const SECRET_NAME_SAMPLES = [
     '.env',
@@ -155,6 +155,7 @@ const SECRET_NAME_SAMPLES = [
  * or a secret directory, itself or on the way to it.
  */
 export function isSecretPath(path: string): boolean {
+    if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(path)) return true;
     const name = path.split(/[\\/]/u).at(-1) ?? path;
     if (SECRET_FILE_NAME.test(name)) return true;
     if (SECRET_DIRECTORY.test(path)) return true;
@@ -183,7 +184,7 @@ function globMatches(glob: string, name: string): boolean {
         .replaceAll('*', '.*')
         .replaceAll('?', '.');
     try {
-        return new RegExp(`^${pattern}$`, 'iu').test(name);
+        return new RegExp(`^${pattern}$`, 'i').test(name);
     } catch {
         // An unclosed `[`: count it as able to match.
         return true;

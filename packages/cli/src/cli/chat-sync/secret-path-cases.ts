@@ -1,5 +1,24 @@
 /** The same acceptance table is exercised by the CLI and cloud hand-off policy tests. */
 export const allowedSecretPathCases = [
+    'Credentials.swift',
+    'CredentialStoreTests.swift',
+    'credentials.kt',
+    'credentials.kts',
+    'credentials.java',
+    'credentials.scala',
+    'credentials.rb',
+    'credentials.cs',
+    'credentials.php',
+    'credentials.c',
+    'credentials.h',
+    'credentials.cc',
+    'credentials.cpp',
+    'credentials.m',
+    'credentials.mm',
+    'versions.env',
+    'İd_rsa',
+    'kubeconfİg',
+
     '.env.example',
     '.env.sample',
     '.env.template',
@@ -29,6 +48,21 @@ export const allowedSecretPathCases = [
 ];
 
 export const refusedSecretPathCases = [
+    'production.env',
+    'STAGING.env',
+    'private.env',
+    '.config/gh/hosts.yml',
+    '.config/gcloud/access_tokens.db',
+    '.config/gcloud/credentials.db',
+    'x\r.pem',
+    '.env\n',
+    'id_rsa\n',
+    'safe\u0085.txt',
+    'safe\u2028.txt',
+    'safe\u2029.txt',
+    '.e?v',
+    '.env*',
+
     '.env',
     '.env.production',
     '.env-local',
