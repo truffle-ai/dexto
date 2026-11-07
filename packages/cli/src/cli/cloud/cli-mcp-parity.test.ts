@@ -34,26 +34,19 @@ cloud-data-deletions-create
 cloud-fetch
 cloud-functions-deploy
 models-list
-cloud-sandboxes-cat
 cloud-sandboxes-create
 cloud-sandboxes-delete
 cloud-sandboxes-exec
 cloud-sandboxes-export
-cloud-sandboxes-get
 cloud-sandboxes-import
-cloud-sandboxes-list
-cloud-sandboxes-ls
 cloud-sandboxes-pause
 cloud-sandboxes-rm
 cloud-sandboxes-start
 cloud-sandboxes-write
 cloud-secrets-create
 cloud-secrets-delete
-cloud-secrets-get
-cloud-secrets-list
 cloud-secrets-update
-cloud-sites-deploy
-cloud-sites-list`.split('\n')
+cloud-sites-deploy`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.

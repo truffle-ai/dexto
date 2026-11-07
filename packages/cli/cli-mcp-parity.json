@@ -71,7 +71,14 @@
         "cloud projects create": ["dexto_cloud_projects_create"],
         "cloud functions list": ["dexto_cloud_functions_list"],
         "cloud data-deletions list": ["dexto_cloud_data_deletions_list"],
-        "cloud data-deletions get": ["dexto_cloud_data_deletions_get"]
+        "cloud data-deletions get": ["dexto_cloud_data_deletions_get"],
+        "cloud sandboxes list": ["dexto_cloud_sandboxes_list"],
+        "cloud sandboxes get": ["dexto_cloud_sandboxes_get"],
+        "cloud sandboxes ls": ["dexto_cloud_sandboxes_ls"],
+        "cloud sandboxes cat": ["dexto_cloud_sandboxes_cat"],
+        "cloud sites list": ["dexto_cloud_sites_list"],
+        "cloud secrets list": ["dexto_cloud_secrets_list"],
+        "cloud secrets get": ["dexto_cloud_secrets_get"]
     },
     "localOnly": [
         {
@@ -182,23 +189,10 @@
             ]
         },
         {
-            "name": "cloud-sandboxes-cat",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
-            "commands": ["cloud sandboxes cat"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_sandboxes_cat",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "cloud-sandboxes-create",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "A sandbox is metered compute created under a caller-held idempotency key, so creating one stays a CLI or /v1 action; MCP clients read sandboxes.",
             "commands": ["cloud sandboxes create"],
             "closesWhen": [
                 {
@@ -211,7 +205,7 @@
             "name": "cloud-sandboxes-delete",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Deleting a sandbox destroys its workspace, so it stays a deliberate CLI or /v1 action.",
             "commands": ["cloud sandboxes delete"],
             "closesWhen": [
                 {
@@ -224,7 +218,7 @@
             "name": "cloud-sandboxes-exec",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Running a command is arbitrary code execution in the sandbox, so it stays a CLI or /v1 action.",
             "commands": ["cloud sandboxes exec"],
             "closesWhen": [
                 {
@@ -237,7 +231,7 @@
             "name": "cloud-sandboxes-export",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Saving a sandbox file as a project file moves bytes that MCP clients cannot stream and charges storage, so it stays a CLI or /v1 action.",
             "commands": ["cloud sandboxes export"],
             "closesWhen": [
                 {
@@ -247,23 +241,10 @@
             ]
         },
         {
-            "name": "cloud-sandboxes-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
-            "commands": ["cloud sandboxes get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_sandboxes_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "cloud-sandboxes-import",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Copying project files into a sandbox moves bytes that MCP clients cannot stream, so it stays a CLI or /v1 action.",
             "commands": ["cloud sandboxes import"],
             "closesWhen": [
                 {
@@ -273,36 +254,10 @@
             ]
         },
         {
-            "name": "cloud-sandboxes-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
-            "commands": ["cloud sandboxes list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_sandboxes_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-sandboxes-ls",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
-            "commands": ["cloud sandboxes ls"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_sandboxes_ls",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "cloud-sandboxes-pause",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Pausing settles metered compute under a caller-held idempotency key that MCP calls do not carry, so it stays a CLI or /v1 action.",
             "commands": ["cloud sandboxes pause"],
             "closesWhen": [
                 {
@@ -315,7 +270,7 @@
             "name": "cloud-sandboxes-rm",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Deleting a sandbox file destroys workspace data, so it stays a CLI or /v1 action.",
             "commands": ["cloud sandboxes rm"],
             "closesWhen": [
                 {
@@ -328,7 +283,7 @@
             "name": "cloud-sandboxes-start",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Starting a sandbox spends the project's credits under a caller-held idempotency key, so it stays a CLI or /v1 action.",
             "commands": ["cloud sandboxes start"],
             "closesWhen": [
                 {
@@ -341,7 +296,7 @@
             "name": "cloud-sandboxes-write",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
+            "reason": "Writing a sandbox file stages code for execution, so it stays a CLI or /v1 action; MCP clients read files with dexto_cloud_sandboxes_cat.",
             "commands": ["cloud sandboxes write"],
             "closesWhen": [
                 {
@@ -354,7 +309,7 @@
             "name": "cloud-secrets-create",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
+            "reason": "A secret's value must not pass through a chat or a tool result, so creating one stays a CLI or /v1 action; MCP clients read names and metadata only.",
             "commands": ["cloud secrets create"],
             "closesWhen": [
                 {
@@ -367,7 +322,7 @@
             "name": "cloud-secrets-delete",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
+            "reason": "Deleting a secret destroys a value that cannot be recovered, so it stays a deliberate CLI or /v1 action.",
             "commands": ["cloud secrets delete"],
             "closesWhen": [
                 {
@@ -377,36 +332,10 @@
             ]
         },
         {
-            "name": "cloud-secrets-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
-            "commands": ["cloud secrets get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_secrets_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-secrets-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
-            "commands": ["cloud secrets list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_secrets_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "cloud-secrets-update",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
+            "reason": "A secret's value must not pass through a chat or a tool result, so replacing one stays a CLI or /v1 action.",
             "commands": ["cloud secrets update"],
             "closesWhen": [
                 {
@@ -419,25 +348,12 @@
             "name": "cloud-sites-deploy",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "MCP deployment cannot select the Cloud project and all CLI provider options.",
+            "reason": "A Cloud project deploy publishes executable code on the public Site origin, so it stays a CLI or /v1 action; MCP clients deploy an uploaded package as themselves with dexto_site_deploy.",
             "commands": ["cloud sites deploy"],
             "closesWhen": [
                 {
                     "tool": "dexto_site_deploy",
                     "inputs": ["cloudProjectId", "provider"]
-                }
-            ]
-        },
-        {
-            "name": "cloud-sites-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "MCP lists organization resources but cannot target the selected Cloud project.",
-            "commands": ["cloud sites list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_sites_list",
-                    "inputs": ["cloudProjectId"]
                 }
             ]
         },
