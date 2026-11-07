@@ -30,6 +30,7 @@ import {
     type LocalChatSource,
 } from '../../import/transcript.js';
 import { queryWorkspaceTool } from './workspace.js';
+import { safeJson } from '@dexto/tui/signal-text';
 
 const FIND_OPTIONS = {
     dir: {
@@ -498,7 +499,7 @@ async function followChat(
             tool = 'dexto_chat_follow';
             for (const event of page.events) {
                 if (context.output.json)
-                    context.runtime.writeOutput(`${JSON.stringify({ type: 'event', event })}\n`);
+                    context.runtime.writeOutput(`${safeJson({ type: 'event', event }, 0)}\n`);
                 else context.runtime.writeOutput(`${readableChatEvent(event)}\n`);
             }
             cursor = page.cursor;
@@ -509,9 +510,7 @@ async function followChat(
             ) {
                 const { events: _events, ...result } = page;
                 if (context.output.json)
-                    context.runtime.writeOutput(
-                        `${JSON.stringify({ ...result, type: 'final' })}\n`
-                    );
+                    context.runtime.writeOutput(`${safeJson({ ...result, type: 'final' }, 0)}\n`);
                 else
                     context.output.result(
                         result,
@@ -552,7 +551,7 @@ async function followChat(
             },
             type: 'final',
         };
-        if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(result)}\n`);
+        if (context.output.json) context.runtime.writeOutput(`${safeJson(result, 0)}\n`);
         else
             context.output.result(
                 result,
@@ -699,9 +698,7 @@ const start: Command = {
                       : 'dexto chat browser-profiles';
             if (flag(input, 'wait')) {
                 if (context.output.json)
-                    context.runtime.writeOutput(
-                        `${JSON.stringify({ ...result, type: 'final' })}\n`
-                    );
+                    context.runtime.writeOutput(`${safeJson({ ...result, type: 'final' }, 0)}\n`);
                 else
                     context.output.result(
                         result,
