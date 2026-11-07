@@ -6761,6 +6761,84 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "What the key is for, such as the fleet or script that uses it."
+          },
+          "services": {
+            "default": [
+              "computer",
+              "inference"
+            ],
+            "description": "Services a computer may enroll with: computer (files and shell), inference (local models). A computer may ask for fewer.",
+            "minItems": 1,
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "computer",
+                "inference"
+              ]
+            }
+          },
+          "maxComputers": {
+            "default": 1,
+            "description": "How many computers the key may enroll before it is used up.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "expiresInMinutes": {
+            "default": 60,
+            "description": "Minutes until the key stops enrolling computers, up to 30 days.",
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 43200
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_computer_enrollment_key_create"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The key's id from dexto_computer_enrollment_keys_list."
+          }
+        },
+        "required": [
+          "keyId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_computer_enrollment_key_revoke"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_computer_enrollment_keys_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
           "contactId": {
             "type": "string",
             "format": "uuid",
