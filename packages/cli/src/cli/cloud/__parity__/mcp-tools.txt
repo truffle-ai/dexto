@@ -777,6 +777,12 @@
             "maxItems": 20,
             "uniqueItems": true
           },
+          "chatProject": {
+            "type": "string",
+            "description": "Project ID or name for a standalone connection. An agent's Artifact uses its chat Project.",
+            "minLength": 1,
+            "maxLength": 200
+          },
           "html": {
             "type": "string",
             "minLength": 1,
