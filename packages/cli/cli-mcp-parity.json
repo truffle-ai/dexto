@@ -66,7 +66,12 @@
         "cloud models list": ["dexto_cloud_models_list"],
         "cloud models run": ["dexto_cloud_models_estimate", "dexto_cloud_models_run"],
         "cloud models runs get": ["dexto_cloud_models_runs_get"],
-        "cloud models runs list": ["dexto_cloud_models_runs_list"]
+        "cloud models runs list": ["dexto_cloud_models_runs_list"],
+        "cloud projects list": ["dexto_cloud_projects_list"],
+        "cloud projects create": ["dexto_cloud_projects_create"],
+        "cloud functions list": ["dexto_cloud_functions_list"],
+        "cloud data-deletions list": ["dexto_cloud_data_deletions_list"],
+        "cloud data-deletions get": ["dexto_cloud_data_deletions_get"]
     },
     "localOnly": [
         {
@@ -154,37 +159,11 @@
             "name": "cloud-data-deletions-create",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Cloud end-user/agent deletion jobs have no equivalent MCP contract.",
+            "reason": "Starting a deletion irreversibly erases an end user's or an agent's sessions, automations and versions, so it stays a deliberate CLI or /v1 action; MCP clients list and read deletions.",
             "commands": ["cloud data-deletions create"],
             "closesWhen": [
                 {
-                    "tool": "dexto_cloud_data-deletions_create",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-data-deletions-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud end-user/agent deletion jobs have no equivalent MCP contract.",
-            "commands": ["cloud data-deletions get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_data-deletions_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-data-deletions-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud end-user/agent deletion jobs have no equivalent MCP contract.",
-            "commands": ["cloud data-deletions list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_data-deletions_list",
+                    "tool": "dexto_cloud_data_deletions_create",
                     "inputs": []
                 }
             ]
@@ -193,51 +172,12 @@
             "name": "cloud-functions-deploy",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "MCP deployment cannot select the Cloud project and all CLI provider options.",
+            "reason": "A Cloud project deploy publishes executable code and can bind a Dexto key that acts as the project, so it stays a CLI or /v1 action; MCP clients deploy an uploaded package as themselves with dexto_function_deploy.",
             "commands": ["cloud functions deploy"],
             "closesWhen": [
                 {
                     "tool": "dexto_function_deploy",
                     "inputs": ["cloudProjectId", "provider"]
-                }
-            ]
-        },
-        {
-            "name": "cloud-functions-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "MCP lists organization resources but cannot target the selected Cloud project.",
-            "commands": ["cloud functions list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_functions_list",
-                    "inputs": ["cloudProjectId"]
-                }
-            ]
-        },
-        {
-            "name": "cloud-projects-create",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud infrastructure projects are not the chat Projects MCP contract.",
-            "commands": ["cloud projects create"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_projects_create",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-projects-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud infrastructure projects are not the chat Projects MCP contract.",
-            "commands": ["cloud projects list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_projects_list",
-                    "inputs": []
                 }
             ]
         },
