@@ -1,8 +1,9 @@
 // Prints API values: JSON for agents (--json, or stdout not a terminal), tables for people.
 import chalk from 'chalk';
+import { safeJson, safeText } from '@dexto/tui/signal-text';
 import { jsonResult } from '../output.js';
 
-import type { CloudRuntime } from './runtime.js';
+import { safeLines, unfiltered, type CloudRuntime } from './runtime.js';
 
 export interface Column<Row> {
     readonly header: string;
@@ -14,7 +15,8 @@ export interface Output {
     readonly json: boolean;
     /**
      * Whether content, such as a file, a command's output or a model's reply, prints as its JSON
-     * record: only with an explicit --json, so piped content stays intact.
+     * record: only with an explicit --json, which is also how to get its exact characters. Without it,
+     * the text prints cleaned, piped or not.
      */
     readonly jsonContent: boolean;
     /** A page of a list: a table, plus how to read the next page when there is one. */
@@ -43,8 +45,10 @@ export type OutputFormat = 'auto' | 'json' | 'table';
 export function createOutput(runtime: CloudRuntime, format: OutputFormat): Output {
     const json = format === 'json' || (format === 'auto' && !runtime.stdoutIsTerminal);
     const color = runtime.color;
+    // Styled text, with every value cleaned here, so it skips the runtime's filter.
+    const { writeError, writeOutput } = unfiltered(runtime);
     const printJson = (value: unknown): void => {
-        runtime.writeOutput(jsonResult(value));
+        writeOutput(jsonResult(value));
     };
     return {
         json,
@@ -52,25 +56,25 @@ export function createOutput(runtime: CloudRuntime, format: OutputFormat): Outpu
         list(page, columns) {
             if (json) return printJson(page);
             if (page.data.length === 0) {
-                runtime.writeOutput(`${dim('None.', color)}\n`);
+                writeOutput(`${dim('None.', color)}\n`);
                 return;
             }
-            runtime.writeOutput(renderTable(page.data, columns, color));
+            writeOutput(renderTable(page.data, columns, color));
             if ('next_after' in page && page.has_more && page.next_after !== null)
-                runtime.writeError(
-                    `${dim(`More results: add --after ${String(page.next_after)}`, color)}\n`
+                writeError(
+                    `${dim(`More results: add --after ${safeText(String(page.next_after))}`, color)}\n`
                 );
         },
         note(text) {
-            runtime.writeError(`${dim(text, color)}\n`);
+            writeError(`${dim(safeLines(text), color)}\n`);
         },
         record(value) {
             if (json) return printJson(value);
-            runtime.writeOutput(renderRecord(value, color));
+            writeOutput(renderRecord(value, color));
         },
         result(value, text) {
             if (json) return printJson(value);
-            runtime.writeOutput(`${text}\n`);
+            writeOutput(`${safeLines(text)}\n`);
         },
     };
 }
@@ -82,7 +86,7 @@ function renderTable<Row>(
 ): string {
     const cells = rows.map((row) => columns.map((column) => cell(column.value(row))));
     const widths = columns.map((column, index) =>
-        Math.max(column.header.length, ...cells.map((row) => (row[index] ?? '').length))
+        Math.max(safeText(column.header).length, ...cells.map((row) => (row[index] ?? '').length))
     );
     const line = (values: readonly string[]) =>
         values
@@ -91,15 +95,21 @@ function renderTable<Row>(
             )
             .join('  ')
             .trimEnd();
-    const header = line(columns.map((column) => column.header.toUpperCase()));
+    const header = line(columns.map((column) => safeText(column.header).toUpperCase()));
     return `${color ? chalk.bold(header) : header}\n${cells.map(line).join('\n')}\n`;
 }
 
-/** Top-level fields aligned; nested values as compact JSON. */
+/**
+ * Top-level fields aligned; nested values as compact JSON. Keys and values come from the API, so
+ * their control, bidi and invisible characters are taken out (or escaped, inside JSON).
+ */
 function renderRecord(value: unknown, color: boolean): string {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
-        return `${JSON.stringify(value, null, 2)}\n`;
-    const entries = Object.entries(value);
+        return `${safeJson(value, 2)}\n`;
+    const entries = Object.entries(value).map(([key, field]): [string, unknown] => [
+        safeText(key),
+        field,
+    ]);
     const width = Math.max(...entries.map(([key]) => key.length));
     return `${entries
         .map(([key, field]) => `${dim(key.padEnd(width), color)}  ${recordField(field)}`)
@@ -108,16 +118,17 @@ function renderRecord(value: unknown, color: boolean): string {
 
 function recordField(value: unknown): string {
     if (value === null) return '-';
-    if (typeof value === 'string') return value.includes('\n') ? JSON.stringify(value) : value;
+    if (typeof value === 'string')
+        return value.includes('\n') ? safeJson(value, 0) : safeText(value);
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    return JSON.stringify(value);
+    return safeJson(value, 0);
 }
 
 const MAX_CELL = 60;
 
 function cell(value: string | number | boolean | null | undefined): string {
     if (value === null || value === undefined) return '-';
-    const text = String(value).replace(/\s+/gu, ' ');
+    const text = safeText(String(value)).replace(/\s+/gu, ' ');
     return text.length > MAX_CELL ? `${text.slice(0, MAX_CELL - 1)}…` : text;
 }
 

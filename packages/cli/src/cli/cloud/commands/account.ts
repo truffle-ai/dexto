@@ -15,6 +15,7 @@ import {
 } from '../command.js';
 import type { SignInContext } from '../../commands/auth/sign-in-commands.js';
 import { terminalSignInScreen } from '../../screens/sign-in.js';
+import { unfiltered } from '../runtime.js';
 
 /** Builds the sign-in context a command runs in; the host owns where sign-ins live. */
 export type SignInFor = (io: {
@@ -30,7 +31,12 @@ function signInIo(context: CommandContext) {
     return {
         result: (value: unknown, text: string) => context.output.result(value, text),
         note,
-        screen: terminalSignInScreen(context.runtime.writeError, note, context.output.json),
+        screen: terminalSignInScreen(
+            // The screen is styled and cleans the text it draws.
+            unfiltered(context.runtime).writeError,
+            note,
+            context.output.json
+        ),
         confirm: (question: string) => confirm(context, question),
         signal: context.runtime.signal,
     };

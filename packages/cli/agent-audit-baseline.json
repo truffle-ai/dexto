@@ -84,6 +84,13 @@
     "examples": false
   },
   {
+    "command": "chat outputs",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "chat start",
     "json": true,
     "dryRun": false,

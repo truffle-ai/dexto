@@ -4,6 +4,7 @@
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
     "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
+        "chat outputs": ["dexto_chat_outputs_list"],
         "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
         "find": ["dexto_search", "dexto_route_get"],
         "profile get": ["dexto_profile_get"],
@@ -11,6 +12,9 @@
         "publish": ["dexto_upload_prepare", "dexto_site_deploy", "dexto_site_publish"],
         "skills push": ["dexto_upload_prepare", "dexto_skill_bundle_import"],
         "skills sync": ["dexto_skills_search", "dexto_apps_action", "dexto_skill_bundle_download"],
+        "span list": ["dexto_span_list"],
+        "trace list": ["dexto_trace_list"],
+        "trace view": ["dexto_trace_view"],
         "workspace artifacts create": ["dexto_artifacts_create"],
         "workspace artifacts get": ["dexto_artifacts_get"],
         "workspace artifacts list": ["dexto_artifacts_list"],
@@ -20,13 +24,44 @@
         "workspace describe": [],
         "workspace drive put": ["dexto_upload_prepare", "dexto_drive"],
         "workspace tools": [],
+        "cloud automations create": ["dexto_cloud_automations_create"],
+        "cloud automations delete": ["dexto_cloud_automations_delete"],
+        "cloud automations firings": ["dexto_cloud_automations_firings"],
+        "cloud automations get": ["dexto_cloud_automations_get"],
+        "cloud automations list": ["dexto_cloud_automations_list"],
+        "cloud automations pause": ["dexto_cloud_automations_pause"],
+        "cloud automations resume": ["dexto_cloud_automations_resume"],
+        "cloud automations run": ["dexto_cloud_automations_run"],
+        "cloud automations update": ["dexto_cloud_automations_update"],
         "cloud search": ["dexto_capability_describe", "dexto_capability_call"],
         "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"],
         "chat start": ["dexto_chat_start", "dexto_chat_wait"],
         "chat computers": ["dexto_chat_computers_list"],
         "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
         "chat follow": ["dexto_chat_follow"],
-        "billing": ["dexto_billing_summary"]
+        "billing": ["dexto_billing_summary"],
+        "cloud agents approve": ["dexto_cloud_agents_approve"],
+        "cloud agents archive": ["dexto_cloud_agents_archive"],
+        "cloud agents chat": ["dexto_cloud_agents_chat"],
+        "cloud agents create": ["dexto_cloud_agents_create"],
+        "cloud agents get": ["dexto_cloud_agents_get"],
+        "cloud agents list": ["dexto_cloud_agents_list"],
+        "cloud agents messages": ["dexto_cloud_agents_messages"],
+        "cloud agents reject": ["dexto_cloud_agents_reject"],
+        "cloud agents runs get": ["dexto_cloud_agents_runs_get"],
+        "cloud agents runs list": ["dexto_cloud_agents_runs_list"],
+        "cloud agents runs steps": ["dexto_cloud_agents_runs_steps"],
+        "cloud agents sessions cancel": ["dexto_cloud_agents_sessions_cancel"],
+        "cloud agents sessions delete": ["dexto_cloud_agents_sessions_delete"],
+        "cloud agents sessions get": ["dexto_cloud_agents_sessions_get"],
+        "cloud agents sessions list": ["dexto_cloud_agents_sessions_list"],
+        "cloud agents update": ["dexto_cloud_agents_update"],
+        "cloud files delete": ["dexto_cloud_files_list", "dexto_cloud_files_delete"],
+        "cloud files download": ["dexto_cloud_files_list", "dexto_cloud_files_download"],
+        "cloud files get": ["dexto_cloud_files_list", "dexto_cloud_files_get"],
+        "cloud files list": ["dexto_cloud_files_list"],
+        "cloud files upload": ["dexto_cloud_files_upload", "dexto_cloud_files_upload_complete"],
+        "cloud files url": ["dexto_cloud_files_list", "dexto_cloud_files_url"]
     },
     "localOnly": [
         {
@@ -85,214 +120,6 @@
             ]
         },
         {
-            "name": "cloud-agents-approve",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents approve"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_approve",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-archive",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents archive"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_archive",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-chat",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents chat"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_chat",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-create",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents create"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_create",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-reject",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents reject"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_reject",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-messages",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents messages"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_messages",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-runs-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents runs get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_runs_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-runs-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents runs list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_runs_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-runs-steps",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents runs steps"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_runs_steps",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-sessions-cancel",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents sessions cancel"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_sessions_cancel",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-sessions-delete",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents sessions delete"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_sessions_delete",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-sessions-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents sessions get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_sessions_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-sessions-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents sessions list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_sessions_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-agents-update",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
-            "commands": ["cloud agents update"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_agents_update",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "cloud-api",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
@@ -306,131 +133,14 @@
             ]
         },
         {
-            "name": "cloud-automations-create",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations create"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_create",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-delete",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations delete"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_delete",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-firings",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations firings"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_firings",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-pause",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations pause"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_pause",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-resume",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations resume"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_resume",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "cloud-automations-rotate-secret",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
+            "reason": "A webhook automation's signing secret is a credential, and MCP tool results never carry secrets: rotate it with the CLI or /v1.",
             "commands": ["cloud automations rotate-secret"],
             "closesWhen": [
                 {
                     "tool": "dexto_cloud_automations_rotate-secret",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-run",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations run"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_run",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-automations-update",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
-            "commands": ["cloud automations update"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_automations_update",
                     "inputs": []
                 }
             ]
@@ -470,84 +180,6 @@
             "closesWhen": [
                 {
                     "tool": "dexto_cloud_data-deletions_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-delete",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files delete"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_delete",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-download",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files download"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_download",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-upload",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files upload"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_upload",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-url",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files url"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_url",
                     "inputs": []
                 }
             ]
@@ -930,65 +562,6 @@
             ]
         },
         {
-            "name": "span-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Operational trace/span inspection has no MCP operation.",
-            "commands": ["span list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_span_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "trace-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Operational trace/span inspection has no MCP operation.",
-            "commands": ["trace list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_trace_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "trace-view",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Operational trace/span inspection has no MCP operation.",
-            "commands": ["trace view"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_trace_view",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "chat-list-status",
-            "group": "knownChat",
-            "issue": "DEXTO-2479",
-            "reason": "chat_list cannot filter by status.",
-            "commands": [],
-            "closesWhen": [
-                {
-                    "tool": "dexto_chat_list",
-                    "inputs": ["status"]
-                }
-            ]
-        },
-        {
-            "name": "chat-get-usage",
-            "group": "knownChat",
-            "issue": "DEXTO-2479",
-            "reason": "chat_get does not return usage.",
-            "commands": []
-        },
-        {
             "name": "models-list",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
@@ -1144,5 +717,6 @@
         "dexto_skill_update",
         "dexto_skill_validate",
         "dexto_skill_versions"
-    ]
+    ],
+    "pendingCli": []
 }
