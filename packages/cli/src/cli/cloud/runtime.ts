@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import chalk from 'chalk';
+import { safeText } from '@dexto/tui/signal-text';
 
 export interface CloudRuntime {
     /** Whether to color what people read: a terminal that shows colors. */
@@ -31,6 +32,57 @@ export interface CloudRuntime {
     readonly writeBytes: (chunk: Uint8Array) => Promise<void>;
     readonly writeError: (text: string) => void;
     readonly writeOutput: (text: string) => void;
+    /**
+     * Set by `guardRuntime`: the writers without the filter, for text that is styled (colour
+     * escapes) and already clean. Read it through `unfiltered`.
+     */
+    readonly unfiltered?: Pick<CloudRuntime, 'writeError' | 'writeOutput'>;
+}
+
+/**
+ * The runtime commands print through. What reaches a terminal has its control (C0, DEL, C1),
+ * bidi and invisible characters taken out, so server text such as a name, an error or a model's
+ * reply can't move the cursor, set the title or make a line read as something else. New commands
+ * are covered without doing anything.
+ *
+ * - stdout is filtered at a terminal only; piped output, such as a file or a command's output,
+ *   stays as it is.
+ * - stderr is always filtered: it is for people, and `2>` doesn't say it isn't a terminal.
+ * - Prompts are filtered too.
+ * - JSON is not text to filter: build it with `jsonResult` or `safeJson`, which escape instead, so
+ *   the data stays exact. Raw JSON from `JSON.stringify` printed at a terminal is filtered like
+ *   any text (still valid JSON, but the characters are gone).
+ * - Styled text (the tables, notes and sign-in screens) goes through `unfiltered`, and has to
+ *   clean what it draws itself.
+ * - `writeBytes` is never filtered: it is a download's own bytes.
+ */
+export function guardRuntime(runtime: CloudRuntime): CloudRuntime {
+    if (runtime.unfiltered !== undefined) return runtime;
+    const { prompt } = runtime;
+    return {
+        ...runtime,
+        prompt:
+            prompt === null ? null : (question, options) => prompt(safeLines(question), options),
+        unfiltered: runtime,
+        writeError: (text) => runtime.writeError(safeLines(text)),
+        writeOutput: (text) =>
+            runtime.writeOutput(runtime.stdoutIsTerminal ? safeLines(text) : text),
+    };
+}
+
+/**
+ * Text for people with each line's control, bidi and invisible characters taken out. Line breaks
+ * stay (a CRLF becomes a newline); a tab or a lone carriage return becomes a space.
+ */
+export function safeLines(text: string): string {
+    return text.split(/\r?\n/u).map(safeText).join('\n');
+}
+
+/** The writers for styled text that is already clean; see `guardRuntime`. */
+export function unfiltered(
+    runtime: CloudRuntime
+): Pick<CloudRuntime, 'writeError' | 'writeOutput'> {
+    return runtime.unfiltered ?? runtime;
 }
 
 export interface ProcessResult {

@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { safeJson, safeText } from '@dexto/tui/signal-text';
 import { jsonResult } from '../output.js';
 
-import type { CloudRuntime } from './runtime.js';
+import { safeLines, unfiltered, type CloudRuntime } from './runtime.js';
 
 export interface Column<Row> {
     readonly header: string;
@@ -44,8 +44,10 @@ export type OutputFormat = 'auto' | 'json' | 'table';
 export function createOutput(runtime: CloudRuntime, format: OutputFormat): Output {
     const json = format === 'json' || (format === 'auto' && !runtime.stdoutIsTerminal);
     const color = runtime.color;
+    // Styled text, with every value cleaned here, so it skips the runtime's filter.
+    const { writeError, writeOutput } = unfiltered(runtime);
     const printJson = (value: unknown): void => {
-        runtime.writeOutput(jsonResult(value));
+        writeOutput(jsonResult(value));
     };
     return {
         json,
@@ -53,25 +55,25 @@ export function createOutput(runtime: CloudRuntime, format: OutputFormat): Outpu
         list(page, columns) {
             if (json) return printJson(page);
             if (page.data.length === 0) {
-                runtime.writeOutput(`${dim('None.', color)}\n`);
+                writeOutput(`${dim('None.', color)}\n`);
                 return;
             }
-            runtime.writeOutput(renderTable(page.data, columns, color));
+            writeOutput(renderTable(page.data, columns, color));
             if ('next_after' in page && page.has_more && page.next_after !== null)
-                runtime.writeError(
+                writeError(
                     `${dim(`More results: add --after ${safeText(String(page.next_after))}`, color)}\n`
                 );
         },
         note(text) {
-            runtime.writeError(`${dim(safeLines(text), color)}\n`);
+            writeError(`${dim(safeLines(text), color)}\n`);
         },
         record(value) {
             if (json) return printJson(value);
-            runtime.writeOutput(renderRecord(value, color));
+            writeOutput(renderRecord(value, color));
         },
         result(value, text) {
             if (json) return printJson(value);
-            runtime.writeOutput(`${safeLines(text)}\n`);
+            writeOutput(`${safeLines(text)}\n`);
         },
     };
 }
@@ -127,11 +129,6 @@ function cell(value: string | number | boolean | null | undefined): string {
     if (value === null || value === undefined) return '-';
     const text = safeText(String(value)).replace(/\s+/gu, ' ');
     return text.length > MAX_CELL ? `${text.slice(0, MAX_CELL - 1)}…` : text;
-}
-
-/** Text for people with each line's control, bidi and invisible characters taken out. */
-function safeLines(text: string): string {
-    return text.split('\n').map(safeText).join('\n');
 }
 
 function dim(text: string, color: boolean): string {
