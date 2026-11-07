@@ -186,6 +186,7 @@ function errorCodeForStatus(
 ): LLMErrorCode {
     if (status === 402) return LLMErrorCode.INSUFFICIENT_CREDITS;
     if (status === 429) return LLMErrorCode.RATE_LIMIT_EXCEEDED;
+    if (status === 401) return LLMErrorCode.AUTH_FAILED;
     if (
         status === 400 &&
         (details.openRouterProviderRawCode === 'invalid_function_parameters' ||
@@ -303,6 +304,24 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
             'Run `dexto billing` to check your balance',
             undefined,
             retryDisposition
+        );
+    }
+
+    if (status === 401) {
+        const dexto = input.provider === 'dexto-nova';
+        return new DextoRuntimeError(
+            code,
+            ErrorScope.LLM,
+            type,
+            dexto
+                ? 'Dexto rejected your credentials (401). Sign in again with `dexto login` or create a new API key.'
+                : `${input.provider} rejected the API key (401). Check the key and try again.`,
+            buildContext(input, details),
+            dexto
+                ? 'Run `dexto login` to sign in again'
+                : `Set a valid API key for ${input.provider}`,
+            undefined,
+            'non_retryable'
         );
     }
 
