@@ -46,8 +46,12 @@ export interface CloudHost {
     readonly resolveConnection: (overrides: ConnectionOverrides) => Promise<Connection | null>;
     /** The sign-in context login, logout, whoami and accounts run in. */
     readonly signIn: SignInFor;
-    /** Signs the profile in again asking for `scope`; true once it did. */
-    readonly signInForScope: (overrides: ConnectionOverrides, scope: string) => Promise<boolean>;
+    /** Discovers the full request, asks for confirmation, then signs in; false when declined. */
+    readonly signInForScope: (
+        overrides: ConnectionOverrides,
+        scope: string,
+        confirm: (scopes: readonly string[]) => Promise<boolean>
+    ) => Promise<boolean>;
 }
 
 export const GLOBAL_OPTIONS: Readonly<Record<string, OptionSpec>> = {
@@ -260,12 +264,14 @@ async function askToGrant(
     overrides: ConnectionOverrides,
     error: MissingScopeFailure
 ): Promise<boolean> {
-    const answer =
-        (await host.runtime.prompt?.(`${error.message} Sign in again to grant it? [y/N] `, {
-            secret: false,
-        })) ?? '';
-    if (!/^y(es)?$/iu.test(answer.trim())) return false;
-    return await host.signInForScope(overrides, error.scope);
+    return await host.signInForScope(overrides, error.scope, async (scopes) => {
+        const answer =
+            (await host.runtime.prompt?.(
+                `${error.message} Sign in again to request these scopes: ${scopes.join(' ')}? [y/N] `,
+                { secret: false }
+            )) ?? '';
+        return /^y(es)?$/iu.test(answer.trim());
+    });
 }
 
 function contextFor(
