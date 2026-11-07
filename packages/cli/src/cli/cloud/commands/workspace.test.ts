@@ -27,6 +27,18 @@ const TOOLS = [
         _meta: { 'dexto/app': 'sites', 'dexto/level': 'act' },
     },
     {
+        name: 'dexto_chat_get',
+        title: 'Get a chat',
+        inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } } },
+        _meta: { 'dexto/app': 'chat', 'dexto/level': 'read' },
+    },
+    {
+        name: 'dexto_chat_list',
+        title: 'List chats',
+        inputSchema: { type: 'object', properties: { limit: { type: 'integer' } } },
+        _meta: { 'dexto/app': 'chat', 'dexto/level': 'read' },
+    },
+    {
         name: 'dexto_email_send',
         title: 'Send an email',
         inputSchema: {
@@ -57,6 +69,7 @@ describe('dexto workspace', () => {
     let computersResponse: unknown;
     let profilesResponse: unknown;
     let followResponses: unknown[];
+    let chatInspection: unknown;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-ws-')), 'accounts');
@@ -88,6 +101,7 @@ describe('dexto workspace', () => {
             ],
         };
         followResponses = [];
+        chatInspection = {};
         profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
         publishStatus = 200;
         publishProject = null;
@@ -160,13 +174,15 @@ describe('dexto workspace', () => {
                           }
                         : tool === 'dexto_chat_follow' || tool === 'dexto_chat_wait'
                           ? followResponses.shift()
-                          : tool === 'dexto_chat_start'
-                            ? chatResponse
-                            : tool === 'dexto_chat_computers_list'
-                              ? computersResponse
-                              : tool === 'dexto_chat_browser_profiles_list'
-                                ? profilesResponse
-                                : { status: 'sent' };
+                          : tool === 'dexto_chat_get' || tool === 'dexto_chat_list'
+                            ? chatInspection
+                            : tool === 'dexto_chat_start'
+                              ? chatResponse
+                              : tool === 'dexto_chat_computers_list'
+                                ? computersResponse
+                                : tool === 'dexto_chat_browser_profiles_list'
+                                  ? profilesResponse
+                                  : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
@@ -952,11 +968,33 @@ describe('dexto workspace', () => {
         expect(await runCloud(host, ['workspace'])).toBe(0);
 
         expect(JSON.parse(stdout).apps.map((app: { id: string }) => app.id)).toEqual([
+            'chat',
             'email',
             'search',
             'sites',
         ]);
         expect(authorization[0]).toBe('Bearer access-1');
+    });
+
+    it("shows how a chat's last run ended in chat get and chat list", async () => {
+        const lastRun = { id: 'run-1', status: 'failed' };
+        chatInspection = {
+            session: { id: 'chat-1', status: 'idle', lastRun },
+            sessions: [
+                { id: 'chat-1', status: 'idle', lastRun },
+                { id: 'chat-2', status: 'idle', lastRun: null },
+            ],
+        };
+
+        expect(
+            await runCloud(host, ['workspace', 'chat', 'get', '--session-id', 'chat-1', '--json'])
+        ).toBe(0);
+        expect(JSON.parse(stdout).session.lastRun).toEqual(lastRun);
+        stdout = '';
+        expect(await runCloud(host, ['workspace', 'chat', 'list', '--json'])).toBe(0);
+        expect(
+            JSON.parse(stdout).sessions.map((chat: { lastRun: unknown }) => chat.lastRun)
+        ).toEqual([lastRun, null]);
     });
 
     it('lists the tools with workspace tools', async () => {
