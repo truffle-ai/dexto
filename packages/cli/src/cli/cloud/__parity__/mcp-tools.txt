@@ -6550,6 +6550,217 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as dexto_cloud_projects_list returns it."
+          },
+          "maxBytes": {
+            "default": 1048576,
+            "description": "At most this many bytes, up to 1048576.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1048576
+          },
+          "path": {
+            "type": "string",
+            "description": "A file under /workspace."
+          },
+          "sandboxId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The sandbox's id, as dexto_cloud_sandboxes_list returns it."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "path",
+          "sandboxId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_sandboxes_cat"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as dexto_cloud_projects_list returns it."
+          },
+          "sandboxId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The sandbox's id, as dexto_cloud_sandboxes_list returns it."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "sandboxId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_sandboxes_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "Return sandboxes after this sandbox id.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as dexto_cloud_projects_list returns it."
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many sandboxes, 1 to 100.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_sandboxes_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as dexto_cloud_projects_list returns it."
+          },
+          "depth": {
+            "default": 1,
+            "description": "How many directory levels to list, 0 to 20.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "path": {
+            "default": "/workspace",
+            "description": "A directory under /workspace.",
+            "type": "string"
+          },
+          "sandboxId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The sandbox's id, as dexto_cloud_sandboxes_list returns it."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "sandboxId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_sandboxes_ls"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as dexto_cloud_projects_list returns it."
+          },
+          "secretId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The secret's id, as dexto_cloud_secrets_list returns it."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "secretId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_secrets_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "The next_after of the previous page.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as dexto_cloud_projects_list returns it."
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many secrets, 1 to 100.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_secrets_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as dexto_cloud_projects_list returns it."
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_sites_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
           "contactId": {
             "type": "string",
             "format": "uuid",
