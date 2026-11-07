@@ -6246,6 +6246,196 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "input": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "description": "The model's input, by its field names, such as prompt."
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The model's id, as dexto_cloud_models_list returns it."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "input",
+          "model"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_models_estimate"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The model's id, as dexto_cloud_models_list returns it."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "model"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_models_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "intent": {
+            "description": "What you want to make, such as a product photo or a voice-over: recommends media models for it.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "kind": {
+            "description": "Only models whose output is this kind.",
+            "type": "string",
+            "enum": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "file"
+            ]
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_models_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "estimateId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The id of the estimate to run, from dexto_cloud_models_estimate."
+          },
+          "overwrite": {
+            "default": false,
+            "description": "With save_to: replace a project file that already has an output's path.",
+            "type": "boolean"
+          },
+          "saveTo": {
+            "description": "Keep the outputs as files of the Cloud project: a file path, or a prefix ending in / to save every output under it. Saved files are stored and charged like uploads.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "estimateId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_models_run"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The run's id, from dexto_cloud_models_run or dexto_cloud_models_runs_list."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "runId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_models_runs_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "The next_after of the previous page.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "limit": {
+            "default": 20,
+            "description": "Runs per page, 1 to 100.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_models_runs_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
           "contactId": {
             "type": "string",
             "format": "uuid",
