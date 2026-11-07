@@ -225,11 +225,11 @@ export async function applyReturnedTree(
                     if (fileStat === null || !fileStat.isFile() || fileStat.size > 1024) continue;
                     const content = (await readFile(filePath)).toString();
                     const pointer =
-                        /^version https:\/\/git-lfs\.github\.com\/spec\/v1\noid sha256:([0-9a-f]{64})\nsize ([0-9]{1,16})\n$/u.exec(
+                        /^version https:\/\/git-lfs\.github\.com\/spec\/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]{1,16})\r?\n$/u.exec(
                             content
                         );
                     if (pointer === null) {
-                        if (content.startsWith('version https://git-lfs.github.com/spec/v1\n'))
+                        if (content.startsWith('version https://git-lfs.github.com/spec/v1'))
                             throw new Error('Invalid Git LFS pointer.');
                         continue;
                     }
