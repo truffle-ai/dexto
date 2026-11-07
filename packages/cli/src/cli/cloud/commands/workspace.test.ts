@@ -757,7 +757,6 @@ describe('dexto workspace', () => {
                     browserProfileId: 'profile-1',
                     model: 'model-1',
                     title: 'Bug',
-                    confirm: true,
                 },
             },
         });
@@ -912,6 +911,73 @@ describe('dexto workspace', () => {
         expect(prompts[0]).toContain('billed to your account');
         expect(stdout).toContain('Started A task');
         expect(stdout).not.toContain('"session"');
+    });
+
+    it('asks for both permissions when selecting a computer and browser profile', async () => {
+        const prompts: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                stdoutIsTerminal: true,
+                prompt: async (question) => {
+                    prompts.push(question);
+                    return 'yes';
+                },
+            },
+        };
+        expect(
+            await runCloud(host, [
+                'chat',
+                'start',
+                'Hello',
+                '--computer',
+                'computer-1',
+                '--browser-profile',
+                'profile-1',
+            ])
+        ).toBe(0);
+        expect(prompts).toHaveLength(1);
+        expect(prompts[0]).toContain('connected computer');
+        expect(prompts[0]).toContain('billed to your account');
+    });
+
+    it('asks only for connected computer access when selecting a computer', async () => {
+        const prompts: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                stdoutIsTerminal: true,
+                prompt: async (question) => {
+                    prompts.push(question);
+                    return 'yes';
+                },
+            },
+        };
+        expect(await runCloud(host, ['chat', 'start', 'Hello', '--computer', 'computer-1'])).toBe(
+            0
+        );
+        expect(prompts).toHaveLength(1);
+        expect(prompts[0]).toContain('connected computer');
+        expect(prompts[0]).not.toContain('billed');
+    });
+
+    it('requires consent in JSON mode for combined location choices', async () => {
+        expect(
+            await runCloud(host, [
+                'chat',
+                'start',
+                'Hello',
+                '--computer',
+                'computer-1',
+                '--browser-profile',
+                'profile-1',
+                '--json',
+            ])
+        ).toBe(4);
+        expect(calls).toEqual([]);
+        expect(JSON.parse(stderr).error.fix).toContain('--yes');
     });
 
     it('requires --yes under --json even at an interactive terminal', async () => {

@@ -3964,10 +3964,6 @@
               "type": "string",
               "minLength": 1
             }
-          },
-          "confirm": {
-            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
-            "type": "boolean"
           }
         },
         "required": [
