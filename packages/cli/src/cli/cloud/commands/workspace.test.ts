@@ -757,6 +757,7 @@ describe('dexto workspace', () => {
                     browserProfileId: 'profile-1',
                     model: 'model-1',
                     title: 'Bug',
+                    confirm: true,
                 },
             },
         });
@@ -909,6 +910,7 @@ describe('dexto workspace', () => {
         ).toBe(0);
         expect(prompts).toHaveLength(1);
         expect(prompts[0]).toContain('billed to your account');
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ confirm: true });
         expect(stdout).toContain('Started A task');
         expect(stdout).not.toContain('"session"');
     });
@@ -961,6 +963,7 @@ describe('dexto workspace', () => {
         expect(prompts).toHaveLength(1);
         expect(prompts[0]).toContain('connected computer');
         expect(prompts[0]).not.toContain('billed');
+        expect(calls.at(-1)?.params.arguments).not.toHaveProperty('confirm');
     });
 
     it('requires consent in JSON mode for combined location choices', async () => {

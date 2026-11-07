@@ -659,6 +659,7 @@ const start: Command = {
                       ? 'Start hosted compute billed to your account to load this browser profile?'
                       : 'Give this chat access to your connected computer?'
             );
+            if (args.browserProfileId !== undefined) args.confirm = true;
         }
         // Start once. Subsequent bounded reads never retry a billable start.
         const raw = await queryWorkspaceTool(context, 'dexto_chat_start', args);
