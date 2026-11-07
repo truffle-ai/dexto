@@ -1,6 +1,7 @@
 // `cloud api`: call any /v1 operation with the sign-in, for what no command covers yet.
 
 import { argument, BODY_OPTIONS, readJsonBody, UsageError, type Command } from '../command.js';
+import { jsonResult } from '../../output.js';
 import { fetchV1, v1Failure } from '../v1.js';
 
 const METHODS = new Set(['DELETE', 'GET', 'PATCH', 'POST', 'PUT']);
@@ -22,7 +23,7 @@ const api: Command = {
         );
         const text = await response.text();
         if (response.headers.get('content-type')?.includes('application/json') === true)
-            context.runtime.writeOutput(`${JSON.stringify(JSON.parse(text), null, 2)}\n`);
+            context.runtime.writeOutput(jsonResult(JSON.parse(text)));
         else
             context.runtime.writeOutput(
                 text.endsWith('\n') || text.length === 0 ? text : `${text}\n`

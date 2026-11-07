@@ -601,6 +601,38 @@ describe('dexto workspace', () => {
         expect(stdout).not.toContain('{"type":"run.started"');
     });
 
+    it('shows recorded billing routes and preserves them in JSON', async () => {
+        const billingRoutes = [
+            {
+                provider: 'openai',
+                billingMode: 'byok',
+                authMethodId: 'chatgpt_login',
+                billedPlans: ['chatgpt_subscription'],
+                creditsUsd: 0,
+                allowanceUsd: 0,
+                callsWithoutLedger: 1,
+            },
+        ];
+        followResponses = [{ ...page('done'), usage: { runId: 'run-1', billingRoutes } }];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--table'])).toBe(0);
+        expect(stdout).toContain('Recorded billing routes (usage may be incomplete):');
+        expect(stdout).toContain('chatgpt_subscription');
+        stdout = '';
+        followResponses = [{ ...page('done'), usage: { runId: 'run-1', billingRoutes } }];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(0);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+            usage: { runId: 'run-1', billingRoutes },
+        });
+    });
+
+    it('does not infer a billing route when no facts are recorded', async () => {
+        followResponses = [{ ...page('done'), usage: { runId: 'run-1', billingRoutes: [] } }];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--table'])).toBe(0);
+        expect(stdout).toContain(
+            'Recorded billing routes (usage may be incomplete): unknown (no recorded routes)'
+        );
+    });
+
     it('sets the final record type after server fields', async () => {
         followResponses = [{ ...page('done'), type: 'untrusted' }];
         expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(0);
@@ -715,6 +747,28 @@ describe('dexto workspace', () => {
         });
         expect(JSON.parse(stdout)).toEqual(chatResponse);
     });
+
+    it.each(['truffle-ai/dexto', ' https://github.com/truffle-ai/dexto/ '])(
+        'passes repository context %s unchanged to chat start',
+        async (repository) => {
+            expect(
+                await runCloud(host, [
+                    'chat',
+                    'start',
+                    'Investigate the bug',
+                    '--repository',
+                    repository,
+                ])
+            ).toBe(0);
+            expect(calls).toContainEqual({
+                method: 'tools/call',
+                params: {
+                    name: 'dexto_chat_start',
+                    arguments: { message: 'Investigate the bug', repository },
+                },
+            });
+        }
+    );
 
     it('omits unset chat start choices', async () => {
         expect(await runCloud(host, ['chat', 'start', 'Hello'])).toBe(0);

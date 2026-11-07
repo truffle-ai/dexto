@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { noticeLines, signalOn, span } from '@dexto/tui/signal-text';
+import { noticeLines, safeText, signalOn, span } from '@dexto/tui/signal-text';
 
 /**
  * Version cache stored in ~/.dexto/cache/version-check.json
@@ -282,7 +282,7 @@ export function displayUpdateNotification(updateInfo: UpdateInfo): void {
         return;
     }
     const message =
-        `Update available: ${chalk.gray(updateInfo.current)} ${chalk.gray('→')} ${chalk.green(updateInfo.latest)}\n` +
+        `Update available: ${chalk.gray(updateInfo.current)} ${chalk.gray('→')} ${chalk.green(safeText(updateInfo.latest))}\n` +
         `Run: ${chalk.cyan(updateInfo.updateCommand)}`;
 
     // A notice, not a result: stderr, so stdout stays what the command printed.

@@ -30,6 +30,7 @@ import {
     type LocalChatSource,
 } from '../../import/transcript.js';
 import { queryWorkspaceTool } from './workspace.js';
+import { safeJson } from '@dexto/tui/signal-text';
 
 const FIND_OPTIONS = {
     dir: {
@@ -364,7 +365,26 @@ const FollowResultSchema = z
         events: z.array(z.unknown()),
         answer: z.string().nullable(),
         artifacts: z.array(z.unknown()),
-        usage: z.record(z.string(), z.unknown()).nullable(),
+        usage: z
+            .object({
+                billingRoutes: z
+                    .array(
+                        z
+                            .object({
+                                provider: z.string(),
+                                billingMode: z.string(),
+                                authMethodId: z.string().nullable(),
+                                billedPlans: z.array(z.string()),
+                                creditsUsd: z.number(),
+                                allowanceUsd: z.number(),
+                                callsWithoutLedger: z.number(),
+                            })
+                            .passthrough()
+                    )
+                    .optional(),
+            })
+            .passthrough()
+            .nullable(),
     })
     .passthrough();
 
@@ -479,7 +499,7 @@ async function followChat(
             tool = 'dexto_chat_follow';
             for (const event of page.events) {
                 if (context.output.json)
-                    context.runtime.writeOutput(`${JSON.stringify({ type: 'event', event })}\n`);
+                    context.runtime.writeOutput(`${safeJson({ type: 'event', event }, 0)}\n`);
                 else context.runtime.writeOutput(`${readableChatEvent(event)}\n`);
             }
             cursor = page.cursor;
@@ -490,13 +510,11 @@ async function followChat(
             ) {
                 const { events: _events, ...result } = page;
                 if (context.output.json)
-                    context.runtime.writeOutput(
-                        `${JSON.stringify({ ...result, type: 'final' })}\n`
-                    );
+                    context.runtime.writeOutput(`${safeJson({ ...result, type: 'final' }, 0)}\n`);
                 else
                     context.output.result(
                         result,
-                        `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\n${page.nextAction?.instruction ?? ''}\nCursor: ${cursor}`
+                        `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nRecorded billing routes (usage may be incomplete): ${page.usage?.billingRoutes?.length ? JSON.stringify(page.usage.billingRoutes) : 'unknown (no recorded routes)'}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\n${page.nextAction?.instruction ?? ''}\nCursor: ${cursor}`
                     );
                 return page.outcome === 'failed' || page.outcome === 'cancelled'
                     ? 1
@@ -533,7 +551,7 @@ async function followChat(
             },
             type: 'final',
         };
-        if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(result)}\n`);
+        if (context.output.json) context.runtime.writeOutput(`${safeJson(result, 0)}\n`);
         else
             context.output.result(
                 result,
@@ -547,7 +565,7 @@ const follow: Command = {
     path: ['chat', 'follow'],
     arguments: '<id>',
     summary:
-        'Follow durable cloud chat events until completion; Ctrl-C stops following without cancelling the chat.',
+        'Follow chat events and recorded run billing routes; Ctrl-C stops following without cancelling the chat.',
     options: {
         ...FOLLOW_OPTIONS,
         cursor: {
@@ -603,6 +621,12 @@ const start: Command = {
             description: 'Payment route for the chosen model.',
         },
         title: { type: 'string', valueName: 'TEXT', description: 'Short chat title.' },
+        repository: {
+            type: 'string',
+            valueName: 'VALUE',
+            description:
+                'Repository context: owner/repository or an HTTPS repository URL. Does not connect or clone it. Example: dexto chat start "Fix the bug" --repository truffle-ai/dexto',
+        },
         ...YES_OPTION,
     },
     async run(context, input) {
@@ -615,6 +639,7 @@ const start: Command = {
             model: 'model',
             route: 'route',
             title: 'title',
+            repository: 'repository',
         });
         const args: Record<string, string | boolean> = { message };
         for (const [flagName, field] of choices) {
@@ -673,9 +698,7 @@ const start: Command = {
                       : 'dexto chat browser-profiles';
             if (flag(input, 'wait')) {
                 if (context.output.json)
-                    context.runtime.writeOutput(
-                        `${JSON.stringify({ ...result, type: 'final' })}\n`
-                    );
+                    context.runtime.writeOutput(`${safeJson({ ...result, type: 'final' }, 0)}\n`);
                 else
                     context.output.result(
                         result,

@@ -29,43 +29,12 @@ const catalog = z
 // Approved S0 debt ceiling. Remove closed exceptions; never extend this baseline.
 const approvedExceptions = new Set(
     `billing
-cloud-agents-approve
-cloud-agents-archive
-cloud-agents-chat
-cloud-agents-create
-cloud-agents-reject
-cloud-agents-get
-cloud-agents-list
-cloud-agents-messages
-cloud-agents-runs-get
-cloud-agents-runs-list
-cloud-agents-runs-steps
-cloud-agents-sessions-cancel
-cloud-agents-sessions-delete
-cloud-agents-sessions-get
-cloud-agents-sessions-list
-cloud-agents-update
 cloud-api
-cloud-automations-create
-cloud-automations-delete
-cloud-automations-firings
-cloud-automations-get
-cloud-automations-list
-cloud-automations-pause
-cloud-automations-resume
 cloud-automations-rotate-secret
-cloud-automations-run
-cloud-automations-update
 cloud-data-deletions-create
 cloud-data-deletions-get
 cloud-data-deletions-list
 cloud-fetch
-cloud-files-delete
-cloud-files-download
-cloud-files-get
-cloud-files-list
-cloud-files-upload
-cloud-files-url
 cloud-functions-deploy
 cloud-functions-list
 models-list
@@ -90,12 +59,7 @@ cloud-secrets-get
 cloud-secrets-list
 cloud-secrets-update
 cloud-sites-deploy
-cloud-sites-list
-span-list
-trace-list
-trace-view
-chat-list-status
-chat-get-usage`.split('\n')
+cloud-sites-list`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.
@@ -288,7 +252,17 @@ describe('CLI and MCP capability parity', () => {
                 .map(([command]) => command)
                 .sort()
         ).toEqual(['workspace call', 'workspace describe', 'workspace tools']);
-        expect([...new Set(direct.concat(inventory.passthroughOnly))].sort()).toEqual(
+        expect(inventory.commands['chat outputs']).toEqual(['dexto_chat_outputs_list']);
+        const pending = z
+            .array(z.object({ tool: z.string() }))
+            .parse(inventory.pendingCli)
+            .map((entry) => entry.tool);
+        expect(
+            pending.filter(
+                (tool) => direct.includes(tool) || inventory.passthroughOnly.includes(tool)
+            )
+        ).toEqual([]);
+        expect([...new Set(direct.concat(inventory.passthroughOnly, pending))].sort()).toEqual(
             catalog.tools.map((tool) => tool.name).sort()
         );
     });
