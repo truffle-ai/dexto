@@ -15,7 +15,8 @@ export interface Output {
     readonly json: boolean;
     /**
      * Whether content, such as a file, a command's output or a model's reply, prints as its JSON
-     * record: only with an explicit --json, so piped content stays intact.
+     * record: only with an explicit --json, which is also how to get its exact characters. Without it,
+     * the text prints cleaned, piped or not.
      */
     readonly jsonContent: boolean;
     /** A page of a list: a table, plus how to read the next page when there is one. */

@@ -120,14 +120,31 @@ const upload: Command = {
 
 const download: Command = {
     arguments: '<file> [local_path]',
+    options: {
+        output: {
+            description:
+                'Where to save it: a local path (default: its file name), or - for stdout when piped.',
+            short: 'o',
+            type: 'string',
+            valueName: 'PATH',
+        },
+    },
     path: ['cloud', 'files', 'download'],
     summary:
-        'Download a file by id or path to a local path (default: its file name), or - for stdout.',
+        'Download a file by id or path to a local path (default: its file name), or - for stdout when piped.',
     async run(context, input) {
+        const requested = stringOption(input, 'output') ?? input.positionals[1];
+        // A file's bytes aren't text to clean, so they never go to a terminal, as with curl.
+        if (requested === '-' && context.runtime.stdoutIsTerminal)
+            throw new CommandFailure(
+                'invalid_input',
+                'This file would be printed to your terminal. Use -o <path> to save it, or pipe it to a command.',
+                null
+            );
         const client = await context.client();
         const fileId = await resolveFileId(client, argument(input, 0, 'file'));
         const file = await getFile(client, fileId);
-        const target = input.positionals[1] ?? path.basename(file.path);
+        const target = requested ?? path.basename(file.path);
         const { data, response } = await client.GET('/v1/files/{file_id}/content', {
             params: { path: { file_id: fileId } },
             parseAs: 'stream',

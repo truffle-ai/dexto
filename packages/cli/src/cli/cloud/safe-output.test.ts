@@ -1,6 +1,6 @@
 // Server text printed by cloud commands never reaches a terminal with control, bidi or invisible
 // characters, on the plain and --json paths, and a command added later gets the same guard.
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
@@ -18,6 +18,12 @@ const HOSTILE = 'evil\u001B[2J\u001B]0;pwned\u0007\u009B31m\u202Egnp.exe\u0085en
 const CLEAN = 'evil[2J]0;pwned31mgnp.exeend';
 const ESCAPED = '\\u009B31m\\u202Egnp.exe\\u0085end';
 
+// A link a server could draw: OSC 8 with ESC and BEL, and with the C1 forms of OSC and ST.
+const OSC8 = 'x\u001B]8;;https://evil.example\u0007click\u001B]8;;\u0007y';
+const OSC8_CLEAN = 'x]8;;https://evil.exampleclick]8;;y';
+const C1_OSC8 = 'x\u009D8;;https://evil.example\u009Cclick\u009D8;;\u009Cy';
+const C1_OSC8_CLEAN = 'x8;;https://evil.exampleclick8;;y';
+
 // Anything a terminal could act on, or that changes how text reads, once newlines are removed.
 const UNSAFE =
     // eslint-disable-next-line no-control-regex
@@ -33,6 +39,7 @@ describe('cloud output is safe at a terminal', () => {
     let stdout: string;
     let stderr: string;
     let terminal: boolean;
+    let bytes: Uint8Array[];
     let reply: (url: string) => Response;
     let host: CloudHost;
 
@@ -46,6 +53,7 @@ describe('cloud output is safe at a terminal', () => {
         stdout = '';
         stderr = '';
         terminal = true;
+        bytes = [];
         reply = () => Response.json({});
         const runtime: CloudRuntime = {
             color: false,
@@ -60,7 +68,9 @@ describe('cloud output is safe at a terminal', () => {
             get stdoutIsTerminal() {
                 return terminal;
             },
-            writeBytes: async () => undefined,
+            writeBytes: async (chunk) => {
+                bytes.push(chunk);
+            },
             writeError: (text) => {
                 stderr += text;
             },
@@ -183,13 +193,28 @@ describe('cloud output is safe at a terminal', () => {
             expect(stdout).toBe(`${CLEAN}\n`);
         });
 
-        it('leaves a body that is not JSON as it is when stdout is piped', async () => {
+        it('cleans a body that is not JSON when stdout is piped too, for `| cat` and `| less -R`', async () => {
             terminal = false;
-            reply = () => new Response(HOSTILE, { headers: { 'content-type': 'text/plain' } });
+            reply = () =>
+                new Response(`${HOSTILE}\n${OSC8}\n${C1_OSC8}`, {
+                    headers: { 'content-type': 'text/plain' },
+                });
 
             await runCloud(host, ['cloud', 'api', 'GET', '/v1/note']);
 
-            expect(stdout).toBe(`${HOSTILE}\n`);
+            expect(unsafe(stdout)).toBe(false);
+            expect(stdout).toBe(`${CLEAN}\n${OSC8_CLEAN}\n${C1_OSC8_CLEAN}\n`);
+        });
+
+        it('gives exact data with --json when piped', async () => {
+            terminal = false;
+            const body = { name: HOSTILE, link: OSC8 };
+            reply = () => Response.json(body);
+
+            await runCloud(host, ['cloud', 'api', 'GET', '/v1/me']);
+
+            expect(unsafe(stdout)).toBe(false);
+            expect(JSON.parse(stdout)).toEqual(body);
         });
     });
 
@@ -260,6 +285,75 @@ describe('cloud output is safe at a terminal', () => {
         });
     });
 
+    describe('files download', () => {
+        const FILE_ID = '3f2b8c1e-9d4a-4b6e-8f10-2a7c5d9e1b34';
+        // Bytes that are not text at all: a terminal sequence, a bidi mark, invalid UTF-8.
+        const content = Buffer.concat([
+            Buffer.from(`${HOSTILE}\n${OSC8}\n`),
+            Buffer.from([0x00, 0xff, 0xfe, 0x1b, 0x9b]),
+        ]);
+        let downloads: number;
+
+        beforeEach(() => {
+            downloads = 0;
+            reply = (url) => {
+                if (url.endsWith(`/v1/files/${FILE_ID}/content`)) {
+                    downloads += 1;
+                    return new Response(new Uint8Array(content), {
+                        headers: { 'content-type': 'application/octet-stream' },
+                    });
+                }
+                if (url.endsWith(`/v1/files/${FILE_ID}`))
+                    return Response.json({ id: FILE_ID, path: 'a/b.bin' });
+                return Response.json({}, { status: 404 });
+            };
+        });
+
+        for (const argv of [
+            ['cloud', 'files', 'download', FILE_ID, '-'],
+            ['cloud', 'files', 'download', FILE_ID, '-o', '-'],
+            ['cloud', 'files', 'download', FILE_ID, '--output', '-'],
+        ])
+            it(`refuses to print to a terminal: ${argv.slice(3).join(' ')}`, async () => {
+                const code = await runCloud(host, argv);
+
+                expect(code).toBe(2);
+                expect(stderr).toBe(
+                    'Error: This file would be printed to your terminal. Use -o <path> to save it, or pipe it to a command.\n'
+                );
+                expect(Buffer.concat(bytes)).toHaveLength(0);
+                expect(stdout).toBe('');
+                expect(downloads).toBe(0);
+            });
+
+        it('sends the exact bytes to a pipe with -o -', async () => {
+            terminal = false;
+
+            const code = await runCloud(host, ['cloud', 'files', 'download', FILE_ID, '-o', '-']);
+
+            expect(code).toBe(0);
+            expect(Buffer.concat(bytes).equals(content)).toBe(true);
+        });
+
+        it('saves the exact bytes to the path -o names, at a terminal', async () => {
+            const target = path.join(path.dirname(dir), 'saved.bin');
+
+            const code = await runCloud(host, [
+                'cloud',
+                'files',
+                'download',
+                FILE_ID,
+                '-o',
+                target,
+            ]);
+
+            expect(code).toBe(0);
+            expect((await readFile(target)).equals(content)).toBe(true);
+            expect(Buffer.concat(bytes)).toHaveLength(0);
+            expect(unsafe(stdout)).toBe(false);
+        });
+    });
+
     describe('a command added later', () => {
         // Writes server text straight through the runtime, as the commands this guards did.
         const added: Command = {
@@ -288,13 +382,14 @@ describe('cloud output is safe at a terminal', () => {
             });
         });
 
-        it('keeps piped stdout as it is, and still cleans stderr', async () => {
+        it('is cleaned when stdout is piped too', async () => {
             terminal = false;
 
             await runCloud(host, ['cloud', 'added']);
 
-            expect(stdout.startsWith(`out ${HOSTILE}\n`)).toBe(true);
+            expect(stdout.startsWith(`out ${CLEAN}\n`)).toBe(true);
             expect(stderr).toBe(`err ${CLEAN}\n`);
+            expect(unsafe(stdout)).toBe(false);
         });
     });
 });

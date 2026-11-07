@@ -27,6 +27,7 @@ export interface CloudRuntime {
     readonly signal: AbortSignal;
     /** Waits, ending early with an error when the command is cancelled. */
     readonly sleep: (ms: number) => Promise<void>;
+    /** Picks JSON or tables by default, and keeps a download's bytes off a terminal. */
     readonly stdoutIsTerminal: boolean;
     /** Raw bytes to stdout, such as a downloaded file. */
     readonly writeBytes: (chunk: Uint8Array) => Promise<void>;
@@ -40,21 +41,20 @@ export interface CloudRuntime {
 }
 
 /**
- * The runtime commands print through. What reaches a terminal has its control (C0, DEL, C1),
- * bidi and invisible characters taken out, so server text such as a name, an error or a model's
- * reply can't move the cursor, set the title or make a line read as something else. New commands
- * are covered without doing anything.
+ * The runtime commands print through. Text has its control (C0, DEL, C1), bidi and invisible
+ * characters taken out, so server text such as a name, an error or a model's reply can't move the
+ * cursor, set the title, start a link or make a line read as something else. New commands are
+ * covered without doing anything.
  *
- * - stdout is filtered at a terminal only; piped output, such as a file or a command's output,
- *   stays as it is.
- * - stderr is always filtered: it is for people, and `2>` doesn't say it isn't a terminal.
- * - Prompts are filtered too.
- * - JSON is not text to filter: build it with `jsonResult` or `safeJson`, which escape instead, so
- *   the data stays exact. Raw JSON from `JSON.stringify` printed at a terminal is filtered like
- *   any text (still valid JSON, but the characters are gone).
+ * - Text is always filtered, on stdout and stderr, at a terminal or not: a pipe can end at one
+ *   (`| cat`, `| less -R`). Prompts are filtered too.
+ * - Exact data is JSON: build it with `jsonResult` or `safeJson`, which escape instead of
+ *   dropping, so it parses back to the same value. Raw JSON from `JSON.stringify` is filtered
+ *   like any text (still valid JSON, but the characters are gone).
  * - Styled text (the tables, notes and sign-in screens) goes through `unfiltered`, and has to
  *   clean what it draws itself.
- * - `writeBytes` is never filtered: it is a download's own bytes.
+ * - `writeBytes` is a download's own bytes and is never filtered. Only a command that has
+ *   refused a terminal may use it (see `files download`).
  */
 export function guardRuntime(runtime: CloudRuntime): CloudRuntime {
     if (runtime.unfiltered !== undefined) return runtime;
@@ -65,8 +65,7 @@ export function guardRuntime(runtime: CloudRuntime): CloudRuntime {
             prompt === null ? null : (question, options) => prompt(safeLines(question), options),
         unfiltered: runtime,
         writeError: (text) => runtime.writeError(safeLines(text)),
-        writeOutput: (text) =>
-            runtime.writeOutput(runtime.stdoutIsTerminal ? safeLines(text) : text),
+        writeOutput: (text) => runtime.writeOutput(safeLines(text)),
     };
 }
 
