@@ -1880,6 +1880,8 @@ export class TurnExecutor {
         if (historyLengthChanged) return false;
         if (this.stepAbortController.signal.aborted) return false;
         if (!APICallError.isInstance?.(error)) return false;
+        // A rejected credential stays rejected, whatever the provider says about retrying.
+        if (error.statusCode === 401) return false;
         return error.isRetryable;
     }
 

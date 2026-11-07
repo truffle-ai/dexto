@@ -4011,6 +4011,28 @@ describe('TurnExecutor Integration Tests', () => {
             expect(retryingHandler).not.toHaveBeenCalled();
         });
 
+        it('treats a 401 as final even when the provider marks it retryable', async () => {
+            const unauthorized = apiCallError({
+                message: 'Authentication required.',
+                statusCode: 401,
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw unauthorized;
+            });
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+        });
+
         it('does not clear unprocessed persisted steers during cleanup', async () => {
             const steerQueueStore = createInMemoryMessageQueueStore();
             const clearSpy = vi.spyOn(steerQueueStore, 'clear');

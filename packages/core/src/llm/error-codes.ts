@@ -25,6 +25,7 @@ export enum LLMErrorCode {
     TOKENS_EXCEEDED = 'llm_tokens_exceeded',
     RATE_LIMIT_EXCEEDED = 'llm_rate_limit_exceeded',
     INSUFFICIENT_CREDITS = 'llm_insufficient_credits',
+    AUTH_FAILED = 'llm_auth_failed', // Provider answered 401: the credential is rejected
 
     // Operations
     SWITCH_FAILED = 'llm_switch_failed',
