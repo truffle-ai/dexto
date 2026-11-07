@@ -31,14 +31,9 @@ const approvedExceptions = new Set(
     `cloud-api
 cloud-automations-rotate-secret
 cloud-data-deletions-create
-cloud-data-deletions-get
-cloud-data-deletions-list
 cloud-fetch
 cloud-functions-deploy
-cloud-functions-list
 models-list
-cloud-projects-create
-cloud-projects-list
 cloud-sandboxes-cat
 cloud-sandboxes-create
 cloud-sandboxes-delete
