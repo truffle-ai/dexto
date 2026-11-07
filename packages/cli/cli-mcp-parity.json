@@ -39,6 +39,7 @@
         "chat computers": ["dexto_chat_computers_list"],
         "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
         "chat follow": ["dexto_chat_follow"],
+        "billing": ["dexto_billing_summary"],
         "cloud agents approve": ["dexto_cloud_agents_approve"],
         "cloud agents archive": ["dexto_cloud_agents_archive"],
         "cloud agents chat": ["dexto_cloud_agents_chat"],
@@ -110,19 +111,6 @@
         }
     ],
     "exceptions": [
-        {
-            "name": "billing",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "MCP balance/top-up lacks the CLI billing summary's 30-day spending and recent usage.",
-            "commands": ["billing"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_billing_summary",
-                    "inputs": []
-                }
-            ]
-        },
         {
             "name": "cloud-fetch",
             "group": "additionalRemote",

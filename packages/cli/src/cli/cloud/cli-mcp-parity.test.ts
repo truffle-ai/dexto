@@ -28,8 +28,7 @@ const catalog = z
 
 // Approved S0 debt ceiling. Remove closed exceptions; never extend this baseline.
 const approvedExceptions = new Set(
-    `billing
-cloud-api
+    `cloud-api
 cloud-automations-rotate-secret
 cloud-data-deletions-create
 cloud-data-deletions-get
