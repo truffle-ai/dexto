@@ -514,5 +514,18 @@
         "dexto_skill_validate",
         "dexto_skill_versions"
     ],
-    "pendingCli": []
+    "pendingCli": [
+        {
+            "tool": "dexto_computer_enrollment_key_create",
+            "reason": "Cloud slice lands first; a workspace computers command follows in dexto."
+        },
+        {
+            "tool": "dexto_computer_enrollment_key_revoke",
+            "reason": "Cloud slice lands first; a workspace computers command follows in dexto."
+        },
+        {
+            "tool": "dexto_computer_enrollment_keys_list",
+            "reason": "Cloud slice lands first; a workspace computers command follows in dexto."
+        }
+    ]
 }
