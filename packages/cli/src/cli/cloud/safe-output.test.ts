@@ -293,9 +293,11 @@ describe('cloud output is safe at a terminal', () => {
             Buffer.from([0x00, 0xff, 0xfe, 0x1b, 0x9b]),
         ]);
         let downloads: number;
+        let serverPath: string;
 
         beforeEach(() => {
             downloads = 0;
+            serverPath = 'a/b.bin';
             reply = (url) => {
                 if (url.endsWith(`/v1/files/${FILE_ID}/content`)) {
                     downloads += 1;
@@ -304,7 +306,7 @@ describe('cloud output is safe at a terminal', () => {
                     });
                 }
                 if (url.endsWith(`/v1/files/${FILE_ID}`))
-                    return Response.json({ id: FILE_ID, path: 'a/b.bin' });
+                    return Response.json({ id: FILE_ID, path: serverPath });
                 return Response.json({}, { status: 404 });
             };
         });
@@ -325,6 +327,42 @@ describe('cloud output is safe at a terminal', () => {
                 expect(stdout).toBe('');
                 expect(downloads).toBe(0);
             });
+
+        // A name from the server is never stdout, nor a name that can't be a file.
+        for (const name of ['-', '.', '..'])
+            for (const piped of [false, true])
+                it(`refuses a server file named ${name} saved by default, ${piped ? 'piped' : 'at a terminal'}`, async () => {
+                    terminal = !piped;
+                    serverPath = `a/${name}`;
+
+                    const code = await runCloud(host, ['cloud', 'files', 'download', FILE_ID]);
+
+                    expect(code).toBe(2);
+                    expect(stderr).toContain(
+                        "The file's name can't be used as a local name. Use -o <path> to say where to save it."
+                    );
+                    expect(Buffer.concat(bytes)).toHaveLength(0);
+                    expect(stdout).toBe('');
+                    expect(downloads).toBe(0);
+                });
+
+        it('still saves a server file named - where -o says', async () => {
+            serverPath = 'a/-';
+            const target = path.join(path.dirname(dir), 'named.bin');
+
+            const code = await runCloud(host, [
+                'cloud',
+                'files',
+                'download',
+                FILE_ID,
+                '-o',
+                target,
+            ]);
+
+            expect(code).toBe(0);
+            expect((await readFile(target)).equals(content)).toBe(true);
+            expect(Buffer.concat(bytes)).toHaveLength(0);
+        });
 
         it('sends the exact bytes to a pipe with -o -', async () => {
             terminal = false;

@@ -133,25 +133,27 @@ const download: Command = {
     summary:
         'Download a file by id or path to a local path (default: its file name), or - for stdout when piped.',
     async run(context, input) {
+        // Only the person's own `-` means stdout. A name from the server never does.
         const requested = stringOption(input, 'output') ?? input.positionals[1];
+        const client = await context.client();
+        const fileId = await resolveFileId(client, argument(input, 0, 'file'));
+        const file = await getFile(client, fileId);
+        const target = requested ?? localName(file.path);
+        const toStdout = requested === '-';
         // A file's bytes aren't text to clean, so they never go to a terminal, as with curl.
-        if (requested === '-' && context.runtime.stdoutIsTerminal)
+        if (toStdout && context.runtime.stdoutIsTerminal)
             throw new CommandFailure(
                 'invalid_input',
                 'This file would be printed to your terminal. Use -o <path> to save it, or pipe it to a command.',
                 null
             );
-        const client = await context.client();
-        const fileId = await resolveFileId(client, argument(input, 0, 'file'));
-        const file = await getFile(client, fileId);
-        const target = requested ?? path.basename(file.path);
         const { data, response } = await client.GET('/v1/files/{file_id}/content', {
             params: { path: { file_id: fileId } },
             parseAs: 'stream',
         });
         if (!response.ok || data === undefined || data === null)
             throw v1Failure(context, response.status, await response.text().catch(() => ''));
-        if (target === '-') {
+        if (toStdout) {
             const reader = data.getReader();
             for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read())
                 await context.runtime.writeBytes(chunk.value);
@@ -161,6 +163,18 @@ const download: Command = {
         context.output.result({ ...file, local_path: target }, `Saved ${file.path} to ${target}.`);
     },
 };
+
+/** The local name for a server path: its last part, unless that can't name a file. */
+function localName(serverPath: string): string {
+    const name = path.basename(serverPath);
+    if (name === '' || name === '-' || name === '.' || name === '..')
+        throw new CommandFailure(
+            'invalid_input',
+            `The file's name can't be used as a local name. Use -o <path> to say where to save it.`,
+            null
+        );
+    return name;
+}
 
 const url: Command = {
     arguments: '<file>',
