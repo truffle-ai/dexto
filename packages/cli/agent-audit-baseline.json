@@ -28,8 +28,29 @@
     "examples": false
   },
   {
+    "command": "chat browser-profiles",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat computers",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "chat delete",
     "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat follow",
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
@@ -60,6 +81,20 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat outputs",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat start",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
     "examples": false
   },
   {

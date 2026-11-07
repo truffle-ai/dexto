@@ -6,51 +6,46 @@ sidebar_position: 2
 
 This guide will walk you through installing the Dexto CLI and setting up your environment so you can start running agents.
 
-## Prerequisites
+## 1. Install and check your account
 
-- [Node.js](https://nodejs.org/en/download) >= 20.0.0 with npm.
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
+Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 
-**Optional:** An LLM API Key (not required for local models)
-- [Get a Gemini Key](https://aistudio.google.com/apikey) (free option available)
-- [Get a Groq Key](https://console.groq.com/keys) (free option available)
-- [Get an OpenAI Key](https://platform.openai.com/api-keys)
-- [Get a Claude Key](https://console.anthropic.com/settings/keys)
-
-## 1. Install Dexto
-
-Install Dexto using the native installer:
-
-```bash
-# macOS / Linux / WSL
-curl -fsSL https://dexto.ai/install | sh
-
-# Windows PowerShell
-irm https://dexto.ai/install.ps1 | iex
+```sh
+npm install -g dexto@next
 ```
 
-The installer needs no admin rights and never prompts. It installs the `latest` release, verified against the npm registry checksum, into `~/.dexto/cli`, and puts `dexto` in `~/.local/bin` (Windows: `%USERPROFILE%\.dexto\bin`, added to your user PATH). Re-running it with the same version changes nothing.
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
 
-To install the Dexto 2.0 beta, or any version or dist-tag, set `DEXTO_VERSION`:
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
+Do not approve sign-in on their behalf. Check the first account result:
 
-```bash
-curl -fsSL https://dexto.ai/install | DEXTO_VERSION=next sh
+```sh
+dexto whoami --json
+```
+
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.
+
+### Alternative: native installer
+
+```sh
+curl -fsSL https://dexto.ai/install | sh -s -- --version next
 ```
 
 ```powershell
 $env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
 ```
 
-The last line of output is one JSON object, `{"installed":{...}}` or `{"error":{...}}`. Exit codes: 0 success, 1 failure, 2 invalid input, 5 version not found. Run `curl -fsSL https://dexto.ai/install | sh -s -- --help` for all options.
-
-### Upgrade
-
-```bash
-# latest
-dexto upgrade
-
-# pinned
-dexto upgrade 1.6.8
-```
+Node.js 20 or later works; 22 is recommended. The installer needs npm, verifies the registry checksum, and installs without admin
+rights under `~/.dexto/cli`. Add its printed bin directory to PATH (`~/.local/bin` on Unix;
+`%USERPROFILE%\.dexto\bin` on Windows). Then run `dexto login --device` and `dexto whoami --json`.
+The default is `latest` for 1.x upgrades; explicitly select `next` for 2.0.
+Use `dexto upgrade next` to update a script install. Update npm installs with `npm install -g dexto@next`.
 
 ### Uninstall CLI
 
@@ -64,7 +59,7 @@ dexto uninstall --purge
 
 ### PATH Troubleshooting
 
-If you had an older npm global install, `dexto upgrade` automatically migrates it to native.
+For npm installs, update with `npm install -g dexto@next`. For script installs, use `dexto upgrade next`.
 
 If your shell still resolves the wrong binary:
 
@@ -72,7 +67,7 @@ If your shell still resolves the wrong binary:
 which -a dexto
 ```
 
-Remove stale entries and run `dexto upgrade` again.
+Remove stale entries, then repeat the update command for your install method.
 
 ## 2. Choose a Model
 

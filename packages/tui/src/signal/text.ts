@@ -9,9 +9,10 @@
  * Plain output (not a TTY, or NO_COLOR) gets no colour, no links, no wordmark and no cut type:
  * the same words on plain lines.
  */
+import chalk, { type ColorSupportLevel } from 'chalk';
 import stringWidth from 'string-width';
 import stripAnsi from 'strip-ansi';
-import { getCaps } from './caps.js';
+import { detectCaps, getCaps, setCaps, type Caps } from './caps.js';
 import { cutLines } from './cut.js';
 import { glyphText } from './glyphs.js';
 import { paint } from './paint.js';
@@ -60,16 +61,49 @@ export function glyph(text: string): string {
 
 /** Cells the spans take on screen. */
 export function spansWidth(spans: readonly Span[]): number {
-    return spans.reduce((width, each) => width + stringWidth(glyph(each.text)), 0);
+    return spans.reduce((width, each) => width + stringWidth(glyph(safeText(each.text))), 0);
+}
+
+// C0 (with DEL) and C1 controls. Tab, newline and carriage return become a space, so words
+// stay apart; the rest are dropped.
+const SPACING_CONTROLS = /[\t\n\r]/gu;
+// eslint-disable-next-line no-control-regex
+const CONTROLS = /[\u0000-\u001F\u007F-\u009F]/gu;
+
+/**
+ * Text with its control characters taken out. Span text can come from a server (a name, an
+ * error message), and an ESC or C1 in it could move the cursor, rewrite the title or start a
+ * link of its own.
+ */
+export function safeText(text: string): string {
+    return text.replace(SPACING_CONTROLS, ' ').replace(CONTROLS, '');
+}
+
+/**
+ * The link target for OSC 8: an http(s) URL with no control characters, which could end the
+ * escape early. Anything else (`file:`, `javascript:`, a URL that doesn't parse, an ESC or BEL
+ * in it) is null, and the text is drawn without a link.
+ */
+export function safeHref(href: string): string | null {
+    let parsed: URL;
+    try {
+        parsed = new URL(href);
+    } catch {
+        return null;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return href === safeText(href) ? href : null;
 }
 
 function drawSpan(each: Span): string {
-    const text = glyph(each.text);
+    const text = glyph(safeText(each.text));
     if (!richOutput() || text === '') return text;
     let chalk = paint(each.role);
     if (each.bold) chalk = chalk.bold;
     if (each.href === null) return chalk(text);
-    return `\u001B]8;;${each.href}\u0007${chalk.underline(text)}\u001B]8;;\u0007`;
+    const href = safeHref(each.href);
+    if (href === null) return chalk.underline(text);
+    return `\u001B]8;;${href}\u0007${chalk.underline(text)}\u001B]8;;\u0007`;
 }
 
 /** Cells a drawn line takes on screen, escapes left out. */
@@ -209,4 +243,34 @@ export function faultLines(fault: Fault, indent = 2): string[] {
     if (fault.fix !== null)
         rows.push({ bar: 'redDim', label: span('dim', 'next'), text: [span('amber', fault.fix)] });
     return barLines(rows, indent);
+}
+
+const CHALK_LEVELS: Readonly<Record<Caps['color'], ColorSupportLevel>> = {
+    none: 0,
+    '16': 1,
+    '256': 2,
+    truecolor: 3,
+};
+
+/**
+ * Caps for a stream other than stdout (stderr for the sign-in screens): its own TTY decides the
+ * colour, links and live lines; the rest (glyphs, theme, palette) is this terminal's.
+ */
+export function capsFor(stream: { readonly isTTY?: boolean }): Caps {
+    const own = detectCaps(process.env, stream.isTTY === true);
+    return { ...getCaps(), tty: own.tty, color: own.color };
+}
+
+/** `draw` with these caps and the matching chalk level; both are put back afterwards. */
+export function drawOn<T>(caps: Caps, draw: () => T): T {
+    const savedCaps = getCaps();
+    const savedLevel = chalk.level;
+    setCaps(caps);
+    chalk.level = CHALK_LEVELS[caps.color];
+    try {
+        return draw();
+    } finally {
+        chalk.level = savedLevel;
+        setCaps(savedCaps);
+    }
 }

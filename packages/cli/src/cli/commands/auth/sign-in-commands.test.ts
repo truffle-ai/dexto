@@ -101,6 +101,7 @@ describe('sign-in commands', () => {
             screen: plainSignInScreen((text) => notes.push(text)),
             confirm: async () => false,
             canOpenBrowser: true,
+            interactive: true,
             chatSyncOn: async () => chatSyncOn,
             dexto: {
                 signInWithBrowser: async (input) => {
@@ -190,6 +191,17 @@ describe('sign-in commands', () => {
             await login(context, noOptions);
             const moved = await readLogin(dir, 'default');
             expect(moved?.kind === 'oauth' && moved.cloudProject?.id).toBe('prj_main');
+        });
+
+        it('uses the browser for plain login from a non-interactive desktop shell', async () => {
+            context = { ...context, interactive: false };
+
+            await login(context, noOptions);
+
+            expect(browserInputs).toHaveLength(1);
+            expect(browserInputs[0]?.openBrowser).toBe(true);
+            expect(deviceInputs).toHaveLength(0);
+            expect(notes).toEqual([]);
         });
 
         it('signs in with a device code with --device', async () => {
@@ -351,6 +363,33 @@ describe('sign-in commands', () => {
             });
         });
 
+        it('suggests device sign-in in a non-interactive desktop shell', async () => {
+            context = { ...context, interactive: false };
+
+            await expect(whoami(context, { profile: null, apiKey: null })).rejects.toMatchObject({
+                kind: 'needs_sign_in',
+                fix: 'dexto login --device',
+            });
+        });
+
+        it('gives a device sign-in fix when no browser can finish it', async () => {
+            context = { ...context, canOpenBrowser: false };
+
+            await expect(whoami(context, { profile: 'work', apiKey: null })).rejects.toMatchObject({
+                kind: 'needs_sign_in',
+                fix: 'dexto login --profile work --device',
+            });
+        });
+
+        it('gives a device sign-in fix over SSH even with a browser available', async () => {
+            context = { ...context, environment: { SSH_TTY: '/dev/pts/1' } };
+
+            await expect(whoami(context, { profile: null, apiKey: null })).rejects.toMatchObject({
+                kind: 'needs_sign_in',
+                fix: 'dexto login --device',
+            });
+        });
+
         it('shows the profile, account, organization and where it came from', async () => {
             await writeLogin(dir, 'work', signedIn(ACME));
             await writeCurrentProfile(dir, 'work');
@@ -374,6 +413,48 @@ describe('sign-in commands', () => {
             await whoami(context, { profile: null, apiKey: null });
 
             expect(printed).toEqual(['api key       dxt_123…abcd (from DEXTO_API_KEY)']);
+            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'environment' }]);
+        });
+
+        it("says the account and organization are unknown when the sign-in didn't say", async () => {
+            await writeLogin(dir, 'default', signedIn(ACME, { signedInAs: null }));
+
+            await whoami(context, { profile: null, apiKey: null });
+
+            expect(printed).toEqual([
+                [
+                    'profile       default',
+                    'account       unknown',
+                    'organization  unknown',
+                    `app           ${APP}`,
+                    'scopes        cloud:read',
+                ].join('\n'),
+            ]);
+            expect(values).toEqual([
+                {
+                    as: 'person',
+                    profile: 'default',
+                    account: null,
+                    organization: null,
+                    app_url: APP,
+                    cloud_project: null,
+                    scopes: ['cloud:read'],
+                },
+            ]);
+        });
+
+        it('shows a saved API key masked, with its profile', async () => {
+            await writeLogin(dir, 'default', {
+                kind: 'api_key',
+                apiKey: 'dxt_1234567890abcd',
+                apiBaseUrl: API,
+                savedAt: '2026-10-31T00:00:00.000Z',
+            });
+
+            await whoami(context, { profile: null, apiKey: null });
+
+            expect(printed).toEqual(['api key       dxt_123…abcd, profile default']);
+            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'login' }]);
         });
     });
 
@@ -482,6 +563,41 @@ describe('sign-in commands', () => {
                 ].join('\n')
             );
             expect(values[0]).toMatchObject({ as: 'person', profile: 'work' });
+        });
+
+        it("says Signed in, with the org unknown, when the sign-in didn't say who", async () => {
+            await writeLogin(dir, 'default', signedIn(ACME, { signedInAs: null }));
+
+            await withSignal(() => whoami(context, { profile: null, apiKey: null }));
+
+            const lines = printed.join('\n').split('\n');
+            expect(lines[0]).toBe('◆ Signed in');
+            expect(lines[1]).toBe('  org       unknown');
+            expect(values).toEqual([
+                expect.objectContaining({ as: 'person', account: null, organization: null }),
+            ]);
+        });
+
+        it('shows an API key the same way, saved or from DEXTO_API_KEY', async () => {
+            await writeLogin(dir, 'default', {
+                kind: 'api_key',
+                apiKey: 'dxt_1234567890abcd',
+                apiBaseUrl: API,
+                savedAt: '2026-10-31T00:00:00.000Z',
+            });
+
+            await withSignal(() => whoami(context, { profile: null, apiKey: null }));
+            context = { ...context, environment: { DEXTO_API_KEY: 'dxt_abcdefgh123456' } };
+            await withSignal(() => whoami(context, { profile: null, apiKey: null }));
+
+            expect(printed).toEqual([
+                'api key       dxt_123…abcd, profile default',
+                'api key       dxt_abc…3456 (from DEXTO_API_KEY)',
+            ]);
+            expect(values).toEqual([
+                { as: 'api_key', key: 'dxt_123…abcd', source: 'login' },
+                { as: 'api_key', key: 'dxt_abc…3456', source: 'environment' },
+            ]);
         });
 
         const signalScreen = () => ({

@@ -14,6 +14,31 @@ The Dexto CLI provides two ways to interact with AI agents:
 
 This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
 
+## Install
+
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
+Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+
+```sh
+npm install -g dexto@next
+```
+
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
+Do not approve sign-in on their behalf. Check the first account result:
+
+```sh
+dexto whoami --json
+```
+
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.
+
 ## What You Can Do
 
 - Talk to any LLM in your terminal
@@ -87,14 +112,11 @@ Signed in, every local session also gets the Dexto MCP as a server named `dexto`
 
 ### `upgrade` - Upgrade Dexto CLI
 
-Upgrade the Dexto CLI itself. If an older npm global install is detected, this command migrates to native installer automatically.
+For script installs, upgrade the Dexto CLI with `dexto upgrade next`. For npm installs, use `npm install -g dexto@next`.
 
 ```bash
-# Upgrade to latest
-dexto upgrade
-
-# Upgrade to a specific version
-dexto upgrade 1.6.8
+# Stay on the 2.0 beta channel
+dexto upgrade next
 ```
 
 **Options:**
@@ -103,7 +125,7 @@ dexto upgrade 1.6.8
 
 ### `uninstall` - Uninstall Dexto CLI
 
-Uninstall the Dexto CLI binary (agent removal is handled by `dexto agents uninstall`).
+Uninstall the Dexto CLI binary:
 
 ```bash
 # Remove CLI binary only (keeps ~/.dexto)
@@ -302,6 +324,7 @@ dexto workspace                            # your apps
 dexto workspace drive                      # what an app does
 dexto workspace drive put ./report.pdf     # upload into Drive
 dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan-1 --yes
+dexto workspace artifacts list --chat <id> --json
 dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
 dexto workspace email send --to a@b.c --yes

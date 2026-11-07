@@ -4,6 +4,12 @@ import { z } from 'zod';
 import inventory from '../../../cli-mcp-parity.json' with { type: 'json' };
 import { cloudCommands } from './host.js';
 
+it('keeps the vendored parity inventory identical to the CLI inventory', () => {
+    expect(readFileSync(new URL('./__parity__/cli-mcp-parity.json', import.meta.url), 'utf8')).toBe(
+        readFileSync(new URL('../../../cli-mcp-parity.json', import.meta.url), 'utf8')
+    );
+});
+
 const catalog = z
     .object({
         tools: z.array(
@@ -40,26 +46,11 @@ cloud-agents-sessions-get
 cloud-agents-sessions-list
 cloud-agents-update
 cloud-api
-cloud-automations-create
-cloud-automations-delete
-cloud-automations-firings
-cloud-automations-get
-cloud-automations-list
-cloud-automations-pause
-cloud-automations-resume
 cloud-automations-rotate-secret
-cloud-automations-run
-cloud-automations-update
 cloud-data-deletions-create
 cloud-data-deletions-get
 cloud-data-deletions-list
 cloud-fetch
-cloud-files-delete
-cloud-files-download
-cloud-files-get
-cloud-files-list
-cloud-files-upload
-cloud-files-url
 cloud-functions-deploy
 cloud-functions-list
 models-list
@@ -89,15 +80,7 @@ cloud-secrets-get
 cloud-secrets-list
 cloud-secrets-update
 cloud-sites-deploy
-cloud-sites-list
-span-list
-trace-list
-trace-view
-chat-artifacts
-chat-list-status
-chat-wait-follow
-chat-start-computer-browser
-chat-get-usage`.split('\n')
+cloud-sites-list`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.
@@ -156,7 +139,6 @@ dexto_chat_get
 dexto_chat_list
 dexto_chat_models
 dexto_chat_send
-dexto_chat_start
 dexto_contacts_block
 dexto_contacts_connect
 dexto_contacts_invite_link
@@ -291,7 +273,17 @@ describe('CLI and MCP capability parity', () => {
                 .map(([command]) => command)
                 .sort()
         ).toEqual(['workspace call', 'workspace describe', 'workspace tools']);
-        expect([...new Set(direct.concat(inventory.passthroughOnly))].sort()).toEqual(
+        expect(inventory.commands['chat outputs']).toEqual(['dexto_chat_outputs_list']);
+        const pending = z
+            .array(z.object({ tool: z.string() }))
+            .parse(inventory.pendingCli)
+            .map((entry) => entry.tool);
+        expect(
+            pending.filter(
+                (tool) => direct.includes(tool) || inventory.passthroughOnly.includes(tool)
+            )
+        ).toEqual([]);
+        expect([...new Set(direct.concat(inventory.passthroughOnly, pending))].sort()).toEqual(
             catalog.tools.map((tool) => tool.name).sort()
         );
     });

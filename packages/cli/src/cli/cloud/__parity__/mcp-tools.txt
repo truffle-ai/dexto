@@ -820,23 +820,29 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "limit": {
+            "description": "How many artifacts to return, from 1 to 100; 50 when left out.",
             "type": "integer",
             "minimum": 1,
-            "maximum": 100,
-            "description": "How many artifacts to return, from 1 to 100; 50 when left out."
+            "maximum": 100
           },
           "cursor": {
+            "description": "The next value of the previous artifacts.list result, to read the following page.",
             "type": "string",
             "minLength": 1,
-            "maxLength": 1000,
-            "description": "The next value of the previous artifacts.list result, to read the following page."
+            "maxLength": 1000
+          },
+          "sessionId": {
+            "description": "Only Artifacts produced by this chat ID.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           }
         },
-        "required": []
+        "additionalProperties": false
       },
       "name": "dexto_artifacts_list"
     },
@@ -3174,6 +3180,15 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_browser_profiles_list"
+    },
+    {
+      "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "sessionId": {
@@ -3465,6 +3480,15 @@
       "inputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_computers_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
         "properties": {
           "sessionId": {
             "type": "string",
@@ -3497,6 +3521,33 @@
         "additionalProperties": false
       },
       "name": "dexto_chat_continue"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cursor": {
+            "description": "Opaque durable cursor from chat wait/follow; never a streamSequence or chat_get page cursor.",
+            "type": "string"
+          },
+          "waitSeconds": {
+            "default": 25,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 25
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_follow"
     },
     {
       "inputSchema": {
@@ -3718,6 +3769,17 @@
               "any"
             ]
           },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "retrying",
+              "waiting_approval",
+              "idle"
+            ],
+            "description": "Filter by current chat status before pagination or search limits. idle means no active run, including completed, failed and cancelled runs."
+          },
           "cursor": {
             "description": "Pagination cursor returned by a previous dexto_chat_list response. Omit for the latest sessions. Not used with query.",
             "type": "string"
@@ -3749,6 +3811,34 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_outputs_list"
+    },
+    {
+      "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "queue": {
@@ -3756,9 +3846,9 @@
               "steer",
               "follow-up"
             ],
-            "default": "follow-up",
+            "default": "steer",
             "type": "string",
-            "description": "steer updates the current turn at its next input boundary; follow-up waits for a next turn."
+            "description": "steer (default) reaches the current turn at its next step; follow-up waits until the current work ends, for a message meant for after it."
           },
           "message": {
             "description": "The message for the conversation.",
@@ -3793,49 +3883,981 @@
     },
     {
       "inputSchema": {
-        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
         "properties": {
+          "computerId": {
+            "description": "MCP only: an owned online connected computer from dexto_chat_computers_list, attached in addition to the chat's hosted computer.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "browserProfileId": {
+            "description": "MCP only: an owned available browser profile from dexto_chat_browser_profiles_list, or \"none\" for a browser that keeps no sign-ins and leaves your profiles alone. Set on the chat's hosted computer before its first turn; starts billed hosted compute. Omitted, the chat uses your first profile.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "string",
+                "const": "none"
+              }
+            ]
+          },
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Optional repository context: owner/repository or an HTTPS repository URL. This does not connect or clone it."
+          },
+          "wait": {
+            "description": "Requires sessions:read before admission. Wait up to 25 seconds for answer, artifacts and usage; running or needs_input includes nextAction.",
+            "type": "boolean"
+          },
           "agentId": {
             "description": "Optional Dexto agent id. Defaults to the user's Dexto.",
             "type": "string"
           },
           "message": {
-            "description": "The first user message for the Dexto session.",
+            "type": "string",
             "minLength": 1,
-            "type": "string"
+            "description": "The first user message for the Dexto session."
           },
           "model": {
-            "description": "Optional model id from dexto_chat_models. Omitted, the chat starts on the agent's own model or the person's default; name another only when the task suits it better.",
+            "description": "Optional model id from dexto_chat_models. Omitted, the chat uses the agent's or person's default model.",
             "type": "string"
           },
           "route": {
-            "description": "Optional, with model: how the chat pays for it, one of the model's routes from dexto_chat_models. dexto_credits uses Dexto credits, chatgpt_subscription the person's ChatGPT subscription. Omitted, the model's usual route.",
+            "description": "Optional payment route for model, from dexto_chat_models.",
+            "type": "string",
             "enum": [
               "dexto_credits",
               "chatgpt_subscription",
               "claude_code"
-            ],
-            "type": "string"
+            ]
           },
           "title": {
             "description": "Optional short session title.",
             "type": "string"
           },
           "uploads": {
-            "description": "Optional uploaded local file paths returned by dexto_upload_prepare, after the returned curl command succeeds. Use the path only.",
+            "description": "Optional uploaded local paths from dexto_upload_prepare after its curl command succeeds.",
+            "type": "array",
             "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "confirm": {
+            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+            "type": "boolean"
           }
         },
         "required": [
           "message"
         ],
-        "type": "object"
+        "additionalProperties": false
       },
       "name": "dexto_chat_start"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cursor": {
+            "description": "Opaque durable cursor from chat wait/follow; never a streamSequence or chat_get page cursor.",
+            "type": "string"
+          },
+          "waitSeconds": {
+            "default": 25,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 25
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_wait"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Display name."
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "agent_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "An active agent of this key's Cloud project."
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "The message each firing sends the agent. It may use {{automation.id}}, {{automation.name}}, {{firing.id}}, {{firing.source}}, {{firing.fired_at}}, {{firing.scheduled_for}}, {{webhook.payload}}; {{webhook.payload}} is the request's JSON body (webhook automations only)."
+              },
+              "session": {
+                "default": {
+                  "metadata": {},
+                  "mode": "new"
+                },
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "metadata": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/definitions/__schema0"
+                        },
+                        "description": "Your context for this session, such as a tenant id. Function tools receive it with every call; the model never sets it."
+                      },
+                      "mode": {
+                        "type": "string",
+                        "const": "new",
+                        "description": "Start a new session of the agent for each firing."
+                      },
+                      "user": {
+                        "description": "The new sessions' end-user label. Defaults to automation:<automation id>.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "fixed",
+                        "description": "Send every firing to one session."
+                      },
+                      "session_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "A session of the target agent."
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "session_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "Which session each firing writes to."
+              },
+              "type": {
+                "type": "string",
+                "const": "agent",
+                "description": "Run an Agents API agent."
+              }
+            },
+            "required": [
+              "agent_id",
+              "message",
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          "trigger": {
+            "type": "object",
+            "properties": {
+              "schedule": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "run_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When to fire, an ISO 8601 date and time with an offset, in the future and at most 366 days ahead."
+                      },
+                      "type": {
+                        "type": "string",
+                        "const": "once",
+                        "description": "Fire once, within a minute of run_at."
+                      }
+                    },
+                    "required": [
+                      "run_at",
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "cron": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "A five-field cron expression (minute, hour, day of month, month, day of week). Two firings may be no closer than 5 minutes."
+                      },
+                      "timezone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "The IANA timezone the cron is read in, such as Europe/Berlin."
+                      },
+                      "type": {
+                        "type": "string",
+                        "const": "recurring",
+                        "description": "Fire on every cron occurrence."
+                      }
+                    },
+                    "required": [
+                      "cron",
+                      "timezone",
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "When the automation fires."
+              },
+              "type": {
+                "type": "string",
+                "const": "schedule"
+              }
+            },
+            "required": [
+              "schedule",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "When the automation fires: a schedule. Create a webhook automation with the CLI."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "name",
+          "target",
+          "trigger",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false,
+        "definitions": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": [
+                  "boolean",
+                  "number",
+                  "string",
+                  "null"
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/definitions/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "name": "dexto_cloud_automations_create"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The automation's id."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "automationId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_automations_delete"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "Return firings after this firing id.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "automationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The automation's id."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many firings, 1 to 100.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "automationId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_automations_firings"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The automation's id."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "automationId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_automations_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "Return automations after this automation id.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "agentId": {
+            "description": "Only automations that run this agent.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many automations, 1 to 100.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_automations_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The automation's id."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "automationId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_automations_pause"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The automation's id."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "automationId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_automations_resume"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The automation's id."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "automationId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_automations_run"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The automation's id."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "name": {
+            "description": "A new display name.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "target": {
+            "description": "A new message or session. The agent can't change.",
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "The message each firing sends the agent. It may use {{automation.id}}, {{automation.name}}, {{firing.id}}, {{firing.source}}, {{firing.fired_at}}, {{firing.scheduled_for}}, {{webhook.payload}}; {{webhook.payload}} is the request's JSON body (webhook automations only)."
+              },
+              "session": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "metadata": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/definitions/__schema0"
+                        },
+                        "description": "Your context for this session, such as a tenant id. Function tools receive it with every call; the model never sets it."
+                      },
+                      "mode": {
+                        "type": "string",
+                        "const": "new",
+                        "description": "Start a new session of the agent for each firing."
+                      },
+                      "user": {
+                        "description": "The new sessions' end-user label. Defaults to automation:<automation id>.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "fixed",
+                        "description": "Send every firing to one session."
+                      },
+                      "session_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "A session of the target agent."
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "session_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "Which session each firing writes to."
+              }
+            },
+            "additionalProperties": false
+          },
+          "trigger": {
+            "description": "A new schedule, for a schedule automation.",
+            "type": "object",
+            "properties": {
+              "schedule": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "run_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When to fire, an ISO 8601 date and time with an offset, in the future and at most 366 days ahead."
+                      },
+                      "type": {
+                        "type": "string",
+                        "const": "once",
+                        "description": "Fire once, within a minute of run_at."
+                      }
+                    },
+                    "required": [
+                      "run_at",
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "cron": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "A five-field cron expression (minute, hour, day of month, month, day of week). Two firings may be no closer than 5 minutes."
+                      },
+                      "timezone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "The IANA timezone the cron is read in, such as Europe/Berlin."
+                      },
+                      "type": {
+                        "type": "string",
+                        "const": "recurring",
+                        "description": "Fire on every cron occurrence."
+                      }
+                    },
+                    "required": [
+                      "cron",
+                      "timezone",
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "When the automation fires."
+              },
+              "type": {
+                "type": "string",
+                "const": "schedule"
+              }
+            },
+            "required": [
+              "schedule",
+              "type"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "automationId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false,
+        "definitions": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": [
+                  "boolean",
+                  "number",
+                  "string",
+                  "null"
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/definitions/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "name": "dexto_cloud_automations_update"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_delete"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_download"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "The next_after of the previous page.",
+            "type": "string",
+            "minLength": 1
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "contains": {
+            "description": "Only paths containing this, ignoring case.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "limit": {
+            "default": 100,
+            "description": "Files per page, 1 to 1000.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "prefix": {
+            "default": "",
+            "description": "Only paths starting with this, such as reports/.",
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "contentType": {
+            "default": "application/octet-stream",
+            "description": "The file's media type.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "description": "Delete the file at this time. Files are kept until deleted when omitted."
+          },
+          "metadata": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Up to 32 string entries and 4096 bytes; keys are letters, digits, '_', '.' or '-'."
+          },
+          "overwrite": {
+            "default": false,
+            "description": "Replace a file that already has this path.",
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "The file's path in the project, such as reports/q3.pdf."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Lowercase hex SHA-256 of the bytes."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5368709120,
+            "description": "The file's size in bytes."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "path",
+          "sha256",
+          "sizeBytes"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_upload"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "uploadId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The id dexto_cloud_files_upload returned."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "uploadId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_upload_complete"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "expiresIn": {
+            "default": 3600,
+            "description": "Seconds until the URL stops working; at most 86400.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_url"
     },
     {
       "inputSchema": {
@@ -6931,6 +7953,12 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Optional repository context: owner/repository or an HTTPS repository URL. This does not connect or clone it."
+          },
           "project": {
             "description": "The Project, by its id or link. A Project's coordinator leaves it out for its own Project.",
             "type": "string",
@@ -9247,6 +10275,114 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 100,
+            "description": "At most this many spans, up to 500.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "name": {
+            "description": "Only spans with exactly this name.",
+            "type": "string",
+            "minLength": 1
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+            "description": "The run to read, a run_id from dexto_trace_list. Another person's run is not found."
+          },
+          "sort": {
+            "default": "started_at",
+            "description": "started_at: by start time. duration: longest first.",
+            "type": "string",
+            "enum": [
+              "started_at",
+              "duration"
+            ]
+          },
+          "status": {
+            "description": "Only spans in this status.",
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_span_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "description": "At most this many traces, up to 100.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "period": {
+            "description": "Only runs with a span in this recent period, such as 15m, 3h or 7d; at most 30d.",
+            "type": "string",
+            "pattern": "^[1-9]\\d*[mhd]$"
+          },
+          "sessionId": {
+            "description": "Only runs of this chat.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+          },
+          "status": {
+            "description": "Only runs in this status.",
+            "type": "string",
+            "enum": [
+              "cancelled",
+              "completed",
+              "failed",
+              "queued",
+              "retrying",
+              "running",
+              "waiting_approval"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "name": "dexto_trace_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+            "description": "The run to read, a run_id from dexto_trace_list. Another person's run is not found."
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_trace_view"
+    },
+    {
+      "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "filename": {
@@ -9292,5 +10428,5 @@
       "name": "dexto_upload_prepare"
     }
   ],
-  "chatGetUsage": false
+  "chatGetUsage": true
 }

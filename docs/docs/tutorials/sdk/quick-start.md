@@ -18,7 +18,7 @@ That's it. Once this works, you'll know the SDK is set up correctly.
 
 ## Prerequisites
 
-- Node.js 18 or higher
+- Node.js 20 or later works; 22 is recommended
 - An API key from [OpenAI](https://platform.openai.com), [Anthropic](https://console.anthropic.com), or [Cohere](https://dashboard.cohere.com)
 
 ## Install

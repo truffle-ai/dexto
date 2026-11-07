@@ -9,11 +9,75 @@ import {
     line,
     link,
     noticeLines,
+    safeHref,
+    safeText,
     span,
     spread,
     strong,
     wordmarkRows,
 } from './text.js';
+
+describe('Signal text from a server', () => {
+    const ESC = '\u001B';
+    const BEL = '\u0007';
+    const C1_CSI = '\u009B';
+    const C1_OSC = '\u009D';
+
+    it('takes C0 and C1 control characters out of span text', () => {
+        expect(safeText(`Acme${ESC}[2J${ESC}]0;pwned${BEL}`)).toBe('Acme[2J]0;pwned');
+        expect(safeText(`Sam${C1_CSI}31m${C1_OSC}8;;http://evil${BEL}`)).toBe(
+            'Sam31m8;;http://evil'
+        );
+        expect(safeText('a\u0000b\u0008c\u007Fd\u0085e')).toBe('abcde');
+        expect(safeText('one\ntwo\rthree\tfour')).toBe('one two three four');
+        expect(safeText('Acme · ◆ café 日本')).toBe('Acme · ◆ café 日本');
+    });
+
+    it.each(TERMINAL_NAMES)('draws no escape of its own from server text on %s', (terminal) => {
+        const name = `Acme${ESC}]8;;https://evil.example${BEL}click${ESC}]8;;${BEL}${ESC}[2J\u009B2J`;
+        const out = drawText(terminal, () => [
+            line([span('fg', name), strong('hi', `${ESC}[?1049h`), link('https://dexto.ai', name)]),
+        ]);
+        expect(out).not.toContain('evil.example␇');
+        expect(out).not.toContain('␛[2J');
+        expect(out).not.toContain('␛[?1049h');
+        expect(out).not.toContain('\u009B');
+        // eslint-disable-next-line no-control-regex
+        expect(out).not.toMatch(/[\u0000-\u0006\u0008-\u001A\u001C-\u001F\u007F-\u009F]/u);
+    });
+
+    it('links only http and https', () => {
+        expect(safeHref('https://app.dexto.ai/auth/device?code=KX7R')).toBe(
+            'https://app.dexto.ai/auth/device?code=KX7R'
+        );
+        expect(safeHref('http://localhost:3000')).toBe('http://localhost:3000');
+        for (const href of [
+            'javascript:alert(1)',
+            'file:///etc/passwd',
+            'ssh://evil.example',
+            'data:text/html,<script>',
+            'not a url',
+            '',
+            `https://ok.example${BEL}${ESC}]8;;https://evil.example`,
+            `https://ok.example/${ESC}\\`,
+            `${ESC}]8;;https://evil.example${BEL}`,
+            'https://ok.example/\u009D8;;x',
+        ])
+            expect({ href, safe: safeHref(href) }).toEqual({ href, safe: null });
+    });
+
+    it('draws an unsafe link as underlined text with no OSC 8', () => {
+        const out = drawText('truecolor-dark', () => [
+            line([link('javascript:alert(1)', 'open'), link(`https://x.example${BEL}`, 'two')]),
+        ]);
+        expect(out).not.toContain('␛]8;;');
+        expect(out).toContain('open');
+        expect(out).toContain('two');
+        expect(drawText('no-color', () => [line([link('file:///etc/passwd')])])).toBe(
+            'file:///etc/passwd'
+        );
+    });
+});
 
 describe('Signal text', () => {
     it('draws plain words with no escapes when colour is off', () => {
