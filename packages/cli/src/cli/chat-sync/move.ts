@@ -107,6 +107,28 @@ export async function waitForMove(
             delay = retry;
         }
     }
+    if (move.status === 'failed' && move.failure === 'update_cli_for_lfs')
+        throw new Error(
+            'This chat contains Git LFS files. Update the Dexto CLI before returning it.'
+        );
+    if (move.status === 'failed' && move.failure === 'lfs_unavailable')
+        throw new Error(
+            'The cloud computer does not have Git LFS. Move the chat to a current computer and retry.'
+        );
+    if (
+        move.status === 'failed' &&
+        move.lfs_failure != null &&
+        (move.failure === 'lfs_missing' || move.failure === 'lfs_too_large')
+    ) {
+        const { path, size_bytes } = move.lfs_failure;
+        const action =
+            move.failure === 'lfs_missing'
+                ? 'Restore its LFS object on the source computer and retry.'
+                : 'Reduce the handoff size and retry.';
+        throw new Error(
+            `Git LFS file ${JSON.stringify(path)} (${size_bytes} bytes) cannot move. ${action}`
+        );
+    }
     if (move.status === 'failed' || move.status === 'canceled' || move.status === 'expired')
         throw new Error(`Chat move ${move.status}: ${move.failure ?? move.status}.`);
     return move;
@@ -156,7 +178,7 @@ export async function startLocalReturn(
         unwrap(
             await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
                 params: { path: { chat_id: chatId } },
-                body: { to: 'local' },
+                body: { to: 'local', lfsObjects: 'v1' },
                 signal: transport.signal,
             })
         );
@@ -185,6 +207,7 @@ export async function moveToCloud(
                 signal: transport.signal,
                 body: {
                     to: 'cloud',
+                    lfsObjects: 'v1',
                     working_tree: {
                         branch: tree.branch,
                         head_commit: tree.head_commit,

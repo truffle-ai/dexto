@@ -121,7 +121,7 @@ const move: Command = {
     path: ['chat', 'move'],
     arguments: '<id>',
     summary:
-        'Move a synced local chat and working tree to cloud or local (beta). Git LFS files move as pointers; LFS objects are not uploaded, so the cloud chat sees pointer files unless the object is on the LFS remote.',
+        'Move a synced local chat and working tree to cloud or local (beta). Current Git LFS objects travel with the working tree within the hand-off size limit.',
     options: {
         'dry-run': {
             type: 'boolean',

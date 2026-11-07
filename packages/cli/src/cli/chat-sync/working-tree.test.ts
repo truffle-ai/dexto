@@ -7,6 +7,8 @@ import { afterEach, expect, it } from 'vitest';
 import { buildWorkingTree, readLocalTreeCheckpoint } from './working-tree.js';
 import { applyReturnedTree, recoverAbandonedReturn } from './return-tree.js';
 import { describeObject } from './move.js';
+import { packLfsEnvelope, unpackLfsEnvelope } from './lfs-envelope.js';
+import { createHash } from 'node:crypto';
 
 const run = promisify(execFile);
 const folders: string[] = [];
@@ -25,6 +27,137 @@ async function repository(): Promise<string> {
     await run('git', ['commit', '-m', 'initial'], { cwd });
     return cwd;
 }
+
+it('includes the current committed LFS object in the handoff', async () => {
+    const cwd = await repository();
+    await run('git', ['lfs', 'install', '--local', '--skip-repo'], { cwd });
+    await run('git', ['lfs', 'track', '*.bin'], { cwd });
+    await writeFile(path.join(cwd, 'asset.bin'), 'large object content\n');
+    await run('git', ['add', '.gitattributes', 'asset.bin'], { cwd });
+    await run('git', ['commit', '-m', 'LFS object'], { cwd });
+    const tree = await buildWorkingTree(cwd);
+    try {
+        const envelope = unpackLfsEnvelope(tree.bundle);
+        expect(envelope.objects.map((object) => object.content.toString())).toEqual([
+            'large object content\n',
+        ]);
+    } finally {
+        await tree.cleanup();
+    }
+});
+
+it('includes an uncommitted LFS object in the handoff', async () => {
+    const cwd = await repository();
+    await run('git', ['lfs', 'install', '--local', '--skip-repo'], { cwd });
+    await run('git', ['lfs', 'track', '*.bin'], { cwd });
+    await run('git', ['add', '.gitattributes'], { cwd });
+    await run('git', ['commit', '-m', 'LFS attributes'], { cwd });
+    await writeFile(path.join(cwd, 'asset.bin'), 'uncommitted object\n');
+    const tree = await buildWorkingTree(cwd);
+    try {
+        expect(
+            unpackLfsEnvelope(tree.bundle).objects.map((object) => object.content.toString())
+        ).toEqual(['uncommitted object\n']);
+    } finally {
+        await tree.cleanup();
+    }
+});
+
+it.each([12, 256 * 1024 * 1024 + 1])(
+    'names a missing or oversized LFS file before upload',
+    async (size) => {
+        const cwd = await repository();
+        await writeFile(
+            path.join(cwd, 'missing.bin'),
+            `version https://git-lfs.github.com/spec/v1\noid sha256:${'a'.repeat(64)}\nsize ${size}\n`
+        );
+        await run('git', ['add', 'missing.bin'], { cwd });
+        await run('git', ['commit', '-m', 'missing pointer'], { cwd });
+        await expect(buildWorkingTree(cwd)).rejects.toThrow(`"missing.bin" (${size} bytes)`);
+        expect(await readFile(path.join(cwd, 'missing.bin'), 'utf8')).toContain(`size ${size}`);
+    }
+);
+
+it('returns a cloud-created LFS object into a separate local store', async () => {
+    const cwd = await repository();
+    await run('git', ['lfs', 'install', '--local', '--skip-repo'], { cwd });
+    await run('git', ['lfs', 'track', '*.bin'], { cwd });
+    const initialContent = Buffer.from('original local file\n');
+    await writeFile(path.join(cwd, 'original.bin'), initialContent);
+    await run('git', ['add', '.gitattributes', 'original.bin'], { cwd });
+    await run('git', ['commit', '-m', 'initial LFS object'], { cwd });
+    const localOnly = Buffer.from('local-only retained object\n');
+    const localOnlyOid = createHash('sha256').update(localOnly).digest('hex');
+    await writeFile(path.join(cwd, 'original.bin'), localOnly);
+    await run('git', ['add', 'original.bin'], { cwd });
+    await run('git', ['reset', 'HEAD', '--', 'original.bin'], { cwd });
+    await run('git', ['checkout', '--', 'original.bin'], { cwd });
+    const baseline = await readLocalTreeCheckpoint(cwd);
+    const cloud = await mkdtemp(path.join(tmpdir(), 'chat-move-cloud-'));
+    folders.push(cloud);
+    await run('git', ['clone', '--no-local', cwd, cloud], {
+        env: { ...process.env, GIT_LFS_SKIP_SMUDGE: '1' },
+    });
+    await run('git', ['config', 'user.email', 'test@example.invalid'], { cwd: cloud });
+    await run('git', ['config', 'user.name', 'Test'], { cwd: cloud });
+    await run('git', ['lfs', 'install', '--local', '--skip-repo'], { cwd: cloud });
+    await writeFile(path.join(cloud, 'original.bin'), initialContent);
+    await run('git', ['add', 'original.bin'], { cwd: cloud });
+    const content = Buffer.from('created in cloud\n');
+    await writeFile(path.join(cloud, 'cloud.bin'), content);
+    await run('git', ['add', '.gitattributes', 'cloud.bin'], { cwd: cloud });
+    await run('git', ['commit', '-m', 'cloud LFS object'], { cwd: cloud });
+    const head = (await run('git', ['rev-parse', 'HEAD'], { cwd: cloud })).stdout.trim();
+    const bundlePath = path.join(cloud, 'return.bundle');
+    await run('git', ['bundle', 'create', bundlePath, 'HEAD'], { cwd: cloud });
+    const oid = createHash('sha256').update(content).digest('hex');
+    const originalOid = createHash('sha256').update(initialContent).digest('hex');
+    const incomplete = packLfsEnvelope(await readFile(bundlePath), [
+        { oid: originalOid, content: initialContent },
+    ]);
+    await expect(
+        applyReturnedTree(cwd, baseline, {
+            branch: baseline.branch,
+            head,
+            bundle: incomplete,
+            patch: null,
+        })
+    ).rejects.toThrow('cloud.bin');
+    expect(await readFile(path.join(cwd, 'original.bin'))).toEqual(initialContent);
+    expect(
+        await readFile(
+            path.join(
+                cwd,
+                '.git',
+                'lfs',
+                'objects',
+                localOnlyOid.slice(0, 2),
+                localOnlyOid.slice(2, 4),
+                localOnlyOid
+            )
+        )
+    ).toEqual(localOnly);
+    const bundle = packLfsEnvelope(await readFile(bundlePath), [
+        { oid, content },
+        { oid: originalOid, content: initialContent },
+    ]);
+    await applyReturnedTree(cwd, baseline, { branch: baseline.branch, head, bundle, patch: null });
+    expect(await readFile(path.join(cwd, 'cloud.bin'))).toEqual(content);
+    expect(await readFile(path.join(cwd, 'original.bin'))).toEqual(initialContent);
+    expect(
+        await readFile(
+            path.join(
+                cwd,
+                '.git',
+                'lfs',
+                'objects',
+                localOnlyOid.slice(0, 2),
+                localOnlyOid.slice(2, 4),
+                localOnlyOid
+            )
+        )
+    ).toEqual(localOnly);
+});
 
 it('bundles the branch and patches untracked changes without secrets, ignored files or changing the real index', async () => {
     const cwd = await repository();
