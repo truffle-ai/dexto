@@ -133,7 +133,17 @@ jobs:
           export NPM_CONFIG_USERCONFIG=/dev/null
           while read -r spec; do
             [[ "$spec" == *"@$VERSION" ]] || { echo "$spec is not $VERSION" >&2; exit 1; }
-            npm view "$spec" version >/dev/null 2>&1 || { echo "$spec is not on npm; publish it first" >&2; exit 1; }
+            # Only a confirmed 404 means the dependency is missing; any other registry error is reported as such.
+            if ! found="$(npm view "$spec" version 2>"$RUNNER_TEMP/npm-dep-error.txt" </dev/null)"; then
+              if grep -q 'code E404' "$RUNNER_TEMP/npm-dep-error.txt"; then
+                echo "$spec is not on npm; publish it first" >&2
+              else
+                cat "$RUNNER_TEMP/npm-dep-error.txt" >&2
+                echo "cannot check $spec on npm (registry error, not a missing package)" >&2
+              fi
+              exit 1
+            fi
+            [[ "$found" == "${spec##*@}" ]] || { echo "$spec is not on npm (registry returned \"$found\"); publish it first" >&2; exit 1; }
             echo "ok $spec"
           done < "$RUNNER_TEMP/dexto-deps.txt"
 
