@@ -74,6 +74,45 @@ canonical_path() {
     printf '%s/%s' "${canonical_dir}" "${1##*/}"
 }
 
+# resolve_final <path>: canonical_path, then every link in the chain followed to the file it ends at
+# (there is no realpath in busybox). Gives up after 40 links, so a loop fails.
+resolve_final() {
+    resolved_hops=0
+    resolved_path="$(canonical_path "$1")" || return 1
+    while [ -L "${resolved_path}" ]; do
+        resolved_hops=$((resolved_hops + 1))
+        [ "${resolved_hops}" -le 40 ] || return 1
+        resolved_target="$(readlink "${resolved_path}")" || return 1
+        case "${resolved_target}" in
+            /*) ;;
+            *) resolved_target="${resolved_path%/*}/${resolved_target}" ;;
+        esac
+        resolved_path="$(canonical_path "${resolved_target}")" || return 1
+    done
+    printf '%s' "${resolved_path}"
+}
+
+# is_release_version <text>: one token of the form 1.2.3 or 1.2.3-beta.4+build, with no slash,
+# whitespace, control character or "..", so it can name a directory under ~/.dexto/cli.
+is_release_version() {
+    case "$1" in
+        '' | *[!0-9A-Za-z.+-]* | *..*) return 1 ;;
+        *.*.*) ;;
+        *) return 1 ;;
+    esac
+    release_major="${1%%.*}"
+    release_rest="${1#*.}"
+    release_minor="${release_rest%%.*}"
+    release_rest="${release_rest#*.}"
+    release_patch="${release_rest%%[-+]*}"
+    for release_part in "${release_major}" "${release_minor}" "${release_patch}"; do
+        case "${release_part}" in
+            '' | *[!0-9]*) return 1 ;;
+        esac
+    done
+    return 0
+}
+
 path_has() {
     case ":${PATH}:" in
         *":$1:"*) return 0 ;;
@@ -278,13 +317,11 @@ fi
 # bin dir the global npm dexto has on PATH, when it can be written: the uninstall below then finds
 # nothing left to remove.
 # An earlier install of ours is a link in a directory install.json names, to exactly
-# ~/.dexto/cli/<the recorded version>/bin/dexto, so a link made by anything else is never adopted.
+# ~/.dexto/cli/<the recorded version>/bin/dexto, and that file leads (through any links) to a file
+# inside the same version directory, so a link made by anything else is never adopted.
 earlier_install_is_ours() {
     previous_dir="${previous_path%/*}"
-    case "${previous_version}" in
-        [0-9]*) ;;
-        *) return 1 ;;
-    esac
+    is_release_version "${previous_version}" || return 1
     [ "${previous_path##*/}" = dexto ] && [ -L "${previous_path}" ] && [ -x "${previous_path}" ] &&
         [ -w "${previous_dir}" ] && path_has "${previous_dir}" || return 1
     linked="$(readlink "${previous_path}")"
@@ -293,7 +330,13 @@ earlier_install_is_ours() {
         *) return 1 ;;
     esac
     wanted="$(canonical_path "${cli_root}/${previous_version}/bin/dexto")" &&
-        [ "$(canonical_path "${linked}")" = "${wanted}" ]
+        [ "$(canonical_path "${linked}")" = "${wanted}" ] || return 1
+    wanted_dir="$(cd -P "${cli_root}/${previous_version}" 2>/dev/null && pwd -P)" || return 1
+    final="$(resolve_final "${wanted}")" || return 1
+    case "${final}" in
+        "${wanted_dir}"/*) return 0 ;;
+    esac
+    return 1
 }
 
 install_dir_adopted=0

@@ -467,6 +467,68 @@ posixOnly('scripts/install.sh', () => {
             expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
         });
 
+        it.each([
+            ['a version with a traversal inside it', '2/../../x'],
+            ['a version with a space', '2 x'],
+            ['a version with a newline', '2\nx'],
+            ['a version that starts with ..', '../2.0.0'],
+            ['an empty version', ''],
+            ['a version that is not three numbers', '2.x.0'],
+            ['a version with two numbers', '2.0'],
+        ])('does not reuse an earlier link when install.json records %s', (_name, version) => {
+            expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+            // A real executable at the path a naive check would build from this version.
+            const dexto = path.join(home, '.dexto');
+            const target = `${dexto}/cli/${version}/bin/dexto`;
+            const file = path.join(dexto, 'cli', version, 'bin', 'dexto');
+            // `2/../..` only resolves when cli/2 exists.
+            mkdirSync(path.join(dexto, 'cli', '2'), { recursive: true });
+            mkdirSync(path.dirname(file), { recursive: true });
+            writeFileSync(file, '#!/bin/sh\necho spoofed\n');
+            chmodSync(file, 0o755);
+            rmSync(path.join(npmBin, 'dexto'));
+            symlinkSync(target, path.join(npmBin, 'dexto'));
+            const metadataPath = path.join(dexto, 'install.json');
+            const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
+            writeFileSync(metadataPath, JSON.stringify({ ...metadata, version }));
+
+            const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+        });
+
+        it('does not reuse an earlier link when bin/dexto itself links outside the version dir', () => {
+            expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+            const outside = path.join(home, 'outside-dexto');
+            writeFileSync(outside, '#!/bin/sh\necho outside\n');
+            chmodSync(outside, 0o755);
+            rmSync(versionBin('2.0.0'));
+            symlinkSync(outside, versionBin('2.0.0'));
+
+            const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+        });
+
+        it('reuses an earlier link when bin/dexto reaches the package through a chain of links', () => {
+            expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+            const versionDir = path.join(home, '.dexto', 'cli', '2.0.0');
+            // bin/dexto -> ../alias -> lib/node_modules/dexto/bin.sh, all inside the version dir.
+            symlinkSync('lib/node_modules/dexto/bin.sh', path.join(versionDir, 'alias'));
+            rmSync(versionBin('2.0.0'));
+            symlinkSync('../alias', versionBin('2.0.0'));
+
+            const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+            expect(result.json.installed).toMatchObject({
+                action: 'unchanged',
+                path: path.join(npmBin, 'dexto'),
+                on_path: true,
+            });
+        });
+
         it('links into ~/.local/bin, not an earlier link in the npm bin dir, when npm still has dexto', () => {
             expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
             // npm has dexto again, and the earlier link in its bin dir is still ours.
