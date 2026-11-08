@@ -1,5 +1,16 @@
 # @dexto/tools-filesystem
 
+## 1.16.1
+
+### Patch Changes
+
+- e85952b: Canonicalize paths that do not exist yet (including dangling symlinks) before applying filesystem policy checks, and write files through a no-follow handle that is re-verified after open.
+- a9782a9: Filesystem backups no longer follow symlinks. A file that is a symlink is refused instead of copying its target, and a backup never writes through a link already at the backup path.
+- Updated dependencies [749f275]
+- Updated dependencies [ff72927]
+    - @dexto/core@1.16.1
+    - @dexto/agent-config@1.16.1
+
 ## 1.16.0
 
 ### Patch Changes
