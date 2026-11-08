@@ -316,34 +316,62 @@ fi
 # of an earlier install of ours that PATH has (a run that did the next thing), or else take over the
 # bin dir the global npm dexto has on PATH, when it can be written: the uninstall below then finds
 # nothing left to remove.
-# An earlier install of ours is a link in a directory install.json names, to exactly
-# ~/.dexto/cli/<the recorded version>/bin/dexto, and that file leads (through any links) to a file
-# inside the same version directory, so a link made by anything else is never adopted.
-earlier_install_is_ours() {
-    previous_dir="${previous_path%/*}"
-    is_release_version "${previous_version}" || return 1
-    [ "${previous_path##*/}" = dexto ] && [ -L "${previous_path}" ] && [ -x "${previous_path}" ] &&
-        [ -w "${previous_dir}" ] && path_has "${previous_dir}" || return 1
-    linked="$(readlink "${previous_path}")"
-    case "${linked}" in
+# link_is_ours <link> <version>: the link was made by an install of ours. It is a symlink named
+# dexto to exactly ~/.dexto/cli/<version>/bin/dexto, where <version> is one release token and its
+# directory is a real directory of ~/.dexto/cli (not a link out of it), and that file leads, through
+# any links, to a file inside the same version directory. Anything else is never adopted or removed.
+link_is_ours() {
+    is_release_version "$2" || return 1
+    [ "${1##*/}" = dexto ] && [ -L "$1" ] || return 1
+    ours_linked="$(readlink "$1")"
+    case "${ours_linked}" in
         /*) ;;
         *) return 1 ;;
     esac
-    wanted="$(canonical_path "${cli_root}/${previous_version}/bin/dexto")" &&
-        [ "$(canonical_path "${linked}")" = "${wanted}" ] || return 1
-    wanted_dir="$(cd -P "${cli_root}/${previous_version}" 2>/dev/null && pwd -P)" || return 1
-    final="$(resolve_final "${wanted}")" || return 1
-    case "${final}" in
-        "${wanted_dir}"/*) return 0 ;;
+    [ ! -L "${cli_root}/$2" ] || return 1
+    ours_root="$(cd -P "${cli_root}" 2>/dev/null && pwd -P)" || return 1
+    ours_dir="$(cd -P "${cli_root}/$2" 2>/dev/null && pwd -P)" || return 1
+    [ "${ours_dir}" = "${ours_root}/$2" ] || return 1
+    ours_bin="${ours_dir}/bin/dexto"
+    [ "$(canonical_path "${cli_root}/$2/bin/dexto")" = "${ours_bin}" ] || return 1
+    [ "$(canonical_path "${ours_linked}")" = "${ours_bin}" ] || return 1
+    ours_final="$(resolve_final "${ours_bin}")" || return 1
+    case "${ours_final}" in
+        "${ours_dir}"/*) return 0 ;;
     esac
     return 1
 }
 
+# An earlier install of ours that PATH has: a writable directory on PATH, holding a working link
+# that link_is_ours accepts for the version install.json records.
+earlier_install_is_ours() {
+    previous_dir="${previous_path%/*}"
+    [ -x "${previous_path}" ] && [ -w "${previous_dir}" ] && path_has "${previous_dir}" &&
+        link_is_ours "${previous_path}" "${previous_version}"
+}
+
+# fall_back_to_default_install_dir: link in ~/.local/bin instead, and leave alone whatever link was
+# going to be replaced or removed.
+fall_back_to_default_install_dir() {
+    install_dir="${HOME}/.local/bin"
+    link_path="${install_dir}/dexto"
+    previous_path=""
+    install_dir_adopted=0
+    adopted_earlier=0
+    on_path=false
+    if path_has "${install_dir}"; then
+        on_path=true
+    fi
+    mkdir -p "${install_dir}" || fail failed "Could not create ${install_dir}." "Check that you can write to it, or pass another --install-dir."
+}
+
 install_dir_adopted=0
+adopted_earlier=0
 if [ "${install_dir_chosen}" -eq 0 ] && ! path_has "${install_dir}"; then
     if earlier_install_is_ours; then
         install_dir="${previous_dir}"
         install_dir_adopted=1
+        adopted_earlier=1
     elif npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_prefix}" ] &&
         [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
         [ -w "${npm_prefix}/bin" ] && [ -w "${npm_prefix}/lib/node_modules" ] &&
@@ -552,15 +580,8 @@ if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_pre
     elif [ "${install_dir_adopted}" -eq 1 ]; then
         # Linking here would let a later successful `npm uninstall -g dexto` delete the new link.
         say "warning: could not remove the global npm ${DEXTO_PACKAGE}, which is still installed and uses ${link_path}. Leaving it alone and linking into ${HOME}/.local/bin instead, which is not on your PATH. Run: npm uninstall -g ${DEXTO_PACKAGE}, then add ${HOME}/.local/bin to your PATH."
-        install_dir="${HOME}/.local/bin"
-        link_path="${install_dir}/dexto"
         # An earlier link of ours in npm's bin dir keeps working until npm removes it.
-        previous_path=""
-        on_path=false
-        if path_has "${install_dir}"; then
-            on_path=true
-        fi
-        mkdir -p "${install_dir}" || fail failed "Could not create ${install_dir}." "Check that you can write to it, or pass another --install-dir."
+        fall_back_to_default_install_dir
     else
         say "warning: could not remove the global npm ${DEXTO_PACKAGE}, which is still installed and uses ${link_path}. A later \`npm uninstall -g ${DEXTO_PACKAGE}\` removes the link made now: run it yourself, then run the installer again."
     fi
@@ -568,7 +589,21 @@ fi
 
 temp_link="${install_dir}/.dexto-link-$$"
 rm -f "${temp_link}"
-if ! ln -s "${version_bin}" "${temp_link}" || ! mv -f "${temp_link}" "${link_path}"; then
+if ! ln -s "${version_bin}" "${temp_link}"; then
+    fail failed "Could not link ${link_path}." "Check that you can write to ${install_dir}, or pass another --install-dir."
+fi
+# The adopted link may have changed since it was chosen; replace it only while it is still ours.
+if [ "${adopted_earlier}" -eq 1 ] && ! link_is_ours "${link_path}" "${previous_version}"; then
+    rm -f "${temp_link}"
+    say "warning: ${link_path} is no longer a link made by this installer. Leaving it alone and linking into ${HOME}/.local/bin instead."
+    fall_back_to_default_install_dir
+    temp_link="${install_dir}/.dexto-link-$$"
+    rm -f "${temp_link}"
+    if ! ln -s "${version_bin}" "${temp_link}"; then
+        fail failed "Could not link ${link_path}." "Check that you can write to ${install_dir}, or pass another --install-dir."
+    fi
+fi
+if ! mv -f "${temp_link}" "${link_path}"; then
     rm -f "${temp_link}"
     fail failed "Could not link ${link_path}." "Check that you can write to ${install_dir}, or pass another --install-dir."
 fi
@@ -597,10 +632,9 @@ fs.renameSync(temp, env.DEXTO_META_PATH);
 fi
 
 # A link left in another install dir would point at a version removed below.
-if [ -n "${previous_path}" ] && [ "${previous_path}" != "${link_path}" ] && [ -L "${previous_path}" ]; then
-    case "$(readlink "${previous_path}")" in
-        "${cli_root}"/*) rm -f "${previous_path}" ;;
-    esac
+if [ -n "${previous_path}" ] && [ "${previous_path}" != "${link_path}" ] &&
+    link_is_ours "${previous_path}" "${previous_version}"; then
+    rm -f "${previous_path}"
 fi
 
 # The previous version stays until the next install, so a dexto still running it keeps its files.

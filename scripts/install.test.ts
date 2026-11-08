@@ -72,6 +72,12 @@ if (command === 'view') {
     process.stdout.write('dexto-' + version + '.tgz\\n');
 } else if (command === 'install') {
     if (process.env.STUB_INSTALL_FAILS) process.exit(1);
+    // Repoints a link while the installer is partway through, as another process could.
+    if (process.env.STUB_SWAP_LINK) {
+        const [link, target] = process.env.STUB_SWAP_LINK.split('|');
+        fs.rmSync(link, { force: true });
+        fs.symlinkSync(target, link);
+    }
     const prefix = args[args.indexOf('--prefix') + 1];
     const tarball = args[args.length - 1];
     const packageDir = path.join(prefix, 'lib', 'node_modules', 'dexto');
@@ -465,6 +471,8 @@ posixOnly('scripts/install.sh', () => {
 
             expect(result.status).toBe(0);
             expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+            // The link failed verification, so cleanup of the previous path must not delete it.
+            expect(lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })).toBeDefined();
         });
 
         it.each([
@@ -496,6 +504,8 @@ posixOnly('scripts/install.sh', () => {
 
             expect(result.status).toBe(0);
             expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+            // The link failed verification, so cleanup of the previous path must not delete it.
+            expect(lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })).toBeDefined();
         });
 
         it('does not reuse an earlier link when bin/dexto itself links outside the version dir', () => {
@@ -506,10 +516,12 @@ posixOnly('scripts/install.sh', () => {
             rmSync(versionBin('2.0.0'));
             symlinkSync(outside, versionBin('2.0.0'));
 
-            const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+            const result = run(['--version', 'next'], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
 
             expect(result.status).toBe(0);
             expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+            // The link failed verification, so cleanup of the previous path must not delete it.
+            expect(lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })).toBeDefined();
         });
 
         it('reuses an earlier link when bin/dexto reaches the package through a chain of links', () => {
@@ -527,6 +539,45 @@ posixOnly('scripts/install.sh', () => {
                 path: path.join(npmBin, 'dexto'),
                 on_path: true,
             });
+        });
+
+        it('does not reuse an earlier link when the version dir is a symlink out of ~/.dexto/cli', () => {
+            expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+            const versionDir = path.join(home, '.dexto', 'cli', '2.0.0');
+            const outsideDir = path.join(root, 'outside-dir');
+            mkdirSync(path.join(outsideDir, 'bin'), { recursive: true });
+            writeFileSync(path.join(outsideDir, 'bin', 'dexto'), '#!/bin/sh\necho outside\n');
+            chmodSync(path.join(outsideDir, 'bin', 'dexto'), 0o755);
+            rmSync(versionDir, { recursive: true });
+            symlinkSync(outsideDir, versionDir);
+
+            const result = run(['--version', 'next'], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+            expect(lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })).toBeDefined();
+        });
+
+        it('does not replace an adopted link that stops being ours before the replacement', () => {
+            expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+            const outside = path.join(root, 'outside-dexto');
+            writeFileSync(outside, '#!/bin/sh\necho outside\n');
+            chmodSync(outside, 0o755);
+
+            // Another process repoints the link after the installer chose to adopt its bin dir.
+            const result = run(
+                ['--version', 'next'],
+                {
+                    STUB_GLOBAL_PREFIX: prefix,
+                    STUB_SWAP_LINK: `${path.join(npmBin, 'dexto')}|${outside}`,
+                },
+                { pathDirs }
+            );
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+            expect(readlinkSync(path.join(npmBin, 'dexto'))).toBe(outside);
+            expect(readlinkSync(linkPath())).toBe(versionBin('2.0.1'));
         });
 
         it('links into ~/.local/bin, not an earlier link in the npm bin dir, when npm still has dexto', () => {
