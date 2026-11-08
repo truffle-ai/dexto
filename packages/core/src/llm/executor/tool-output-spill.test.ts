@@ -12,9 +12,9 @@ function result(toolCallId: string, content: SanitizedToolResult['content']): Sa
 }
 
 describe('toolOutputBudget', () => {
-    it('keeps min(6k tokens, 10% of the window) inline per result and 40% per step', () => {
+    it('keeps min(4k tokens, 10% of the window) inline per result and 40% per step', () => {
         expect(toolOutputBudget(272_000)).toEqual({
-            inlineCapChars: 24_000,
+            inlineCapChars: 16_000,
             stepBudgetChars: 108_800 * 4,
         });
         expect(toolOutputBudget(40_000)).toEqual({
@@ -23,30 +23,30 @@ describe('toolOutputBudget', () => {
         });
     });
 
-    it('stores a 30,000 character result on a large window and keeps 24,000 of it inline', () => {
+    it('stores a 30,000 character result on a large window and keeps 16,000 of it inline', () => {
         const budget = toolOutputBudget(272_000);
         const plan = planToolOutputSpills(
             [
-                { toolCallId: 'fits', textLength: 24_000 },
+                { toolCallId: 'fits', textLength: 16_000 },
                 { toolCallId: 'over', textLength: 30_000 },
             ],
             budget
         );
-        expect(plan).toEqual(new Map([['over', 24_000]]));
+        expect(plan).toEqual(new Map([['over', 16_000]]));
 
-        const fullText = `${'h'.repeat(18_000)}${'m'.repeat(6_000)}${'t'.repeat(6_000)}`;
+        const fullText = `${'h'.repeat(12_000)}${'m'.repeat(14_000)}${'t'.repeat(4_000)}`;
         const preview = toolResultText(
             withToolOutputPreview(
                 result('over', [{ type: 'text', text: fullText }]),
                 fullText,
-                24_000
+                16_000
             )
         );
-        expect(preview.startsWith('h'.repeat(18_000))).toBe(true);
-        expect(preview.endsWith('t'.repeat(6_000))).toBe(true);
+        expect(preview.startsWith('h'.repeat(12_000))).toBe(true);
+        expect(preview.endsWith('t'.repeat(4_000))).toBe(true);
         expect(preview).not.toContain('mm');
         expect(preview).toContain(
-            '[Output truncated: showing the first 18000 and last 6000 of 30000 characters.'
+            '[Output truncated: showing the first 12000 and last 4000 of 30000 characters.'
         );
         expect(preview).toContain('tool_output_read({ "id": "over", "offset": <line> })');
         expect(preview).toContain('tool_output_read({ "id": "over", "pattern": "<text>" })');
@@ -85,14 +85,16 @@ describe('planToolOutputSpills', () => {
     });
 
     it('cuts results already at the inline cap further when together they exceed the step budget', () => {
-        // Nineteen 30,000 character results on a 272k window: 19 x 24,000 = 456,000 characters
-        // inline against a 435,200 character step budget, so three drop to the 16,000 preview.
+        // Nineteen 30,000 character results against a 24,000 character cap and a 435,200
+        // character step budget: 19 x 24,000 = 456,000 inline, so three drop to the 16,000
+        // preview.
         const results = Array.from({ length: 19 }, (_, index) => ({
             toolCallId: `call-${index}`,
             textLength: 30_000,
         }));
+        const budget = { inlineCapChars: 24_000, stepBudgetChars: 435_200 };
 
-        const plan = planToolOutputSpills(results, toolOutputBudget(272_000));
+        const plan = planToolOutputSpills(results, budget);
 
         expect(plan.size).toBe(19);
         expect([...plan.entries()].filter(([, chars]) => chars === 16_000)).toEqual([
@@ -102,7 +104,7 @@ describe('planToolOutputSpills', () => {
         ]);
         const inline = [...plan.values()].reduce((sum, chars) => sum + chars, 0);
         expect(inline).toBe(432_000);
-        expect(inline).toBeLessThanOrEqual(toolOutputBudget(272_000).stepBudgetChars);
+        expect(inline).toBeLessThanOrEqual(budget.stepBudgetChars);
     });
 
     it('prefers the largest result, earlier calls first on ties, for the step budget', () => {

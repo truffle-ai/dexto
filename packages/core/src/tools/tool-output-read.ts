@@ -14,7 +14,7 @@ const MAX_READ_LINES = 2000;
  * One call returns about this many characters, the same as one tool result keeps inline: a
  * read-back is stored in the conversation like any other result. The agent pages for more.
  */
-const MAX_READ_CHARS = 24_000;
+const MAX_READ_CHARS = 16_000;
 const DEFAULT_MAX_MATCHES = 100;
 const MAX_MATCHES = 500;
 const MAX_MATCH_LINE_CHARS = 500;
