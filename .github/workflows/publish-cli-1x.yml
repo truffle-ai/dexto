@@ -35,6 +35,25 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ inputs.version }}
+      # The one version comparison, used before the build and again right before publishing.
+      # node -e "$VERSION_VS_LATEST" <version> <npm latest> prints `same` or `newer`, and exits
+      # non-zero for anything else: an input that is not 1.Y.Z, a latest that is not X.Y.Z (no
+      # prerelease, no empty value), a leading zero in any part, or a version below latest.
+      VERSION_VS_LATEST: |
+        const [version, latest] = process.argv.slice(1);
+        const part = "(0|[1-9][0-9]*)";
+        if (!new RegExp(`^1\\.${part}\\.${part}$`).test(version)) {
+          throw new Error(`version "${version}" must be 1.Y.Z without leading zeros`);
+        }
+        if (!new RegExp(`^${part}\\.${part}\\.${part}$`).test(latest)) {
+          throw new Error(`npm latest "${latest}" is not X.Y.Z without leading zeros`);
+        }
+        const a = version.split(".").map(BigInt);
+        const b = latest.split(".").map(BigInt);
+        const i = a.findIndex((n, k) => n !== b[k]);
+        if (i === -1) console.log("same");
+        else if (a[i] > b[i]) console.log("newer");
+        else throw new Error(`${version} is not higher than npm latest ${latest}`);
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable
@@ -48,25 +67,25 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^1\.[0-9]+\.[0-9]+$ ]] || { echo "version must be 1.Y.Z, such as 1.16.1; this workflow publishes the 1.x line only" >&2; exit 1; }
           repo_version="$(node -p 'require("./packages/cli/package.json").version')"
           [[ "$VERSION" == "$repo_version" ]] || { echo "version $VERSION does not match packages/cli/package.json ($repo_version)" >&2; exit 1; }
           # Never move `latest` backwards. A registry error refuses, it does not pass.
           latest="$(NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags.latest)" || { echo "cannot read dexto latest from npm" >&2; exit 1; }
-          if [[ "$latest" != "$VERSION" ]]; then
-            node -e '
-              const [version, latest] = process.argv.slice(1);
-              const strict = /^[0-9]+\.[0-9]+\.[0-9]+$/;
-              if (!strict.test(latest)) throw new Error(`npm latest "${latest}" is not X.Y.Z`);
-              const a = version.split(".").map(Number);
-              const b = latest.split(".").map(Number);
-              const i = a.findIndex((n, k) => n !== b[k]);
-              if (i === -1 || a[i] < b[i]) throw new Error(`${version} is not higher than npm latest ${latest}`);
-            ' "$VERSION" "$latest"
+          relation="$(node -e "$VERSION_VS_LATEST" "$VERSION" "$latest")"
+          if [[ "$relation" == same ]]; then
+            echo "dexto@$VERSION is already npm latest; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          if [[ "$latest" == "$VERSION" ]] || NPM_CONFIG_USERCONFIG=/dev/null npm view "dexto@$VERSION" version >/dev/null 2>&1; then
+          # Only a confirmed 404 means the version is absent; any other registry error refuses.
+          view_error="$RUNNER_TEMP/npm-view-error.txt"
+          if NPM_CONFIG_USERCONFIG=/dev/null npm view "dexto@$VERSION" version >/dev/null 2>"$view_error"; then
             echo "dexto@$VERSION is already on npm; nothing to publish."
             echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif ! grep -q 'code E404' "$view_error"; then
+            cat "$view_error" >&2
+            echo "cannot tell whether dexto@$VERSION is on npm" >&2
+            exit 1
           fi
 
       # Install and build never see the npm token.
@@ -131,14 +150,6 @@ jobs:
           set -euo pipefail
           # Check again right before publishing, in case another release moved latest meanwhile.
           latest="$(NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags.latest)" || { echo "cannot read dexto latest from npm" >&2; exit 1; }
-          node -e '
-            const [version, latest] = process.argv.slice(1);
-            const strict = /^[0-9]+\.[0-9]+\.[0-9]+$/;
-            if (!strict.test(latest)) throw new Error(`npm latest "${latest}" is not X.Y.Z`);
-            const a = version.split(".").map(Number);
-            const b = latest.split(".").map(Number);
-            const i = a.findIndex((n, k) => n !== b[k]);
-            if (i === -1 || a[i] < b[i]) throw new Error(`${version} is not higher than npm latest ${latest}`);
-          ' "$VERSION" "$latest"
+          [[ "$(node -e "$VERSION_VS_LATEST" "$VERSION" "$latest")" == newer ]] || { echo "npm latest is now $latest; refusing to publish $VERSION" >&2; exit 1; }
           npm publish "$TARBALL" --tag latest --access public
-          NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags
+          NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags || echo "::warning::Published, but could not read dexto dist-tags; verify them on npm."
