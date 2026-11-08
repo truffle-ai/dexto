@@ -1,0 +1,114 @@
+# Publishes the 1.x `dexto` CLI to npm under `latest`, by hand only (DEXTO-2681).
+#
+# packages/cli is `"private": true` on main on purpose (DEXTO-2031), so changesets never publishes
+# it and a stable @dexto/* release leaves `dexto` on its old version. This workflow publishes only
+# that package, from main, for a security release of the 1.x line. The repo file stays private: the
+# flag is removed only inside the packed tarball, because npm refuses a package that carries it.
+#
+# It refuses unless every @dexto/* dependency of the packed CLI is exactly the release version and
+# already on npm, so publish the packages first (changesets-publish.yml does).
+#
+# Not covered: standalone binaries and the GitHub release. The changesets path builds those.
+name: Publish dexto 1.x (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The dexto version to publish, such as 1.16.1. It must equal packages/cli/package.json.'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-cli-1x
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Check the version
+        id: version
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must be X.Y.Z, such as 1.16.1" >&2; exit 1; }
+          repo_version="$(node -p 'require("./packages/cli/package.json").version')"
+          [[ "$VERSION" == "$repo_version" ]] || { echo "version $VERSION does not match packages/cli/package.json ($repo_version)" >&2; exit 1; }
+          if NPM_CONFIG_USERCONFIG=/dev/null npm view "dexto@$VERSION" version >/dev/null 2>&1; then
+            echo "dexto@$VERSION is already on npm; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Install and build never see the npm token.
+      - if: steps.version.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.version.outputs.skip != 'true'
+        run: pnpm run build
+
+      - name: Pack without the private flag
+        if: steps.version.outputs.skip != 'true'
+        id: pack
+        run: |
+          set -euo pipefail
+          pnpm --dir packages/cli pack --pack-destination "$RUNNER_TEMP"
+          packed="$RUNNER_TEMP/dexto-$VERSION.tgz"
+          unpacked="$RUNNER_TEMP/dexto-unpacked"
+          mkdir "$unpacked"
+          tar -xzf "$packed" -C "$unpacked"
+          # Only the extracted manifest changes. The repo copy stays private.
+          node -e '
+            const fs = require("fs");
+            const path = process.argv[1];
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            delete pkg.private;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          ' "$unpacked/package/package.json"
+          test -f "$unpacked/package/dist/index.js"
+
+          # Every @dexto/* dependency must be this version, and already published.
+          node -e '
+            const pkg = require(process.argv[1]);
+            const deps = { ...pkg.dependencies, ...pkg.optionalDependencies };
+            if (pkg.name !== "dexto" || pkg.version !== process.env.VERSION || pkg.private !== undefined) {
+              throw new Error(`unexpected manifest ${pkg.name}@${pkg.version}`);
+            }
+            for (const [name, version] of Object.entries(deps)) {
+              if (version.startsWith("workspace:")) throw new Error(`${name} is still ${version}`);
+              if (name.startsWith("@dexto/")) console.log(`${name}@${version}`);
+            }
+          ' "$unpacked/package/package.json" > "$RUNNER_TEMP/dexto-deps.txt"
+          [[ -s "$RUNNER_TEMP/dexto-deps.txt" ]] || { echo "no @dexto/* dependencies found" >&2; exit 1; }
+          # Registry reads skip setup-node's token placeholder.
+          export NPM_CONFIG_USERCONFIG=/dev/null
+          while read -r spec; do
+            [[ "$spec" == *"@$VERSION" ]] || { echo "$spec is not $VERSION" >&2; exit 1; }
+            npm view "$spec" version >/dev/null 2>&1 || { echo "$spec is not on npm; publish it first" >&2; exit 1; }
+            echo "ok $spec"
+          done < "$RUNNER_TEMP/dexto-deps.txt"
+
+          tar -czf "$RUNNER_TEMP/dexto-publish.tgz" -C "$unpacked" package
+          echo "tarball=$RUNNER_TEMP/dexto-publish.tgz" >> "$GITHUB_OUTPUT"
+
+      # The token is only in this step.
+      - name: Publish under latest
+        if: steps.version.outputs.skip != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          npm publish "$TARBALL" --tag latest --access public
+          NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags
