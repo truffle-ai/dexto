@@ -442,6 +442,66 @@ posixOnly('scripts/install.sh', () => {
             expect(lstatSync(linkPath(), { throwIfNoEntry: false })).toBeUndefined();
         });
 
+        it.each([
+            ['a traversal out of ~/.dexto/cli', 'cli/../../other-dexto', 'other-dexto'],
+            ['a real dexto at the wrong version', 'cli/9.9.9/bin/dexto', 'cli/9.9.9/bin/dexto'],
+            [
+                'the wrong file in the recorded version',
+                'cli/2.0.0/bin/other',
+                'cli/2.0.0/bin/other',
+            ],
+        ])('does not reuse an earlier link whose target is %s', (_name, linkText, realFile) => {
+            expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+            // The link text is kept as written; path.join would collapse the `..`.
+            const target = `${path.join(home, '.dexto')}/${linkText}`;
+            const file = path.join(home, realFile.startsWith('cli') ? '.dexto' : '', realFile);
+            mkdirSync(path.dirname(file), { recursive: true });
+            writeFileSync(file, '#!/bin/sh\necho spoofed\n');
+            chmodSync(file, 0o755);
+            rmSync(path.join(npmBin, 'dexto'));
+            symlinkSync(target, path.join(npmBin, 'dexto'));
+
+            const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+        });
+
+        it('links into ~/.local/bin, not an earlier link in the npm bin dir, when npm still has dexto', () => {
+            expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+            // npm has dexto again, and the earlier link in its bin dir is still ours.
+            mkdirSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true });
+
+            const result = run(
+                ['--version', 'next'],
+                { STUB_GLOBAL_PREFIX: prefix, STUB_UNINSTALL_FAILS: 'keep' },
+                { pathDirs }
+            );
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+            expect(result.stderr).toContain('still installed');
+            // The earlier link keeps working until npm's own uninstall removes it.
+            expect(
+                spawnSync(path.join(npmBin, 'dexto'), ['--version'], {
+                    encoding: 'utf8',
+                }).stdout.trim()
+            ).toBe('2.0.0');
+        });
+
+        it('keeps an explicit npm bin --install-dir when npm still has dexto, with a warning', () => {
+            const result = run(
+                ['--install-dir', npmBin],
+                { STUB_GLOBAL_PREFIX: prefix, STUB_UNINSTALL_FAILS: 'keep' },
+                { pathDirs }
+            );
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: path.join(npmBin, 'dexto') });
+            expect(result.stderr).toContain('still installed');
+            expect(result.stderr).toContain('npm uninstall -g dexto');
+        });
+
         it('does not link into the npm bin dir while npm still has dexto installed', () => {
             const result = run(
                 [],

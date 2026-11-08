@@ -67,6 +67,13 @@ json_string() {
     printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\t\r\n' '   ' | LC_ALL=C tr -d '\000-\037\177')"
 }
 
+# canonical_path <path>: the path with its directory resolved through symlinks and `..`, found
+# with cd -P and pwd -P, which dash, bash and busybox all have. Fails if the directory is missing.
+canonical_path() {
+    canonical_dir="$(cd -P "${1%/*}" 2>/dev/null && pwd -P)" || return 1
+    printf '%s/%s' "${canonical_dir}" "${1##*/}"
+}
+
 path_has() {
     case ":${PATH}:" in
         *":$1:"*) return 0 ;;
@@ -270,13 +277,30 @@ fi
 # of an earlier install of ours that PATH has (a run that did the next thing), or else take over the
 # bin dir the global npm dexto has on PATH, when it can be written: the uninstall below then finds
 # nothing left to remove.
+# An earlier install of ours is a link in a directory install.json names, to exactly
+# ~/.dexto/cli/<the recorded version>/bin/dexto, so a link made by anything else is never adopted.
+earlier_install_is_ours() {
+    previous_dir="${previous_path%/*}"
+    case "${previous_version}" in
+        [0-9]*) ;;
+        *) return 1 ;;
+    esac
+    [ "${previous_path##*/}" = dexto ] && [ -L "${previous_path}" ] && [ -x "${previous_path}" ] &&
+        [ -w "${previous_dir}" ] && path_has "${previous_dir}" || return 1
+    linked="$(readlink "${previous_path}")"
+    case "${linked}" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    wanted="$(canonical_path "${cli_root}/${previous_version}/bin/dexto")" &&
+        [ "$(canonical_path "${linked}")" = "${wanted}" ]
+}
+
 install_dir_adopted=0
 if [ "${install_dir_chosen}" -eq 0 ] && ! path_has "${install_dir}"; then
-    previous_dir="${previous_path%/*}"
-    if [ "${previous_path##*/}" = dexto ] && [ -L "${previous_path}" ] && [ -x "${previous_path}" ] &&
-        case "$(readlink "${previous_path}")" in "${cli_root}"/*) true ;; *) false ;; esac &&
-        [ -w "${previous_dir}" ] && path_has "${previous_dir}"; then
+    if earlier_install_is_ours; then
         install_dir="${previous_dir}"
+        install_dir_adopted=1
     elif npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_prefix}" ] &&
         [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
         [ -w "${npm_prefix}/bin" ] && [ -w "${npm_prefix}/lib/node_modules" ] &&
@@ -487,6 +511,8 @@ if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_pre
         say "warning: could not remove the global npm ${DEXTO_PACKAGE}, which is still installed and uses ${link_path}. Leaving it alone and linking into ${HOME}/.local/bin instead, which is not on your PATH. Run: npm uninstall -g ${DEXTO_PACKAGE}, then add ${HOME}/.local/bin to your PATH."
         install_dir="${HOME}/.local/bin"
         link_path="${install_dir}/dexto"
+        # An earlier link of ours in npm's bin dir keeps working until npm removes it.
+        previous_path=""
         on_path=false
         if path_has "${install_dir}"; then
             on_path=true
