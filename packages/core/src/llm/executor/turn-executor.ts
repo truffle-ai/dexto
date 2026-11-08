@@ -22,6 +22,7 @@ import type {
     SanitizedToolResult,
 } from '../../context/types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
+import { safeStringify } from '../../utils/safe-stringify.js';
 import {
     ToolManager,
     type ExecutableToolCall,
@@ -2489,13 +2490,24 @@ export class TurnExecutor {
     }
 
     private isToolExecutionSuccessful(executionResult: ToolExecutionResult): boolean {
-        return !this.getToolExecutionErrorMessage(executionResult.result);
+        return this.getToolExecutionErrorMessage(executionResult.result) === null;
     }
 
     private getToolExecutionErrorMessage(result: unknown): string | null {
         if (result && typeof result === 'object' && 'error' in result) {
-            const error = (result as { error?: unknown }).error;
-            return typeof error === 'string' ? error : String(error);
+            const error = result.error;
+            if (error == null) return null;
+            if (typeof error === 'object') {
+                if (
+                    'message' in error &&
+                    typeof error.message === 'string' &&
+                    error.message.length > 0
+                ) {
+                    return error.message;
+                }
+                return safeStringify(error, 2000);
+            }
+            return String(error);
         }
         return null;
     }
