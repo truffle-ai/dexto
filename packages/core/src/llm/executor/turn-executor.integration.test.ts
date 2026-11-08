@@ -933,10 +933,34 @@ describe('TurnExecutor Integration Tests', () => {
             { label: 'null error', result: { error: null, value: 'ok' }, success: true },
             { label: 'undefined error', result: { error: undefined, value: 'ok' }, success: true },
             { label: 'missing error', result: { value: 'ok' }, success: true },
-            { label: 'empty error', result: { error: '', value: 'ok' }, success: true },
-            { label: 'string error', result: { error: 'failed' }, success: false },
-            { label: 'object error', result: { error: { message: 'failed' } }, success: false },
-        ])('reports $label with success=$success', async ({ result, success }) => {
+            {
+                label: 'empty error',
+                result: { error: '', value: 'ok' },
+                success: false,
+                errorText: '',
+            },
+            { label: 'false error', result: { error: false }, success: false, errorText: 'false' },
+            { label: 'numeric error', result: { error: 42 }, success: false, errorText: '42' },
+            { label: 'true error', result: { error: true }, success: false, errorText: 'true' },
+            {
+                label: 'string error',
+                result: { error: 'failed' },
+                success: false,
+                errorText: 'failed',
+            },
+            {
+                label: 'object error',
+                result: { error: { message: 'failed' } },
+                success: false,
+                errorText: 'failed',
+            },
+            {
+                label: 'object without message',
+                result: { error: { code: 'bad' } },
+                success: false,
+                errorText: '{"code":"bad"}',
+            },
+        ])('reports $label with success=$success', async ({ result, success, errorText }) => {
             toolManager.addTools([
                 defineTool({
                     id: 'nullable_error',
@@ -970,6 +994,7 @@ describe('TurnExecutor Integration Tests', () => {
                 expect.objectContaining({
                     callId: 'call-result',
                     success,
+                    ...(success ? {} : { error: errorText }),
                     sanitized: expect.objectContaining({
                         meta: expect.objectContaining({ success }),
                     }),
