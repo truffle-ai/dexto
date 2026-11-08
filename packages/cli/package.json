@@ -57,7 +57,7 @@
     "commander": "^11.1.0",
     "dotenv": "^16.4.7",
     "ioredis": "^5.7.0",
-    "minimatch": "^10.2.3",
+    "minimatch": "^11.0.3",
     "open": "^10.2.0",
     "pg": "^8.15.4",
     "posthog-node": "^4.2.1",

@@ -260,7 +260,7 @@ describe('prototype keys', () => {
                 `nested:\n  - safe:\n      ${key}:\n        polluted: true\n`
             );
             await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
-                `Forbidden configuration key: ${key}`
+                `Forbidden configuration key: nested[0].safe.${key}`
             );
             expect(Object.prototype).not.toHaveProperty('polluted');
         }

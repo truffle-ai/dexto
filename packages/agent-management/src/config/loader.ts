@@ -16,6 +16,8 @@ interface TemplateContext {
     projectDir: string;
 }
 
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /**
  * Expand template variables in agent configuration
  *
@@ -31,27 +33,28 @@ function expandTemplateVars(config: unknown, context: TemplateContext): unknown 
     const result = JSON.parse(JSON.stringify(config));
 
     // Walk the config recursively
-    function walk(obj: unknown): unknown {
+    function walk(obj: unknown, currentPath: string): unknown {
         if (typeof obj === 'string') {
             return expandString(obj, context);
         }
         if (Array.isArray(obj)) {
-            return obj.map(walk);
+            return obj.map((value, index) => walk(value, `${currentPath}[${index}]`));
         }
         if (obj !== null && typeof obj === 'object') {
             const result: Record<string, unknown> = Object.create(null);
             for (const [key, value] of Object.entries(obj)) {
-                if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
-                    throw new Error(`Forbidden configuration key: ${key}`);
+                const keyPath = currentPath ? `${currentPath}.${key}` : key;
+                if (FORBIDDEN_KEYS.has(key)) {
+                    throw new Error(`Forbidden configuration key: ${keyPath}`);
                 }
-                result[key] = walk(value);
+                result[key] = walk(value, keyPath);
             }
             return result;
         }
         return obj;
     }
 
-    return walk(result);
+    return walk(result, '');
 }
 
 /**

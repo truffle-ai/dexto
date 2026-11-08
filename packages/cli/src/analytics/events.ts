@@ -39,7 +39,6 @@ export interface CliCommandEndEvent extends CliCommandBaseEvent {
     phase: 'end';
     success: boolean;
     durationMs: number;
-    error?: string;
     reason?: string;
     command?: string;
 }
