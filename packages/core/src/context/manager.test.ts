@@ -90,6 +90,59 @@ describe('ContextManager', () => {
         contextManager = createContextManager();
     });
 
+    describe('model history reads', () => {
+        const load = {
+            messages: [
+                { id: 'm1', role: 'user', content: [{ type: 'text', text: 'hi' }] },
+                {
+                    id: 'm2',
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'hello' }],
+                    assistantOutput: { status: 'complete' },
+                },
+            ] satisfies InternalMessage[],
+            stats: { returnedMessages: 2, skippedPreSummaryMessages: 0, summaryMessageId: null },
+        };
+
+        function storeWith(overrides: Partial<ConversationStore>): ConversationStore {
+            return {
+                listMessages: vi.fn(async () => []),
+                loadModelHistory: vi.fn(async () => load),
+                saveMessage: vi.fn(async () => {}),
+                updateMessage: vi.fn(async () => {}),
+                clearMessages: vi.fn(async () => {}),
+                flush: vi.fn(async () => {}),
+                ...overrides,
+            };
+        }
+
+        it('keeps getModelHistory as the messages of loadModelHistory', async () => {
+            const manager = createContextManager({ conversationStore: storeWith({}) });
+
+            expect(await manager.getModelHistory()).toEqual(load.messages);
+            expect(await manager.getModelHistory()).toEqual(
+                (await manager.loadModelHistory()).messages
+            );
+        });
+
+        it('counts through the store when it has a count, without loading', async () => {
+            const countModelMessages = vi.fn(async () => 7);
+            const conversationStore = storeWith({ countModelMessages });
+            const manager = createContextManager({ conversationStore });
+
+            expect(await manager.countModelMessages()).toBe(7);
+            expect(conversationStore.loadModelHistory).not.toHaveBeenCalled();
+        });
+
+        it('derives the count from one load when the store has no count', async () => {
+            const conversationStore = storeWith({});
+            const manager = createContextManager({ conversationStore });
+
+            expect(await manager.countModelMessages()).toBe(2);
+            expect(conversationStore.loadModelHistory).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('addUserMessage', () => {
         it('should add a user message with text content', async () => {
             const content: ContentPart[] = [{ type: 'text', text: 'Hello, world!' }];

@@ -81,6 +81,10 @@ class InMemoryConversationStore implements ConversationStore {
         };
     }
 
+    async countModelMessages(input: { sessionId: string }): Promise<number> {
+        return filterCompacted(this.messages.get(input.sessionId) ?? []).length;
+    }
+
     async saveMessage(input: { sessionId: string; message: InternalMessage }): Promise<void> {
         const messages = this.messages.get(input.sessionId) ?? [];
         if (input.message.id && messages.some((message) => message.id === input.message.id)) {
