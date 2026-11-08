@@ -413,5 +413,62 @@ describe('FileSystemService', () => {
                 expect(result.backupPath).toBeDefined();
             });
         });
+
+        describe('symlinks are never followed', () => {
+            let outsideDir: string;
+            let service: FileSystemService;
+
+            beforeEach(async () => {
+                outsideDir = await fs.realpath(
+                    await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-fs-outside-'))
+                );
+                service = new FileSystemService(
+                    {
+                        allowedPaths: [tempDir],
+                        blockedPaths: [],
+                        blockedExtensions: [],
+                        maxFileSize: 10 * 1024 * 1024,
+                        workingDirectory: tempDir,
+                        enableBackups: true,
+                        backupPath: backupDir,
+                        backupRetentionDays: 7,
+                    },
+                    mockLogger
+                );
+                await service.initialize();
+            });
+
+            afterEach(async () => {
+                vi.useRealTimers();
+                await fs.rm(outsideDir, { recursive: true, force: true });
+            });
+
+            it('refuses to back up a symlink and copies nothing from its target', async () => {
+                const secret = path.join(outsideDir, 'secret.txt');
+                await fs.writeFile(secret, 'outside secret');
+                const link = path.join(tempDir, 'link.txt');
+                await fs.symlink(secret, link);
+
+                await expect(service['createBackup'](link)).rejects.toThrow(/backup/i);
+
+                expect(await fs.readdir(backupDir)).toEqual([]);
+            });
+
+            it('does not write through a symlink planted at the backup path', async () => {
+                const victim = path.join(outsideDir, 'victim.txt');
+                await fs.writeFile(victim, 'victim content');
+                const source = path.join(tempDir, 'test.txt');
+                await fs.writeFile(source, 'original content');
+
+                vi.useFakeTimers({ toFake: ['Date'] });
+                vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                await fs.symlink(victim, path.join(backupDir, `test.txt.${timestamp}.backup`));
+
+                await expect(service['createBackup'](source)).rejects.toThrow(/backup/i);
+
+                expect(await fs.readFile(victim, 'utf-8')).toBe('victim content');
+            });
+        });
     });
 });
