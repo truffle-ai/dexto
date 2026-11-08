@@ -5,6 +5,10 @@ import { createMockLogger } from '../../logger/v2/test-utils.js';
 import { createInMemoryDatabase } from '../../test-utils/in-memory-storage.js';
 import { StorageErrorCode } from '../error-codes.js';
 import { DatabaseConversationStore } from './database.js';
+import {
+    MODEL_HISTORY_COUNT_CASES,
+    buildModelHistoryCountMessages,
+} from '../../test-utils/model-history-count-cases.js';
 
 describe('DatabaseConversationStore', () => {
     it('persists session messages through the conversation store contract', async () => {
@@ -160,4 +164,23 @@ describe('DatabaseConversationStore', () => {
             type: ErrorType.SYSTEM,
         });
     });
+
+    it.each(MODEL_HISTORY_COUNT_CASES)(
+        'counts the messages it loads: $name',
+        async ({ history }) => {
+            const database = createInMemoryDatabase();
+            const store = new DatabaseConversationStore(database, createMockLogger());
+            await database.connect();
+            for (const message of buildModelHistoryCountMessages(history)) {
+                await store.saveMessage({ sessionId: 'session-1', message });
+            }
+
+            const loaded = await store.loadModelHistory({ sessionId: 'session-1' });
+
+            expect(await store.countModelMessages({ sessionId: 'session-1' })).toBe(
+                loaded.messages.length
+            );
+            expect(loaded.stats.returnedMessages).toBe(loaded.messages.length);
+        }
+    );
 });

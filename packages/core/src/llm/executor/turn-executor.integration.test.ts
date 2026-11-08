@@ -5999,6 +5999,47 @@ describe('TurnExecutor Integration Tests', () => {
                 );
             });
 
+            it('loads once for each step of a turn, including the estimate that follows a tool call', async () => {
+                toolManager.addTools([
+                    defineTool({
+                        id: 'read_rows',
+                        description: 'Reads rows',
+                        inputSchema: z.object({}).strict(),
+                        execute: async () => ({ rows: 1 }),
+                    }),
+                ]);
+                const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+                vi.mocked(streamText)
+                    .mockImplementationOnce(
+                        () =>
+                            createMockStream({
+                                finishReason: 'tool-calls',
+                                toolCalls: [
+                                    { toolCallId: 'call-rows', toolName: 'read_rows', args: {} },
+                                ],
+                                usage,
+                            }) as unknown as ReturnType<typeof streamText>
+                    )
+                    .mockImplementationOnce(
+                        () =>
+                            createMockStream({
+                                text: 'done',
+                                finishReason: 'stop',
+                                usage,
+                            }) as unknown as ReturnType<typeof streamText>
+                    );
+                await contextManager.addUserMessage([{ type: 'text', text: 'Read the rows' }]);
+                const reads = countStoreReads();
+
+                await executor.execute({ mcpManager }, true);
+
+                // The second step has actuals from the first, so its estimate reads the messages
+                // added since the last call. It takes the step's own load instead of loading again.
+                expect(streamText).toHaveBeenCalledTimes(2);
+                expect(reads.loads).toHaveBeenCalledTimes(2);
+                expect(reads.counts).toHaveBeenCalledTimes(4);
+            });
+
             it('loads again only after compaction changes the stored history', async () => {
                 const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
                 replyWithUsage();

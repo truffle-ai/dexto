@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { InMemoryDextoStores } from './in-memory.js';
+import {
+    MODEL_HISTORY_COUNT_CASES,
+    buildModelHistoryCountMessages,
+} from '../../test-utils/model-history-count-cases.js';
 
 describe('InMemoryDextoStores', () => {
     it('returns typed runtime stores through one connected composite store', async () => {
@@ -88,4 +92,23 @@ describe('InMemoryDextoStores', () => {
             )
         ).toEqual(['queued-later-timestamp', 'queued-earlier-timestamp']);
     });
+
+    it.each(MODEL_HISTORY_COUNT_CASES)(
+        'counts the messages its conversation store loads: $name',
+        async ({ history }) => {
+            const storage = new InMemoryDextoStores();
+            await storage.connect();
+            const conversation = storage.getStore('conversation');
+            for (const message of buildModelHistoryCountMessages(history)) {
+                await conversation.saveMessage({ sessionId: 'session-1', message });
+            }
+
+            const loaded = await conversation.loadModelHistory({ sessionId: 'session-1' });
+
+            expect(await conversation.countModelMessages?.({ sessionId: 'session-1' })).toBe(
+                loaded.messages.length
+            );
+            await storage.disconnect();
+        }
+    );
 });

@@ -526,6 +526,11 @@ export class ContextManager<TMessage = unknown> {
         return this.conversationStore.loadModelHistory({ sessionId: this.sessionId });
     }
 
+    /** @deprecated Use loadModelHistory() */
+    async getModelHistory(): Promise<Readonly<InternalMessage[]>> {
+        return (await this.loadModelHistory()).messages;
+    }
+
     /**
      * Number of stored messages the model sees. Reads a count when the store has one; otherwise
      * derives it from a full load. Use it instead of loading history only to take its length.
