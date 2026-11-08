@@ -5,7 +5,7 @@
 # needs publish as prereleases with it, also under `next`. scripts/cli-beta-packages.txt lists
 # them in dependency order, including core/storage (better-sqlite3 ~12.9.0 for Node 24) and
 # every public dependent of the bumped packages, so none pulls stable core/storage back in.
-# llm, registry and client-sdk have unchanged dependency manifests and retain npm's 1.14.4.
+# llm, registry and client-sdk have unchanged dependency manifests and retain npm's 1.16.1.
 name: Publish dexto beta (manual)
 
 on:
@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
-          stable_tag='@dexto/llm@1.14.4'
+          stable_tag='@dexto/llm@1.16.1'
           if ! git rev-parse --verify "refs/tags/$stable_tag" >/dev/null 2>&1; then
             git fetch --no-tags origin "refs/tags/$stable_tag:refs/tags/$stable_tag"
           fi
