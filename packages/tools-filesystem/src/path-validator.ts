@@ -5,10 +5,10 @@
  */
 
 import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
 import { FileSystemConfig, PathValidation } from './types.js';
 import type { Logger } from '@dexto/core/logger';
 import { expandHomeShorthand, resolveUserPath } from './path-utils.js';
+import { canonicalizePath } from './safe-fs.js';
 
 /**
  * Callback type for checking if a path is in an approved directory.
@@ -36,6 +36,11 @@ export type DirectoryApprovalChecker = (
 export class PathValidator {
     private config: FileSystemConfig;
     private normalizedAllowedPaths: string[];
+    /** Canonical (symlink-resolved) forms of allowed roots, resolved once on first use. */
+    private canonicalAllowedPaths: string[] = [];
+    /** Blocked paths as absolute paths, in both lexical and canonical form. */
+    private resolvedBlockedPaths: Array<{ blocked: string; fullPath: string }> = [];
+    private canonicalPathsReady: Promise<void> | undefined;
     private normalizedBlockedPaths: string[];
     private normalizedBlockedExtensions: string[];
     private logger: Logger;
@@ -55,6 +60,8 @@ export class PathValidator {
         this.normalizedBlockedPaths = config.blockedPaths.map((p) =>
             path.normalize(expandHomeShorthand(p))
         );
+
+        this.resolvedBlockedPaths = this.resolveBlockedPaths(this.normalizedAllowedPaths);
 
         // Normalize blocked extensions: ensure leading dot and lowercase
         this.normalizedBlockedExtensions = (config.blockedExtensions || []).map((ext) => {
@@ -83,9 +90,14 @@ export class PathValidator {
      */
     async validatePath(
         filePath: string,
-        operation: DirectoryApprovalOperation
+        operation: DirectoryApprovalOperation,
+        options: { followFinalSymlink?: boolean } = {}
     ): Promise<PathValidation> {
-        return this.validatePathInternal(filePath, { skipAllowedCheck: false, operation });
+        return this.validatePathInternal(filePath, {
+            skipAllowedCheck: false,
+            operation,
+            followFinalSymlink: options.followFinalSymlink ?? true,
+        });
     }
 
     /**
@@ -101,12 +113,20 @@ export class PathValidator {
      * Used for generating UI-only previews (e.g., diffs) before the user approves directory access.
      */
     async validatePathForPreview(filePath: string): Promise<PathValidation> {
-        return this.validatePathInternal(filePath, { skipAllowedCheck: true, operation: 'read' });
+        return this.validatePathInternal(filePath, {
+            skipAllowedCheck: true,
+            operation: 'read',
+            followFinalSymlink: true,
+        });
     }
 
     private async validatePathInternal(
         filePath: string,
-        options: { skipAllowedCheck: boolean; operation: DirectoryApprovalOperation }
+        options: {
+            skipAllowedCheck: boolean;
+            operation: DirectoryApprovalOperation;
+            followFinalSymlink: boolean;
+        }
     ): Promise<PathValidation> {
         // 1. Check for empty path
         if (!filePath || filePath.trim() === '') {
@@ -127,15 +147,14 @@ export class PathValidator {
         try {
             // Handle both absolute and relative paths
             resolvedPath = resolveUserPath(workingDir, filePath);
-            normalizedPath = resolvedPath;
 
-            // Canonicalize to handle symlinks and resolve real paths (async, non-blocking)
-            try {
-                normalizedPath = await fs.realpath(normalizedPath);
-            } catch {
-                // If the path doesn't exist yet (e.g., writes), fallback to the resolved path
-                // Policy checks continue to use normalizedPath
-            }
+            // Canonicalize so policy checks see where the operation will really land. For paths
+            // that do not exist yet this resolves the nearest existing ancestor and any dangling
+            // symlink, so a link inside an allowed root cannot redirect a new file outside it.
+            normalizedPath = await canonicalizePath(resolvedPath, {
+                followFinalSymlink: options.followFinalSymlink,
+            });
+            await this.ensureCanonicalPaths();
         } catch (error) {
             return {
                 isValid: false,
@@ -170,8 +189,9 @@ export class PathValidator {
             };
         }
 
-        // 5. Check if path is blocked
-        const blockedReason = this.isPathBlocked(normalizedPath);
+        // 5. Check if path is blocked (either the canonical target or the path as given)
+        const blockedReason =
+            this.isPathBlocked(normalizedPath) ?? this.isPathBlocked(resolvedPath);
         if (blockedReason) {
             return {
                 isValid: false,
@@ -226,28 +246,36 @@ export class PathValidator {
      * Check if path matches blocked patterns (blacklist check)
      */
     private isPathBlocked(normalizedPath: string): string | null {
-        const roots =
-            this.normalizedAllowedPaths.length > 0
-                ? this.normalizedAllowedPaths
-                : [resolveUserPath(process.cwd(), this.config.workingDirectory || process.cwd())];
-
-        for (const blocked of this.normalizedBlockedPaths) {
-            for (const root of roots) {
-                // Resolve blocked relative to each allowed root unless already absolute
-                const blockedFull = path.isAbsolute(blocked)
-                    ? path.normalize(blocked)
-                    : path.resolve(root, blocked);
-                // Segment-aware prefix check
-                if (
-                    normalizedPath === blockedFull ||
-                    normalizedPath.startsWith(blockedFull + path.sep)
-                ) {
-                    return `Within blocked directory: ${blocked}`;
-                }
+        for (const { blocked, fullPath } of this.resolvedBlockedPaths) {
+            // Segment-aware prefix check
+            if (normalizedPath === fullPath || normalizedPath.startsWith(fullPath + path.sep)) {
+                return `Within blocked directory: ${blocked}`;
             }
         }
 
         return null;
+    }
+
+    /**
+     * Resolve each blocked path to an absolute path: absolute entries as-is, relative entries
+     * against each of the given roots (or the working directory when no roots are configured).
+     */
+    private resolveBlockedPaths(roots: string[]): Array<{ blocked: string; fullPath: string }> {
+        const effectiveRoots =
+            roots.length > 0
+                ? roots
+                : [resolveUserPath(process.cwd(), this.config.workingDirectory || process.cwd())];
+        const resolved: Array<{ blocked: string; fullPath: string }> = [];
+        for (const blocked of this.normalizedBlockedPaths) {
+            if (path.isAbsolute(blocked)) {
+                resolved.push({ blocked, fullPath: path.normalize(blocked) });
+                continue;
+            }
+            for (const root of effectiveRoots) {
+                resolved.push({ blocked, fullPath: path.resolve(root, blocked) });
+            }
+        }
+        return resolved;
     }
 
     /**
@@ -273,14 +301,7 @@ export class PathValidator {
             return true;
         }
 
-        // Check if path is within any config-allowed path
-        const isInConfigPaths = this.normalizedAllowedPaths.some((allowedPath) => {
-            const relative = path.relative(allowedPath, normalizedPath);
-            // Path is allowed if it doesn't escape the allowed directory
-            return !relative.startsWith('..') && !path.isAbsolute(relative);
-        });
-
-        if (isInConfigPaths) {
+        if (this.isInConfigAllowedPaths(normalizedPath)) {
             return true;
         }
 
@@ -315,14 +336,8 @@ export class PathValidator {
         let normalizedPath: string;
 
         try {
-            normalizedPath = resolveUserPath(workingDir, filePath);
-
-            // Try to resolve symlinks for existing files (async, non-blocking)
-            try {
-                normalizedPath = await fs.realpath(normalizedPath);
-            } catch {
-                // Path doesn't exist yet, use resolved path
-            }
+            normalizedPath = await canonicalizePath(resolveUserPath(workingDir, filePath));
+            await this.ensureCanonicalPaths();
         } catch {
             // Failed to normalize, treat as not within allowed
             return false;
@@ -343,10 +358,48 @@ export class PathValidator {
             return true;
         }
 
-        return this.normalizedAllowedPaths.some((allowedPath) => {
-            const relative = path.relative(allowedPath, normalizedPath);
-            return !relative.startsWith('..') && !path.isAbsolute(relative);
-        });
+        return [...this.normalizedAllowedPaths, ...this.canonicalAllowedPaths].some((allowedPath) =>
+            isWithinRoot(allowedPath, normalizedPath)
+        );
+    }
+
+    /**
+     * Allowed roots and blocked paths are configured lexically, but validated paths are
+     * canonical. Resolve their canonical forms once, on first use, so a root reached through a
+     * symlink (for example macOS `/tmp` -> `/private/tmp`) still matches its own files and a
+     * blocked path reached through an alias is still blocked. Resolving only once means a
+     * symlink planted at a root location later cannot widen what is allowed.
+     */
+    private ensureCanonicalPaths(): Promise<void> {
+        this.canonicalPathsReady ??= this.resolveCanonicalPaths();
+        return this.canonicalPathsReady;
+    }
+
+    private async resolveCanonicalPaths(): Promise<void> {
+        const canonicalize = (p: string) => canonicalizePath(p).catch(() => p);
+        const canonicalRoots = await Promise.all(this.normalizedAllowedPaths.map(canonicalize));
+        this.canonicalAllowedPaths = canonicalRoots.filter(
+            (canonicalPath, index) => canonicalPath !== this.normalizedAllowedPaths[index]
+        );
+
+        const lexicalBlocked = this.resolveBlockedPaths([
+            ...this.normalizedAllowedPaths,
+            ...this.canonicalAllowedPaths,
+        ]);
+        const canonicalBlocked = await Promise.all(
+            lexicalBlocked.map(async ({ blocked, fullPath }) => ({
+                blocked,
+                fullPath: await canonicalize(fullPath),
+            }))
+        );
+        const seen = new Set<string>();
+        this.resolvedBlockedPaths = [...lexicalBlocked, ...canonicalBlocked].filter(
+            ({ fullPath }) => {
+                if (seen.has(fullPath)) return false;
+                seen.add(fullPath);
+                return true;
+            }
+        );
     }
 
     /**
@@ -362,4 +415,12 @@ export class PathValidator {
     getBlockedPaths(): string[] {
         return [...this.normalizedBlockedPaths];
     }
+}
+
+function isWithinRoot(root: string, candidate: string): boolean {
+    const relative = path.relative(root, candidate);
+    if (relative === '') {
+        return true;
+    }
+    return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }

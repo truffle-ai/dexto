@@ -14,7 +14,7 @@
  */
 
 import { getDextoPath } from '../utils/path.js';
-import type { AgentConfig } from '@dexto/agent-config';
+import { assertSafeConfigKeys, type AgentConfig } from '@dexto/agent-config';
 import * as path from 'path';
 import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
 import { findDextoProjectRoot } from '../utils/execution-context.js';
@@ -135,6 +135,7 @@ export function enrichAgentConfig(
     configPath?: string,
     options: EnrichAgentConfigOptions | boolean = {}
 ): AgentConfig {
+    assertSafeConfigKeys(config);
     // Handle backward compatibility: boolean arg was isInteractiveCli
     const opts: EnrichAgentConfigOptions =
         typeof options === 'boolean' ? { isInteractiveCli: options } : options;

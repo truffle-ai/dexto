@@ -5,6 +5,7 @@ import type { ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemService } from './filesystem-service.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { resolveUserPath } from './path-utils.js';
+import { canonicalizePath } from './safe-fs.js';
 
 type DirectoryApprovalOperation = 'read' | 'write' | 'edit';
 
@@ -53,7 +54,11 @@ export function isPathApprovedByDirectoryKey(
             continue;
         }
         const relative = path.relative(approvedDir, resolvedFilePath);
-        if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+        if (
+            relative !== '..' &&
+            !relative.startsWith(`..${path.sep}`) &&
+            !path.isAbsolute(relative)
+        ) {
             return true;
         }
     }
@@ -90,7 +95,20 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
             context: ToolExecutionContext
         ): Promise<string | false> {
             const resolvedFileSystemService = await options.getFileSystemService(context);
-            const paths = options.resolvePaths(input, resolvedFileSystemService);
+            const lexicalPaths = options.resolvePaths(input, resolvedFileSystemService);
+            // Approve the directory the operation really lands in. Validation compares
+            // canonical paths against approved directories, so the key must be canonical too.
+            const canonicalPath = await canonicalizePath(lexicalPaths.path);
+            const paths: DirectoryApprovalPaths =
+                canonicalPath === lexicalPaths.path
+                    ? lexicalPaths
+                    : {
+                          path: canonicalPath,
+                          parentDir:
+                              lexicalPaths.parentDir === lexicalPaths.path
+                                  ? canonicalPath
+                                  : path.dirname(canonicalPath),
+                      };
 
             const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(paths.path);
             if (isAllowed) {
