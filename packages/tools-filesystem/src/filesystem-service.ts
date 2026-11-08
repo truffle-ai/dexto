@@ -4,8 +4,10 @@
  * Secure file system operations for Dexto internal tools
  */
 
+import { constants as fsConstants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
 import { DextoRuntimeError } from '@dexto/core/errors';
@@ -1083,7 +1085,7 @@ export class FileSystemService {
 
         try {
             await fs.mkdir(backupDir, { recursive: true });
-            await fs.copyFile(filePath, backupPath);
+            await copyWithoutFollowingLinks(filePath, backupPath);
             this.logger.debug(`Backup created: ${backupPath}`);
 
             // Clean up old backups after creating new one
@@ -1175,5 +1177,24 @@ export class FileSystemService {
     async isPathAllowed(filePath: string): Promise<boolean> {
         const validation = await this.pathValidator.validatePath(filePath, 'read');
         return validation.isValid;
+    }
+}
+
+/**
+ * Copy a regular file without following a symlink at either end. A symlink source fails with
+ * ELOOP and an existing destination (including a symlink) fails with EEXIST, so a backup can
+ * never read or write outside the paths it was given.
+ */
+async function copyWithoutFollowingLinks(source: string, destination: string): Promise<void> {
+    const input = await fs.open(source, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    try {
+        const stats = await input.stat();
+        if (!stats.isFile()) {
+            throw new Error('Only regular files can be backed up');
+        }
+        const output = await fs.open(destination, 'wx', stats.mode & 0o777);
+        await pipeline(input.createReadStream({ autoClose: false }), output.createWriteStream());
+    } finally {
+        await input.close();
     }
 }
