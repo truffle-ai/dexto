@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.16.2
+
+### Patch Changes
+
+- f80f6e7: Treat tool results with missing, null, or undefined error values as successful.
+    - @dexto/llm@1.16.2
+
 ## 1.16.1
 
 ### Patch Changes

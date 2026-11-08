@@ -1,5 +1,23 @@
 # dexto
 
+## 1.16.2
+
+### Patch Changes
+
+- Updated dependencies [f80f6e7]
+    - @dexto/core@1.16.2
+    - @dexto/agent-config@1.16.2
+    - @dexto/agent-management@1.16.2
+    - @dexto/analytics@1.16.2
+    - @dexto/client-sdk@1.16.2
+    - @dexto/image-local@1.16.2
+    - @dexto/image-logger-agent@1.16.2
+    - @dexto/server@1.16.2
+    - @dexto/storage@1.16.2
+    - @dexto/tui@1.16.2
+    - @dexto/llm@1.16.2
+    - @dexto/registry@1.16.2
+
 ## 1.16.1
 
 ### Patch Changes
