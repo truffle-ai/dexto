@@ -320,7 +320,7 @@ Then check your account: dexto whoami --json
     # Adds the install dir to the user and current-session PATH unless -NoModifyPath or -DryRun;
     # returns whether the user PATH changed. An unchanged run calls it too, so a rerun repairs the
     # PATH an earlier -NoModifyPath run skipped.
-    function Update-UserPath {
+    function Invoke-UserPathSetup {
         if ($NoModifyPath -or $DryRun) {
             return $false
         }
@@ -352,7 +352,7 @@ Then check your account: dexto whoami --json
 
     if ($action -eq 'unchanged') {
         Write-Note "$DextoPackage $targetVersion is already installed at $launcherPath."
-        Write-Result 'unchanged' (Update-UserPath)
+        Write-Result 'unchanged' (Invoke-UserPathSetup)
         return
     }
 
@@ -509,7 +509,7 @@ Then check your account: dexto whoami --json
     Remove-Item -LiteralPath $state.WorkDir -Recurse -Force -ErrorAction SilentlyContinue
     $state.WorkDir = $null
 
-    $pathUpdated = Update-UserPath
+    $pathUpdated = Invoke-UserPathSetup
 
     Write-Note "Installed $DextoPackage $targetVersion at $launcherPath."
     Write-Result $action $pathUpdated
