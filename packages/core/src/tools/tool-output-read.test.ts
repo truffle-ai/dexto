@@ -43,7 +43,7 @@ describe('tool_output_read', () => {
         );
     });
 
-    it('returns about 24,000 characters in one call and says where the next page starts', async () => {
+    it('returns about 16,000 characters in one call and says where the next page starts', async () => {
         const { toolOutputs, read } = await setup();
         await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
 
@@ -52,11 +52,11 @@ describe('tool_output_read', () => {
         const second = await read('s1', { id: 'call-1', offset: nextOffset });
 
         // 3,000 short lines are about 45,000 characters with their line numbers.
-        expect(first.length).toBeGreaterThan(23_000);
-        expect(first.length).toBeLessThanOrEqual(24_100);
+        expect(first.length).toBeGreaterThan(15_000);
+        expect(first.length).toBeLessThanOrEqual(16_100);
         expect(first).toContain(`${nextOffset - 1}: line ${nextOffset - 1}\n\n[Showing lines 1-`);
         expect(second.startsWith(`${nextOffset}: line ${nextOffset}\n`)).toBe(true);
-        expect(second).toContain('of 3000.]');
+        expect(second).toContain('of 3000. Use offset=');
     });
 
     it('keeps a search within the same size and says how many matches it left out', async () => {
@@ -66,7 +66,7 @@ describe('tool_output_read', () => {
 
         const found = await read('s1', { id: 'call-1', pattern: 'match', maxMatches: 500 });
 
-        expect(found.length).toBeLessThanOrEqual(24_200);
+        expect(found.length).toBeLessThanOrEqual(16_200);
         expect(found).toMatch(
             /\[Showing \d+ of 400 matching lines; narrow the pattern to see the rest\. Read around a match with offset\.\]$/
         );
@@ -95,15 +95,15 @@ describe('tool_output_read', () => {
         });
 
         const first = await read('s1', { id: 'call-1' });
-        const second = await read('s1', { id: 'call-1', offset: 1, charOffset: 23_997 });
-        const last = await read('s1', { id: 'call-1', offset: 1, charOffset: 100_000 });
+        const second = await read('s1', { id: 'call-1', offset: 1, charOffset: 15_997 });
+        const last = await read('s1', { id: 'call-1', offset: 1, charOffset: 110_000 });
 
-        expect(first.length).toBeLessThan(24_200);
+        expect(first.length).toBeLessThan(16_200);
         expect(first).toContain(
-            '[Line 1 continues (120000 characters). Use offset=1 charOffset=23997 to continue.]'
+            '[Line 1 continues (120000 characters). Use offset=1 charOffset=15997 to continue.]'
         );
-        expect(second).toContain('Use offset=1 charOffset=47994 to continue.');
-        expect(last).toBe(`1: ${'x'.repeat(20_000)}\n2: next\n\n[Showing lines 1-2 of 2.]`);
+        expect(second).toContain('Use offset=1 charOffset=31994 to continue.');
+        expect(last).toBe(`1: ${'x'.repeat(10_000)}\n2: next\n\n[Showing lines 1-2 of 2.]`);
     });
 
     it('reads a pruned result back from the session history', async () => {
