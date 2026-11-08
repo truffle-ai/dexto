@@ -11,6 +11,18 @@ import * as os from 'node:os';
 import { FileSystemService } from './filesystem-service.js';
 import type { Logger } from '@dexto/core';
 
+// Windows has no O_NOFOLLOW; let a test hide it from the service to exercise that path.
+const nodeFs = vi.hoisted(() => ({ hideNoFollow: false }));
+vi.mock('node:fs', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('node:fs')>();
+    const constants = { ...actual.constants };
+    Object.defineProperty(constants, 'O_NOFOLLOW', {
+        enumerable: true,
+        get: () => (nodeFs.hideNoFollow ? undefined : actual.constants.O_NOFOLLOW),
+    });
+    return { ...actual, constants };
+});
+
 // Create mock logger
 const createMockLogger = (): Logger => {
     const logger: Logger = {
@@ -440,6 +452,7 @@ describe('FileSystemService', () => {
 
             afterEach(async () => {
                 vi.useRealTimers();
+                nodeFs.hideNoFollow = false;
                 await fs.rm(outsideDir, { recursive: true, force: true });
             });
 
@@ -452,6 +465,28 @@ describe('FileSystemService', () => {
                 await expect(service['createBackup'](link)).rejects.toThrow(/backup/i);
 
                 expect(await fs.readdir(backupDir)).toEqual([]);
+            });
+
+            it('refuses a symlink source where O_NOFOLLOW is unavailable (Windows)', async () => {
+                nodeFs.hideNoFollow = true;
+                const secret = path.join(outsideDir, 'secret.txt');
+                await fs.writeFile(secret, 'outside secret');
+                const link = path.join(tempDir, 'link.txt');
+                await fs.symlink(secret, link);
+
+                await expect(service['createBackup'](link)).rejects.toThrow(/backup/i);
+
+                expect(await fs.readdir(backupDir)).toEqual([]);
+            });
+
+            it('still backs up a regular file where O_NOFOLLOW is unavailable (Windows)', async () => {
+                nodeFs.hideNoFollow = true;
+                const source = path.join(tempDir, 'test.txt');
+                await fs.writeFile(source, 'original content');
+
+                const backupPath = await service['createBackup'](source);
+
+                expect(await fs.readFile(backupPath, 'utf-8')).toBe('original content');
             });
 
             it('does not write through a symlink planted at the backup path', async () => {
