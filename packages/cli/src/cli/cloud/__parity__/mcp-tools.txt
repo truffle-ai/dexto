@@ -3870,6 +3870,26 @@
             "minLength": 1,
             "type": "string"
           },
+          "answers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "description": "For a send that answers a Claude Code question card with several questions, which a message can't answer: an object keyed by each question's text, each value the option label chosen (a list of labels for a multi-select). A message answers a card with one question by itself. Refused, with the questions and their options, when it doesn't fit."
+          },
           "model": {
             "description": "Optional model id from dexto_chat_models: once the message is queued, switches the chat to it, as the person's picker does, until switched again.",
             "type": "string"
