@@ -87,6 +87,8 @@ if (command === 'view') {
     // the package is not installed.
     const prefix = process.env.STUB_GLOBAL_PREFIX;
     if (!fs.existsSync(path.join(prefix, 'lib', 'node_modules', 'dexto'))) process.exit(0);
+    // 'keep' fails before removing anything; any other value fails after removing it.
+    if (process.env.STUB_UNINSTALL_FAILS === 'keep') process.exit(1);
     fs.rmSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true, force: true });
     fs.rmSync(path.join(prefix, 'bin', 'dexto'), { force: true });
     if (process.env.STUB_UNINSTALL_FAILS) process.exit(1);
@@ -411,6 +413,58 @@ posixOnly('scripts/install.sh', () => {
             } finally {
                 chmodSync(npmBin, 0o755);
             }
+        });
+
+        it('keeps that bin dir on the next default run, when the npm package is gone', () => {
+            const first = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+            expect(first.json.installed).toMatchObject({ path: path.join(npmBin, 'dexto') });
+            expect(existsSync(path.join(prefix, 'lib', 'node_modules', 'dexto'))).toBe(false);
+
+            const same = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+            expect(same.json.installed).toMatchObject({
+                action: 'unchanged',
+                path: path.join(npmBin, 'dexto'),
+                on_path: true,
+            });
+
+            const upgraded = run(
+                ['--version', 'next'],
+                { STUB_GLOBAL_PREFIX: prefix },
+                { pathDirs }
+            );
+            expect(upgraded.json.installed).toMatchObject({
+                action: 'upgraded',
+                version: '2.0.1',
+                path: path.join(npmBin, 'dexto'),
+                on_path: true,
+            });
+            expect(readlinkSync(path.join(npmBin, 'dexto'))).toBe(versionBin('2.0.1'));
+            expect(lstatSync(linkPath(), { throwIfNoEntry: false })).toBeUndefined();
+        });
+
+        it('does not link into the npm bin dir while npm still has dexto installed', () => {
+            const result = run(
+                [],
+                { STUB_GLOBAL_PREFIX: prefix, STUB_UNINSTALL_FAILS: 'keep' },
+                { pathDirs }
+            );
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+            expect(result.stderr).toContain('still installed');
+            expect(result.stderr).toContain('npm uninstall -g dexto');
+            expect(readlinkSync(path.join(npmBin, 'dexto'))).toBe(
+                '../lib/node_modules/dexto/bin.sh'
+            );
+            expect(readlinkSync(linkPath())).toBe(versionBin('2.0.0'));
+        });
+
+        it('tells the user that npm can replace or remove the link, and to rerun the installer', () => {
+            const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+            expect(result.stderr).toContain('npm install -g dexto');
+            expect(result.stderr).toContain('npm uninstall -g dexto');
+            expect(result.stderr).toContain('run the installer again');
         });
 
         it('keeps an explicit --install-dir', () => {

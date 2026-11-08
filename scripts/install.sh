@@ -16,6 +16,11 @@
 # Exit codes follow the CLI: 0 done, 1 failed, 2 invalid input, 5 version not found.
 #
 # Re-running it is safe: the installed version is left alone, any other version is replaced.
+#
+# When ~/.local/bin is not on PATH but a global npm dexto's bin dir is (as when 1.x's `dexto upgrade`
+# runs this), it removes that npm dexto and links into that bin dir, so dexto keeps running once the
+# caller's own `npm uninstall -g dexto` finds nothing to remove. A later `npm install -g dexto` may
+# replace that link and `npm uninstall -g dexto` may remove it; then run this installer again.
 
 set -u
 
@@ -60,6 +65,13 @@ say() {
 
 json_string() {
     printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\t\r\n' '   ' | LC_ALL=C tr -d '\000-\037\177')"
+}
+
+path_has() {
+    case ":${PATH}:" in
+        *":$1:"*) return 0 ;;
+    esac
+    return 1
 }
 
 json_string_or_null() {
@@ -233,22 +245,45 @@ fi
 # shouldn't change what gets installed.
 cd "${HOME}" 2>/dev/null || cd / || fail failed "Could not change to the home directory." ""
 
+# The earlier install this one replaces, from the metadata it wrote.
+tab="$(printf '\t')"
+previous_version=""
+previous_path=""
+if [ -f "${metadata_path}" ]; then
+    previous="$(node -e '
+const fs = require("fs");
+try {
+    const meta = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (typeof meta.version === "string" && typeof meta.installedPath === "string") {
+        process.stdout.write(meta.version + "\t" + meta.installedPath);
+    }
+} catch {}
+' "${metadata_path}" </dev/null 2>/dev/null)"
+    if [ -n "${previous}" ]; then
+        previous_version="${previous%%"${tab}"*}"
+        previous_path="${previous#*"${tab}"}"
+    fi
+fi
+
 # 1.x's `dexto upgrade` runs this script and then `npm uninstall -g dexto`. When ~/.local/bin is not
-# on PATH, that would leave no dexto to run, so take over the bin dir the global npm dexto already
-# has on PATH, when it can be written: the uninstall below then finds nothing left to remove.
-if [ "${install_dir_chosen}" -eq 0 ]; then
-    case ":${PATH}:" in
-        *":${install_dir}:"*) ;;
-        *)
-            if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_prefix}" ] &&
-                [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
-                [ -w "${npm_prefix}/bin" ] && [ -w "${npm_prefix}/lib/node_modules" ]; then
-                case ":${PATH}:" in
-                    *":${npm_prefix}/bin:"*) install_dir="${npm_prefix}/bin" ;;
-                esac
-            fi
-            ;;
-    esac
+# on PATH, that would leave no dexto to run. So, unless a directory was asked for, reuse the bin dir
+# of an earlier install of ours that PATH has (a run that did the next thing), or else take over the
+# bin dir the global npm dexto has on PATH, when it can be written: the uninstall below then finds
+# nothing left to remove.
+install_dir_adopted=0
+if [ "${install_dir_chosen}" -eq 0 ] && ! path_has "${install_dir}"; then
+    previous_dir="${previous_path%/*}"
+    if [ "${previous_path##*/}" = dexto ] && [ -L "${previous_path}" ] && [ -x "${previous_path}" ] &&
+        case "$(readlink "${previous_path}")" in "${cli_root}"/*) true ;; *) false ;; esac &&
+        [ -w "${previous_dir}" ] && path_has "${previous_dir}"; then
+        install_dir="${previous_dir}"
+    elif npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_prefix}" ] &&
+        [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
+        [ -w "${npm_prefix}/bin" ] && [ -w "${npm_prefix}/lib/node_modules" ] &&
+        path_has "${npm_prefix}/bin"; then
+        install_dir="${npm_prefix}/bin"
+        install_dir_adopted=1
+    fi
 fi
 link_path="${install_dir}/dexto"
 
@@ -283,7 +318,6 @@ process.stdin.on("end", () => {
 if [ -z "${resolved}" ]; then
     fail version_not_found "No ${DEXTO_PACKAGE} release matches ${version_spec}." "Check the versions with: npm view ${DEXTO_PACKAGE} dist-tags versions"
 fi
-tab="$(printf '\t')"
 version="${resolved%%"${tab}"*}"
 rest="${resolved#*"${tab}"}"
 integrity="${rest%%"${tab}"*}"
@@ -298,24 +332,6 @@ esac
 
 version_dir="${cli_root}/${version}"
 version_bin="${version_dir}/bin/dexto"
-
-previous_version=""
-previous_path=""
-if [ -f "${metadata_path}" ]; then
-    previous="$(node -e '
-const fs = require("fs");
-try {
-    const meta = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    if (typeof meta.version === "string" && typeof meta.installedPath === "string") {
-        process.stdout.write(meta.version + "\t" + meta.installedPath);
-    }
-} catch {}
-' "${metadata_path}" </dev/null 2>/dev/null)"
-    if [ -n "${previous}" ]; then
-        previous_version="${previous%%"${tab}"*}"
-        previous_path="${previous#*"${tab}"}"
-    fi
-fi
 
 already_installed=0
 if [ "${previous_version}" = "${version}" ] && [ "${previous_path}" = "${link_path}" ] &&
@@ -339,9 +355,9 @@ if [ -d "${link_path}" ]; then
 fi
 
 on_path=false
-case ":${PATH}:" in
-    *":${install_dir}:"*) on_path=true ;;
-esac
+if path_has "${install_dir}"; then
+    on_path=true
+fi
 
 print_result() {
     shadowed_by=""
@@ -459,9 +475,25 @@ if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_pre
     [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
     [ "$(cd "${npm_prefix}/bin" 2>/dev/null && pwd -P)" = "$(cd "${install_dir}" && pwd -P)" ]; then
     say "Removing the global npm ${DEXTO_PACKAGE} at ${npm_prefix}, which uses ${link_path}..."
-    # The link is made next either way: npm may have removed it before it failed.
-    if ! npm uninstall --global "${DEXTO_PACKAGE}" --loglevel=error </dev/null >&2; then
-        say "warning: could not remove the global npm ${DEXTO_PACKAGE}. If ${link_path} goes missing, run: npm uninstall -g ${DEXTO_PACKAGE}, then run the installer again."
+    if npm uninstall --global "${DEXTO_PACKAGE}" --loglevel=error </dev/null >&2; then
+        if [ "${install_dir_adopted}" -eq 1 ]; then
+            say "Using ${install_dir}, where the global npm ${DEXTO_PACKAGE} was. A later \`npm install -g ${DEXTO_PACKAGE}\` may replace ${link_path}, and \`npm uninstall -g ${DEXTO_PACKAGE}\` may remove it; if \`dexto\` stops working, run the installer again."
+        fi
+    elif [ ! -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ]; then
+        # npm removed it, then failed. The link is made next.
+        say "warning: could not remove the global npm ${DEXTO_PACKAGE} cleanly: npm removed it, then failed. If ${link_path} goes missing, run: npm uninstall -g ${DEXTO_PACKAGE}, then run the installer again."
+    elif [ "${install_dir_adopted}" -eq 1 ]; then
+        # Linking here would let a later successful `npm uninstall -g dexto` delete the new link.
+        say "warning: could not remove the global npm ${DEXTO_PACKAGE}, which is still installed and uses ${link_path}. Leaving it alone and linking into ${HOME}/.local/bin instead, which is not on your PATH. Run: npm uninstall -g ${DEXTO_PACKAGE}, then add ${HOME}/.local/bin to your PATH."
+        install_dir="${HOME}/.local/bin"
+        link_path="${install_dir}/dexto"
+        on_path=false
+        if path_has "${install_dir}"; then
+            on_path=true
+        fi
+        mkdir -p "${install_dir}" || fail failed "Could not create ${install_dir}." "Check that you can write to it, or pass another --install-dir."
+    else
+        say "warning: could not remove the global npm ${DEXTO_PACKAGE}, which is still installed and uses ${link_path}. A later \`npm uninstall -g ${DEXTO_PACKAGE}\` removes the link made now: run it yourself, then run the installer again."
     fi
 fi
 
