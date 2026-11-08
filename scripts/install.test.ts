@@ -83,8 +83,10 @@ if (command === 'view') {
     if (!process.env.STUB_GLOBAL_PREFIX) process.exit(1);
     process.stdout.write(process.env.STUB_GLOBAL_PREFIX + '\\n');
 } else if (command === 'uninstall') {
-    // Like npm, it deletes the bin link without checking what it points to.
+    // Like npm, it deletes the bin link without checking what it points to, and does nothing when
+    // the package is not installed.
     const prefix = process.env.STUB_GLOBAL_PREFIX;
+    if (!fs.existsSync(path.join(prefix, 'lib', 'node_modules', 'dexto'))) process.exit(0);
     fs.rmSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true, force: true });
     fs.rmSync(path.join(prefix, 'bin', 'dexto'), { force: true });
     if (process.env.STUB_UNINSTALL_FAILS) process.exit(1);
@@ -345,6 +347,72 @@ posixOnly('scripts/install.sh', () => {
         expect(existsSync(live)).toBe(true);
         // Less than a day old, so it may belong to a run still installing.
         expect(existsSync(freshStaging)).toBe(true);
+    });
+
+    describe('a 1.x upgrade from a global npm dexto outside ~/.local/bin', () => {
+        // A 1.x global install: npm's bin dir is on PATH, ~/.local/bin is not.
+        let prefix: string;
+        let npmBin: string;
+        let pathDirs: string[];
+
+        beforeEach(() => {
+            prefix = path.join(root, 'npm-global');
+            npmBin = path.join(prefix, 'bin');
+            mkdirSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true });
+            mkdirSync(npmBin);
+            symlinkSync('../lib/node_modules/dexto/bin.sh', path.join(npmBin, 'dexto'));
+            pathDirs = [npmBin, stubBin, path.dirname(process.execPath), '/usr/bin', '/bin'];
+        });
+
+        // The 1.x caller runs `npm uninstall -g dexto` after the installer exits.
+        function runUpgradeThenOldUninstall(): RunResult {
+            const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+            spawnSync('npm', ['uninstall', '-g', 'dexto'], {
+                env: { PATH: pathDirs.join(':'), STUB_REGISTRY: registry, STUB_GLOBAL_PREFIX: prefix },
+            });
+            return result;
+        }
+
+        it('installs into the bin dir PATH already has, so dexto still runs once 1.x uninstalls', () => {
+            const result = runUpgradeThenOldUninstall();
+
+            expect(result.status).toBe(0);
+            expect(result.json.installed).toMatchObject({
+                action: 'upgraded',
+                path: path.join(npmBin, 'dexto'),
+                on_path: true,
+            });
+            const found = spawnSync('sh', ['-c', 'command -v dexto'], {
+                env: { PATH: pathDirs.join(':') },
+                encoding: 'utf8',
+            });
+            expect(found.stdout.trim()).toBe(path.join(npmBin, 'dexto'));
+            expect(spawnSync(found.stdout.trim(), ['--version'], { encoding: 'utf8' }).stdout.trim()).toBe(
+                '2.0.0'
+            );
+        });
+
+        it('keeps ~/.local/bin, and the old dexto, when it cannot write the npm bin dir', () => {
+            chmodSync(npmBin, 0o555);
+            try {
+                const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+                expect(result.status).toBe(0);
+                expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+                expect(npmCalls().some((call) => call.startsWith('uninstall'))).toBe(false);
+                expect(lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })).toBeDefined();
+            } finally {
+                chmodSync(npmBin, 0o755);
+            }
+        });
+
+        it('keeps an explicit --install-dir', () => {
+            const customDir = path.join(root, 'custom-bin');
+
+            const result = run(['--install-dir', customDir], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+
+            expect(result.json.installed).toMatchObject({ path: path.join(customDir, 'dexto') });
+        });
     });
 
     it('leaves a global npm dexto alone when it uses another bin dir', () => {

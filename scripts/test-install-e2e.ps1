@@ -77,6 +77,26 @@ Assert-That ($moved.Result.installed.path -eq (Join-Path $otherDir 'dexto.cmd'))
 Assert-That (-not (Test-Path -LiteralPath $launcher)) 'the launcher in the old install dir was left behind'
 $launcher = $moved.Result.installed.path
 
+# A rerun that finds nothing to install still repairs a user PATH that an earlier -NoModifyPath
+# run left without the install dir (DEXTO-2449).
+$env:DEXTO_VERSION = $Version
+$env:DEXTO_INSTALL_DIR = $otherDir
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+$withoutOtherDir = ($userPath.Split(';') | Where-Object { $_ -and ($_.TrimEnd('\') -ne $otherDir) }) -join ';'
+[Environment]::SetEnvironmentVariable('Path', $withoutOtherDir, 'User')
+$skipped = Invoke-Installer '-NoModifyPath'
+Write-Output "unchanged with -NoModifyPath: $($skipped.Line)"
+Assert-That ($skipped.Result.installed.action -eq 'unchanged') 'expected an unchanged run with -NoModifyPath'
+Assert-That ($skipped.Result.installed.path_updated -eq $false) 'expected -NoModifyPath to leave path_updated false'
+Assert-That (-not ([Environment]::GetEnvironmentVariable('Path', 'User').Split(';') -contains $otherDir)) '-NoModifyPath changed the user PATH'
+$repaired = Invoke-Installer ''
+Remove-Item Env:DEXTO_INSTALL_DIR
+Remove-Item Env:DEXTO_VERSION
+Write-Output "unchanged rerun: $($repaired.Line)"
+Assert-That ($repaired.Result.installed.action -eq 'unchanged') 'expected an unchanged rerun'
+Assert-That ($repaired.Result.installed.path_updated -eq $true) 'expected the unchanged rerun to report path_updated'
+Assert-That ([Environment]::GetEnvironmentVariable('Path', 'User').Split(';') -contains $otherDir) 'the unchanged rerun did not repair the user PATH'
+
 $bad = Invoke-Installer "-Version 'not a version'"
 Write-Output "invalid version: $($bad.Line)"
 Assert-That ($bad.Status -eq 2) "expected exit 2, got $($bad.Status)"
