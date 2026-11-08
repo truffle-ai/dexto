@@ -5082,10 +5082,10 @@ describe('TurnExecutor Integration Tests', () => {
         it('finalizes a held empty reply as cancelled when the step is aborted during the history check', async () => {
             const abortController = new AbortController();
             vi.mocked(streamText).mockImplementation(() => emptyReply('Thinking'));
-            const getModelHistory = contextManager.getModelHistory.bind(contextManager);
-            vi.spyOn(contextManager, 'getModelHistory').mockImplementation(async () => {
+            const countModelMessages = contextManager.countModelMessages.bind(contextManager);
+            vi.spyOn(contextManager, 'countModelMessages').mockImplementation(async () => {
                 if (vi.mocked(streamText).mock.calls.length > 0) abortController.abort();
-                return getModelHistory();
+                return countModelMessages();
             });
 
             const retryingHandler = vi.fn();
@@ -5935,13 +5935,84 @@ describe('TurnExecutor Integration Tests', () => {
             const rawHistorySpy = vi
                 .spyOn(contextManager, 'getHistory')
                 .mockRejectedValue(new Error('Compaction should use model history'));
-            const modelHistorySpy = vi.spyOn(contextManager, 'getModelHistory');
+            const modelHistorySpy = vi.spyOn(contextManager, 'loadModelHistory');
 
             await compactingExecutor.execute({ mcpManager }, true);
 
             expect(rawHistorySpy).not.toHaveBeenCalled();
             expect(modelHistorySpy).toHaveBeenCalled();
             expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+        });
+
+        describe('history reads per step', () => {
+            function countStoreReads() {
+                return {
+                    loads: vi.spyOn(conversationStore, 'loadModelHistory'),
+                    counts: vi.spyOn(conversationStore, 'countModelMessages'),
+                    full: vi.spyOn(conversationStore, 'listMessages'),
+                };
+            }
+
+            function replyWithUsage() {
+                vi.mocked(streamText).mockImplementation(
+                    () =>
+                        createMockStream({
+                            text: 'Response',
+                            finishReason: 'stop',
+                            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            }
+
+            it('loads the history once for a step and counts messages without loading them', async () => {
+                replyWithUsage();
+                await seedCompactionEligibleHistory();
+                const reads = countStoreReads();
+                reads.full.mockClear();
+
+                await executor.execute({ mcpManager }, true);
+
+                // One load for the whole step. The two length checks (before the model call and
+                // when recording the call) read a count.
+                expect(reads.loads).toHaveBeenCalledTimes(1);
+                expect(reads.counts).toHaveBeenCalledTimes(2);
+                expect(contextManager.getLastCallMessageCount()).toBe(
+                    (await contextManager.loadModelHistory()).messages.length
+                );
+            });
+
+            it('derives the count from one load when the store has no count', async () => {
+                replyWithUsage();
+                await seedCompactionEligibleHistory();
+                Object.defineProperty(conversationStore, 'countModelMessages', {
+                    value: undefined,
+                    configurable: true,
+                });
+                const loads = vi.spyOn(conversationStore, 'loadModelHistory');
+
+                await executor.execute({ mcpManager }, true);
+
+                // The step's load, plus one derived count before the model call and one after.
+                expect(loads).toHaveBeenCalledTimes(3);
+                expect(contextManager.getLastCallMessageCount()).toBe(
+                    (await contextManager.loadModelHistory()).messages.length
+                );
+            });
+
+            it('loads again only after compaction changes the stored history', async () => {
+                const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
+                replyWithUsage();
+                const compactingExecutor = createExecutorWithCompaction(compactionStrategy);
+                await seedCompactionEligibleHistory();
+                const reads = countStoreReads();
+
+                await compactingExecutor.execute({ mcpManager }, true);
+
+                expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+                // Before compaction, and once after it for the estimate and the request.
+                expect(reads.loads).toHaveBeenCalledTimes(2);
+                expect(reads.counts).toHaveBeenCalledTimes(2);
+            });
         });
 
         it('queues steer submitted during compaction for the next model step', async () => {

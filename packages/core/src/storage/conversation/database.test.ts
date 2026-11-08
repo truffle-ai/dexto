@@ -86,6 +86,8 @@ describe('DatabaseConversationStore', () => {
             skippedPreSummaryMessages: 1,
             summaryMessageId: 'summary',
         });
+        expect(await store.countModelMessages({ sessionId: 'session-1' })).toBe(3);
+        expect(await store.countModelMessages({ sessionId: 'empty-session' })).toBe(0);
     });
 
     it('flushes message updates back to durable storage', async () => {

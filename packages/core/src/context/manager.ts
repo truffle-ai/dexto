@@ -18,7 +18,7 @@ import {
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
-import type { ConversationStore } from '../storage/conversation/types.js';
+import type { ConversationStore, ModelHistoryLoad } from '../storage/conversation/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
@@ -455,10 +455,7 @@ export class ContextManager<TMessage = unknown> {
      * This marks the boundary for "new messages" calculation.
      */
     async recordLastCallMessageCount(): Promise<void> {
-        const history = await this.conversationStore.loadModelHistory({
-            sessionId: this.sessionId,
-        });
-        this.lastCallMessageCount = history.messages.length;
+        this.lastCallMessageCount = await this.countModelMessages();
         this.logger.debug(`Recorded lastCallMessageCount: ${this.lastCallMessageCount}`);
     }
 
@@ -507,9 +504,15 @@ export class ContextManager<TMessage = unknown> {
      * method instead of prepareHistory().
      */
     async prepareModelHistory(): Promise<PreparedHistoryResult> {
-        const modelHistory = await this.conversationStore.loadModelHistory({
-            sessionId: this.sessionId,
-        });
+        return this.prepareLoadedModelHistory(await this.loadModelHistory());
+    }
+
+    /**
+     * Prepares a model history the caller already loaded with loadModelHistory(), so one step can
+     * load once and prepare from the same load. The caller reloads after anything that changes
+     * stored messages.
+     */
+    prepareLoadedModelHistory(modelHistory: ModelHistoryLoad): PreparedHistoryResult {
         return this.prepareVisibleHistory({
             history: modelHistory.messages,
             originalCount:
@@ -518,11 +521,21 @@ export class ContextManager<TMessage = unknown> {
         });
     }
 
-    async getModelHistory(): Promise<Readonly<InternalMessage[]>> {
-        const modelHistory = await this.conversationStore.loadModelHistory({
-            sessionId: this.sessionId,
-        });
-        return modelHistory.messages;
+    /** Loads the stored messages the model sees: everything from the latest summary on. */
+    async loadModelHistory(): Promise<ModelHistoryLoad> {
+        return this.conversationStore.loadModelHistory({ sessionId: this.sessionId });
+    }
+
+    /**
+     * Number of stored messages the model sees. Reads a count when the store has one; otherwise
+     * derives it from a full load. Use it instead of loading history only to take its length.
+     */
+    async countModelMessages(): Promise<number> {
+        const input = { sessionId: this.sessionId };
+        if (this.conversationStore.countModelMessages) {
+            return this.conversationStore.countModelMessages(input);
+        }
+        return (await this.conversationStore.loadModelHistory(input)).messages.length;
     }
 
     private prepareVisibleHistory(input: {
@@ -1212,11 +1225,13 @@ export class ContextManager<TMessage = unknown> {
      *
      * @param contributorContext Context for building the system prompt
      * @param tools Tool definitions to include in the estimate
+     * @param loadedModelHistory A model history the caller just loaded; loaded here when omitted
      * @returns Token estimates with breakdown and comparison to actual (if available)
      */
     async getContextTokenEstimate(
         contributorContext: DynamicContributorContext,
-        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>,
+        loadedModelHistory?: ModelHistoryLoad
     ): Promise<{
         /** Total estimated tokens */
         estimated: number;
@@ -1253,15 +1268,8 @@ export class ContextManager<TMessage = unknown> {
         const systemPrompt = await this.getSystemPrompt(contributorContext);
 
         // Step 2: Prepare model history (same as LLM preparation - single source of truth)
-        const modelHistory = await this.conversationStore.loadModelHistory({
-            sessionId: this.sessionId,
-        });
-        const { preparedHistory, stats } = this.prepareVisibleHistory({
-            history: modelHistory.messages,
-            originalCount:
-                modelHistory.stats.returnedMessages + modelHistory.stats.skippedPreSummaryMessages,
-            source: 'getContextTokenEstimate',
-        });
+        const modelHistory = loadedModelHistory ?? (await this.loadModelHistory());
+        const { preparedHistory, stats } = this.prepareLoadedModelHistory(modelHistory);
 
         // Step 3: Calculate tokens using Phase 4 formula when actuals are available
         // Formula: estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
@@ -1392,12 +1400,15 @@ export class ContextManager<TMessage = unknown> {
      * @param systemPrompt The system prompt string
      * @param preparedHistory Message history AFTER filterCompacted and pruning
      * @param tools Tool definitions
+     * @param loadedModelHistory A model history the caller just loaded; loaded here when omitted
+     *   and the actuals-based formula needs the messages after the last call
      * @returns Estimated total input tokens for the next LLM call
      */
     async getEstimatedNextInputTokens(
         systemPrompt: string,
         preparedHistory: readonly InternalMessage[],
-        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>,
+        loadedModelHistory?: ModelHistoryLoad
     ): Promise<number> {
         const lastInput = this.lastActualInputTokens;
         const lastOutput = this.lastActualOutputTokens;
@@ -1405,9 +1416,7 @@ export class ContextManager<TMessage = unknown> {
 
         // Use actuals-based formula if we have all the required values
         if (lastInput !== null && lastOutput !== null && lastMsgCount !== null) {
-            const modelHistory = await this.conversationStore.loadModelHistory({
-                sessionId: this.sessionId,
-            });
+            const modelHistory = loadedModelHistory ?? (await this.loadModelHistory());
             const newMessages = modelHistory.messages.slice(lastMsgCount);
             const newMessagesEstimate = estimateMessagesTokens(newMessages);
             const total = lastInput + lastOutput + newMessagesEstimate;

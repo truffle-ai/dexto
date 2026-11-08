@@ -42,6 +42,7 @@ describe('InMemoryDextoStores', () => {
                 timestamp: 1,
             },
         ]);
+        expect(await conversation.countModelMessages?.({ sessionId: 'session-1' })).toBe(1);
         expect(await storage.getStore('steerQueue').list({ sessionId: 'session-1' })).toEqual([
             {
                 id: 'queued-1',
