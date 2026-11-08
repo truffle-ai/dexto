@@ -47,6 +47,13 @@ rights under `~/.dexto/cli`. Add its printed bin directory to PATH (`~/.local/bi
 The default is `latest` for 1.x upgrades; explicitly select `next` for 2.0.
 Use `dexto upgrade next` to update a script install. Update npm installs with `npm install -g dexto@next`.
 
+On macOS and Linux, when `~/.local/bin` is not on PATH and a global npm `dexto` is (as when 1.x runs
+`dexto upgrade`), the installer removes the npm `dexto` and links the command into that npm bin
+directory instead, so `dexto` keeps working. If it cannot remove the npm `dexto`, it leaves it alone and
+links into `~/.local/bin`. Because npm owns that directory, a later `npm install -g dexto` may replace
+the link, and `npm uninstall -g dexto` may remove it. If `dexto` stops working after either, run the
+installer again.
+
 ### Uninstall CLI
 
 ```bash
