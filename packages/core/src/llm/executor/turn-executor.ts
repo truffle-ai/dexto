@@ -2494,8 +2494,9 @@ export class TurnExecutor {
 
     private getToolExecutionErrorMessage(result: unknown): string | null {
         if (result && typeof result === 'object' && 'error' in result) {
-            const error = (result as { error?: unknown }).error;
-            return typeof error === 'string' ? error : String(error);
+            const error = result.error;
+            if (typeof error === 'string') return error || null;
+            if (error !== null && typeof error === 'object') return String(error);
         }
         return null;
     }

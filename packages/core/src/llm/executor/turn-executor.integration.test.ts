@@ -929,6 +929,54 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Multi-Step Tool Execution', () => {
+        it.each([
+            { label: 'null error', result: { error: null, value: 'ok' }, success: true },
+            { label: 'undefined error', result: { error: undefined, value: 'ok' }, success: true },
+            { label: 'missing error', result: { value: 'ok' }, success: true },
+            { label: 'empty error', result: { error: '', value: 'ok' }, success: true },
+            { label: 'string error', result: { error: 'failed' }, success: false },
+            { label: 'object error', result: { error: { message: 'failed' } }, success: false },
+        ])('reports $label with success=$success', async ({ result, success }) => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'nullable_error',
+                    description: 'Returns a result',
+                    inputSchema: z.object({}).strict(),
+                    execute: async () => result,
+                }),
+            ]);
+            const onResult = vi.fn();
+            sessionEventBus.on('llm:tool-result', onResult);
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                { toolCallId: 'call-result', toolName: 'nullable_error', args: {} },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use the tool' }]);
+            await executor.execute({ mcpManager }, true);
+            expect(onResult).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    callId: 'call-result',
+                    success,
+                    sanitized: expect.objectContaining({
+                        meta: expect.objectContaining({ success }),
+                    }),
+                })
+            );
+        });
+
         it('executes every sibling tool result before the next model step', async () => {
             toolManager.addTools([
                 defineTool({
