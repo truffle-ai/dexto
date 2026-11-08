@@ -8,8 +8,15 @@ set -uo pipefail
 
 check="$(cd "$(dirname "$0")" && pwd)/check-cli-security-drift.sh"
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+# Fixture directory: made by mktemp under the temp root, and only ever removed when it still is
+# a non-empty directory path directly under that root.
+tmp_root=${TMPDIR:-/tmp}
+tmp_root=${tmp_root%/}
+work=$(mktemp -d "$tmp_root/drift-test.XXXXXX") || exit 2
+inside_tmp_root() { case $1 in *..*) return 1 ;; "$tmp_root"/drift-test.?*) [ -d "$1" ] ;; *) return 1 ;; esac; }
+inside_tmp_root "$work" || { echo "refusing to use fixture dir '$work'" >&2; exit 2; }
+remove_work() { inside_tmp_root "$work" && rm -rf -- "$work"; }
+trap remove_work EXIT
 failures=0
 
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
