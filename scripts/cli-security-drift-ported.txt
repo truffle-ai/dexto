@@ -1,6 +1,7 @@
-# PRs whose fix reached cli-2.0 by hand, not by cherry-pick -x (see scripts/check-cli-security-drift.sh).
-# Format: <main PR number> <where it landed on cli-2.0>
-997 dexto#1134 (fresh lockfile install, not a cherry-pick)
-998 dexto#1134 (docs and examples lockfiles regenerated)
-1005 dexto#1134 (manifest edits plus fresh install)
-1132 dexto#1131 (same backup change, ported to cli-2.0 first; patch differs because safe-fs context differs)
+# Security fixes that reached cli-2.0 by hand, not by cherry-pick -x (see scripts/check-cli-security-drift.sh).
+# Format: <main PR number> <cli-2.0 commit sha, or #<cli-2.0 PR number>> [note]
+# The check verifies the second field is really on origin/cli-2.0; an entry whose port never landed fails it.
+997 #1134 fresh lockfile install, not a cherry-pick
+998 #1134 docs and examples lockfiles regenerated
+1005 #1134 manifest edits plus fresh install
+1132 #1131 same backup change, ported to cli-2.0 first; the patch differs because safe-fs context differs
