@@ -4,7 +4,7 @@
  * Secure file system operations for Dexto internal tools
  */
 
-import { constants as fsConstants } from 'node:fs';
+import { constants as fsConstants, type Stats } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -1212,20 +1212,38 @@ export class FileSystemService {
 }
 
 /**
- * Copy a regular file without following a symlink at either end. A symlink source fails with
- * ELOOP and an existing destination (including a symlink) fails with EEXIST, so a backup can
- * never read or write outside the paths it was given.
+ * Copy a regular file without following a symlink at either end. An existing destination
+ * (including a symlink) fails with EEXIST, so a backup never writes outside the paths it was
+ * given.
+ *
+ * The source is checked twice. `lstat` refuses a symlink or junction up front; this is the only
+ * check on Windows, where `O_NOFOLLOW` does not exist. After opening, the descriptor must be the
+ * same file `lstat` saw, so a link swapped in between is refused. Where `O_NOFOLLOW` exists the
+ * open itself also refuses a link.
  */
 async function copyWithoutFollowingLinks(source: string, destination: string): Promise<void> {
+    const linkStats = await fs.lstat(source);
+    if (!linkStats.isFile()) {
+        throw new Error('Only regular files can be backed up');
+    }
+
     const input = await fs.open(source, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
     try {
         const stats = await input.stat();
-        if (!stats.isFile()) {
-            throw new Error('Only regular files can be backed up');
+        if (!stats.isFile() || !isSameFile(linkStats, stats)) {
+            throw new Error('Source changed while backing up');
         }
         const output = await fs.open(destination, 'wx', stats.mode & 0o777);
         await pipeline(input.createReadStream({ autoClose: false }), output.createWriteStream());
     } finally {
         await input.close();
     }
+}
+
+/** Same inode and device; where the filesystem reports no inode (ino 0), same size and mtime. */
+function isSameFile(a: Stats, b: Stats): boolean {
+    if (a.ino === 0 || b.ino === 0) {
+        return a.size === b.size && a.mtimeMs === b.mtimeMs;
+    }
+    return a.ino === b.ino && a.dev === b.dev;
 }
