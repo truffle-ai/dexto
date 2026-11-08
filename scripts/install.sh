@@ -592,8 +592,10 @@ rm -f "${temp_link}"
 if ! ln -s "${version_bin}" "${temp_link}"; then
     fail failed "Could not link ${link_path}." "Check that you can write to ${install_dir}, or pass another --install-dir."
 fi
-# The adopted link may have changed since it was chosen; replace it only while it is still ours.
-if [ "${adopted_earlier}" -eq 1 ] && ! link_is_ours "${link_path}" "${previous_version}"; then
+# The adopted link may have changed since it was chosen; replace it only while it is still ours. A
+# path that is gone is recreated: removing the global npm dexto above deletes the link there.
+if [ "${adopted_earlier}" -eq 1 ] && { [ -e "${link_path}" ] || [ -L "${link_path}" ]; } &&
+    ! link_is_ours "${link_path}" "${previous_version}"; then
     rm -f "${temp_link}"
     say "warning: ${link_path} is no longer a link made by this installer. Leaving it alone and linking into ${HOME}/.local/bin instead."
     fall_back_to_default_install_dir

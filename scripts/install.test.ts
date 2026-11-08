@@ -97,6 +97,11 @@ if (command === 'view') {
     if (process.env.STUB_UNINSTALL_FAILS === 'keep') process.exit(1);
     fs.rmSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true, force: true });
     fs.rmSync(path.join(prefix, 'bin', 'dexto'), { force: true });
+    // Something else puts a link at the path right after npm removed ours.
+    if (process.env.STUB_LINK_AFTER_UNINSTALL) {
+        const [link, target] = process.env.STUB_LINK_AFTER_UNINSTALL.split('|');
+        fs.symlinkSync(target, link);
+    }
     if (process.env.STUB_UNINSTALL_FAILS) process.exit(1);
 } else {
     process.exit(1);
@@ -556,6 +561,78 @@ posixOnly('scripts/install.sh', () => {
             expect(result.status).toBe(0);
             expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
             expect(lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })).toBeDefined();
+        });
+
+        describe('a reused link in npm bin dir while npm has dexto again', () => {
+            let npmDexto: string;
+            let outside: string;
+
+            beforeEach(() => {
+                npmDexto = path.join(npmBin, 'dexto');
+                outside = path.join(root, 'outside-dexto');
+                writeFileSync(outside, '#!/bin/sh\necho outside\n');
+                chmodSync(outside, 0o755);
+                expect(run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs }).status).toBe(0);
+                // npm has dexto again, and the earlier link in its bin dir is still ours.
+                mkdirSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true });
+            });
+
+            function dextoOnPath(): string {
+                const found = spawnSync('sh', ['-c', 'dexto --version'], {
+                    env: { PATH: pathDirs.join(':') },
+                    encoding: 'utf8',
+                });
+                return found.stdout.trim();
+            }
+
+            it('relinks after npm removes the link, so dexto runs once 1.x uninstalls', () => {
+                const result = run(
+                    ['--version', 'next'],
+                    { STUB_GLOBAL_PREFIX: prefix },
+                    { pathDirs }
+                );
+                // The 1.x caller's own uninstall: nothing is left for it to remove.
+                spawnSync('npm', ['uninstall', '-g', 'dexto'], {
+                    env: {
+                        PATH: pathDirs.join(':'),
+                        STUB_REGISTRY: registry,
+                        STUB_GLOBAL_PREFIX: prefix,
+                    },
+                });
+
+                expect(result.json.installed).toMatchObject({ path: npmDexto, on_path: true });
+                expect(readlinkSync(npmDexto)).toBe(versionBin('2.0.1'));
+                expect(dextoOnPath()).toBe('2.0.1');
+            });
+
+            it('relinks after npm removes the link and then exits non-zero', () => {
+                const result = run(
+                    ['--version', 'next'],
+                    { STUB_GLOBAL_PREFIX: prefix, STUB_UNINSTALL_FAILS: '1' },
+                    { pathDirs }
+                );
+
+                expect(result.status).toBe(0);
+                expect(result.json.installed).toMatchObject({ path: npmDexto, on_path: true });
+                expect(readlinkSync(npmDexto)).toBe(versionBin('2.0.1'));
+                expect(dextoOnPath()).toBe('2.0.1');
+            });
+
+            it('leaves an unexpected link that appears after npm removed ours, and falls back', () => {
+                const result = run(
+                    ['--version', 'next'],
+                    {
+                        STUB_GLOBAL_PREFIX: prefix,
+                        STUB_LINK_AFTER_UNINSTALL: `${npmDexto}|${outside}`,
+                    },
+                    { pathDirs }
+                );
+
+                expect(result.status).toBe(0);
+                expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
+                expect(readlinkSync(npmDexto)).toBe(outside);
+                expect(readlinkSync(linkPath())).toBe(versionBin('2.0.1'));
+            });
         });
 
         it('does not replace an adopted link that stops being ours before the replacement', () => {
