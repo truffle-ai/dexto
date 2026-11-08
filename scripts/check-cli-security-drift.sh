@@ -22,7 +22,7 @@
 #   scripts/check-cli-security-drift.sh                     # every merged main PR labelled security
 #   SECURITY_PRS="1089 1095" scripts/check-cli-security-drift.sh   # just these (to test the script)
 #   DRIFT_PORTED_FILE=/path/to/list scripts/check-cli-security-drift.sh   # another ported list
-# scripts/check-cli-security-drift.test.sh runs the negative regressions (needs network and gh).
+# scripts/check-cli-security-drift.test.sh tests it offline against a git fixture and a mocked gh.
 set -euo pipefail
 
 repo=${GITHUB_REPOSITORY:-truffle-ai/dexto}
