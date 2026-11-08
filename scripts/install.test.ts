@@ -254,11 +254,12 @@ posixOnly('scripts/install.sh', () => {
             version: '2.0.0',
             previous_version: '2.0.0',
         });
+        // `prefix` is a read: it finds a global npm dexto whose bin dir PATH already has.
         expect(
             npmCalls()
                 .slice(callsAfterFirst)
                 .map((call) => call.split(' ')[0])
-        ).toEqual(['view']);
+        ).toEqual(['prefix', 'view']);
     });
 
     it('upgrades to a pinned version from DEXTO_VERSION, keeping only the previous version', () => {
@@ -368,7 +369,11 @@ posixOnly('scripts/install.sh', () => {
         function runUpgradeThenOldUninstall(): RunResult {
             const result = run([], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
             spawnSync('npm', ['uninstall', '-g', 'dexto'], {
-                env: { PATH: pathDirs.join(':'), STUB_REGISTRY: registry, STUB_GLOBAL_PREFIX: prefix },
+                env: {
+                    PATH: pathDirs.join(':'),
+                    STUB_REGISTRY: registry,
+                    STUB_GLOBAL_PREFIX: prefix,
+                },
             });
             return result;
         }
@@ -387,9 +392,9 @@ posixOnly('scripts/install.sh', () => {
                 encoding: 'utf8',
             });
             expect(found.stdout.trim()).toBe(path.join(npmBin, 'dexto'));
-            expect(spawnSync(found.stdout.trim(), ['--version'], { encoding: 'utf8' }).stdout.trim()).toBe(
-                '2.0.0'
-            );
+            expect(
+                spawnSync(found.stdout.trim(), ['--version'], { encoding: 'utf8' }).stdout.trim()
+            ).toBe('2.0.0');
         });
 
         it('keeps ~/.local/bin, and the old dexto, when it cannot write the npm bin dir', () => {
@@ -400,7 +405,9 @@ posixOnly('scripts/install.sh', () => {
                 expect(result.status).toBe(0);
                 expect(result.json.installed).toMatchObject({ path: linkPath(), on_path: false });
                 expect(npmCalls().some((call) => call.startsWith('uninstall'))).toBe(false);
-                expect(lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })).toBeDefined();
+                expect(
+                    lstatSync(path.join(npmBin, 'dexto'), { throwIfNoEntry: false })
+                ).toBeDefined();
             } finally {
                 chmodSync(npmBin, 0o755);
             }
@@ -409,7 +416,11 @@ posixOnly('scripts/install.sh', () => {
         it('keeps an explicit --install-dir', () => {
             const customDir = path.join(root, 'custom-bin');
 
-            const result = run(['--install-dir', customDir], { STUB_GLOBAL_PREFIX: prefix }, { pathDirs });
+            const result = run(
+                ['--install-dir', customDir],
+                { STUB_GLOBAL_PREFIX: prefix },
+                { pathDirs }
+            );
 
             expect(result.json.installed).toMatchObject({ path: path.join(customDir, 'dexto') });
         });

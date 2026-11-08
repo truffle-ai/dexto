@@ -173,8 +173,10 @@ fi
 dexto_home="${HOME}/.dexto"
 cli_root="${dexto_home}/cli"
 metadata_path="${dexto_home}/install.json"
+install_dir_chosen=1
 if [ -z "${install_dir}" ]; then
     install_dir="${HOME}/.local/bin"
+    install_dir_chosen=0
 fi
 case "${install_dir}" in
     /*) ;;
@@ -230,6 +232,25 @@ fi
 # npm reads .npmrc from the working directory, and fails if it was deleted; a project's settings
 # shouldn't change what gets installed.
 cd "${HOME}" 2>/dev/null || cd / || fail failed "Could not change to the home directory." ""
+
+# 1.x's `dexto upgrade` runs this script and then `npm uninstall -g dexto`. When ~/.local/bin is not
+# on PATH, that would leave no dexto to run, so take over the bin dir the global npm dexto already
+# has on PATH, when it can be written: the uninstall below then finds nothing left to remove.
+if [ "${install_dir_chosen}" -eq 0 ]; then
+    case ":${PATH}:" in
+        *":${install_dir}:"*) ;;
+        *)
+            if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_prefix}" ] &&
+                [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
+                [ -w "${npm_prefix}/bin" ] && [ -w "${npm_prefix}/lib/node_modules" ]; then
+                case ":${PATH}:" in
+                    *":${npm_prefix}/bin:"*) install_dir="${npm_prefix}/bin" ;;
+                esac
+            fi
+            ;;
+    esac
+fi
+link_path="${install_dir}/dexto"
 
 say "Resolving ${DEXTO_PACKAGE}@${version_spec}..."
 view_errors="$(mktemp "${TMPDIR:-/tmp}/dexto-install.XXXXXX")" ||
