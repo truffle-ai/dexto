@@ -6,7 +6,11 @@
 # flag is removed only inside the packed tarball, because npm refuses a package that carries it.
 #
 # It refuses unless every @dexto/* dependency of the packed CLI is exactly the release version and
-# already on npm, so publish the packages first (changesets-publish.yml does).
+# already on npm, so publish the packages first (changesets-publish.yml does). It only ever moves
+# `latest` forward within major version 1: the version must be 1.Y.Z and strictly higher than the
+# current `latest`, read from the registry (any registry error refuses). The check runs again right
+# before `npm publish`. A release workflow that moves `latest` between that read and the publish
+# call (a few seconds) is not detected; npm has no compare-and-set for dist-tags.
 #
 # Not covered: standalone binaries and the GitHub release. The changesets path builds those.
 name: Publish dexto 1.x (manual)
@@ -44,10 +48,23 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must be X.Y.Z, such as 1.16.1" >&2; exit 1; }
+          [[ "$VERSION" =~ ^1\.[0-9]+\.[0-9]+$ ]] || { echo "version must be 1.Y.Z, such as 1.16.1; this workflow publishes the 1.x line only" >&2; exit 1; }
           repo_version="$(node -p 'require("./packages/cli/package.json").version')"
           [[ "$VERSION" == "$repo_version" ]] || { echo "version $VERSION does not match packages/cli/package.json ($repo_version)" >&2; exit 1; }
-          if NPM_CONFIG_USERCONFIG=/dev/null npm view "dexto@$VERSION" version >/dev/null 2>&1; then
+          # Never move `latest` backwards. A registry error refuses, it does not pass.
+          latest="$(NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags.latest)" || { echo "cannot read dexto latest from npm" >&2; exit 1; }
+          if [[ "$latest" != "$VERSION" ]]; then
+            node -e '
+              const [version, latest] = process.argv.slice(1);
+              const strict = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+              if (!strict.test(latest)) throw new Error(`npm latest "${latest}" is not X.Y.Z`);
+              const a = version.split(".").map(Number);
+              const b = latest.split(".").map(Number);
+              const i = a.findIndex((n, k) => n !== b[k]);
+              if (i === -1 || a[i] < b[i]) throw new Error(`${version} is not higher than npm latest ${latest}`);
+            ' "$VERSION" "$latest"
+          fi
+          if [[ "$latest" == "$VERSION" ]] || NPM_CONFIG_USERCONFIG=/dev/null npm view "dexto@$VERSION" version >/dev/null 2>&1; then
             echo "dexto@$VERSION is already on npm; nothing to publish."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
@@ -78,16 +95,18 @@ jobs:
           ' "$unpacked/package/package.json"
           test -f "$unpacked/package/dist/index.js"
 
-          # Every @dexto/* dependency must be this version, and already published.
+          # Every @dexto/* dependency (also optional and peer ones) must be this version, and
+          # already published. No workspace: specifier may remain anywhere.
           node -e '
             const pkg = require(process.argv[1]);
-            const deps = { ...pkg.dependencies, ...pkg.optionalDependencies };
             if (pkg.name !== "dexto" || pkg.version !== process.env.VERSION || pkg.private !== undefined) {
               throw new Error(`unexpected manifest ${pkg.name}@${pkg.version}`);
             }
-            for (const [name, version] of Object.entries(deps)) {
-              if (version.startsWith("workspace:")) throw new Error(`${name} is still ${version}`);
-              if (name.startsWith("@dexto/")) console.log(`${name}@${version}`);
+            for (const section of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+              for (const [name, version] of Object.entries(pkg[section] ?? {})) {
+                if (version.startsWith("workspace:")) throw new Error(`${section}: ${name} is still ${version}`);
+                if (name.startsWith("@dexto/")) console.log(`${name}@${version}`);
+              }
             }
           ' "$unpacked/package/package.json" > "$RUNNER_TEMP/dexto-deps.txt"
           [[ -s "$RUNNER_TEMP/dexto-deps.txt" ]] || { echo "no @dexto/* dependencies found" >&2; exit 1; }
@@ -110,5 +129,16 @@ jobs:
           TARBALL: ${{ steps.pack.outputs.tarball }}
         run: |
           set -euo pipefail
+          # Check again right before publishing, in case another release moved latest meanwhile.
+          latest="$(NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags.latest)" || { echo "cannot read dexto latest from npm" >&2; exit 1; }
+          node -e '
+            const [version, latest] = process.argv.slice(1);
+            const strict = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+            if (!strict.test(latest)) throw new Error(`npm latest "${latest}" is not X.Y.Z`);
+            const a = version.split(".").map(Number);
+            const b = latest.split(".").map(Number);
+            const i = a.findIndex((n, k) => n !== b[k]);
+            if (i === -1 || a[i] < b[i]) throw new Error(`${version} is not higher than npm latest ${latest}`);
+          ' "$VERSION" "$latest"
           npm publish "$TARBALL" --tag latest --access public
           NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags
