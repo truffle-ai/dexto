@@ -1,5 +1,24 @@
 # @dexto/agent-management
 
+## 1.16.1
+
+### Patch Changes
+
+- 1064696: Keep rewritten agent configs private while ensuring the owner can read and write them.
+- 77dc15c: Keep agent configuration rewrites private and create temporary files exclusively.
+- 360a05f: Reject prototype-sensitive keys in agent configuration.
+- 5471dd3: Avoid sending agent names and error messages in CLI analytics. Show the path of a forbidden configuration key when loading an agent config; keys named `constructor` or `prototype` are rejected even in custom config maps.
+- ff72927: Reject unsafe keys when processing agent configuration.
+  The keys `__proto__`, `constructor`, and `prototype` are now refused anywhere in a config.
+- Updated dependencies [749f275]
+- Updated dependencies [7544d08]
+- Updated dependencies [ff72927]
+    - @dexto/core@1.16.1
+    - @dexto/tools-builtins@1.16.1
+    - @dexto/agent-config@1.16.1
+    - @dexto/orchestration@1.16.1
+    - @dexto/llm@1.16.1
+
 ## 1.16.0
 
 ### Patch Changes

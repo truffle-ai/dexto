@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.16.1
+
+### Patch Changes
+
+- 749f275: Allow an HTTP MCP client to use a caller-provided fetch implementation.
+    - @dexto/llm@1.16.1
+
 ## 1.16.0
 
 ### Minor Changes

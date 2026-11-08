@@ -1,5 +1,15 @@
 # @dexto/tools-builtins
 
+## 1.16.1
+
+### Patch Changes
+
+- 7544d08: Block IPv6 private/loopback literals and re-check redirects in http-request.
+- Updated dependencies [749f275]
+- Updated dependencies [ff72927]
+    - @dexto/core@1.16.1
+    - @dexto/agent-config@1.16.1
+
 ## 1.16.0
 
 ### Patch Changes
