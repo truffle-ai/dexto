@@ -19,6 +19,10 @@ export type ToolApprovalGate =
     | {
           approvalKey?: string | undefined;
           kind: 'approval-required';
+      }
+    | {
+          /** The tool asked for a fresh approval that nothing configured or remembered may settle. */
+          kind: 'always-ask';
       };
 
 type AuthoredToolApproval =
@@ -31,6 +35,9 @@ type AuthoredToolApproval =
     | {
           approvalKey?: string | undefined;
           kind: 'require';
+      }
+    | {
+          kind: 'always-ask';
       };
 
 export type ToolApprovalPolicyInput = {
@@ -58,6 +65,13 @@ export class ToolApprovalPolicy {
     constructor(private readonly deps: ToolApprovalPolicyDeps) {}
 
     async resolve(input: ToolApprovalPolicyInput): Promise<ToolApprovalGate> {
+        // The tool's own decision is read first: only it can say a call must always ask, and that
+        // outranks every allow below.
+        const authored = await this.resolveAuthoredPolicy(input);
+        if (authored.kind === 'always-ask') {
+            return { kind: 'always-ask' };
+        }
+
         const explicitAllow = await this.deps.findExplicitToolAllow({
             ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
             toolName: input.toolName,
@@ -70,7 +84,6 @@ export class ToolApprovalPolicy {
             return { because: 'auto-approve-mode', kind: 'ready' };
         }
 
-        const authored = await this.resolveAuthoredPolicy(input);
         if (authored.kind === 'allow') {
             return { because: 'tool-allows', kind: 'ready' };
         }
@@ -133,6 +146,11 @@ export class ToolApprovalPolicy {
 
         if (decision === true) {
             return { kind: 'require' };
+        }
+
+        // Any object reads as always-ask, so a malformed decision from untyped code fails closed.
+        if (typeof decision === 'object') {
+            return { kind: 'always-ask' };
         }
 
         return decision.length > 0 && decision.trim() === decision

@@ -1,5 +1,42 @@
 # @dexto/tools-process
 
+## 1.16.0
+
+### Patch Changes
+
+- Updated dependencies [4c3b408]
+- Updated dependencies [5f6c02f]
+    - @dexto/core@1.16.0
+    - @dexto/agent-config@1.16.0
+
+## 1.15.0
+
+### Patch Changes
+
+- Updated dependencies [e44ecb3]
+    - @dexto/core@1.15.0
+    - @dexto/agent-config@1.15.0
+
+## 1.14.6
+
+### Patch Changes
+
+- Updated dependencies [2e03ad2]
+    - @dexto/core@1.14.6
+    - @dexto/agent-config@1.14.6
+
+## 1.14.5
+
+### Patch Changes
+
+- Updated dependencies [77101ce]
+- Updated dependencies [e17975f]
+- Updated dependencies [3f3c456]
+- Updated dependencies [7cdf653]
+- Updated dependencies [ce63e57]
+    - @dexto/core@1.14.5
+    - @dexto/agent-config@1.14.5
+
 ## 1.14.4
 
 ### Patch Changes

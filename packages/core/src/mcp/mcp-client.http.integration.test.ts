@@ -70,14 +70,22 @@ describe('MCP HTTP SDK compatibility', () => {
             });
             const origin = await listen(server);
             const client = new DextoMcpClient(createSilentMockLogger());
+            let customFetchCalls = 0;
+            const customFetch: typeof fetch = (input, init) => {
+                customFetchCalls += 1;
+                return fetch(input, init);
+            };
             try {
                 await client.connect(
-                    McpServerConfigSchema.parse({
-                        type: 'http',
-                        url: `${origin}/${endpoint === 'direct' ? 'mcp' : 'redirect'}`,
-                        headers: { Authorization: `Bearer ${token}` },
-                        timeout: 2000,
-                    }),
+                    {
+                        ...McpServerConfigSchema.parse({
+                            type: 'http',
+                            url: `${origin}/${endpoint === 'direct' ? 'mcp' : 'redirect'}`,
+                            headers: { Authorization: `Bearer ${token}` },
+                            timeout: 2000,
+                        }),
+                        fetch: customFetch,
+                    },
                     'fixture'
                 );
                 const sdk = await client.getConnectedClient();
@@ -106,6 +114,7 @@ describe('MCP HTTP SDK compatibility', () => {
                 });
                 expect(headers.length).toBeGreaterThanOrEqual(4);
                 expect(headers.every((value) => value === `Bearer ${token}`)).toBe(true);
+                expect(customFetchCalls).toBeGreaterThanOrEqual(4);
             } finally {
                 await client.disconnect();
                 await Promise.all([...peers].map((peer) => peer.close()));
@@ -134,11 +143,14 @@ describe('MCP HTTP SDK compatibility', () => {
             try {
                 await expect(
                     client.connect(
-                        McpServerConfigSchema.parse({
-                            type,
-                            url: `${origin}/mcp`,
-                            timeout: 2000,
-                        }),
+                        {
+                            ...McpServerConfigSchema.parse({
+                                type,
+                                url: `${origin}/mcp`,
+                                timeout: 2000,
+                            }),
+                            ...(type === 'http' ? { fetch: globalThis.fetch } : {}),
+                        },
                         'redirect-fixture'
                     )
                 ).rejects.toThrow(/Redirect.*not followed/);

@@ -7,6 +7,7 @@ export type {
     ApprovalAutoApprovalPolicy,
     SessionApproval,
     ApprovalHandler,
+    ApprovalHandlerContext,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
@@ -71,7 +72,7 @@ export type {
 
 // Error codes and errors
 export { ApprovalErrorCode } from './error-codes.js';
-export { ApprovalError } from './errors.js';
+export { ApprovalDeferredError, ApprovalError } from './errors.js';
 export type {
     ApprovalValidationContext,
     ApprovalTimeoutContext,

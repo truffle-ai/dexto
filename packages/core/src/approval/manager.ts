@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type {
     ApprovalAutoApprovalPolicy,
     ApprovalHandler,
+    ApprovalHandlerContext,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
@@ -580,15 +581,21 @@ export class ApprovalManager {
         });
     }
 
-    async requestApprovalDecision(request: ApprovalRequest): Promise<ApprovalResponse> {
-        return this.handleApproval(request);
+    async requestApprovalDecision(
+        request: ApprovalRequest,
+        context?: ApprovalHandlerContext
+    ): Promise<ApprovalResponse> {
+        return this.handleApproval(request, context);
     }
 
     /**
      * Handle approval requests (tool approval, elicitation, command approval, directory access, custom)
      * @private
      */
-    private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
+    private async handleApproval(
+        request: ApprovalRequest,
+        context?: ApprovalHandlerContext
+    ): Promise<ApprovalResponse> {
         const autoApproval =
             request.autoApproval === undefined
                 ? 'allowed'
@@ -600,7 +607,7 @@ export class ApprovalManager {
             this.logger.info(
                 `Elicitation requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
             );
-            return handler(request);
+            return context === undefined ? handler(request) : handler(request, context);
         }
 
         // Tool/command/directory-access/custom approvals respect the configured mode
@@ -621,7 +628,7 @@ export class ApprovalManager {
         this.logger.info(
             `Manual approval '${request.type}' requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
         );
-        return handler(request);
+        return context === undefined ? handler(request) : handler(request, context);
     }
 
     /**
@@ -818,7 +825,12 @@ export class ApprovalManager {
         predicate: (request: ApprovalRequest) => boolean,
         responseData?: Record<string, unknown>
     ): number {
-        const count = this.handler?.autoApprovePending?.(predicate, responseData) ?? 0;
+        // A remembered approval never settles a request that asked for a fresh approval.
+        const count =
+            this.handler?.autoApprovePending?.(
+                (request) => request.autoApproval !== 'disallowed' && predicate(request),
+                responseData
+            ) ?? 0;
         if (count > 0) {
             this.logger.info(
                 `Auto-approved ${count} pending request(s) due to remembered approval`

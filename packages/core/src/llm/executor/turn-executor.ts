@@ -68,6 +68,8 @@ import {
 } from './provider-error.js';
 import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
+import { LLMErrorCode } from '../error-codes.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
@@ -80,6 +82,7 @@ import {
 } from './model-request-diagnostics.js';
 import type { ApprovalResponse } from '../../approval/types.js';
 import { approvalResponseToDecisionInput } from '../../approval/manager.js';
+import { ApprovalDeferredError } from '../../approval/errors.js';
 import type { LLMExecutionControl } from '../services/types.js';
 import {
     describeContentPartsForAudit,
@@ -290,6 +293,18 @@ type PreparedModelToolCall =
           modelVisibleResult: ToolExecutionResult;
       };
 
+/**
+ * A background start keeps no tool execution record, so a batch resumed after a deferral would
+ * start it again. Batches holding one never defer.
+ */
+function startsInBackground(prepared: PreparedModelToolCall): boolean {
+    return (
+        prepared.kind === 'prepared' &&
+        prepared.prepared.kind !== 'terminal' &&
+        prepared.prepared.call.meta?.runInBackground === true
+    );
+}
+
 /** What the approval gate decided for a call, or which check let it run without asking. */
 function approvalGateOf(prepared: PreparedModelToolCall): string {
     if (prepared.kind === 'terminal') return 'terminal';
@@ -348,6 +363,7 @@ type ModelStepRequest = {
 type ModelStepRequestState = z.output<typeof ModelStepRequestStateSchema>;
 
 type ModelStepPreparationInput = {
+    reasoning?: LLMReasoningConfig | undefined;
     contributorContext: DynamicContributorContext;
     supportsTools: boolean;
     stepCount: number;
@@ -419,10 +435,21 @@ export type TurnDriverNextAction =
           finishReason: LLMFinishReason;
       };
 
+/**
+ * `deferred`: an approval handler deferred at least one call's approval. Every other call settled,
+ * nothing was persisted, and the tool calls stay unexecuted: a driver resumed from this state runs
+ * the batch again, completed calls replaying from the tool execution store.
+ */
+export type TurnDriverToolCalls =
+    | { kind: 'executed' }
+    | { kind: 'deferred'; approvalIds: string[] };
+
 export type TurnDriver = {
-    prepareNextModelStep(): Promise<TurnDriverPreparedModelStep>;
+    prepareNextModelStep(options?: {
+        reasoning?: LLMReasoningConfig;
+    }): Promise<TurnDriverPreparedModelStep>;
     runNextModelStep(): Promise<TurnDriverModelStep>;
-    executeToolCalls(): Promise<void>;
+    executeToolCalls(): Promise<TurnDriverToolCalls>;
     decideNextStep(): Promise<TurnDriverNextAction>;
     finish(): Promise<ExecutorResult>;
     fail(error: unknown): Promise<never>;
@@ -579,7 +606,12 @@ export class TurnExecutor {
                 while (!stopped) {
                     const modelStep = await driver.runNextModelStep();
                     if (modelStep.result.finishReason === 'tool-calls') {
-                        await driver.executeToolCalls();
+                        const toolCalls = await driver.executeToolCalls();
+                        if (toolCalls.kind === 'deferred') {
+                            throw new Error(
+                                'A tool approval was deferred in a turn that cannot pause'
+                            );
+                        }
                     }
 
                     const nextStep = await driver.decideNextStep();
@@ -726,7 +758,7 @@ export class TurnExecutor {
         };
 
         return {
-            prepareNextModelStep: async () => {
+            prepareNextModelStep: async (stepOptions) => {
                 assertCanUseDriver();
                 if (stopped) {
                     throw new Error('Turn driver has already reached a stop decision');
@@ -750,6 +782,7 @@ export class TurnExecutor {
                         () =>
                             this.prepareNextModelRequest({
                                 contributorContext,
+                                reasoning: stepOptions?.reasoning,
                                 supportsTools: turn.supportsTools,
                                 stepCount,
                                 streaming: options.streaming,
@@ -857,28 +890,31 @@ export class TurnExecutor {
                 if (currentToolCallsExecuted) {
                     throw new Error('Tool calls for the current model step have already run');
                 }
-                if (result.finishReason === 'tool-calls') {
-                    toolCallsRunning = true;
-                    currentToolCallsExecuted = true;
-                    try {
-                        await recordOperationSpan(
-                            {
-                                name: 'turn.execute_tool_calls',
-                                componentName: 'TurnExecutor',
-                                attributes: {
-                                    ...this.createTurnStepSpanAttributes(stepCount),
-                                    'tool.count': result.toolCalls.length,
-                                },
+                if (result.finishReason !== 'tool-calls') {
+                    return { kind: 'executed' };
+                }
+                toolCallsRunning = true;
+                currentToolCallsExecuted = true;
+                try {
+                    const toolCalls = await recordOperationSpan(
+                        {
+                            name: 'turn.execute_tool_calls',
+                            componentName: 'TurnExecutor',
+                            attributes: {
+                                ...this.createTurnStepSpanAttributes(stepCount),
+                                'tool.count': result.toolCalls.length,
                             },
-                            () => this.executeModelToolCalls(result.toolCalls),
-                            this.logger
-                        );
-                    } catch (error) {
-                        currentToolCallsExecuted = false;
-                        throw error;
-                    } finally {
-                        toolCallsRunning = false;
-                    }
+                        },
+                        () => this.executeModelToolCalls(result.toolCalls),
+                        this.logger
+                    );
+                    currentToolCallsExecuted = toolCalls.kind === 'executed';
+                    return toolCalls;
+                } catch (error) {
+                    currentToolCallsExecuted = false;
+                    throw error;
+                } finally {
+                    toolCallsRunning = false;
                 }
             },
             decideNextStep: async () => {
@@ -1602,6 +1638,7 @@ export class TurnExecutor {
             }
         }
 
+        const stepReasoning = input.reasoning ?? this.config.reasoning;
         const providerOptions = await recordOperationSpan(
             {
                 name: 'llm.request_setup',
@@ -1615,7 +1652,7 @@ export class TurnExecutor {
                 buildProviderOptions({
                     provider: this.llmContext.provider,
                     model: this.llmContext.model,
-                    reasoning: this.config.reasoning,
+                    reasoning: stepReasoning,
                     ...(this.config.llmRegistry !== undefined && {
                         llmRegistry: this.config.llmRegistry,
                     }),
@@ -1629,13 +1666,13 @@ export class TurnExecutor {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
             requestedReasoning: {
-                variant: this.config.reasoning?.variant,
-                budgetTokens: this.config.reasoning?.budgetTokens,
+                variant: stepReasoning?.variant,
+                budgetTokens: stepReasoning?.budgetTokens,
             },
             providerOptions,
         });
 
-        const reasoningVariant = this.config.reasoning?.variant;
+        const reasoningVariant = stepReasoning?.variant;
         const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
         const reasoning =
             reasoningVariant !== undefined || reasoningBudgetTokens !== undefined
@@ -1752,13 +1789,13 @@ export class TurnExecutor {
                 }),
             },
             () =>
-                streamProcessor.process(() =>
+                streamProcessor.process((abortSignal) =>
                     streamText({
                         model: this.model,
                         stopWhen: stepCountIs(1),
                         maxRetries: 0,
                         tools: request.tools,
-                        abortSignal: this.stepAbortController.signal,
+                        abortSignal,
                         messages: request.messages,
                         ...(this.config.maxOutputTokens !== undefined && {
                             maxOutputTokens: this.config.maxOutputTokens,
@@ -1879,6 +1916,7 @@ export class TurnExecutor {
     private canRetryModelRequest(error: unknown, historyLengthChanged: boolean): boolean {
         if (historyLengthChanged) return false;
         if (this.stepAbortController.signal.aborted) return false;
+        if (error instanceof DextoRuntimeError) return error.code === LLMErrorCode.STREAM_STALLED;
         if (!APICallError.isInstance?.(error)) return false;
         // A rejected credential stays rejected, whatever the provider says about retrying.
         if (error.statusCode === 401) return false;
@@ -1938,7 +1976,7 @@ export class TurnExecutor {
         }
     }
 
-    private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<void> {
+    private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<TurnDriverToolCalls> {
         const preparedCalls: PreparedModelToolCall[] = [];
 
         for (const toolCall of toolCalls) {
@@ -1962,7 +2000,10 @@ export class TurnExecutor {
             );
         }
 
-        const executionResults = await Promise.all(
+        const deferrable = !preparedCalls.some(startsInBackground);
+        // Every call settles before a deferral returns, so none is still running when the host
+        // ends this process; completed calls replay from the tool execution store on resume.
+        const settled = await Promise.allSettled(
             preparedCalls.map((prepared) =>
                 recordOperationSpan(
                     {
@@ -1977,11 +2018,23 @@ export class TurnExecutor {
                             'tool.success': this.isToolExecutionSuccessful(result),
                         }),
                     },
-                    () => this.executePreparedModelToolCall(prepared),
+                    () => this.executePreparedModelToolCall(prepared, deferrable),
                     this.logger
                 )
             )
         );
+        const deferredApprovalIds = settled.flatMap((outcome) =>
+            outcome.status === 'rejected' && outcome.reason instanceof ApprovalDeferredError
+                ? [outcome.reason.approvalId]
+                : []
+        );
+        if (deferredApprovalIds.length > 0) {
+            return { kind: 'deferred', approvalIds: deferredApprovalIds };
+        }
+        const executionResults = settled.map((outcome) => {
+            if (outcome.status === 'rejected') throw outcome.reason;
+            return outcome.value;
+        });
         const sanitizedResults = await Promise.all(
             toolCalls.map((toolCall, index) => {
                 const executionResult = executionResults[index];
@@ -2017,6 +2070,7 @@ export class TurnExecutor {
                 this.logger
             );
         }
+        return { kind: 'executed' };
     }
 
     private async prepareModelToolCall(toolCall: ModelToolCall): Promise<PreparedModelToolCall> {
@@ -2032,6 +2086,10 @@ export class TurnExecutor {
 
         let prepared: PreparedToolCall;
         try {
+            // The model was never offered an unlisted tool, so its call is refused as unknown.
+            if (!this.toolManager.isListedForModel(toolCall.toolName)) {
+                throw new Error(`Tool '${toolCall.toolName}' not found`);
+            }
             prepared = await this.toolManager.prepareToolCall({
                 toolName: toolCall.toolName,
                 input: toolCall.input,
@@ -2067,7 +2125,8 @@ export class TurnExecutor {
     }
 
     private async executePreparedModelToolCall(
-        preparedCall: PreparedModelToolCall
+        preparedCall: PreparedModelToolCall,
+        deferrable: boolean
     ): Promise<ToolExecutionResult> {
         try {
             if (preparedCall.kind === 'terminal') {
@@ -2088,7 +2147,7 @@ export class TurnExecutor {
 
             const identity = this.resolveToolApprovalIdentity();
             const recorded = await this.toolManager.recordApprovalRequest(prepared, identity);
-            const approval = await this.requestApprovalDecisionWithAbort(recorded);
+            const approval = await this.requestApprovalDecisionWithAbort(recorded, deferrable);
             if (approval.kind === 'terminal') {
                 return approval.modelVisibleResult;
             }
@@ -2103,6 +2162,7 @@ export class TurnExecutor {
                 this.resolveModelToolExecutionIdentity(preparedCall.toolCall.toolCallId)
             );
         } catch (error) {
+            if (error instanceof ApprovalDeferredError) throw error;
             return this.failedToolResult(
                 preparedCall.toolCall.toolName,
                 error,
@@ -2156,7 +2216,8 @@ export class TurnExecutor {
     }
 
     private async requestApprovalDecisionWithAbort(
-        recorded: RecordedToolApproval
+        recorded: RecordedToolApproval,
+        deferrable: boolean
     ): Promise<ApprovalWaitResult> {
         const abortSignal = this.stepAbortController.signal;
         if (abortSignal.aborted) {
@@ -2188,9 +2249,20 @@ export class TurnExecutor {
 
         try {
             return await Promise.race([
-                this.toolManager
-                    .requestApprovalDecision(recorded)
-                    .then((response): ApprovalWaitResult => ({ kind: 'response', response })),
+                this.toolManager.requestApprovalDecision(recorded, { deferrable }).then(
+                    (response): ApprovalWaitResult => ({ kind: 'response', response }),
+                    (error: unknown) => {
+                        if (
+                            error instanceof ApprovalDeferredError &&
+                            error.approvalId !== recorded.request.approvalId
+                        ) {
+                            throw new Error(
+                                `Approval ${recorded.request.approvalId} was answered by a deferral of ${error.approvalId}`
+                            );
+                        }
+                        throw error;
+                    }
+                ),
                 abortPromise,
             ]);
         } finally {

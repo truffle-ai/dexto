@@ -156,4 +156,61 @@ describe('createDelegatingApprovalHandler', () => {
             expect.objectContaining({ autoApproval: 'disallowed' })
         );
     });
+
+    it('asks the person for an always-ask call when sub-agent and parent both auto-approve', async () => {
+        const autoApproveConfig = {
+            elicitation: { enabled: false },
+            permissions: { mode: 'auto-approve' as const },
+        };
+        const parentApprovalManager = new ApprovalManager(
+            autoApproveConfig,
+            createMockLogger(),
+            createMockApprovalStore()
+        );
+        const parentHandler = vi.fn(async (request: ApprovalRequest) => ({
+            approvalId: request.approvalId,
+            sessionId: request.sessionId,
+            status: ApprovalStatus.DENIED,
+        }));
+        parentApprovalManager.setHandler(parentHandler);
+        const subApprovalManager = new ApprovalManager(
+            autoApproveConfig,
+            createMockLogger(),
+            createMockApprovalStore()
+        );
+        subApprovalManager.setHandler(
+            createDelegatingApprovalHandler(
+                parentApprovalManager,
+                'agent-sub',
+                'session-parent',
+                createMockLogger()
+            )
+        );
+        const toolCall = {
+            metadata: {
+                args: { text: 'hello' },
+                toolCallId: 'call-publish',
+                toolName: 'publish_post',
+            },
+            sessionId: 'session-sub',
+            type: ApprovalType.TOOL_APPROVAL,
+        } as const;
+
+        await expect(subApprovalManager.requestApproval(toolCall)).resolves.toEqual(
+            expect.objectContaining({ status: ApprovalStatus.APPROVED })
+        );
+        expect(parentHandler).not.toHaveBeenCalled();
+
+        await expect(
+            subApprovalManager.requestApproval({ ...toolCall, autoApproval: 'disallowed' })
+        ).resolves.toEqual(expect.objectContaining({ status: ApprovalStatus.DENIED }));
+        expect(parentHandler).toHaveBeenCalledTimes(1);
+        expect(parentHandler).toHaveBeenCalledWith(
+            expect.objectContaining({
+                autoApproval: 'disallowed',
+                sessionId: 'session-parent',
+                metadata: expect.objectContaining({ delegatedFromAgent: 'agent-sub' }),
+            })
+        );
+    });
 });
