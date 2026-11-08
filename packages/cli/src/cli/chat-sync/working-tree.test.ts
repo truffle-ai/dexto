@@ -456,3 +456,42 @@ it('includes force-staged ignored additions without bundling staged secret-shape
         await tree.cleanup();
     }
 });
+
+it('bundles only the checked-out branch, leaving side branches and stashes unreachable', async () => {
+    const cwd = await repository();
+    await run('git', ['switch', '-c', 'side'], { cwd });
+    await writeFile(path.join(cwd, 'side.txt'), 'side branch only\n');
+    await run('git', ['add', 'side.txt'], { cwd });
+    await run('git', ['commit', '-m', 'side commit'], { cwd });
+    const side = (await run('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim();
+    await run('git', ['switch', 'main'], { cwd });
+    await writeFile(path.join(cwd, 'code.txt'), 'stashed change\n');
+    await run('git', ['stash', 'push', '-m', 'local stash'], { cwd });
+    const stash = (await run('git', ['rev-parse', 'refs/stash'], { cwd })).stdout.trim();
+    const tree = await buildWorkingTree(cwd);
+    try {
+        const verify = await mkdtemp(path.join(tmpdir(), 'chat-move-bundle-'));
+        folders.push(verify);
+        const bundlePath = path.join(verify, 'tree.bundle');
+        await writeFile(bundlePath, tree.bundle);
+        const heads = (
+            await run('git', ['bundle', 'list-heads', bundlePath], { cwd: verify })
+        ).stdout
+            .trim()
+            .split('\n');
+        expect(heads.sort()).toEqual(
+            [`${tree.head_commit} HEAD`, `${tree.head_commit} refs/heads/main`].sort()
+        );
+        // A fresh repository holds exactly the bundle's objects, so it shows what was sent.
+        const unbundled = path.join(verify, 'unbundled.git');
+        await run('git', ['init', '--bare', unbundled]);
+        await run('git', ['--git-dir=' + unbundled, 'fetch', bundlePath, '+refs/*:refs/*']);
+        await run('git', ['--git-dir=' + unbundled, 'cat-file', '-e', tree.head_commit]);
+        for (const unreachable of [side, stash])
+            await expect(
+                run('git', ['--git-dir=' + unbundled, 'cat-file', '-e', unreachable])
+            ).rejects.toThrow();
+    } finally {
+        await tree.cleanup();
+    }
+});

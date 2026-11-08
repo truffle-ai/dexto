@@ -341,3 +341,73 @@ it('retries transient polling with Retry-After and judges expiry using server ti
         clock.mockRestore();
     }
 });
+
+it.each(['upload', 'polling'] as const)(
+    'still sends the cancellation when the person aborts during %s',
+    async (stage) => {
+        const controller = new AbortController();
+        const calls: string[] = [];
+        const fetch: typeof globalThis.fetch = async (input, init) => {
+            const request =
+                input instanceof globalThis.Request ? input : new globalThis.Request(input, init);
+            const route = new URL(request.url).pathname;
+            calls.push(`${request.method} ${route}`);
+            if (stage === 'upload' && request.method === 'PUT') controller.abort();
+            // Like the real fetch, refuse any request whose signal was already aborted.
+            request.signal.throwIfAborted();
+            if (request.method === 'PUT') return new Response(null);
+            if (route.endsWith('/cancel'))
+                return Response.json({ id: 'm', to: 'cloud', status: 'canceled' });
+            if (route.endsWith('/uploaded'))
+                return Response.json({
+                    id: 'm',
+                    to: 'cloud',
+                    status: 'importing',
+                    expires_at: '2099-01-01T00:00:00Z',
+                });
+            return Response.json({
+                id: 'm',
+                to: 'cloud',
+                status: 'awaiting_upload',
+                uploads: [{ object: 'bundle', url: 'https://upload.invalid/bundle', headers: {} }],
+            });
+        };
+        const client = createCloudClient({
+            apiBaseUrl: 'https://api.invalid',
+            token: 'fake',
+            cloudProject: null,
+            fetch,
+        });
+        await expect(
+            moveToCloud(
+                {
+                    client,
+                    fetch,
+                    signal: controller.signal,
+                    sleep: async () => {
+                        controller.abort();
+                    },
+                },
+                'chat',
+                {
+                    branch: 'main',
+                    head_commit: 'a'.repeat(40),
+                    bundle: Buffer.from('bundle'),
+                    patch: null,
+                    cleanup: async () => undefined,
+                }
+            )
+        ).rejects.toMatchObject({ name: 'CloudMoveFailure', ownership: 'local' });
+        expect(calls).toEqual([
+            'POST /v1/synced_chats/chat/moves',
+            'PUT /bundle',
+            ...(stage === 'polling'
+                ? [
+                      'POST /v1/synced_chats/chat/moves/m/uploaded',
+                      'GET /v1/synced_chats/chat/moves/m',
+                  ]
+                : []),
+            'POST /v1/synced_chats/chat/moves/m/cancel',
+        ]);
+    }
+);
