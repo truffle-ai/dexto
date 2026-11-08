@@ -1,5 +1,18 @@
 # @dexto/server
 
+## 1.16.4
+
+### Patch Changes
+
+- Updated dependencies [e18778a]
+    - @dexto/core@1.16.4
+    - @dexto/agent-config@1.16.4
+    - @dexto/agent-management@1.16.4
+    - @dexto/image-local@1.16.4
+    - @dexto/storage@1.16.4
+    - @dexto/tools-scheduler@1.16.4
+    - @dexto/llm@1.16.4
+
 ## 1.16.3
 
 ### Patch Changes
