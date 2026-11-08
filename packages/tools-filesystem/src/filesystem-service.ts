@@ -37,6 +37,7 @@ import {
     RenamePathResult,
     BufferEncoding,
 } from './types.js';
+import { copyWithoutFollowingLinks } from './backup-copy.js';
 import { PathValidator, type DirectoryApprovalOperation } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 import { detectMimeType, getMediaFileKind, isLikelyBinary, isTextMimeType } from './mime-utils.js';
@@ -1114,7 +1115,7 @@ export class FileSystemService {
 
         try {
             await fs.mkdir(backupDir, { recursive: true });
-            await fs.copyFile(filePath, backupPath);
+            await copyWithoutFollowingLinks(filePath, backupPath);
             this.logger.debug(`Backup created: ${backupPath}`);
 
             // Clean up old backups after creating new one
