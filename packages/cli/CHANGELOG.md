@@ -1,5 +1,23 @@
 # dexto
 
+## 1.16.3
+
+### Patch Changes
+
+- Updated dependencies [bfe6300]
+    - @dexto/core@1.16.3
+    - @dexto/agent-config@1.16.3
+    - @dexto/agent-management@1.16.3
+    - @dexto/analytics@1.16.3
+    - @dexto/client-sdk@1.16.3
+    - @dexto/image-local@1.16.3
+    - @dexto/image-logger-agent@1.16.3
+    - @dexto/server@1.16.3
+    - @dexto/storage@1.16.3
+    - @dexto/tui@1.16.3
+    - @dexto/llm@1.16.3
+    - @dexto/registry@1.16.3
+
 ## 1.16.2
 
 ### Patch Changes

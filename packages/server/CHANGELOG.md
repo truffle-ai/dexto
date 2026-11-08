@@ -1,5 +1,18 @@
 # @dexto/server
 
+## 1.16.3
+
+### Patch Changes
+
+- Updated dependencies [bfe6300]
+    - @dexto/core@1.16.3
+    - @dexto/agent-config@1.16.3
+    - @dexto/agent-management@1.16.3
+    - @dexto/image-local@1.16.3
+    - @dexto/storage@1.16.3
+    - @dexto/tools-scheduler@1.16.3
+    - @dexto/llm@1.16.3
+
 ## 1.16.2
 
 ### Patch Changes
