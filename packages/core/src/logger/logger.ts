@@ -66,7 +66,7 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 import * as fs from 'fs';
 import * as path from 'path';
-import { redactLogData } from '../utils/redactor.js';
+import { redactLogRecord, UNREDACTABLE_LOG_DATA } from '../utils/redactor.js';
 
 // Winston logger configuration
 const logLevels = {
@@ -133,8 +133,11 @@ const SHOULD_REDACT = process.env.REDACT_SECRETS !== 'false';
 // "timestamp" are its own. Everything else goes through the same redactor as the DextoLogger.
 const maskFormat = winston.format((info) => {
     if (!SHOULD_REDACT) return info;
-    const { level: _level, timestamp: _timestamp, ...entry } = info;
-    return Object.assign(info, redactLogData(entry));
+    const redacted = redactLogRecord(info, ['level', 'timestamp']);
+    for (const key of Object.keys(info)) {
+        if (key !== 'level' && key !== 'timestamp') delete info[key];
+    }
+    return Object.assign(info, { message: UNREDACTABLE_LOG_DATA }, redacted);
 });
 
 export interface GlobalLoggerOptions {
@@ -172,9 +175,10 @@ export class GlobalLogger {
             silent: options.silent || false,
             format: winston.format.combine(
                 winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-                maskFormat(),
                 winston.format.errors({ stack: true }),
+                // splat() copies the logged metadata back onto the entry, so mask after it.
                 winston.format.splat(),
+                maskFormat(),
                 winston.format.json()
             ),
             transports: this.createTransports(options),

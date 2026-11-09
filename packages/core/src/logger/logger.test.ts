@@ -152,6 +152,22 @@ describe('Logger utilities', () => {
             expect(content).toContain('"attempts":2');
         });
 
+        it('keeps logging when metadata cannot be redacted, without writing it', async () => {
+            const content = await logToFile((l) =>
+                l.info('with getter', {
+                    nested: {
+                        get boom(): string {
+                            throw new Error('boom');
+                        },
+                        apiKey: 'abc123',
+                    },
+                })
+            );
+
+            expect(content).toContain('[unredactable log data]');
+            expect(content).not.toContain('abc123');
+        });
+
         it('masks secrets in an error message and stack', async () => {
             const content = await logToFile((l) =>
                 l.error('failed', new Error('bad token=abc123'))

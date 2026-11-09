@@ -79,4 +79,47 @@ describe('DextoLogger redaction', () => {
 
         expect(entries[0]?.message).toBe('password=[REDACTED]');
     });
+
+    it('does not throw for a message or context that cannot be redacted', () => {
+        const { logger, entries } = createLogger();
+        const { proxy, revoke } = Proxy.revocable({ apiKey: 'abc123' }, {});
+        revoke();
+        const getter = {
+            get boom(): string {
+                throw new Error('boom');
+            },
+            apiKey: 'abc123',
+        };
+
+        expect(() => {
+            logger.info(new Error('failed apiKey=abc123') as unknown as string);
+            logger.info(undefined as unknown as string);
+            logger.info(7 as unknown as string);
+            logger.info('revoked', { proxy });
+            logger.info('getter', getter);
+            logger.info('hostile', {
+                toString() {
+                    throw new Error('no text');
+                },
+            });
+        }).not.toThrow();
+
+        expect(entries).toHaveLength(6);
+        expect(entries[0]?.message).toBe('Error: failed apiKey=[REDACTED]');
+        expect(entries[1]?.message).toBe('undefined');
+        expect(entries[2]?.message).toBe('7');
+        expect(entries[3]?.context).toEqual({ redacted: '[unredactable log data]' });
+        expect(entries[4]?.context).toEqual({ redacted: '[unredactable log data]' });
+        expect(JSON.stringify(entries)).not.toContain('abc123');
+    });
+
+    it('truncates context nested past the depth limit', () => {
+        const { logger, entries } = createLogger();
+        let deep: Record<string, unknown> = { leaf: 'x' };
+        for (let i = 0; i < 6000; i++) deep = { next: deep };
+
+        logger.info('deep', deep);
+
+        expect(JSON.stringify(entries[0]?.context)).toContain('[Truncated]');
+    });
 });

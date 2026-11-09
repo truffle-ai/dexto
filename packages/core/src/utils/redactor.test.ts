@@ -1,5 +1,16 @@
 import { describe, test, expect } from 'vitest';
-import { redactSensitiveData as redact, redactLogData, redactLogText } from './redactor.js';
+import {
+    redactSensitiveData as redact,
+    redactLogMessage,
+    redactLogRecord,
+    redactLogText,
+    UNREDACTABLE_LOG_DATA,
+} from './redactor.js';
+
+/** One value redacted as log data, under a neutral key. */
+function redactLogData(value: unknown): unknown {
+    return redactLogRecord({ data: value }).data;
+}
 
 // Realistic signature shapes: a SigV4 signature is 64 hex characters, a SigV2 one base64.
 const sigV4Hex = 'a1'.repeat(32);
@@ -461,12 +472,18 @@ describe('redactLogText', () => {
             'accessToken: abc',
             'DB_PASSWORD=abc',
             'X-Api-Key: abc',
-            'api key: abc',
             'privateKey=abc',
         ]) {
             expect(redactLogText(line), line).toContain('[REDACTED]');
             expect(redactLogText(line), line).not.toContain('abc');
         }
+    });
+
+    test('finds a secret inside the value of a plain key', () => {
+        expect(redactLogText('fetching url=https://h.example/p?token=abc123&x=1')).toBe(
+            'fetching url=https://h.example/p?token=[REDACTED]&x=1'
+        );
+        expect(redactLogText('opts=a=b=password=hunter2')).toBe('opts=a=b=password=[REDACTED]');
     });
 
     test('masks the whole authorization and cookie header lines', () => {
@@ -501,6 +518,10 @@ describe('redactLogText', () => {
             'name=alice',
             'keyword: search',
             'keyboard=us',
+            'keys: a, b, c',
+            'cacheKey=abc',
+            'tokenizer: cl100k',
+            'tokens: 12 used',
             'author: bob',
             'Started agent in 120ms',
         ]) {
@@ -555,29 +576,68 @@ describe('redactLogData', () => {
         });
     });
 
-    test('masks keys that contain secret, token, password or key as a word', () => {
+    test('masks the string under a secret-named key', () => {
         expect(
             redactLogData({
                 client_secret: 'a',
                 clientSecret: 'a',
                 accessToken: 'a',
-                'refresh-token': 'a',
+                refresh_token: 'a',
+                idToken: 'a',
+                token: 'a',
+                'x-auth-token': 'a',
+                bearer: 'a',
                 dbPassword: 'a',
+                apiKey: 'a',
                 signingKey: 'a',
-                key: 'a',
-                apiKeys: { openai: 'a' },
                 secrets: ['a', 'b'],
             })
         ).toEqual({
             client_secret: '[REDACTED]',
             clientSecret: '[REDACTED]',
             accessToken: '[REDACTED]',
-            'refresh-token': '[REDACTED]',
+            refresh_token: '[REDACTED]',
+            idToken: '[REDACTED]',
+            token: '[REDACTED]',
+            'x-auth-token': '[REDACTED]',
+            bearer: '[REDACTED]',
             dbPassword: '[REDACTED]',
+            apiKey: '[REDACTED]',
             signingKey: '[REDACTED]',
-            key: '[REDACTED]',
-            apiKeys: { openai: '[REDACTED]' },
             secrets: ['[REDACTED]', '[REDACTED]'],
+        });
+    });
+
+    test('does not mask ordinary fields that share a word with a secret name', () => {
+        const data = {
+            keys: 'a, b, c',
+            key: 'cache-1',
+            cacheKey: 'abc',
+            auth: 'basic',
+            authConfig: { mode: 'oauth' },
+            tokens: 'many',
+            tokenizer: 'cl100k',
+            tokenUsage: { model: 'gpt-5', inputTokens: 3 },
+            pwd: '/home/me',
+        };
+        expect(redactLogData(data)).toEqual(data);
+    });
+
+    test('reads an object under a secret-named key by its own key names', () => {
+        expect(
+            redactLogData({
+                credentials: { region: 'eu', password: 'p' },
+                apiKeys: { note: 'two keys', apiKey: 'k' },
+            })
+        ).toEqual({
+            credentials: { region: 'eu', password: '[REDACTED]' },
+            apiKeys: { note: 'two keys', apiKey: '[REDACTED]' },
+        });
+    });
+
+    test('masks every string under env and headers, at any depth', () => {
+        expect(redactLogData({ headers: { A: 'b', nested: { C: 'd' }, count: 2 } })).toEqual({
+            headers: { A: '[REDACTED]', nested: { C: '[REDACTED]' }, count: 2 },
         });
     });
 
@@ -616,5 +676,127 @@ describe('redactLogData', () => {
         const data = { headers: { A: 'b' } };
         redactLogData(data);
         expect(data).toEqual({ headers: { A: 'b' } });
+    });
+});
+
+describe('redactLogRecord values', () => {
+    test('keeps dates, URLs and regular expressions readable', () => {
+        const result = redactLogData({
+            when: new Date('2026-01-02T03:04:05.000Z'),
+            bad: new Date('nope'),
+            link: new URL('https://user:pw@example.com/path?token=abc123'),
+            pattern: /a+b/gi,
+        });
+        expect(result).toEqual({
+            when: '2026-01-02T03:04:05.000Z',
+            bad: 'Invalid Date',
+            link: expect.stringMatching(/^https:\/\/example\.com\/path\?token=\[REDACTED\]$/),
+            pattern: '/a+b/gi',
+        });
+    });
+
+    test('keeps map and set entries and masks secrets inside them', () => {
+        expect(
+            redactLogData({
+                map: new Map<string, unknown>([
+                    ['region', 'eu'],
+                    ['apiKey', 'abc123'],
+                ]),
+                set: new Set(['a', 'b']),
+            })
+        ).toEqual({
+            map: [
+                ['region', 'eu'],
+                ['apiKey', '[REDACTED]'],
+            ],
+            set: ['a', 'b'],
+        });
+    });
+
+    test('describes binary data by size instead of listing its bytes', () => {
+        expect(
+            redactLogData({
+                buf: Buffer.alloc(10),
+                typed: new Uint8Array(3),
+                raw: new ArrayBuffer(5),
+            })
+        ).toEqual({
+            buf: '[Buffer 10 bytes]',
+            typed: '[Uint8Array 3 bytes]',
+            raw: '[ArrayBuffer 5 bytes]',
+        });
+    });
+
+    test('redacts a large buffer quickly', () => {
+        const start = Date.now();
+        redactLogData({ buf: Buffer.alloc(4 * 1024 * 1024) });
+        expect(Date.now() - start).toBeLessThan(500);
+    });
+
+    test('labels only a real cycle as circular', () => {
+        const shared = { name: 'shared' };
+        const cyclic: Record<string, unknown> = { name: 'cycle' };
+        cyclic.self = cyclic;
+        expect(redactLogData({ a: shared, b: shared, list: [shared, shared], cyclic })).toEqual({
+            a: { name: 'shared' },
+            b: { name: 'shared' },
+            list: [{ name: 'shared' }, { name: 'shared' }],
+            cyclic: { name: 'cycle', self: '[REDACTED_CIRCULAR]' },
+        });
+    });
+
+    test('stops at a depth limit instead of overflowing the stack', () => {
+        let deep: Record<string, unknown> = { leaf: 'x' };
+        for (let i = 0; i < 6000; i++) deep = { next: deep };
+        const result = JSON.stringify(redactLogData(deep));
+        expect(result).toContain('[Truncated]');
+        expect(result).not.toContain('leaf');
+    });
+
+    test('keeps the same values for API responses', () => {
+        const shared = { n: 1 };
+        expect(redact({ a: shared, b: shared, when: new Date(0), buf: Buffer.alloc(2) })).toEqual({
+            a: { n: 1 },
+            b: { n: 1 },
+            when: '1970-01-01T00:00:00.000Z',
+            buf: '[Buffer 2 bytes]',
+        });
+    });
+});
+
+describe('log redaction never throws', () => {
+    test('a record with a throwing getter is replaced, not passed on', () => {
+        const record = {
+            get boom(): string {
+                throw new Error('boom');
+            },
+            apiKey: 'abc123',
+        };
+        const result = redactLogRecord(record);
+        expect(result).toEqual({ redacted: UNREDACTABLE_LOG_DATA });
+        expect(JSON.stringify(result)).not.toContain('abc123');
+    });
+
+    test('a revoked proxy is replaced', () => {
+        const { proxy, revoke } = Proxy.revocable({ apiKey: 'abc123' }, {});
+        revoke();
+        expect(redactLogRecord({ nested: proxy })).toEqual({ redacted: UNREDACTABLE_LOG_DATA });
+        expect(redactLogRecord(proxy)).toEqual({ redacted: UNREDACTABLE_LOG_DATA });
+    });
+
+    test('a message of any type becomes text', () => {
+        expect(redactLogMessage(undefined)).toBe('undefined');
+        expect(redactLogMessage(42)).toBe('42');
+        expect(redactLogMessage(new Error('bad token=abc123'))).toBe('Error: bad token=[REDACTED]');
+        expect(redactLogMessage({ toString: () => 'password=abc123' })).toBe('password=[REDACTED]');
+    });
+
+    test('a message that cannot become text is replaced', () => {
+        const hostile = {
+            toString(): string {
+                throw new Error('no text');
+            },
+        };
+        expect(redactLogMessage(hostile)).toBe(UNREDACTABLE_LOG_DATA);
     });
 });

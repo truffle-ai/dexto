@@ -5,7 +5,7 @@
  * Supports structured logging, component-based categorization, and per-agent isolation.
  */
 
-import { redactLogData, redactLogText } from '../../utils/redactor.js';
+import { redactLogMessage, redactLogRecord } from '../../utils/redactor.js';
 import type { Logger, LoggerTransport, LogEntry, LogLevel, DextoLogComponent } from './types.js';
 
 export interface DextoLoggerConfig {
@@ -21,14 +21,6 @@ export interface DextoLoggerConfig {
     transports: LoggerTransport[];
     /** Shared level reference (internal - for child loggers to share parent's level) */
     _levelRef?: { value: LogLevel };
-}
-
-function redactLogContext(
-    context: Record<string, unknown> | undefined
-): Record<string, unknown> | undefined {
-    if (context === undefined) return undefined;
-    const redacted = redactLogData(context);
-    return typeof redacted === 'object' && redacted !== null ? { ...redacted } : undefined;
 }
 
 /**
@@ -107,12 +99,12 @@ export class DextoLogger implements Logger {
     private log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
         const entry: LogEntry = {
             level,
-            message: redactLogText(message),
+            message: redactLogMessage(message),
             timestamp: new Date().toISOString(),
             component: this.component,
             agentId: this.agentId,
             ...(this.sessionId !== undefined && { sessionId: this.sessionId }),
-            context: redactLogContext(context),
+            ...(context !== undefined && { context: redactLogRecord(context) }),
         };
 
         // Send to all transports
