@@ -52,6 +52,17 @@ export class MarketplaceError {
         );
     }
 
+    static addInvalidName(name: string) {
+        return new DextoRuntimeError(
+            MarketplaceErrorCode.ADD_INVALID_NAME,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Invalid marketplace name '${name}'`,
+            { name },
+            'Use letters, digits, ".", "_", "-" and spaces, starting with a letter or digit; pass --name to choose one'
+        );
+    }
+
     static addInvalidSource(source: string, reason: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.ADD_INVALID_SOURCE,

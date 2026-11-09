@@ -186,6 +186,37 @@ describe('Marketplace Operations', () => {
             );
         });
 
+        it.each(['../escape', '..', '.', 'a/b', '/abs', '.hidden', 'name\\other'])(
+            'rejects the unsafe custom name %j without cloning or registering',
+            async (name) => {
+                vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+
+                await expect(addMarketplace('owner/repo', { name })).rejects.toThrow(
+                    /invalid marketplace name/i
+                );
+
+                expect(childProcess.execFileSync).not.toHaveBeenCalled();
+                expect(addMarketplaceEntry).not.toHaveBeenCalled();
+            }
+        );
+
+        it('rejects a name derived from a source that is not a safe name', async () => {
+            vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+
+            await expect(addMarketplace('..')).rejects.toThrow(/invalid marketplace name/i);
+            expect(childProcess.execFileSync).not.toHaveBeenCalled();
+        });
+
+        it('accepts a custom name made of safe characters', async () => {
+            vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
+
+            const result = await addMarketplace('owner/repo', { name: 'My Market_1.2-x' });
+
+            expect(result.name).toBe('My Market_1.2-x');
+        });
+
         it('throws error when local path does not exist', async () => {
             vi.mocked(getMarketplaceEntry).mockReturnValue(null);
             vi.mocked(fs.existsSync).mockReturnValue(false);
