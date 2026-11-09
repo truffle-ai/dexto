@@ -1,7 +1,5 @@
-import { exec as execCallback } from 'node:child_process';
 import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { glob } from 'glob';
 import { WorkspaceError } from '@dexto/core/workspace';
 import type {
@@ -10,9 +8,9 @@ import type {
     WorkspaceContext,
     WorkspaceHandle,
     WorkspaceHandleProvider,
+    WorkspaceProcesses,
 } from '@dexto/core/workspace';
-
-const exec = promisify(execCallback);
+import { runCommand } from './run-command.js';
 
 export class LocalWorkspaceHandleProvider implements WorkspaceHandleProvider {
     async open(input: {
@@ -131,13 +129,15 @@ class LocalWorkspaceProcesses {
     exec = async (input: {
         command: string;
         cwd?: string;
-    }): Promise<{ stdout: string; stderr: string }> => {
+        timeout?: number;
+        signal?: AbortSignal;
+    }): ReturnType<WorkspaceProcesses['exec']> => {
         const cwd = input.cwd === undefined ? this.root : resolveInsideRoot(this.root, input.cwd);
-        const result = await exec(input.command, { cwd });
-        return {
-            stdout: result.stdout,
-            stderr: result.stderr,
-        };
+        return runCommand(input.command, {
+            cwd,
+            ...(input.timeout === undefined ? {} : { timeout: input.timeout }),
+            signal: input.signal,
+        });
     };
 }
 

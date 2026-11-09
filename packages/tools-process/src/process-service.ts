@@ -21,7 +21,7 @@ import { ProcessError } from './errors.js';
 import type { Logger } from '@dexto/core/logger';
 import { DextoLogComponent } from '@dexto/core/logger';
 
-const DEFAULT_TIMEOUT = 120000; // 2 minutes
+export const DEFAULT_TIMEOUT = 120000; // 2 minutes
 
 /**
  * Background process tracking
@@ -201,6 +201,22 @@ export class ProcessService {
                     child.kill('SIGKILL');
                 }
             }
+        }
+    }
+
+    /**
+     * Send a signal to a background process and everything it started, so stopping the shell does
+     * not leave its children running.
+     */
+    private signalProcessTree(child: ChildProcess, signal: 'SIGTERM' | 'SIGKILL'): void {
+        if (child.pid === undefined || process.platform === 'win32') {
+            child.kill(signal);
+            return;
+        }
+        try {
+            process.kill(-child.pid, signal);
+        } catch {
+            child.kill(signal);
         }
     }
 
@@ -422,7 +438,7 @@ export class ProcessService {
             cwd,
             env,
             shell: true,
-            detached: false,
+            detached: process.platform !== 'win32', // Own process group, so the whole tree can be stopped
         });
 
         // Create output buffer
@@ -459,14 +475,14 @@ export class ProcessService {
                 this.logger.warn(
                     `Background process ${processId} timed out after ${bgTimeout}ms, sending SIGTERM`
                 );
-                child.kill('SIGTERM');
+                this.signalProcessTree(child, 'SIGTERM');
                 // Escalate to SIGKILL if process doesn't terminate within 5s
                 killEscalationTimer = setTimeout(() => {
                     if (bgProcess.status === 'running') {
                         this.logger.warn(
                             `Background process ${processId} did not respond to SIGTERM, sending SIGKILL`
                         );
-                        child.kill('SIGKILL');
+                        this.signalProcessTree(child, 'SIGKILL');
                     }
                 }, 5000);
             }
@@ -597,13 +613,13 @@ export class ProcessService {
         }
 
         try {
-            bgProcess.child.kill('SIGTERM');
+            this.signalProcessTree(bgProcess.child, 'SIGTERM');
 
             // Force kill after timeout
             setTimeout(() => {
                 // Escalate based on actual process state, not our status flag
                 if (bgProcess.child.exitCode === null) {
-                    bgProcess.child.kill('SIGKILL');
+                    this.signalProcessTree(bgProcess.child, 'SIGKILL');
                 }
             }, 5000);
 

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -133,8 +133,110 @@ describe('LocalWorkspaceHandleProvider', () => {
         });
         expect(processHandle.capabilities).toEqual(['files', 'processes']);
         await expect(processHandle.processes?.exec({ command: 'pwd' })).resolves.toEqual({
+            exitCode: 0,
             stdout: `${await realpath(workspaceRoot)}\n`,
             stderr: '',
+        });
+    });
+
+    describe('foreground commands', () => {
+        const startedPids: number[] = [];
+
+        afterEach(() => {
+            for (const pid of startedPids.splice(0)) {
+                try {
+                    process.kill(pid, 'SIGKILL');
+                } catch {
+                    // Already stopped.
+                }
+            }
+        });
+
+        async function openProcesses() {
+            const handle = await new LocalWorkspaceHandleProvider().open({
+                context: context(),
+                input: { intent: 'process' },
+            });
+            if (handle.processes === undefined) throw new Error('Expected a process handle');
+            return handle.processes;
+        }
+
+        function isAlive(pid: number): boolean {
+            try {
+                process.kill(pid, 0);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        async function waitUntilStopped(pid: number): Promise<void> {
+            const deadline = Date.now() + 5000;
+            while (isAlive(pid)) {
+                if (Date.now() > deadline) throw new Error(`Process ${pid} is still running`);
+                await new Promise((resolve) => setTimeout(resolve, 25));
+            }
+        }
+
+        // The inner shell prints its pid, then sleeps; the outer shell has to wait for it.
+        const commandWithChild = "sh -c 'echo $$; sleep 60'; echo done";
+
+        function childPidOf(stdout: string): number {
+            const pid = Number(stdout.split('\n')[0]);
+            startedPids.push(pid);
+            return pid;
+        }
+
+        it('returns a non-zero exit with its output instead of throwing', async () => {
+            const processes = await openProcesses();
+
+            await expect(
+                processes.exec({ command: 'echo out; echo err >&2; exit 3' })
+            ).resolves.toEqual({ exitCode: 3, stdout: 'out\n', stderr: 'err\n' });
+        });
+
+        it.skipIf(process.platform === 'win32')(
+            'stops the command and the processes it started when the timeout passes',
+            async () => {
+                const processes = await openProcesses();
+
+                const startedAt = Date.now();
+                const result = await processes.exec({ command: commandWithChild, timeout: 500 });
+
+                expect(result.timedOut).toBe(true);
+                expect(Date.now() - startedAt).toBeLessThan(10_000);
+                await waitUntilStopped(childPidOf(result.stdout));
+            }
+        );
+
+        it.skipIf(process.platform === 'win32')(
+            'stops the command and the processes it started when the signal aborts',
+            async () => {
+                const processes = await openProcesses();
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 500);
+
+                const result = await processes.exec({
+                    command: commandWithChild,
+                    signal: controller.signal,
+                });
+
+                expect(result.exitCode).toBe(130);
+                expect(result.stdout).toContain('(Command was cancelled)');
+                await waitUntilStopped(childPidOf(result.stdout));
+            }
+        );
+
+        it('does not start a command when the signal has already aborted', async () => {
+            const processes = await openProcesses();
+
+            const result = await processes.exec({
+                command: `touch ${path.join(workspaceRoot, 'ran')}`,
+                signal: AbortSignal.abort(),
+            });
+
+            expect(result.exitCode).toBe(130);
+            await expect(readFile(path.join(workspaceRoot, 'ran'))).rejects.toThrow();
         });
     });
 });

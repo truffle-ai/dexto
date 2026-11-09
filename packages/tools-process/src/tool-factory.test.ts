@@ -61,6 +61,50 @@ describe('processToolsFactory', () => {
         });
     });
 
+    it('passes the abort signal and a default timeout to the workspace process handle', async () => {
+        const exec = vi.fn(async () => ({ exitCode: 0, stderr: '', stdout: '' }));
+        const bashExec = findBashExec();
+        const controller = new AbortController();
+
+        await bashExec.execute(
+            { command: 'git status', run_in_background: false },
+            {
+                ...createToolContext({ workspaceManager: { open: openWithExec(exec) } }),
+                abortSignal: controller.signal,
+            }
+        );
+
+        expect(exec).toHaveBeenCalledWith({
+            command: 'git status',
+            timeout: 120000,
+            signal: controller.signal,
+        });
+    });
+
+    it('caps the timeout at the configured maximum', async () => {
+        const exec = vi.fn(async () => ({ exitCode: 0, stderr: '', stdout: '' }));
+
+        await findBashExec().execute(
+            { command: 'git status', run_in_background: false, timeout: 600000 },
+            createToolContext({ workspaceManager: { open: openWithExec(exec) } })
+        );
+
+        expect(exec).toHaveBeenCalledWith(
+            expect.objectContaining({ timeout: processConfig.maxTimeout })
+        );
+    });
+
+    it('reports a command that timed out in the workspace handle as a timeout error', async () => {
+        const exec = vi.fn(async () => ({ exitCode: 1, stderr: '', stdout: '', timedOut: true }));
+
+        await expect(
+            findBashExec().execute(
+                { command: 'git status', run_in_background: false, timeout: 5000 },
+                createToolContext({ workspaceManager: { open: openWithExec(exec) } })
+            )
+        ).rejects.toThrow(/timed out/i);
+    });
+
     it('keeps the existing process service path when no workspace is active', async () => {
         const processService = new FakeProcessCommandService();
         const bashExec = processToolsFactory
@@ -106,6 +150,25 @@ describe('processToolsFactory', () => {
         });
     });
 });
+
+function findBashExec() {
+    const bashExec = processToolsFactory
+        .create(processConfig)
+        .find((tool) => tool.id === 'bash_exec');
+    if (bashExec === undefined) {
+        throw new Error('Expected bash_exec tool to be registered.');
+    }
+    return bashExec;
+}
+
+function openWithExec(exec: unknown) {
+    return async () => ({
+        capabilities: ['files', 'processes'],
+        context: { createdAt: 1, id: 'workspace-1', lastActiveAt: 1, path: '/workspace' },
+        files: {},
+        processes: { exec },
+    });
+}
 
 function createToolContext(services: Record<string, unknown>): ToolExecutionContext {
     return {
