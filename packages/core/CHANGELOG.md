@@ -1,5 +1,17 @@
 # @dexto/core
 
+## 1.16.6
+
+### Patch Changes
+
+- 489e1a7: Keep parallel tool output within the step budget when complete read markers fit, and preserve Unicode characters in search results.
+- 70960ab: Allow hosts to classify failed model requests using per-request credential provenance.
+
+    Runtime base URLs and headers are now honored by Google, Groq, xAI, Cohere, OpenRouter, and Vertex. Vertex still requires Application Default Credentials and sends its ADC bearer to a runtime URL unless the host supplies an Authorization header; Vertex cannot use request authentication without ADC. Bedrock, local models, and the Codex app server reject gateway overrides they cannot use. Blank runtime URLs are rejected.
+
+- c0a33d0: Keep parallel tool output previews within the step budget when possible, count the truncation marker in each preview, and preserve Unicode characters across preview and read-back boundaries.
+    - @dexto/llm@1.16.6
+
 ## 1.16.5
 
 ### Patch Changes
