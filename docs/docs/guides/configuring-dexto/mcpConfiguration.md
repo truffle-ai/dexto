@@ -95,6 +95,9 @@ server that read an API key (or any other variable) from the environment must no
 `passEnvironment` or `env`; see [What a stdio server can see](#what-a-stdio-server-can-see). For
 commands run by `process-tools`, see [Command environment](./tools.md#command-environment). Remote
 `http` and `sse` servers are not affected.
+
+Server and web modes also bind to loopback by default; see the [deployment guide](../deployment.md)
+to allow network access with an API key.
 :::
 
 **Use when:**
