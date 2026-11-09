@@ -13,6 +13,7 @@ vi.mock('fs', async () => {
         ...actual,
         existsSync: vi.fn(),
         mkdirSync: vi.fn(),
+        rmSync: vi.fn(),
     };
 });
 
@@ -40,6 +41,7 @@ vi.mock('../registry.js', () => ({
 vi.mock('../operations.js', () => ({
     findPluginInMarketplaces: vi.fn(),
     scanMarketplacePlugins: vi.fn(),
+    realPathInside: vi.fn((_directory: string, target: string) => target),
 }));
 
 // Mock install-plugin
