@@ -17,6 +17,7 @@ import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
 import { resolveUserPath } from './path-utils.js';
 import { FileSystemError } from './errors.js';
+import type { BlockedPathCheck } from './blocked-path-check.js';
 import {
     assertWorkspaceRelativeGlob,
     isWorkspaceFileNotFound,
@@ -62,7 +63,8 @@ const GrepContentInputSchema = z
  * Create the grep_content internal tool with directory approval support
  */
 export function createGrepContentTool(
-    getFileSystemService: FileSystemServiceGetter
+    getFileSystemService: FileSystemServiceGetter,
+    blockedPathCheck: BlockedPathCheck
 ): Tool<typeof GrepContentInputSchema> {
     return defineTool({
         id: 'grep_content',
@@ -134,6 +136,9 @@ export function createGrepContentTool(
             let filesSearched = 0;
 
             for (const file of files) {
+                if ((await blockedPathCheck(handle.context.path, file, context.logger)) !== null) {
+                    continue;
+                }
                 let content: string;
                 try {
                     content = await handle.files.readText(file);

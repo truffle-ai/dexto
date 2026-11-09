@@ -4,6 +4,7 @@
  * Internal tool for editing files by replacing text (requires approval)
  */
 
+import { assertPathNotBlocked, type BlockedPathCheck } from './blocked-path-check.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
@@ -79,7 +80,8 @@ function generateDiffPreview(
  * Create the edit_file internal tool with directory approval support
  */
 export function createEditFileTool(
-    getFileSystemService: FileSystemServiceGetter
+    getFileSystemService: FileSystemServiceGetter,
+    blockedPathCheck: BlockedPathCheck
 ): Tool<typeof EditFileInputSchema> {
     return defineTool({
         id: 'edit_file',
@@ -206,6 +208,12 @@ export function createEditFileTool(
                 'edit_file',
                 handle.context.path,
                 file_path
+            );
+            await assertPathNotBlocked(
+                blockedPathCheck,
+                handle.context.path,
+                workspacePath,
+                context.logger
             );
 
             // Check if file was modified since preview (safety check)

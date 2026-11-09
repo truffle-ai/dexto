@@ -8,6 +8,7 @@ import { createReadMediaFileTool } from './read-media-file-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
+import { createBlockedPathCheck } from './blocked-path-check.js';
 import { createGrepContentTool } from './grep-content-tool.js';
 import { isPathApprovedByDirectoryKey } from './directory-approval.js';
 import {
@@ -97,13 +98,17 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
             return scopedFileSystemService;
         };
 
+        const blockedPathCheck = createBlockedPathCheck({
+            ...fileSystemConfig,
+        });
+
         const toolCreators: Record<FileSystemToolName, () => Tool> = {
-            read_file: () => createReadFileTool(getFileSystemService),
+            read_file: () => createReadFileTool(getFileSystemService, blockedPathCheck),
             read_media_file: () => createReadMediaFileTool(getFileSystemService),
-            write_file: () => createWriteFileTool(getFileSystemService),
-            edit_file: () => createEditFileTool(getFileSystemService),
+            write_file: () => createWriteFileTool(getFileSystemService, blockedPathCheck),
+            edit_file: () => createEditFileTool(getFileSystemService, blockedPathCheck),
             glob_files: () => createGlobFilesTool(getFileSystemService),
-            grep_content: () => createGrepContentTool(getFileSystemService),
+            grep_content: () => createGrepContentTool(getFileSystemService, blockedPathCheck),
         };
 
         const toolsToCreate = config.enabledTools ?? FILESYSTEM_TOOL_NAMES;
