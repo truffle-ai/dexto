@@ -91,7 +91,7 @@ export interface ProcessConfig {
     maxConcurrentProcesses: number;
     /** Maximum output buffer size in bytes */
     maxOutputBuffer: number;
-    /** Explicitly allowed commands (empty = all allowed with approval) */
+    /** Exact shell commands allowed (empty = all allowed with approval) */
     allowedCommands: string[];
     /** Blocked command patterns */
     blockedCommands: string[];
