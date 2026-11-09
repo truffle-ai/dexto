@@ -121,6 +121,93 @@ describe('subscription connections over MCP', () => {
         vi.restoreAllMocks();
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
+    it('starts a catalog connector and reports its completed authorization', async () => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'github',
+                attemptId: 'attempt-1',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+            { outcome: 'connected', name: 'github', nextAction: null },
+        ];
+        const exitCode = await runCloud(host, ['connect', 'github', '--no-browser', '--json']);
+        expect(exitCode).toBe(0);
+        expect(calls).toEqual([
+            { name: 'dexto_connection_start', arguments: { provider: 'github' } },
+            {
+                name: 'dexto_connection_wait',
+                arguments: { provider: 'github', attemptId: 'attempt-1' },
+            },
+        ]);
+        expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'github' });
+    });
+    it('lists and disconnects an owned connector', async () => {
+        const row = {
+            kind: 'connector',
+            name: 'github',
+            id: 'conn-1',
+            provider: 'github',
+            status: 'connected',
+            nextAction: null,
+        };
+        replies = [
+            { connections: [row] },
+            row,
+            { outcome: 'disconnected', name: 'github', nextAction: 'dexto_connection_start' },
+        ];
+        expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
+        expect(lastResult().connections).toEqual([row]);
+        expect(
+            await runCloud(host, ['connections', 'disconnect', 'github', '--yes', '--json'])
+        ).toBe(0);
+        expect(calls.at(-1)).toEqual({
+            name: 'dexto_connection_disconnect',
+            arguments: { name: 'github' },
+        });
+    });
+    it('returns a resumable connector attempt without waiting', async () => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'notion',
+                attemptId: 'attempt-2',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+        ];
+        expect(
+            await runCloud(host, ['connect', 'notion', '--no-browser', '--no-wait', '--json'])
+        ).toBe(0);
+        expect(lastResult()).toMatchObject({
+            outcome: 'started',
+            attemptId: 'attempt-2',
+            url: 'https://example.test/approve',
+        });
+        expect(calls).toHaveLength(1);
+    });
+    it('keeps the attempt when a connector wait needs permission', async () => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'github',
+                attemptId: 'attempt-3',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+        ];
+        beforeWait = () => {
+            rpcError = {
+                code: -32003,
+                message: 'Permission required',
+                data: { kind: 'forbidden', scope: 'models:write' },
+            };
+        };
+        expect(await runCloud(host, ['connect', 'github', '--no-browser', '--json'])).not.toBe(0);
+        expect(calls.filter((call) => call.name === 'dexto_connection_start')).toHaveLength(1);
+        expect(stderr).toContain('dexto connect github --attempt attempt-3');
+    });
     it('starts Console sign-in on the requested chat and preserves the method during retries', async () => {
         replies = [
             {
