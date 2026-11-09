@@ -261,6 +261,176 @@ describe('retry error handling', () => {
                     },
                 }
             )
-        ).rejects.toThrow('both fetch and requestAuth');
+        ).rejects.toMatchObject({ code: 'llm_runtime_auth_conflict' });
+    });
+});
+
+describe('request auth cancellation and bounds', () => {
+    const config = LLMConfigSchema.parse({
+        provider: 'openai-compatible',
+        model: 'test',
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1',
+    });
+    it('stops at exactly 64 KiB on an open retryable stream', async () => {
+        const response = new Response(
+            new globalThis.ReadableStream({
+                start(c) {
+                    c.enqueue(new Uint8Array(65536));
+                },
+            }),
+            { status: 401 }
+        );
+        const model = await createVercelModel(config, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    requestAuth: {
+                        fetch: async () => ({ response, provenance: null }),
+                        isRetryableResponse: async () => true,
+                    },
+                }),
+            },
+        });
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            statusCode: 401,
+            isRetryable: true,
+            responseBody: '\0'.repeat(65536),
+        });
+    }, 2000);
+    it('aborts a pending classifier', async () => {
+        const controller = new globalThis.AbortController();
+        let classifyStarted = () => {};
+        const started = new Promise<void>((resolve) => {
+            classifyStarted = resolve;
+        });
+        const model = await createVercelModel(config, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    requestAuth: {
+                        fetch: async () => ({
+                            response: new Response('error', { status: 401 }),
+                            provenance: null,
+                        }),
+                        isRetryableResponse: async () => {
+                            classifyStarted();
+                            return new Promise<boolean>(() => {});
+                        },
+                    },
+                }),
+            },
+        });
+        const result = generateText({
+            model,
+            prompt: 'hi',
+            maxRetries: 0,
+            abortSignal: controller.signal,
+        });
+        await started;
+        controller.abort();
+        await expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    }, 2000);
+    it('cancels a clone reader retained by the classifier', async () => {
+        let cancelled = () => {};
+        const cancellation = new Promise<void>((resolve) => {
+            cancelled = resolve;
+        });
+        const response = new Response(
+            new globalThis.ReadableStream({
+                pull(c) {
+                    c.enqueue(new Uint8Array(1024));
+                },
+                cancel() {
+                    cancelled();
+                },
+            }),
+            { status: 401 }
+        );
+        const model = await createVercelModel(config, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    requestAuth: {
+                        fetch: async () => ({ response, provenance: null }),
+                        isRetryableResponse: async ({ response: view }) => {
+                            const reader = view.body?.getReader();
+                            await reader?.read();
+                            return true;
+                        },
+                    },
+                }),
+            },
+        });
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            isRetryable: true,
+        });
+        await cancellation;
+    }, 2000);
+    it('propagates a plain classifier error after its signal aborts', async () => {
+        const controller = new globalThis.AbortController();
+        const model = await createVercelModel(config, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    requestAuth: {
+                        fetch: async () => ({
+                            response: new Response('error', { status: 401 }),
+                            provenance: null,
+                        }),
+                        isRetryableResponse: async () => {
+                            controller.abort();
+                            throw new Error('classifier stopped');
+                        },
+                    },
+                }),
+            },
+        });
+        await expect(
+            generateText({ model, prompt: 'hi', maxRetries: 0, abortSignal: controller.signal })
+        ).rejects.toThrow('classifier stopped');
+    });
+    it('allows a request-auth host without a static API key', async () => {
+        const noKey = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-4.1',
+        });
+        const model = await createVercelModel(noKey, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    requestAuth: {
+                        fetch: async () => ({
+                            response: new Response('error', { status: 401 }),
+                            provenance: null,
+                        }),
+                        isRetryableResponse: async () => true,
+                    },
+                }),
+            },
+        });
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            statusCode: 401,
+            isRetryable: true,
+        });
+    });
+    it('preserves the original URL in the classifier view', async () => {
+        const response = new Response('error', { status: 401 });
+        Object.defineProperty(response, 'url', {
+            value: 'https://example.test/v1/chat/completions',
+        });
+        let url = '';
+        const model = await createVercelModel(config, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    requestAuth: {
+                        fetch: async () => ({ response, provenance: null }),
+                        isRetryableResponse: async ({ response: view }) => {
+                            url = view.url;
+                            return false;
+                        },
+                    },
+                }),
+            },
+        });
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            statusCode: 401,
+        });
+        expect(url).toBe('https://example.test/v1/chat/completions');
     });
 });

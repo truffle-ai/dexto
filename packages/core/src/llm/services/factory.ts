@@ -131,9 +131,9 @@ function logRuntimeAuthResolution(input: {
 const MAX_RETRY_ERROR_BODY_BYTES = 64 * 1024;
 
 /** Give the classifier a bounded view while retaining the original response for the SDK. */
-function boundedClassificationResponse(response: Response): Response {
+function boundedClassificationResponse(response: Response): { view: Response; cancel: () => void } {
     const clone = response.clone();
-    if (!clone.body) return clone;
+    if (!clone.body) return { view: clone, cancel: () => {} };
     const reader = clone.body.getReader();
     let remaining = MAX_RETRY_ERROR_BODY_BYTES;
     const body = new globalThis.ReadableStream<Uint8Array>({
@@ -159,11 +159,18 @@ function boundedClassificationResponse(response: Response): Response {
             void reader.cancel().catch(() => {});
         },
     });
-    return new globalThis.Response(body, {
+    const view = new globalThis.Response(body, {
         status: clone.status,
         statusText: clone.statusText,
         headers: clone.headers,
     });
+    Object.defineProperty(view, 'url', { value: response.url });
+    return {
+        view,
+        cancel: () => {
+            void reader.cancel().catch(() => {});
+        },
+    };
 }
 
 function rethrowAbort(error: unknown, signal?: AbortSignal | null): void {
@@ -186,7 +193,7 @@ async function readRetryErrorBody(
             const remaining = MAX_RETRY_ERROR_BODY_BYTES - bytes;
             body += decoder.decode(chunk.value.subarray(0, remaining), { stream: true });
             bytes += chunk.value.byteLength;
-            if (bytes > MAX_RETRY_ERROR_BODY_BYTES) {
+            if (bytes >= MAX_RETRY_ERROR_BODY_BYTES) {
                 void reader.cancel().catch(() => {});
                 break;
             }
@@ -226,7 +233,7 @@ export async function createVercelModel(
     const runtimeHeaders = runtimeAuth?.headers;
     const requestAuth = runtimeAuth?.requestAuth;
     if (requestAuth && runtimeAuth?.fetch) {
-        throw new Error('Runtime auth cannot supply both fetch and requestAuth');
+        throw LLMError.runtimeAuthConflict(provider);
     }
     const runtimeFetch: typeof fetch | undefined = requestAuth
         ? async (input, init) => {
@@ -234,20 +241,33 @@ export async function createVercelModel(
               if (response.ok) return response;
               const signal =
                   init?.signal ?? (input instanceof globalThis.Request ? input.signal : undefined);
-              const classificationResponse = boundedClassificationResponse(response);
+              const classification = boundedClassificationResponse(response);
               let retryable: boolean;
+              let onAbort: (() => void) | undefined;
               try {
-                  retryable = await requestAuth.isRetryableResponse({
-                      response: classificationResponse,
+                  const decision = requestAuth.isRetryableResponse({
+                      response: classification.view,
                       provenance,
+                      ...(signal ? { signal } : {}),
                   });
+                  if (signal) {
+                      const aborted = new Promise<never>((_, reject) => {
+                          onAbort = () =>
+                              reject(new globalThis.DOMException('Request aborted', 'AbortError'));
+                          if (signal.aborted) onAbort();
+                          else signal.addEventListener('abort', onAbort, { once: true });
+                      });
+                      retryable = await Promise.race([decision, aborted]);
+                  } else retryable = await decision;
               } catch (error) {
+                  if (signal?.aborted) {
+                      void response.body?.cancel().catch(() => {});
+                  }
                   rethrowAbort(error, signal);
                   return response;
               } finally {
-                  if (classificationResponse.body && !classificationResponse.body.locked) {
-                      void classificationResponse.body.cancel().catch(() => {});
-                  }
+                  if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+                  classification.cancel();
               }
               if (!retryable) return response;
               const responseHeaders: Record<string, string> = {};
@@ -284,7 +304,7 @@ export async function createVercelModel(
     });
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
-    if (requiresApiKey(provider) && !usesCodexRuntimeAuth && !apiKey?.trim()) {
+    if (requiresApiKey(provider) && !usesCodexRuntimeAuth && !apiKey?.trim() && !requestAuth) {
         const envVar = getPrimaryApiKeyEnvVar(provider);
         throw LLMError.apiKeyMissing(provider, envVar);
     }

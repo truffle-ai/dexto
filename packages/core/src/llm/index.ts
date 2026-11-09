@@ -8,6 +8,7 @@ export * from './usage-scope.js';
 export * from './usage-summary.js';
 export type {
     LlmAuthResolver,
+    LlmRequestAuth,
     LlmRuntimeAuthOverrides,
     ResolveLlmRuntimeAuthInput,
 } from './auth/index.js';

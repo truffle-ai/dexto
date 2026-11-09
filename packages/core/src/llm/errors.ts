@@ -34,6 +34,16 @@ export class LLMError {
         );
     }
 
+    static runtimeAuthConflict(provider: LLMProvider) {
+        return new DextoRuntimeError(
+            LLMErrorCode.RUNTIME_AUTH_CONFLICT,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            'Runtime auth cannot supply both fetch and requestAuth',
+            { provider }
+        );
+    }
+
     static missingConfig(provider: LLMProvider, configName: string) {
         return new DextoRuntimeError(
             LLMErrorCode.CONFIG_MISSING,
