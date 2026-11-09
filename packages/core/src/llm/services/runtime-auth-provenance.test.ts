@@ -77,3 +77,161 @@ describe('runtime request provenance', () => {
         expect(error).toMatchObject({ statusCode: 401, isRetryable: false });
     });
 });
+
+describe('request authentication across providers', () => {
+    it.each([
+        ['openrouter', 'openai/gpt-4o'],
+        ['google', 'gemini-2.5-flash'],
+        ['groq', 'llama-3.3-70b-versatile'],
+        ['xai', 'grok-4.3'],
+        ['cohere', 'command-r-08-2024'],
+    ] as const)('classifies failures for %s', async (provider, modelId) => {
+        let classified = false;
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({ provider, model: modelId, apiKey: 'test' }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        requestAuth: {
+                            fetch: async () => ({
+                                response: new Response('error', { status: 401 }),
+                                provenance: 'sent',
+                            }),
+                            isRetryableResponse: async () => {
+                                classified = true;
+                                return true;
+                            },
+                        },
+                    }),
+                },
+            }
+        );
+        await expect(generateText({ model, prompt: 'hello', maxRetries: 0 })).rejects.toMatchObject(
+            { statusCode: 401, isRetryable: true }
+        );
+        expect(classified).toBe(true);
+    });
+
+    it('does not classify successful responses', async () => {
+        let classified = false;
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({
+                provider: 'openai-compatible',
+                model: 'test',
+                apiKey: 'test',
+                baseURL: 'https://example.test/v1',
+            }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        requestAuth: {
+                            fetch: async () => ({
+                                response: Response.json({
+                                    id: '1',
+                                    choices: [
+                                        {
+                                            message: { role: 'assistant', content: 'ok' },
+                                            finish_reason: 'stop',
+                                        },
+                                    ],
+                                }),
+                                provenance: null,
+                            }),
+                            isRetryableResponse: async () => {
+                                classified = true;
+                                return true;
+                            },
+                        },
+                    }),
+                },
+            }
+        );
+        await generateText({ model, prompt: 'hello', maxRetries: 0 });
+        expect(classified).toBe(false);
+    });
+});
+
+describe('retry error handling', () => {
+    async function run(response: Response, classify: () => Promise<boolean>) {
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({
+                provider: 'openai-compatible',
+                model: 'test',
+                apiKey: 'test',
+                baseURL: 'https://example.test/v1',
+            }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        requestAuth: {
+                            fetch: async () => ({ response, provenance: null }),
+                            isRetryableResponse: classify,
+                        },
+                    }),
+                },
+            }
+        );
+        return generateText({ model, prompt: 'hello', maxRetries: 0 });
+    }
+    it('keeps the SDK error when classification throws', async () => {
+        await expect(
+            run(Response.json({ error: { message: 'denied' } }, { status: 401 }), async () => {
+                throw new Error('classifier');
+            })
+        ).rejects.toMatchObject({ statusCode: 401, isRetryable: false });
+    });
+    it('preserves cancellation from the classifier', async () => {
+        await expect(
+            run(new Response('x', { status: 401 }), async () => {
+                throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+            })
+        ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+    it('retains retryability when reading a response fails', async () => {
+        const response = new Response(
+            new globalThis.ReadableStream({
+                start(controller) {
+                    controller.error(new Error('broken'));
+                },
+            }),
+            { status: 401 }
+        );
+        await expect(run(response, async () => true)).rejects.toMatchObject({
+            statusCode: 401,
+            isRetryable: true,
+            responseBody: '',
+        });
+    });
+    it('caps the retryable response body at 64 KiB', async () => {
+        await expect(
+            run(new Response('x'.repeat(100_000), { status: 401 }), async () => true)
+        ).rejects.toMatchObject({
+            statusCode: 401,
+            isRetryable: true,
+            responseBody: 'x'.repeat(65536),
+        });
+    });
+    it('rejects conflicting runtime fetch settings', async () => {
+        await expect(
+            createVercelModel(
+                LLMConfigSchema.parse({
+                    provider: 'openai-compatible',
+                    model: 'test',
+                    apiKey: 'test',
+                    baseURL: 'https://example.test/v1',
+                }),
+                {
+                    authResolver: {
+                        resolveRuntimeAuth: () => ({
+                            fetch: globalThis.fetch,
+                            requestAuth: {
+                                fetch: async () => ({ response: new Response(), provenance: null }),
+                                isRetryableResponse: async () => false,
+                            },
+                        }),
+                    },
+                }
+            )
+        ).rejects.toThrow('both fetch and requestAuth');
+    });
+});

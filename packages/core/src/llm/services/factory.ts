@@ -120,12 +120,46 @@ function logRuntimeAuthResolution(input: {
         model,
         auth,
         runtime: {
-            hasRuntimeFetch: Boolean(runtimeAuth?.fetch),
+            hasRuntimeFetch: Boolean(runtimeAuth?.fetch || runtimeAuth?.requestAuth),
             hasRuntimeHeaders: Boolean(runtimeAuth?.headers),
             hasRuntimeBaseURL: Boolean(runtimeAuth?.baseURL),
             hasEffectiveBaseURL: Boolean(effectiveBaseURL),
         },
     });
+}
+
+const MAX_RETRY_ERROR_BODY_BYTES = 64 * 1024;
+
+function rethrowAbort(error: unknown, signal?: AbortSignal | null): void {
+    if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
+}
+
+async function readRetryErrorBody(
+    response: Response,
+    signal?: AbortSignal | null
+): Promise<string> {
+    if (!response.body) return '';
+    const reader = response.body.getReader();
+    const decoder = new globalThis.TextDecoder();
+    let body = '';
+    let bytes = 0;
+    try {
+        for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            const remaining = MAX_RETRY_ERROR_BODY_BYTES - bytes;
+            body += decoder.decode(chunk.value.subarray(0, remaining), { stream: true });
+            bytes += chunk.value.byteLength;
+            if (bytes > MAX_RETRY_ERROR_BODY_BYTES) {
+                void reader.cancel().catch(() => {});
+                break;
+            }
+        }
+        body += decoder.decode();
+    } catch (error) {
+        rethrowAbort(error, signal);
+    }
+    return body;
 }
 
 /**
@@ -155,18 +189,31 @@ export async function createVercelModel(
     const runtimeBaseURL = runtimeAuth?.baseURL;
     const runtimeHeaders = runtimeAuth?.headers;
     const requestAuth = runtimeAuth?.requestAuth;
+    if (requestAuth && runtimeAuth?.fetch) {
+        throw new Error('Runtime auth cannot supply both fetch and requestAuth');
+    }
     const runtimeFetch: typeof fetch | undefined = requestAuth
         ? async (input, init) => {
               const { response, provenance } = await requestAuth.fetch(input, init);
-              if (
-                  response.ok ||
-                  !(await requestAuth.isRetryableResponse({
-                      response: response.clone(),
+              if (response.ok) return response;
+              const signal =
+                  init?.signal ?? (input instanceof globalThis.Request ? input.signal : undefined);
+              const classificationResponse = response.clone();
+              let retryable: boolean;
+              try {
+                  retryable = await requestAuth.isRetryableResponse({
+                      response: classificationResponse,
                       provenance,
-                  }))
-              ) {
+                  });
+              } catch (error) {
+                  rethrowAbort(error, signal);
                   return response;
+              } finally {
+                  if (classificationResponse.body && !classificationResponse.body.locked) {
+                      void classificationResponse.body.cancel().catch(() => {});
+                  }
               }
+              if (!retryable) return response;
               const responseHeaders: Record<string, string> = {};
               response.headers.forEach((value, key) => {
                   responseHeaders[key] = value;
@@ -182,7 +229,7 @@ export async function createVercelModel(
                   requestBodyValues: {},
                   statusCode: response.status,
                   responseHeaders,
-                  responseBody: await response.text(),
+                  responseBody: await readRetryErrorBody(response, signal),
                   isRetryable: true,
               });
           }
@@ -209,6 +256,7 @@ export async function createVercelModel(
     switch (provider.toLowerCase()) {
         case 'openai': {
             if (usesCodexRuntimeAuth && runtimeBaseURL) {
+                // Codex uses an app-server process, not a fetch-based client.
                 const { createCodexLanguageModel } = await import(
                     '../providers/codex-app-server.js'
                 );
@@ -260,6 +308,7 @@ export async function createVercelModel(
                 apiKey: apiKey ?? '',
                 baseURL: orBaseURL,
                 compatibility: 'strict',
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             });
             const chatModel = provider.chat(model);
             if (!isLanguageModel(chatModel)) {
@@ -395,6 +444,7 @@ export async function createVercelModel(
                 return createVertexAnthropic({
                     project: projectId,
                     location: location || 'us-east5',
+                    ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
                     ...(headers ? { headers } : {}),
                 })(model);
             }
@@ -405,6 +455,7 @@ export async function createVercelModel(
             return createVertex({
                 project: projectId,
                 location: location || 'us-central1',
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
         case 'bedrock': {
@@ -441,6 +492,7 @@ export async function createVercelModel(
             }
 
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+            // Bedrock uses the AWS SDK transport rather than a custom fetch.
             const { createAmazonBedrock } = await import('@ai-sdk/amazon-bedrock');
             return createAmazonBedrock({ region })(modelId);
         }
@@ -461,19 +513,31 @@ export async function createVercelModel(
         }
         case 'google': {
             const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-            return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
+            return createGoogleGenerativeAI({
+                apiKey: apiKey ?? '',
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'groq': {
             const { createGroq } = await import('@ai-sdk/groq');
-            return createGroq({ apiKey: apiKey ?? '' })(model);
+            return createGroq({
+                apiKey: apiKey ?? '',
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'xai': {
             const { createXai } = await import('@ai-sdk/xai');
-            return createXai({ apiKey: apiKey ?? '' })(model);
+            return createXai({
+                apiKey: apiKey ?? '',
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'cohere': {
             const { createCohere } = await import('@ai-sdk/cohere');
-            return createCohere({ apiKey: apiKey ?? '' })(model);
+            return createCohere({
+                apiKey: apiKey ?? '',
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'ollama': {
             // Ollama - local model server with OpenAI-compatible API
