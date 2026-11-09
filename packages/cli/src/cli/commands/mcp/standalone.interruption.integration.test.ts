@@ -142,6 +142,13 @@ async function startCall(
                     type: 'stdio',
                     command: process.execPath,
                     args: [fixture],
+                    passEnvironment: [
+                        'MCP_PID_FILE',
+                        'MCP_EVENTS_FILE',
+                        'MCP_RELEASE_FILE',
+                        'MCP_STARTUP_GATE',
+                        'MCP_RESULT_MODE',
+                    ],
                     timeout: 120000,
                 },
             },
