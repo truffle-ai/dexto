@@ -132,6 +132,21 @@ describe('scanMarketplacePlugins with symlinks', () => {
             expect(sourcesOf()).toEqual([]);
         });
 
+        it('skips a source behind a symlink loop (ELOOP)', () => {
+            symlinkSync(
+                path.join(marketplace, 'plugins', 'b'),
+                path.join(marketplace, 'plugins', 'a')
+            );
+            symlinkSync(
+                path.join(marketplace, 'plugins', 'a'),
+                path.join(marketplace, 'plugins', 'b')
+            );
+            writeManifest(['./plugins/a', './plugins/inside']);
+            expect(sourcesOf()).toEqual([
+                realpathSync(path.join(marketplace, 'plugins', 'inside')),
+            ]);
+        });
+
         it('returns nothing when the marketplace directory is missing', () => {
             expect(scanMarketplacePlugins(path.join(base, 'no-such-marketplace'), 'test')).toEqual(
                 []

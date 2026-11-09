@@ -487,19 +487,50 @@ describe('Marketplace Operations', () => {
             expect(result.map((plugin) => plugin.name)).toEqual(['inside', 'root']);
         });
 
-        it('skips a plugin when its real path cannot be resolved (fails closed)', () => {
-            const manifest = {
-                name: 'Test Marketplace',
-                plugins: [{ name: 'plugin1', source: 'plugins/plugin1' }],
-            };
-            vi.mocked(fs.existsSync).mockReturnValue(true);
-            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(manifest));
-            vi.mocked(fs.realpathSync).mockImplementationOnce(() => {
-                throw new Error('EIO');
-            });
+        it.each(['EACCES', 'ELOOP', 'EIO'])(
+            'skips a plugin when resolving its real path fails with %s (fails closed)',
+            (code) => {
+                const manifest = {
+                    name: 'Test Marketplace',
+                    plugins: [{ name: 'plugin1', source: 'plugins/plugin1' }],
+                };
+                vi.mocked(fs.existsSync).mockReturnValue(true);
+                vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(manifest));
+                vi.mocked(fs.realpathSync).mockImplementation(() => {
+                    throw Object.assign(new Error(code), { code });
+                });
 
-            expect(scanMarketplacePlugins('/marketplace', 'test-market')).toEqual([]);
-        });
+                try {
+                    expect(scanMarketplacePlugins('/marketplace', 'test-market')).toEqual([]);
+                } finally {
+                    vi.mocked(fs.realpathSync).mockImplementation((target) => String(target));
+                }
+            }
+        );
+
+        it.each(['EACCES', 'ELOOP'])(
+            'skips directory-scan plugins when resolving their real path fails with %s',
+            (code) => {
+                vi.mocked(fs.existsSync).mockImplementation((p) => {
+                    const pathStr = typeof p === 'string' ? p : p.toString();
+                    return !pathStr.endsWith('marketplace.json');
+                });
+                vi.mocked(fs.readdirSync).mockImplementation(((p: unknown) =>
+                    String(p).endsWith('plugins')
+                        ? [createDirent('my-plugin', true)]
+                        : []) as never);
+                vi.mocked(tryLoadManifest).mockReturnValue({ name: 'my-plugin' } as PluginManifest);
+                vi.mocked(fs.realpathSync).mockImplementation(() => {
+                    throw Object.assign(new Error(code), { code });
+                });
+
+                try {
+                    expect(scanMarketplacePlugins('/marketplace', 'test-market')).toEqual([]);
+                } finally {
+                    vi.mocked(fs.realpathSync).mockImplementation((target) => String(target));
+                }
+            }
+        );
 
         it('scans plugins/ directory when no manifest', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
