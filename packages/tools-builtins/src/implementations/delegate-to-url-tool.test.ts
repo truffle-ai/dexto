@@ -86,3 +86,46 @@ describe('delegate_to_url tool', () => {
         }
     });
 });
+
+describe('delegate_to_url URL checks', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it.each([
+        'ftp://example.com',
+        'http://user:pass@example.com',
+        'http://127.0.0.1:2375/containers/create?',
+        'http://example.com/#fragment',
+        'http://169.254.169.254',
+    ])('rejects %s without sending a request', async (url) => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        const tool = createDelegateToUrlTool();
+        const input = tool.inputSchema.parse({ url, message: 'hi' });
+
+        await expect(
+            tool.execute(input, createToolContext(createMockLogger()))
+        ).rejects.toMatchObject({
+            code: 'DELEGATION_INVALID_URL',
+        });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still delegates to a local agent and refuses redirects', async () => {
+        const fetchMock = vi.fn(
+            async (_url: string, _init?: RequestInit) =>
+                new Response(JSON.stringify({ result: 'ok' }), {
+                    headers: { 'content-type': 'application/json' },
+                })
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const tool = createDelegateToUrlTool();
+        const input = tool.inputSchema.parse({ url: 'http://localhost:3001', message: 'hi' });
+
+        await tool.execute(input, createToolContext(createMockLogger()));
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3001/v1/jsonrpc');
+        expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('error');
+    });
+});

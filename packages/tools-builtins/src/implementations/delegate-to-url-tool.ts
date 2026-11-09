@@ -1,3 +1,4 @@
+import { TextDecoder } from 'node:util';
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
@@ -47,6 +48,59 @@ interface A2AMessage {
     taskId?: string;
     contextId?: string;
     kind: 'message';
+}
+
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const BLOCKED_HOSTNAMES = new Set(['metadata.google.internal', '[fd00:ec2::254]']);
+
+/**
+ * The delegation URL must be an agent base URL: http(s) only, no credentials, query or fragment
+ * (a query would let the caller choose the request path), and not a cloud metadata address.
+ * Loopback and private addresses stay allowed because delegating to a local agent is the
+ * documented use of this tool.
+ */
+function assertDelegationUrl(rawUrl: string): void {
+    const invalid = (reason: string) =>
+        new DextoRuntimeError(
+            'DELEGATION_INVALID_URL',
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Invalid agent URL: ${reason}`
+        );
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw invalid('only http and https are supported');
+    }
+    if (parsed.username || parsed.password) {
+        throw invalid('credentials in the URL are not allowed');
+    }
+    if (rawUrl.includes('?') || rawUrl.includes('#')) {
+        throw invalid('the URL must not contain a query or fragment');
+    }
+    if (parsed.hostname.startsWith('169.254.') || BLOCKED_HOSTNAMES.has(parsed.hostname)) {
+        throw invalid('link-local and metadata addresses are not allowed');
+    }
+}
+
+async function readJsonWithLimit(response: Response): Promise<unknown> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+        return JSON.parse(await response.text());
+    }
+    const decoder = new TextDecoder();
+    let total = 0;
+    let text = '';
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX_RESPONSE_BYTES) {
+            await reader.cancel();
+            throw new Error(`Response exceeded ${MAX_RESPONSE_BYTES} byte limit`);
+        }
+        text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -107,6 +161,7 @@ class SimpleA2AClient {
                         'User-Agent': '@dexto/core',
                     },
                     body: JSON.stringify(rpcRequest),
+                    redirect: 'error',
                     signal: controller.signal,
                 });
 
@@ -117,7 +172,7 @@ class SimpleA2AClient {
                     continue;
                 }
 
-                const data: unknown = await response.json();
+                const data = await readJsonWithLimit(response);
 
                 if (isPlainObject(data) && 'error' in data && data.error) {
                     const errorMessage =
@@ -205,6 +260,8 @@ export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema>
         },
         async execute(input, _context: ToolExecutionContext) {
             const { url, message, sessionId, timeout } = input;
+
+            assertDelegationUrl(url);
 
             try {
                 const client = new SimpleA2AClient(url, timeout);
