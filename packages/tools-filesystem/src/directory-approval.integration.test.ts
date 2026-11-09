@@ -191,7 +191,7 @@ describe('Directory Approval Integration Tests', () => {
 
     describe('needsApproval', () => {
         it('should return false for paths within config-allowed roots', async () => {
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
 
@@ -207,7 +207,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should return a directory approval key for external paths', async () => {
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
 
@@ -230,7 +230,7 @@ describe('Directory Approval Integration Tests', () => {
                 'session'
             );
 
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
             const externalPath = '/external/project/file.ts';
@@ -249,7 +249,7 @@ describe('Directory Approval Integration Tests', () => {
                 'once'
             );
 
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
             const externalPath = '/external/project/file.ts';
@@ -263,7 +263,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should remember directory approvals only for the granting session', async () => {
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
 
@@ -316,7 +316,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should return a directory key for edit operations', async () => {
-            const tool = createEditFileTool(getFileSystemService, allowAllPaths);
+            const tool = createEditFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
             const externalPath = '/external/project/existing.ts';
@@ -339,7 +339,7 @@ describe('Directory Approval Integration Tests', () => {
 
     describe('Path containment scenarios', () => {
         it('should cover child paths when parent directory is session-approved', async () => {
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
             await approvalManager.addApprovedKey(
@@ -363,7 +363,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should NOT cover sibling directories', async () => {
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
             await approvalManager.addApprovedKey(
@@ -609,7 +609,7 @@ describe('Directory Approval Integration Tests', () => {
 
     describe('Without ApprovalManager in context', () => {
         it('should throw for external paths', async () => {
-            const tool = createReadFileTool(getFileSystemService, allowAllPaths);
+            const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
             const needsApproval = tool.needsApproval;
             expect(needsApproval).toBeDefined();
 

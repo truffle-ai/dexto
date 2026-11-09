@@ -71,7 +71,7 @@ describe('blocked paths in file tools', () => {
 
     it('read_file refuses a blocked file', async () => {
         const context = await createContext(new Map([['.env', 'SECRET=1']]));
-        const tool = createReadFileTool(vi.fn(), blockedPathCheck);
+        const tool = createReadFileTool(vi.fn(), blockedPathCheck, 1024);
         await expect(tool.execute({ file_path: '.env' }, context)).rejects.toThrow(/blocked/);
     });
 
@@ -79,7 +79,7 @@ describe('blocked paths in file tools', () => {
         const files = new Map([['.git/config', 'x']]);
         const context = await createContext(files);
         const write = createWriteFileTool(vi.fn(), blockedPathCheck);
-        const edit = createEditFileTool(vi.fn(), blockedPathCheck);
+        const edit = createEditFileTool(vi.fn(), blockedPathCheck, 1024);
         await expect(
             write.execute({ file_path: '.git/config', content: 'y', encoding: 'utf-8' }, context)
         ).rejects.toThrow(/blocked/);

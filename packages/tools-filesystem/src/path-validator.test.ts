@@ -233,6 +233,57 @@ describe('PathValidator', () => {
                 expect(result.isValid).toBe(false);
                 expect(result.error).toContain('blocked');
             });
+
+            describe('nested entries', () => {
+                const validator = () =>
+                    new PathValidator(
+                        {
+                            allowedPaths: ['/home/user/project'],
+                            blockedPaths: ['.git', '.env', 'node_modules/.bin'],
+                            blockedExtensions: [],
+                            maxFileSize: 10 * 1024 * 1024,
+                            enableBackups: false,
+                            backupRetentionDays: 7,
+                            workingDirectory: '/home/user/project',
+                        },
+                        mockLogger as any
+                    );
+
+                it.each([
+                    'sub/.env',
+                    'a/b/c/.env',
+                    'sub/.git/config',
+                    'packages/app/.git',
+                    'packages/app/node_modules/.bin/tsc',
+                ])('rejects %s below the workspace root', async (relativePath) => {
+                    const result = await validator().validatePath(
+                        `/home/user/project/${relativePath}`,
+                        'read'
+                    );
+                    expect(result.isValid).toBe(false);
+                    expect(result.error).toContain('blocked');
+                });
+
+                it.each([
+                    'sub/.envrc',
+                    'sub/environment.ts',
+                    'sub/my.git/config',
+                    'node_modules/x',
+                ])('still allows %s', async (relativePath) => {
+                    const result = await validator().validatePath(
+                        `/home/user/project/${relativePath}`,
+                        'read'
+                    );
+                    expect(result.isValid).toBe(true);
+                });
+
+                it('applies to previews of nested paths too', async () => {
+                    const result = await validator().validatePathForPreview(
+                        '/home/user/project/sub/.env'
+                    );
+                    expect(result.isValid).toBe(false);
+                });
+            });
         });
 
         describe('Blocked Extensions', () => {

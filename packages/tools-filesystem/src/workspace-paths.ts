@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { braceExpand } from 'minimatch';
 import { DextoRuntimeError } from '@dexto/core/errors';
 import { WorkspaceErrorCodes } from '@dexto/core/workspace';
 import { ToolError } from '@dexto/core/tools';
@@ -40,7 +41,11 @@ export function isWorkspaceFileNotFound(error: unknown): boolean {
 }
 
 export function assertWorkspaceRelativeGlob(toolName: string, pattern: string): void {
-    if (path.isAbsolute(pattern) || pattern.split(/[\\/]/).includes('..')) {
+    // Check every brace expansion, so `{..,src}/x` is judged as `../x` and `src/x`.
+    const escapes = braceExpand(pattern).some(
+        (expanded) => path.isAbsolute(expanded) || expanded.split(/[\\/]/).includes('..')
+    );
+    if (escapes) {
         throw ToolError.validationFailed(
             toolName,
             `Glob pattern must stay inside the active workspace: ${pattern}`,
