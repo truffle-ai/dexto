@@ -313,7 +313,8 @@ export async function createVercelModel(
               });
           }
         : runtimeAuth?.fetch;
-    const effectiveBaseURL = runtimeBaseURL?.replace(/\/$/, '') || baseURL?.replace(/\/$/, '');
+    const effectiveBaseURL =
+        runtimeBaseURL?.trim().replace(/\/$/, '') || baseURL?.trim().replace(/\/$/, '');
     const usesCodexRuntimeAuth = runtimeBaseURL ? isCodexBaseURL(runtimeBaseURL) : false;
 
     logRuntimeAuthResolution({
@@ -387,6 +388,7 @@ export async function createVercelModel(
                 apiKey: apiKey ?? '',
                 baseURL: orBaseURL,
                 compatibility: 'strict',
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             });
             const chatModel = provider.chat(model);
@@ -456,7 +458,9 @@ export async function createVercelModel(
             // Users explicitly choose `provider: dexto-nova` in their config
             //
             // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
-            const dextoBaseURL = resolveDextoGatewayBaseURL(runtimeBaseURL ?? baseURL);
+            const dextoBaseURL = resolveDextoGatewayBaseURL(
+                runtimeBaseURL?.trim() ? runtimeBaseURL : baseURL
+            );
 
             // Build headers for usage tracking
             const headers: Record<string, string> = {
@@ -516,13 +520,17 @@ export async function createVercelModel(
             if (model.includes('claude')) {
                 // Claude models on Vertex use the /anthropic subpath export
                 // Default to us-east5 for Claude (limited region availability)
-                const headers = supportsAnthropicInterleavedThinking(model)
-                    ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
-                    : undefined;
+                const headers = mergeHeaders(
+                    supportsAnthropicInterleavedThinking(model)
+                        ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
+                        : undefined,
+                    runtimeHeaders
+                );
                 const { createVertexAnthropic } = await import('@ai-sdk/google-vertex/anthropic');
                 return createVertexAnthropic({
                     project: projectId,
                     location: location || 'us-east5',
+                    ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
                     ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
                     ...(headers ? { headers } : {}),
                 })(model);
@@ -534,6 +542,8 @@ export async function createVercelModel(
             return createVertex({
                 project: projectId,
                 location: location || 'us-central1',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
@@ -595,6 +605,7 @@ export async function createVercelModel(
             return createGoogleGenerativeAI({
                 apiKey: apiKey ?? '',
                 ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
@@ -603,6 +614,7 @@ export async function createVercelModel(
             return createGroq({
                 apiKey: apiKey ?? '',
                 ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
@@ -611,6 +623,7 @@ export async function createVercelModel(
             return createXai({
                 apiKey: apiKey ?? '',
                 ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
@@ -619,6 +632,7 @@ export async function createVercelModel(
             return createCohere({
                 apiKey: apiKey ?? '',
                 ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }

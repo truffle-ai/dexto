@@ -438,6 +438,7 @@ describe('request auth cancellation and bounds', () => {
 describe('request auth transport regressions', () => {
     it('uses the runtime gateway URL for OpenRouter', async () => {
         let url = '';
+        let runtimeHeader = '';
         const model = await createVercelModel(
             LLMConfigSchema.parse({
                 provider: 'openrouter',
@@ -448,8 +449,16 @@ describe('request auth transport regressions', () => {
                 authResolver: {
                     resolveRuntimeAuth: () => ({
                         baseURL: 'https://gateway.example/v1',
+                        headers: { 'x-runtime-test': 'present' },
                         requestAuth: {
-                            fetch: async (input) => {
+                            fetch: async (input, init) => {
+                                runtimeHeader =
+                                    new globalThis.Headers(
+                                        init?.headers ??
+                                            (input instanceof globalThis.Request
+                                                ? input.headers
+                                                : undefined)
+                                    ).get('x-runtime-test') ?? '';
                                 url = new URL(
                                     typeof input === 'string'
                                         ? input
@@ -472,6 +481,7 @@ describe('request auth transport regressions', () => {
             statusCode: 401,
         });
         expect(url).toMatch(/^https:\/\/gateway\.example\/v1\//);
+        expect(runtimeHeader).toBe('present');
     });
     it('preserves redirected metadata in the classifier view', async () => {
         const response = new Response('error', { status: 401 });
@@ -636,14 +646,23 @@ it.each([
     ['cohere', 'command-r-08-2024'],
 ] as const)('uses the runtime gateway URL for %s', async (provider, modelId) => {
     let url = '';
+    let runtimeHeader = '';
     const model = await createVercelModel(
         LLMConfigSchema.parse({ provider, model: modelId, apiKey: 'test' }),
         {
             authResolver: {
                 resolveRuntimeAuth: () => ({
                     baseURL: 'https://gateway.example/v1',
+                    headers: { 'x-runtime-test': 'present' },
                     requestAuth: {
-                        fetch: async (input) => {
+                        fetch: async (input, init) => {
+                            runtimeHeader =
+                                new globalThis.Headers(
+                                    init?.headers ??
+                                        (input instanceof globalThis.Request
+                                            ? input.headers
+                                            : undefined)
+                                ).get('x-runtime-test') ?? '';
                             url =
                                 typeof input === 'string'
                                     ? input
@@ -665,4 +684,5 @@ it.each([
         statusCode: 401,
     });
     expect(url).toMatch(/^https:\/\/gateway\.example\/v1\//);
+    expect(runtimeHeader).toBe('present');
 });

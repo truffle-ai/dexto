@@ -9,6 +9,8 @@ const sdkMocks = vi.hoisted(() => {
         createOpenAI: vi.fn(),
         createOpenAICompatible: vi.fn(),
         createCodexLanguageModel: vi.fn(),
+        createVertex: vi.fn(),
+        createVertexAnthropic: vi.fn(),
         openAIResponsesModel: vi.fn(),
         openAICompatibleChatModel: vi.fn(),
     };
@@ -24,6 +26,11 @@ vi.mock('@ai-sdk/openai', () => ({
 
 vi.mock('@ai-sdk/openai-compatible', () => ({
     createOpenAICompatible: sdkMocks.createOpenAICompatible,
+}));
+
+vi.mock('@ai-sdk/google-vertex', () => ({ createVertex: sdkMocks.createVertex }));
+vi.mock('@ai-sdk/google-vertex/anthropic', () => ({
+    createVertexAnthropic: sdkMocks.createVertexAnthropic,
 }));
 
 vi.mock('../providers/codex-app-server.js', () => ({
@@ -85,6 +92,41 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
 
     afterEach(() => {
         delete process.env.DEXTO_API_URL;
+    });
+
+    it.each([
+        ['gemini-2.5-pro', 'google'],
+        ['claude-sonnet-4-5@20250929', 'anthropic'],
+    ] as const)('passes runtime gateway URL and headers to Vertex %s', async (modelId, kind) => {
+        const config = LLMConfigSchema.parse({ provider: 'vertex', model: modelId });
+        const provider = kind === 'google' ? sdkMocks.createVertex : sdkMocks.createVertexAnthropic;
+        provider.mockReturnValue(() => createLanguageModelStub(modelId));
+        vi.stubGlobal('process', { env: { GOOGLE_VERTEX_PROJECT: 'test-project' } });
+        try {
+            await createVercelModel(config, {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        baseURL: 'https://gateway.example/v1',
+                        headers: { 'x-runtime': 'ok' },
+                    }),
+                },
+            });
+            expect(provider).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    baseURL: 'https://gateway.example/v1',
+                    headers: expect.objectContaining({ 'x-runtime': 'ok' }),
+                })
+            );
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it('uses the configured gateway when a runtime base URL is empty', async () => {
+        await createVercelModel(buildDextoConfig({ baseURL: 'https://configured.example/v1' }), {
+            authResolver: { resolveRuntimeAuth: () => ({ baseURL: ' ' }) },
+        });
+        expect(getLastDextoNovaBaseUrl()).toBe('https://configured.example/v1');
     });
 
     it('uses the production gateway by default', async () => {
