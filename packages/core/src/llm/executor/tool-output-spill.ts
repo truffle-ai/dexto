@@ -1,3 +1,4 @@
+import { safeTextBoundary } from '../../utils/text-boundary.js';
 import type { ContentPart, SanitizedToolResult } from '../../context/types.js';
 
 /** The core tool that pages through stored tool output. */
@@ -14,7 +15,7 @@ const INLINE_WINDOW_RATIO = 0.1;
 /** One step's results together keep at most 40% of the input window inline. */
 const STEP_WINDOW_RATIO = 0.4;
 /** A result stored only to fit the step budget keeps this much inline, or its cap if smaller. */
-const STEP_SPILL_PREVIEW_CHARS = 16_000;
+const STEP_SPILL_PREVIEW_CHARS = 8_000;
 const PREVIEW_HEAD_RATIO = 0.75;
 
 export interface ToolOutputBudget {
@@ -56,7 +57,10 @@ export function planToolOutputSpills(
         }
     }
     // A result already cut to the inline cap can be cut again to the smaller step preview.
-    const stepPreviewChars = Math.min(budget.inlineCapChars, STEP_SPILL_PREVIEW_CHARS);
+    const stepPreviewChars = Math.min(
+        Math.floor(budget.inlineCapChars / 2),
+        STEP_SPILL_PREVIEW_CHARS
+    );
     const largestFirst = results
         .filter((result) => result.textLength > stepPreviewChars)
         .sort((left, right) => right.textLength - left.textLength);
@@ -79,15 +83,23 @@ export function withToolOutputPreview(
     fullText: string,
     previewChars: number
 ): SanitizedToolResult {
-    const headChars = Math.floor(previewChars * PREVIEW_HEAD_RATIO);
-    const tailChars = previewChars - headChars;
     const id = result.meta.toolCallId;
-    const preview =
-        `${fullText.slice(0, headChars)}\n\n` +
-        `[Output truncated: showing the first ${headChars} and last ${tailChars} of ${fullText.length} characters. ` +
+    const marker = (head: number, tail: number) =>
+        `\n\n[Output truncated: showing the first ${head} and last ${tail} of ${fullText.length} characters. ` +
         `The full output is stored. Read any part with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "offset": <line> }) ` +
-        `or search it with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "pattern": "<text>" }) instead of re-running the tool.]\n\n` +
-        fullText.slice(fullText.length - tailChars);
+        `or search it with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "pattern": "<text>" }) instead of re-running the tool.]\n\n`;
+    // Reserve enough space even if the counts in the marker have the maximum number of digits.
+    const available = Math.max(0, previewChars - marker(previewChars, previewChars).length);
+    const headChars = safeTextBoundary(fullText, Math.floor(available * PREVIEW_HEAD_RATIO));
+    const tailStart = fullText.length - (available - Math.floor(available * PREVIEW_HEAD_RATIO));
+    const safeTailStart =
+        safeTextBoundary(fullText, tailStart) === tailStart ? tailStart : tailStart + 1;
+    const tailChars = fullText.length - safeTailStart;
+    const previewMarker = marker(headChars, tailChars);
+    const preview =
+        previewMarker.length > previewChars
+            ? previewMarker.slice(0, safeTextBoundary(previewMarker, previewChars))
+            : fullText.slice(0, headChars) + previewMarker + fullText.slice(safeTailStart);
     const content: ContentPart[] = [];
     let previewAdded = false;
     for (const part of result.content) {

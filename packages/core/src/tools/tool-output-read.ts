@@ -1,5 +1,6 @@
 /** Core `tool_output_read`: pages through or searches a tool result stored for this session. */
 import { z } from 'zod';
+import { safeTextBoundary } from '../utils/text-boundary.js';
 import type { ConversationStore } from '../storage/conversation/types.js';
 import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { TOOL_OUTPUT_READ_TOOL_NAME } from '../llm/executor/tool-output-spill.js';
@@ -135,8 +136,11 @@ function readLines(text: string, input: ToolOutputReadInput): string {
         const room = MAX_READ_CHARS - chars - prefix.length;
         if (room <= 0) break;
         const full = lines[line - 1] ?? '';
-        const from = line === start ? Math.min(input.charOffset ?? 0, full.length) : 0;
-        const piece = full.slice(from, from + room);
+        const from =
+            line === start
+                ? safeTextBoundary(full, Math.min(input.charOffset ?? 0, full.length))
+                : 0;
+        const piece = full.slice(from, safeTextBoundary(full, Math.min(from + room, full.length)));
         selected.push(`${prefix}${piece}`);
         chars += prefix.length + piece.length + 1;
         if (from + piece.length < full.length) {
