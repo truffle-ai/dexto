@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isMetadataHost, isMetadataTarget } from './metadata-address.js';
+import {
+    createMetadataCheckedLookup,
+    isMetadataHost,
+    isMetadataTarget,
+} from './metadata-address.js';
 
 const hostOf = (url: string) => new URL(url).hostname;
 
@@ -83,5 +87,63 @@ describe('isMetadataTarget', () => {
         };
         expect(await isMetadataTarget('10.0.0.5', resolve)).toBe(false);
         expect(await isMetadataTarget('metadata.google.internal.', resolve)).toBe(true);
+    });
+});
+
+describe('createMetadataCheckedLookup', () => {
+    const lookupWith = (answers: string[][]) => {
+        let call = 0;
+        const resolve = async () => answers[Math.min(call++, answers.length - 1)] ?? [];
+        return { lookup: createMetadataCheckedLookup(resolve), calls: () => call };
+    };
+
+    const run = (
+        lookup: ReturnType<typeof createMetadataCheckedLookup>,
+        host: string,
+        all: boolean
+    ) =>
+        new Promise<{ error: NodeJS.ErrnoException | null; address: unknown; family?: number }>(
+            (resolve) => {
+                lookup(host, { all }, (error, address, family) =>
+                    resolve({ error, address, ...(family !== undefined && { family }) })
+                );
+            }
+        );
+
+    it('hands the connection the addresses it checked, resolving only once', async () => {
+        const { lookup, calls } = lookupWith([['93.184.216.34'], ['169.254.169.254']]);
+        const result = await run(lookup, 'rebind.example', true);
+        expect(result.error).toBeNull();
+        expect(result.address).toEqual([{ address: '93.184.216.34', family: 4 }]);
+        expect(calls()).toBe(1);
+    });
+
+    it('returns a single address when asked for one', async () => {
+        const { lookup } = lookupWith([['::1', '10.0.0.5']]);
+        const result = await run(lookup, 'local.example', false);
+        expect(result).toMatchObject({ error: null, address: '::1', family: 6 });
+    });
+
+    it('refuses a name when any answer is a metadata address', async () => {
+        const { lookup } = lookupWith([['93.184.216.34', '::ffff:a9fe:a9fe']]);
+        for (const all of [true, false]) {
+            const result = await run(lookup, 'rebind.example', all);
+            expect(result.error?.code).toBe('EMETADATA');
+        }
+    });
+
+    it('refuses metadata host names without resolving them', async () => {
+        const { lookup, calls } = lookupWith([['93.184.216.34']]);
+        const result = await run(lookup, 'metadata.google.internal.', true);
+        expect(result.error?.code).toBe('EMETADATA');
+        expect(calls()).toBe(0);
+    });
+
+    it('passes a resolution failure on', async () => {
+        const lookup = createMetadataCheckedLookup(async () => {
+            throw new Error('ENOTFOUND');
+        });
+        const result = await run(lookup, 'missing.example', true);
+        expect(result.error?.message).toBe('ENOTFOUND');
     });
 });

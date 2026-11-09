@@ -179,26 +179,6 @@ describe('WebhookEventSubscriber', () => {
             );
         });
 
-        it('does not send to a name that resolves to a metadata address', async () => {
-            const metadataSubscriber = new WebhookEventSubscriber({
-                fetchFn: mockFetch as any,
-                resolveHost: async () => ['93.184.216.34', '::ffff:a9fe:a9fe'],
-                maxRetries: 1,
-            });
-            metadataSubscriber.addWebhook({
-                id: 'wh_rebind',
-                url: 'https://hooks.example.com/webhook',
-                createdAt: new Date(),
-            });
-            metadataSubscriber.subscribe(agentEventBus);
-
-            agentEventBus.emit('session:reset', { sessionId: 'test-session' });
-            await new Promise((resolve) => setTimeout(resolve, 10));
-
-            expect(mockFetch).not.toHaveBeenCalled();
-            metadataSubscriber.cleanup();
-        });
-
         it('should not deliver events when no webhooks are registered', async () => {
             webhookSubscriber.subscribe(agentEventBus);
 

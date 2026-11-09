@@ -6,7 +6,8 @@ import {
     type AgentEventMap,
     type AgentEventName,
 } from '@dexto/core';
-import { isMetadataTarget, logger } from '@dexto/core';
+import { createMetadataCheckedLookup, logger } from '@dexto/core';
+import { Agent, type Dispatcher } from 'undici';
 import { EventSubscriber } from './types.js';
 import {
     type WebhookConfig,
@@ -32,7 +33,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
     private abortController?: AbortController;
     private deliveryOptions: Required<WebhookDeliveryOptions>;
     private fetchFn: typeof globalThis.fetch;
-    private resolveHost: ((hostname: string) => Promise<string[]>) | undefined;
+    private dispatcher: Dispatcher;
 
     constructor({
         fetchFn,
@@ -46,7 +47,11 @@ export class WebhookEventSubscriber implements EventSubscriber {
         this.deliveryOptions = { ...DEFAULT_DELIVERY_OPTIONS, ...deliveryOptions };
         // Use native fetch (Node.js 20+) or injected implementation (tests)
         this.fetchFn = fetchFn || fetch;
-        this.resolveHost = resolveHost;
+        // Connections use the addresses the lookup checked, so DNS cannot change the target
+        // after the check (rebinding to a metadata address).
+        this.dispatcher = new Agent({
+            connect: { lookup: createMetadataCheckedLookup(resolveHost) },
+        });
         logger.debug('WebhookEventSubscriber initialized');
     }
 
@@ -310,23 +315,15 @@ export class WebhookEventSubscriber implements EventSubscriber {
         }
 
         try {
-            // Resolve at delivery time so a name that later points at a metadata address is refused.
-            if (await isMetadataTarget(new URL(webhook.url).hostname, this.resolveHost)) {
-                return {
-                    success: false,
-                    error: 'Webhook URL points at a metadata address',
-                    responseTime: Date.now() - startTime,
-                    attempt,
-                };
-            }
-
-            const response = await this.fetchFn(webhook.url, {
+            const requestInit: RequestInit & { dispatcher: Dispatcher } = {
                 method: 'POST',
                 headers,
                 body: payload,
                 redirect: 'error',
                 signal: AbortSignal.timeout(this.deliveryOptions.timeout),
-            });
+                dispatcher: this.dispatcher,
+            };
+            const response = await this.fetchFn(webhook.url, requestInit);
 
             const responseTime = Date.now() - startTime;
             const success = response.ok;
