@@ -475,6 +475,8 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
             const value = inline ?? argv[index + 1];
             if (value === undefined || (inline === null && value.startsWith('-') && value !== '-'))
                 throw new UsageError('Missing value for --code. Use --code - to read stdin.');
+            if (value !== '-')
+                throw new UsageError('Read the authorization code from stdin with --code -.');
             rest.push(token);
             if (inline === null) {
                 rest.push(value);

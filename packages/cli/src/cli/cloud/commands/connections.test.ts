@@ -148,7 +148,17 @@ describe('subscription connections over MCP', () => {
             { provider: 'claude', sessionId: 'chat-1', method: 'console' },
         ]);
     });
+    it.each([['--code', 'secret-code'], ['--code=secret-code']])(
+        'rejects authorization codes supplied as command arguments without echoing them',
+        async (...args) => {
+            expect(await runCloud(host, ['connect', 'claude', ...args, '--json'])).toBe(2);
+            expect(calls).toHaveLength(0);
+            expect(stdout + stderr).not.toContain('secret-code');
+            expect(stderr).toContain('--code -');
+        }
+    );
     it('retries Claude start with the same session and never creates another chat', async () => {
+        stdin = 'auth-code';
         replies = [
             {
                 outcome: 'retry',
@@ -168,14 +178,7 @@ describe('subscription connections over MCP', () => {
             { outcome: 'connected', name: 'claude', nextAction: null },
         ];
         expect(
-            await runCloud(host, [
-                'connect',
-                'claude',
-                '--json',
-                '--code',
-                'auth-code',
-                '--no-browser',
-            ]),
+            await runCloud(host, ['connect', 'claude', '--json', '--code', '-', '--no-browser']),
             stderr + stdout
         ).toBe(0);
         expect(calls.map((c) => c.arguments)).toEqual([
@@ -247,6 +250,7 @@ describe('subscription connections over MCP', () => {
         expect(stdout).toBe('');
     });
     it('resumes only the save when a retryable refusal explicitly permits it', async () => {
+        stdin = 'auth-code';
         rpcError = {
             code: -32004,
             message: 'Save temporarily unavailable',
@@ -268,7 +272,7 @@ describe('subscription connections over MCP', () => {
                 '--attempt',
                 'accepted-1',
                 '--code',
-                'auth-code',
+                '-',
                 '--json',
             ]),
             stderr
@@ -345,21 +349,14 @@ describe('subscription connections over MCP', () => {
         expect(calls).toHaveLength(1);
     });
     it('does not resubmit a rejected code or an unhinted failure', async () => {
+        stdin = 'secret-code';
         rpcError = {
             code: -32004,
             message: 'Cannot finish',
             data: { kind: 'unavailable', retryable: true, resume: null },
         };
         expect(
-            await runCloud(host, [
-                'connect',
-                'claude',
-                '--attempt',
-                'a1',
-                '--code',
-                'secret-code',
-                '--json',
-            ])
+            await runCloud(host, ['connect', 'claude', '--attempt', 'a1', '--code', '-', '--json'])
         ).toBe(1);
         expect(calls).toHaveLength(1);
         expect(stderr).not.toContain('secret-code');
@@ -384,6 +381,7 @@ describe('subscription connections over MCP', () => {
     });
 
     it('returns a replacement attempt after code rejection without prompting or resubmitting', async () => {
+        stdin = 'bad-code';
         replies = [
             {
                 outcome: 'code_rejected',
@@ -396,15 +394,7 @@ describe('subscription connections over MCP', () => {
             },
         ];
         expect(
-            await runCloud(host, [
-                'connect',
-                'claude',
-                '--attempt',
-                'old',
-                '--code',
-                'bad-code',
-                '--json',
-            ])
+            await runCloud(host, ['connect', 'claude', '--attempt', 'old', '--code', '-', '--json'])
         ).toBe(6);
         expect(lastResult()).toMatchObject({
             outcome: 'code_rejected',
@@ -436,20 +426,14 @@ describe('subscription connections over MCP', () => {
         expect(lastResult().nextCommand).toBe('dexto connect claude --chat same-chat');
     });
     it('keeps authorization codes out of permission-refusal suggestions', async () => {
+        stdin = 'secret-code';
         rpcError = {
             code: -32003,
             message: 'Permission required',
             data: { kind: 'forbidden', retryable: false, resume: null },
         };
         expect(
-            await runCloud(host, [
-                'connect',
-                'claude',
-                '--attempt',
-                'old',
-                '--code=secret-code',
-                '--json',
-            ])
+            await runCloud(host, ['connect', 'claude', '--attempt', 'old', '--code', '-', '--json'])
         ).toBe(3);
         expect(stderr).not.toContain('secret-code');
         expect(stderr).not.toContain('--code=');
@@ -634,6 +618,7 @@ describe('subscription connections over MCP', () => {
         expect(stderr.trim().split('\n')).toHaveLength(1);
     });
     it('retains a save-only recovery hint after the third retryable save refusal', async () => {
+        stdin = 'auth-code';
         rpcErrors = [1, 2, 3].map((n) => ({
             code: -32004,
             message: 'Save failed',
@@ -654,7 +639,7 @@ describe('subscription connections over MCP', () => {
                 '--attempt',
                 'original',
                 '--code',
-                'auth-code',
+                '-',
                 '--json',
             ])
         ).toBe(1);
@@ -834,10 +819,9 @@ describe('subscription connections over MCP', () => {
         ).toEqual([{ connections: [] }]);
     });
 
-    it('documents explicit stdin and argv exposure in compact JSON help', async () => {
+    it('documents explicit stdin in compact JSON help', async () => {
         expect(await runCloud(host, ['connect', 'claude', '--help', '--json'])).toBe(0);
         expect(stdout.trim().split('\n')).toHaveLength(1);
-        expect(stdout).toContain('shell history and ps');
         expect(stdout).toContain('--code -');
         expect(stdout).not.toContain('on stdin with --json');
     });

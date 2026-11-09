@@ -68,9 +68,8 @@ const connectOptions = {
     },
     code: {
         type: 'string',
-        valueName: 'CODE',
-        description:
-            'Use --code - to read a Claude authorization code from stdin. A literal code on argv is visible in shell history and ps.',
+        valueName: '-',
+        description: 'Read a Claude authorization code from stdin with --code -.',
     },
     chat: { type: 'string', valueName: 'ID', description: 'Reuse a Claude sign-in chat.' },
     session: { type: 'string', valueName: 'ID', description: 'Alias for --chat.' },
@@ -111,8 +110,8 @@ const claude: Command = {
         let attempt = stringOption(input, 'attempt');
         let started: Extract<Started, { provider: 'claude' }> | null = null;
         let code = stringOption(input, 'code')?.trim();
-        if (code?.startsWith('sk-ant-'))
-            throw new UsageError('API keys belong in dashboard Settings > Models.');
+        if (code !== undefined && code !== '-')
+            throw new UsageError('Read the authorization code from stdin with --code -.');
         if (attempt === undefined) {
             const chat = stringOption(input, 'chat');
             const session = stringOption(input, 'session');
