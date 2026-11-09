@@ -6948,10 +6948,8 @@
         "properties": {
           "provider": {
             "type": "string",
-            "enum": [
-              "claude",
-              "codex"
-            ]
+            "minLength": 1,
+            "maxLength": 120
           },
           "sessionId": {
             "type": "string",
@@ -6980,10 +6978,8 @@
         "properties": {
           "provider": {
             "type": "string",
-            "enum": [
-              "claude",
-              "codex"
-            ]
+            "minLength": 1,
+            "maxLength": 120
           },
           "attemptId": {
             "type": "string",
