@@ -110,4 +110,35 @@ describe('FileSystemResourceHandler', () => {
             })
         );
     });
+
+    it('does not list or read environment files, but still serves the example template', async () => {
+        const logger = createMockLogger();
+        const handler = new FileSystemResourceHandler(
+            {
+                type: 'filesystem',
+                paths: [tempDir],
+                maxDepth: 2,
+                maxFiles: 100,
+                includeHidden: true,
+                includeExtensions: ['.txt'],
+            },
+            logger as any
+        );
+        await fs.writeFile(path.join(tempDir, '.env'), 'KEY=secret');
+        await fs.writeFile(path.join(tempDir, '.env.local'), 'KEY=secret');
+        await fs.writeFile(path.join(tempDir, '.env.example'), 'KEY=');
+        await handler.initialize({ artifactStore: {} as any });
+
+        const names = (await handler.listResources()).map((resource) => resource.name);
+        expect(names).not.toContain('.env');
+        expect(names).not.toContain('.env.local');
+        expect(names).toContain('.env.example');
+
+        await expect(handler.readResource(`fs://${path.join(tempDir, '.env')}`)).rejects.toThrow();
+        await expect(
+            handler.readResource(`fs://${path.join(tempDir, '.env.local')}`)
+        ).rejects.toThrow();
+        const example = await handler.readResource(`fs://${path.join(tempDir, '.env.example')}`);
+        expect(example.contents[0]).toMatchObject({ text: 'KEY=' });
+    });
 });

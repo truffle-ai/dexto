@@ -8,6 +8,12 @@ import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedFileSystemResourceConfig } from '../schemas.js';
 import type { InternalResourceHandler, InternalResourceServices } from './types.js';
 
+/** Environment files hold secrets; only the example template is shared as a resource. */
+function isSecretEnvFile(basename: string): boolean {
+    const name = basename.toLowerCase();
+    return (name === '.env' || name.startsWith('.env.')) && name !== '.env.example';
+}
+
 export class FileSystemResourceHandler implements InternalResourceHandler {
     private config: ValidatedFileSystemResourceConfig;
     private resourcesCache: Map<string, ResourceMetadata> = new Map();
@@ -101,7 +107,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             throw ResourceError.resourceNotFound(uri);
         }
 
-        if (!this.isPathAllowed(canonicalPath)) {
+        if (!this.isPathAllowed(canonicalPath) || isSecretEnvFile(path.basename(canonicalPath))) {
             throw ResourceError.accessDenied(uri);
         }
 
@@ -364,11 +370,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 const allowedDotfiles = [
                     '.gitignore',
                     '.gitattributes',
-                    '.env',
                     '.env.example',
-                    '.env.local',
-                    '.env.development',
-                    '.env.production',
                     '.npmignore',
                     '.dockerignore',
                     '.editorconfig',
@@ -379,7 +381,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 ];
                 if (!allowedDotfiles.includes(basename)) return false;
             }
-            if (basename === '.env' || basename.startsWith('.env.')) return true;
+            if (isSecretEnvFile(basename)) return false;
+            if (basename === '.env.example') return true;
             if (basename === '.nvmrc' || basename === '.node-version') return true;
         }
 
