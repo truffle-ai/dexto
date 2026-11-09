@@ -41,6 +41,8 @@ export class LocalWorkspaceHandleProvider implements WorkspaceHandleProvider {
 }
 
 class LocalWorkspaceFiles {
+    private realRoot: string | undefined;
+
     constructor(private root: string) {}
 
     readText = async (filePath: string): Promise<string> => {
@@ -61,7 +63,7 @@ class LocalWorkspaceFiles {
     glob = async (pattern: string): Promise<string[]> => {
         this.assertRelativePattern(pattern);
         const files = await glob(pattern, {
-            cwd: this.root,
+            cwd: await this.getRealRoot(),
             absolute: false,
             nodir: true,
             follow: false,
@@ -85,18 +87,26 @@ class LocalWorkspaceFiles {
 
     listFiles = async (directoryPath = '.'): Promise<string[]> => {
         const resolvedPath = await this.resolveInsideRoot(directoryPath);
-        const relativePath = path.relative(this.root, resolvedPath);
+        const relativePath = path.relative(await this.getRealRoot(), resolvedPath);
         const pattern = relativePath ? `${relativePath.split(path.sep).join('/')}/**/*` : '**/*';
         return this.glob(pattern);
     };
+
+    /** The workspace root's real path, resolved once. The root itself may sit behind a symlink. */
+    private async getRealRoot(): Promise<string> {
+        this.realRoot ??= await realpath(this.root);
+        return this.realRoot;
+    }
 
     /**
      * Resolve a path to its real location and require it to be inside the real workspace root,
      * so a symlink in the workspace cannot lead out of it.
      */
     private async resolveInsideRoot(filePath: string): Promise<string> {
-        const resolvedPath = resolveInsideRoot(this.root, filePath);
-        const realRoot = await realpath(this.root);
+        const resolvedPath = path.isAbsolute(filePath)
+            ? path.resolve(filePath)
+            : path.resolve(this.root, filePath);
+        const realRoot = await this.getRealRoot();
         const realPath = await realpathOfPossiblyMissing(resolvedPath, filePath);
         const relativePath = path.relative(realRoot, realPath);
         if (

@@ -61,4 +61,38 @@ describe('LocalWorkspaceHandleProvider files', () => {
         const files = await openFiles();
         expect(await files.readText('link.txt')).toBe('inside');
     });
+
+    describe('when the workspace root is reached through a symlink', () => {
+        async function openThroughLink() {
+            const linkRoot = path.join(base, 'link-root');
+            await symlink(root, linkRoot);
+            const context = { path: linkRoot } as WorkspaceContext;
+            const handle = await new LocalWorkspaceHandleProvider().open({ context });
+            return { files: handle.files, linkRoot };
+        }
+
+        it('reads, writes, lists and globs files', async () => {
+            const { files } = await openThroughLink();
+            await files.writeFile('sub/a.txt', 'hello');
+            expect(await files.readText('sub/a.txt')).toBe('hello');
+            expect(await files.listFiles('.')).toEqual(['sub/a.txt']);
+            expect(await files.listFiles('sub')).toEqual(['sub/a.txt']);
+            expect(await files.glob('**/*.txt')).toEqual(['sub/a.txt']);
+        });
+
+        it('accepts an absolute path under the linked or the real root', async () => {
+            const { files, linkRoot } = await openThroughLink();
+            await files.writeFile(path.join(linkRoot, 'a.txt'), 'one');
+            expect(await files.readText(path.join(root, 'a.txt'))).toBe('one');
+        });
+
+        it('still refuses links that leave the workspace', async () => {
+            await symlink(path.join(outside, 'private.txt'), path.join(root, 'link.txt'));
+            await symlink(outside, path.join(root, 'linked-dir'));
+            const { files } = await openThroughLink();
+            await expect(files.readText('link.txt')).rejects.toThrow();
+            await expect(files.writeFile('linked-dir/new.txt', 'x')).rejects.toThrow();
+            await expect(files.listFiles('linked-dir')).rejects.toThrow();
+        });
+    });
 });
