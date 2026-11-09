@@ -487,6 +487,20 @@ describe('Marketplace Operations', () => {
             expect(result.map((plugin) => plugin.name)).toEqual(['inside', 'root']);
         });
 
+        it('skips a plugin when its real path cannot be resolved (fails closed)', () => {
+            const manifest = {
+                name: 'Test Marketplace',
+                plugins: [{ name: 'plugin1', source: 'plugins/plugin1' }],
+            };
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(manifest));
+            vi.mocked(fs.realpathSync).mockImplementationOnce(() => {
+                throw new Error('EIO');
+            });
+
+            expect(scanMarketplacePlugins('/marketplace', 'test-market')).toEqual([]);
+        });
+
         it('scans plugins/ directory when no manifest', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
                 const pathStr = typeof p === 'string' ? p : p.toString();
