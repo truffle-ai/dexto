@@ -434,6 +434,27 @@ describe('Marketplace Operations', () => {
             expect(result[1]!.name).toBe('plugin2');
         });
 
+        it('ignores manifest sources that point outside the marketplace directory', () => {
+            const manifest = {
+                name: 'Test Marketplace',
+                plugins: [
+                    { name: 'inside', source: './plugins/inside' },
+                    { name: 'root', source: './' },
+                    { name: 'parent', source: '..' },
+                    { name: 'grandparent', source: '../..' },
+                    { name: 'sneaky', source: 'plugins/../../elsewhere' },
+                    { name: 'absolute', source: '/etc' },
+                ],
+            };
+
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(manifest));
+
+            const result = scanMarketplacePlugins('/marketplace', 'test-market');
+
+            expect(result.map((plugin) => plugin.name)).toEqual(['inside', 'root']);
+        });
+
         it('scans plugins/ directory when no manifest', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
                 const pathStr = typeof p === 'string' ? p : p.toString();

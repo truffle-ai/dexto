@@ -343,6 +343,11 @@ export function listMarketplaces(): MarketplaceEntry[] {
 /**
  * Scan a marketplace directory for plugins
  */
+function isInsideDirectory(directory: string, target: string): boolean {
+    const relative = path.relative(path.resolve(directory), target);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 export function scanMarketplacePlugins(
     marketplacePath: string,
     marketplaceName: string
@@ -361,7 +366,11 @@ export function scanMarketplacePlugins(
                 const manifest = result.data as MarketplaceManifest;
                 if (manifest.plugins && manifest.plugins.length > 0) {
                     for (const plugin of manifest.plugins) {
-                        const pluginPath = path.join(marketplacePath, plugin.source);
+                        const pluginPath = path.resolve(marketplacePath, plugin.source);
+                        if (!isInsideDirectory(marketplacePath, pluginPath)) {
+                            // A manifest cannot point a plugin at files outside its own repo.
+                            continue;
+                        }
                         if (existsSync(pluginPath)) {
                             plugins.push({
                                 name: plugin.name,
