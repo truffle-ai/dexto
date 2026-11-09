@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { Logger } from '@dexto/core/logger';
+import { createLogger } from '@dexto/core';
 import { CommandValidator } from './command-validator.js';
 import type { ProcessConfig } from './types.js';
 
-const logger = { debug: () => {} } as Logger;
+const logger = createLogger({
+    agentId: 'test-agent',
+    config: { level: 'error', transports: [{ type: 'silent' }] },
+});
 
 function validatorWith(allowedCommands: string[]): CommandValidator {
     const config: ProcessConfig = {
