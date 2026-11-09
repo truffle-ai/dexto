@@ -760,14 +760,34 @@ describe('redactLogRecord values', () => {
         expect(Date.now() - start).toBeLessThan(500);
     });
 
-    test('labels only a real cycle as circular', () => {
+    test('an object reached under a secret map key is masked whichever place reads it first', () => {
+        const shared = { token: 'abc', name: 'plain' };
+        const secretFirst = redactLogData({ headers: shared, other: shared });
+        expect(secretFirst).toEqual({
+            headers: { token: '[REDACTED]', name: '[REDACTED]' },
+            other: '[Shared]',
+        });
+        const plainFirst = redactLogData({ other: shared, headers: shared });
+        expect(plainFirst).toEqual({
+            other: { token: '[REDACTED]', name: 'plain' },
+            headers: '[REDACTED]',
+        });
+        const plainFirstEnv = redactLogData({ list: [shared], env: { A: shared } });
+        expect(JSON.stringify(plainFirstEnv)).not.toContain('plain":"');
+        expect(plainFirstEnv).toEqual({
+            list: [{ token: '[REDACTED]', name: 'plain' }],
+            env: { A: '[REDACTED]' },
+        });
+    });
+
+    test('writes a shared object once and marks a cycle', () => {
         const shared = { name: 'shared' };
         const cyclic: Record<string, unknown> = { name: 'cycle' };
         cyclic.self = cyclic;
         expect(redactLogData({ a: shared, b: shared, list: [shared, shared], cyclic })).toEqual({
             a: { name: 'shared' },
-            b: { name: 'shared' },
-            list: [{ name: 'shared' }, { name: 'shared' }],
+            b: '[Shared]',
+            list: ['[Shared]', '[Shared]'],
             cyclic: { name: 'cycle', self: '[REDACTED_CIRCULAR]' },
         });
     });
@@ -884,12 +904,17 @@ describe('redaction of densely linked graphs', () => {
         return nodes;
     }
 
-    test('a log entry of 12 mutually referencing nodes finishes fast with bounded output', () => {
-        const start = Date.now();
-        const result = JSON.stringify(redactLogData(mutuallyLinked(12)));
-        expect(Date.now() - start).toBeLessThan(2000);
-        expect(result.length).toBeLessThan(5_000_000);
-        expect(result).toContain('[Truncated]');
+    test('a log entry of densely linked nodes stays small', () => {
+        for (const [count, maxLength] of [
+            [12, 20_000],
+            [200, 1_000_000],
+        ] as const) {
+            const start = Date.now();
+            const result = JSON.stringify(redactLogData(mutuallyLinked(count)));
+            expect(Date.now() - start, `${count} nodes`).toBeLessThan(2000);
+            expect(result.length, `${count} nodes`).toBeLessThan(maxLength);
+            expect(result).toContain('[Shared]');
+        }
     });
 
     test('an API response of 12 mutually referencing nodes is read once per node', () => {
@@ -907,5 +932,100 @@ describe('redaction of densely linked graphs', () => {
             name: 'a',
             b: { name: 'b', a: '[REDACTED_CIRCULAR]' },
         });
+    });
+});
+
+describe('redactLogText connection URLs', () => {
+    test.each([
+        [
+            'postgres://user:pass@host.example.com/db',
+            'postgres://user:[REDACTED]@host.example.com/db',
+        ],
+        [
+            'DATABASE_URL=postgres://u:p4ss@h.example.com:5432/app?sslmode=require',
+            'DATABASE_URL=postgres://u:[REDACTED]@h.example.com:5432/app?sslmode=require',
+        ],
+        ['redis://:secret@cache.internal:6379/0', 'redis://:[REDACTED]@cache.internal:6379/0'],
+        [
+            'rediss://default:secret@cache.example.com:6380',
+            'rediss://default:[REDACTED]@cache.example.com:6380',
+        ],
+        ['mysql://root:hunter2@db.example.com/shop', 'mysql://root:[REDACTED]@db.example.com/shop'],
+        [
+            'mongodb+srv://app:pw0rd@cluster0.example.mongodb.net/test',
+            'mongodb+srv://app:[REDACTED]@cluster0.example.mongodb.net/test',
+        ],
+        [
+            'mongodb://u:p@h1.example.com:27017,h2.example.com:27017/db',
+            'mongodb://u:[REDACTED]@h1.example.com:27017,h2.example.com:27017/db',
+        ],
+        [
+            'amqp://guest:guest@mq.example.com:5672/vhost',
+            'amqp://guest:[REDACTED]@mq.example.com:5672/vhost',
+        ],
+        ['https://user:p%40ss@api.example.com/v1', 'https://user:[REDACTED]@api.example.com/v1'],
+        ['postgres://u:p@ss@host.example.com/db', 'postgres://u:[REDACTED]@host.example.com/db'],
+        [
+            'primary postgres://a:one@h1.example.com/db replica postgres://b:two@h2.example.com/db',
+            'primary postgres://a:[REDACTED]@h1.example.com/db replica postgres://b:[REDACTED]@h2.example.com/db',
+        ],
+        [
+            'connect failed for "postgres://u:p@h.example.com/db", retrying',
+            'connect failed for "postgres://u:[REDACTED]@h.example.com/db", retrying',
+        ],
+    ])('masks only the password in %s', (input, expected) => {
+        expect(redactLogText(input)).toBe(expected);
+    });
+
+    test('keeps URLs without a password readable', () => {
+        for (const line of [
+            'https://example.com:8080/path',
+            'ssh://git@internal/org/repo.git',
+            'postgres://host.example.com/db',
+            'see http://host:80/x and mailto:someone',
+        ]) {
+            expect(redactLogText(line), line).toBe(line);
+        }
+    });
+
+    test.each([
+        [
+            'https://host.example.com:8080?email=a@b.com',
+            'https://host.example.com:8080?email=[REDACTED]',
+        ],
+        ['https://host.example.com:8080#a@b.com', 'https://host.example.com:8080#[REDACTED]'],
+        [
+            'https://host.example.com:8080/p?email=a@b.com',
+            'https://host.example.com:8080/p?email=[REDACTED]',
+        ],
+    ])('treats an "@" after the authority of %s as an email, not a password', (input, expected) => {
+        expect(redactLogText(input)).toBe(expected);
+    });
+
+    test('masks a connection URL in log data', () => {
+        expect(
+            redactLogData({
+                url: 'postgres://u:pw@db.example.com/app',
+                nested: { dsn: 'redis://:pw@cache.example.com:6379' },
+                list: ['amqp://guest:pw@mq.example.com'],
+            })
+        ).toEqual({
+            url: 'postgres://u:[REDACTED]@db.example.com/app',
+            nested: { dsn: 'redis://:[REDACTED]@cache.example.com:6379' },
+            list: ['amqp://guest:[REDACTED]@mq.example.com'],
+        });
+    });
+
+    test('scans long input in linear time', () => {
+        for (const input of [
+            'a.'.repeat(100000),
+            'x://u:'.repeat(20000),
+            `scheme://${'u'.repeat(100000)}`,
+            `scheme://u:${'p'.repeat(100000)}`,
+        ]) {
+            const start = Date.now();
+            redactLogText(input);
+            expect(Date.now() - start).toBeLessThan(1500);
+        }
     });
 });
