@@ -4,7 +4,7 @@
 '@dexto/image-local': minor
 ---
 
-Shell commands now start with a small environment instead of the full host environment, including commands run through a workspace (the CLI default). Commands receive only: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `TZ`, `XDG_*`, `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` (upper or lower case), and the Windows system variables. Model provider keys, the server key and every other host variable are no longer visible to commands.
+Shell commands now start with a small environment instead of the full host environment, including commands run through a workspace (the CLI default). Commands receive only: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `TZ`, `XDG_*`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` (proxy names in upper or lower case), and the Windows system variables. Model provider keys, the server key and every other host variable are no longer visible to commands.
 
 If a command relied on another inherited variable, either name it under `passEnvironment` to forward the host's value, or set a value under `environment`, in the `process-tools` config:
 
