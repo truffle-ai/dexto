@@ -34,13 +34,23 @@ describe('isPrivateAddress', () => {
     });
 
     it.each([
-        ['64:ff9b::', 'NAT64 prefix'],
-        ['64:ff9b::7f00:1', 'NAT64 form of 127.0.0.1'],
-        ['64:ff9b::a9fe:a9fe', 'NAT64 form of 169.254.169.254'],
-        ['64:ff9b::808:808', 'NAT64 form of a public address'],
-        ['[64:ff9b::7f00:1]', 'bracketed NAT64'],
+        ['64:ff9b::', 'NAT64 prefix, 0.0.0.0'],
+        ['64:ff9b::7f00:1', '127.0.0.1'],
+        ['64:ff9b::a9fe:a9fe', '169.254.169.254'],
+        ['64:ff9b::a00:1', '10.0.0.1'],
+        ['64:ff9b::c0a8:1', '192.168.0.1'],
+        ['[64:ff9b::7f00:1]', 'bracketed'],
+        ['64:ff9b:1::a00:1', 'local-use 64:ff9b:1::/48'],
     ])('blocks NAT64 %s (%s)', (ip) => {
         expect(isPrivateAddress(ip)).toBe(true);
+    });
+
+    it.each([
+        ['64:ff9b::808:808', '8.8.8.8'],
+        ['64:ff9b::5db8:d822', '93.184.216.34'],
+        ['[64:ff9b::808:808]', 'bracketed'],
+    ])('allows NAT64 %s, which reaches the public address %s', (ip) => {
+        expect(isPrivateAddress(ip)).toBe(false);
     });
 
     it.each(['fec0::1', 'fec0::', 'fedc:1::1', 'feff:ffff::1'])(

@@ -7,6 +7,8 @@ import { isPrivateAddress } from './private-address.js';
 const MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 const MAX_REDIRECTS = 10;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
+// Some hosts (Wikimedia, for one) refuse a request that names no client.
+const DOWNLOAD_HEADERS = { 'user-agent': '@dexto/core', accept: '*/*' };
 
 type DnsLookup = (
     hostname: string,
@@ -70,7 +72,7 @@ function requestOnce(
     return new Promise((resolve, reject) => {
         const request = (url.protocol === 'https:' ? https : http).request(
             url,
-            { method: 'GET', lookup, signal },
+            { method: 'GET', lookup, signal, headers: DOWNLOAD_HEADERS },
             resolve
         );
         request.on('error', reject);

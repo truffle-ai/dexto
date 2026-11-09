@@ -383,23 +383,6 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                         );
                     }
                     const nextUrl = new URL(location, currentUrl);
-                    if (nextUrl.origin !== currentUrl.origin) {
-                        // 307 and 308 repeat the request, body included, so refuse to send it on.
-                        if (
-                            requestInit.body !== undefined &&
-                            [307, 308].includes(response.status)
-                        ) {
-                            throw new DextoRuntimeError(
-                                'HTTP_REQUEST_REDIRECT_BLOCKED',
-                                ErrorScope.TOOLS,
-                                ErrorType.FORBIDDEN,
-                                `Blocked a ${response.status} redirect to ${nextUrl.origin}: the request body is not sent to another origin`
-                            );
-                        }
-                        for (const key of Object.keys(requestHeaders)) {
-                            delete requestHeaders[key];
-                        }
-                    }
                     if (
                         response.status === 303 ||
                         ((response.status === 301 || response.status === 302) &&
@@ -410,6 +393,20 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                         for (const key of Object.keys(requestHeaders)) {
                             if (['content-type', 'content-length'].includes(key.toLowerCase()))
                                 delete requestHeaders[key];
+                        }
+                    }
+                    if (nextUrl.origin !== currentUrl.origin) {
+                        // Whatever redirect it was, a body that is still there would be sent on.
+                        if (requestInit.body !== undefined) {
+                            throw new DextoRuntimeError(
+                                'HTTP_REQUEST_REDIRECT_BLOCKED',
+                                ErrorScope.TOOLS,
+                                ErrorType.FORBIDDEN,
+                                `Blocked a ${response.status} redirect to ${nextUrl.origin}: the request body is not sent to another origin`
+                            );
+                        }
+                        for (const key of Object.keys(requestHeaders)) {
+                            delete requestHeaders[key];
                         }
                     }
                     currentUrl = nextUrl;

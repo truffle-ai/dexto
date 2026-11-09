@@ -60,9 +60,10 @@ function isPrivateIpv6(ip: string): boolean {
     if (upperZero && g4 === 0xffff && g5 === 0) return isPrivateEmbeddedIpv4(g6, g7); // translated
     if (upperZero && g4 === 0 && g5 === 0) return isPrivateEmbeddedIpv4(g6, g7); // compatible
     if (g0 === 0x64 && g1 === 0xff9b) {
-        // NAT64: 64:ff9b::/96 maps IPv4 addresses (the translator reaches private ones), and
-        // 64:ff9b:1::/48 is local-use.
-        if (g2 + g3 + g4 + g5 === 0 || g2 === 1) return true;
+        // NAT64: 64:ff9b::/96 carries an IPv4 address that the translator connects to, so it is
+        // private when that address is. 64:ff9b:1::/48 is local-use.
+        if (g2 + g3 + g4 + g5 === 0) return isPrivateEmbeddedIpv4(g6, g7);
+        if (g2 === 1) return true;
     }
     if (g0 === 0x2002) return isPrivateEmbeddedIpv4(g1, g2); // 6to4
     if ((g0 & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local

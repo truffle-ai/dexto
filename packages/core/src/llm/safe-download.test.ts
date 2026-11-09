@@ -6,11 +6,13 @@ import { createSafeDownload } from './safe-download.js';
 let server: Server;
 let port: number;
 let hits: string[];
+let lastHeaders: Record<string, string | string[] | undefined>;
 
 beforeEach(async () => {
     hits = [];
     server = createServer((request, response) => {
         hits.push(request.url ?? '');
+        lastHeaders = request.headers;
         if (request.url === '/image.png') {
             response.writeHead(200, { 'content-type': 'image/png; charset=binary' });
             response.end(Buffer.from([1, 2, 3]));
@@ -82,6 +84,16 @@ describe('createSafeDownload', () => {
 
         expect(result).toEqual({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' });
         expect(dnsLookup).toHaveBeenCalledWith('files.example', { all: true, verbatim: true });
+    });
+
+    it('names itself and accepts any type, as hosts such as Wikimedia require', async () => {
+        const dnsLookup = vi.fn().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+        const download = createSafeDownload({ dnsLookup, isBlockedAddress: () => false });
+
+        await download(request(`http://files.example:${port}/image.png`));
+
+        expect(lastHeaders['user-agent']).toBe('@dexto/core');
+        expect(lastHeaders.accept).toBe('*/*');
     });
 
     it('checks the address of every redirect', async () => {

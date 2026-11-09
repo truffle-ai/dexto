@@ -68,7 +68,6 @@ describe('http_request tool', () => {
         '[::ffff:10.0.0.1]',
         '[64:ff9b:1::a00:1]',
         '[64:ff9b::7f00:1]',
-        '[64:ff9b::808:808]',
         '[fec0::1]',
         '[feff::1]',
         '[ff02::1]',
@@ -180,6 +179,70 @@ describe('http_request tool', () => {
                     )
                 ).rejects.toMatchObject({ code: 'HTTP_REQUEST_REDIRECT_BLOCKED' });
                 expect(fetchSpy).toHaveBeenCalledTimes(1);
+            } finally {
+                fetchSpy.mockRestore();
+            }
+        }
+    );
+
+    it.each([
+        ['PUT', 301],
+        ['PATCH', 301],
+        ['PUT', 302],
+        ['DELETE', 302],
+        ['PATCH', 302],
+    ] as const)(
+        'refuses a %s %i redirect that would send the body to another origin',
+        async (method, status) => {
+            const fetchSpy = vi
+                .spyOn(globalThis, 'fetch')
+                .mockResolvedValueOnce(
+                    new Response(null, {
+                        status,
+                        headers: { location: 'https://other.example/collect' },
+                    })
+                )
+                .mockResolvedValueOnce(new Response('ok'));
+            try {
+                await expect(
+                    createHttpRequestTool().execute(
+                        {
+                            url: 'https://example.com/item',
+                            method,
+                            body: 'private text',
+                            timeoutMs: 1000,
+                        },
+                        {} as never
+                    )
+                ).rejects.toMatchObject({ code: 'HTTP_REQUEST_REDIRECT_BLOCKED' });
+                expect(fetchSpy).toHaveBeenCalledTimes(1);
+            } finally {
+                fetchSpy.mockRestore();
+            }
+        }
+    );
+
+    it.each([301, 302])(
+        'still turns a cross-origin %i redirect of a POST into a body-less GET',
+        async (status) => {
+            const fetchSpy = vi
+                .spyOn(globalThis, 'fetch')
+                .mockResolvedValueOnce(
+                    new Response(null, { status, headers: { location: 'https://other.example/' } })
+                )
+                .mockResolvedValueOnce(new Response('ok'));
+            try {
+                await createHttpRequestTool().execute(
+                    {
+                        url: 'https://example.com/',
+                        method: 'POST',
+                        body: 'payload',
+                        timeoutMs: 1000,
+                    },
+                    {} as never
+                );
+                expect(fetchSpy.mock.calls[1]?.[1]).toMatchObject({ method: 'GET' });
+                expect(fetchSpy.mock.calls[1]?.[1]).not.toHaveProperty('body');
             } finally {
                 fetchSpy.mockRestore();
             }
