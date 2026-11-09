@@ -259,7 +259,14 @@ const claude: Command = {
 const Wait = z.discriminatedUnion('outcome', [
     z.object({ outcome: z.literal('connected'), name: z.string(), nextAction: z.null() }),
     z.object({
-        outcome: z.enum(['timeout', 'expired', 'ended', 'expired_retry_sign_in']),
+        outcome: z.enum([
+            'timeout',
+            'expired',
+            'ended',
+            'expired_retry_sign_in',
+            'cancelled',
+            'failed',
+        ]),
         attemptId: z.string(),
         nextAction: z.string(),
     }),

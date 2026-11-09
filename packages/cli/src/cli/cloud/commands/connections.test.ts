@@ -208,6 +208,20 @@ describe('subscription connections over MCP', () => {
         expect(calls.filter((call) => call.name === 'dexto_connection_start')).toHaveLength(1);
         expect(stderr).toContain('dexto connect github --attempt attempt-3');
     });
+    it.each(['cancelled', 'failed'])('reports a connector attempt that %s', async (outcome) => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'github',
+                attemptId: 'attempt-4',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+            { outcome, attemptId: 'attempt-4', nextAction: 'dexto_connection_start' },
+        ];
+        expect(await runCloud(host, ['connect', 'github', '--no-browser', '--json'])).toBe(1);
+        expect(lastResult()).toMatchObject({ outcome, attemptId: 'attempt-4' });
+    });
     it('starts Console sign-in on the requested chat and preserves the method during retries', async () => {
         replies = [
             {
