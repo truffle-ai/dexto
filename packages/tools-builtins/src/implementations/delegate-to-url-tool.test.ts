@@ -109,6 +109,9 @@ describe('delegate_to_url URL checks', () => {
         'http://[fe80::1]',
         'http://[fd00:ec2::254]',
         'http://100.100.100.200',
+        'http://192.0.0.192',
+        'http://168.63.129.16',
+        'http://[fd20:ce::254]',
         'http://2852039166',
     ])('rejects %s without sending a request', async (url) => {
         const fetchMock = vi.fn();
@@ -183,7 +186,9 @@ describe('delegate_to_url connects through the checked address', () => {
             resolveHost: async () => ['127.0.0.1', '::ffff:a9fe:a9fe'],
         });
         const input = tool.inputSchema.parse({
-            url: `http://rebind.example:${port}`,
+            // `localhost` really resolves to this machine, so without the pinned lookup this request
+            // would reach the server.
+            url: `http://localhost:${port}`,
             message: 'hi',
             timeout: 5000,
         });

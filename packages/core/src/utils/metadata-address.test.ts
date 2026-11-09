@@ -26,6 +26,12 @@ describe('isMetadataHost', () => {
         'http://[FD00:EC2:0:0:0:0:0:254]/',
         'http://100.100.100.200/',
         'http://[::ffff:100.100.100.200]/',
+        'http://192.0.0.192/',
+        'http://168.63.129.16/',
+        'http://[::ffff:192.0.0.192]/',
+        'http://[::ffff:168.63.129.16]/',
+        'http://[fd20:ce::254]/',
+        'http://[FD20:CE:0:0:0:0:0:254]/',
         'http://metadata.google.internal/',
         'http://metadata.google.internal./',
         'http://METADATA.GOOGLE.INTERNAL/',
@@ -46,6 +52,9 @@ describe('isMetadataHost', () => {
         'http://[fd00::1]/',
         'http://[fec0::1]/',
         'http://169.255.0.1/',
+        'http://192.0.0.193/',
+        'http://168.63.129.17/',
+        'http://[fd20:ce::255]/',
         'https://example.com/',
     ])('allows %s', (url) => {
         expect(isMetadataHost(hostOf(url))).toBe(false);
@@ -131,6 +140,15 @@ describe('createMetadataCheckedLookup', () => {
             expect(result.error?.code).toBe('EMETADATA');
         }
     });
+
+    it.each(['192.0.0.192', '168.63.129.16', 'fd20:ce::254', 'fd00:ec2::254', '100.100.100.200'])(
+        'refuses a name that answers with %s',
+        async (address) => {
+            const { lookup } = lookupWith([['93.184.216.34', address]]);
+            const result = await run(lookup, 'rebind.example', true);
+            expect(result.error?.code).toBe('EMETADATA');
+        }
+    );
 
     it('refuses metadata host names without resolving them', async () => {
         const { lookup, calls } = lookupWith([['93.184.216.34']]);

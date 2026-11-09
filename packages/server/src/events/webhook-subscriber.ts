@@ -6,7 +6,7 @@ import {
     type AgentEventMap,
     type AgentEventName,
 } from '@dexto/core';
-import { createMetadataCheckedLookup, logger } from '@dexto/core';
+import { createMetadataCheckedLookup, isMetadataHost, logger } from '@dexto/core';
 import { Agent, type Dispatcher } from 'undici';
 import { EventSubscriber } from './types.js';
 import {
@@ -155,6 +155,10 @@ export class WebhookEventSubscriber implements EventSubscriber {
         }
 
         this.webhooks.clear();
+        // Close the pooled connections; delivery needs a new subscriber afterwards.
+        this.dispatcher.close().catch((error: unknown) => {
+            logger.debug(`Closing the webhook dispatcher failed: ${String(error)}`);
+        });
         logger.debug('Webhook event subscriber cleaned up');
     }
 
@@ -315,6 +319,16 @@ export class WebhookEventSubscriber implements EventSubscriber {
         }
 
         try {
+            // IP literals never reach the pinned lookup, so refuse them here.
+            if (isMetadataHost(new URL(webhook.url).hostname)) {
+                return {
+                    success: false,
+                    error: 'Webhook URL points at a metadata address',
+                    responseTime: Date.now() - startTime,
+                    attempt,
+                };
+            }
+
             const requestInit: RequestInit & { dispatcher: Dispatcher } = {
                 method: 'POST',
                 headers,
