@@ -76,12 +76,16 @@ type LookupCallback =
     | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
     | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
 
-function metadataHostError(hostname: string): DextoRuntimeError {
+/**
+ * Every refused target reads the same: the host that was asked for, never the address it
+ * resolved to or which rule refused it, so a caller cannot map the network from the errors.
+ */
+function blockedTargetError(hostname: string): DextoRuntimeError {
     return new DextoRuntimeError(
         'HTTP_REQUEST_UNSAFE_TARGET',
         ErrorScope.TOOLS,
         ErrorType.FORBIDDEN,
-        `Blocked request to cloud metadata host: ${hostname}`
+        `Request to ${hostname} is blocked`
     );
 }
 
@@ -121,21 +125,12 @@ export function createSafeLookup(config?: {
 
             try {
                 if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
-                    emitError(
-                        toErrnoException(
-                            new DextoRuntimeError(
-                                'HTTP_REQUEST_UNSAFE_TARGET',
-                                ErrorScope.TOOLS,
-                                ErrorType.FORBIDDEN,
-                                `Blocked request to local hostname: ${hostname}`
-                            )
-                        )
-                    );
+                    emitError(toErrnoException(blockedTargetError(hostname)));
                     return;
                 }
 
                 if (isMetadataHost(hostname)) {
-                    emitError(toErrnoException(metadataHostError(hostname)));
+                    emitError(toErrnoException(blockedTargetError(hostname)));
                     return;
                 }
 
@@ -162,30 +157,8 @@ export function createSafeLookup(config?: {
                 }
 
                 for (const record of records) {
-                    if (isMetadataHost(record.address)) {
-                        emitError(
-                            toErrnoException(
-                                new DextoRuntimeError(
-                                    'HTTP_REQUEST_UNSAFE_TARGET',
-                                    ErrorScope.TOOLS,
-                                    ErrorType.FORBIDDEN,
-                                    `Blocked request to cloud metadata address: ${record.address}`
-                                )
-                            )
-                        );
-                        return;
-                    }
-                    if (isPrivateAddress(record.address)) {
-                        emitError(
-                            toErrnoException(
-                                new DextoRuntimeError(
-                                    'HTTP_REQUEST_UNSAFE_TARGET',
-                                    ErrorScope.TOOLS,
-                                    ErrorType.FORBIDDEN,
-                                    `Blocked request to private address: ${record.address}`
-                                )
-                            )
-                        );
+                    if (isMetadataHost(record.address) || isPrivateAddress(record.address)) {
+                        emitError(toErrnoException(blockedTargetError(hostname)));
                         return;
                     }
                 }
@@ -271,25 +244,11 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
     }
 
     if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
-        throw new DextoRuntimeError(
-            'HTTP_REQUEST_UNSAFE_TARGET',
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
-            `Blocked request to local hostname: ${hostname}`
-        );
+        throw blockedTargetError(hostname);
     }
 
-    if (isMetadataHost(hostname)) {
-        throw metadataHostError(hostname);
-    }
-
-    if (isPrivateAddress(hostname)) {
-        throw new DextoRuntimeError(
-            'HTTP_REQUEST_UNSAFE_TARGET',
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
-            `Blocked request to private address: ${hostname}`
-        );
+    if (isMetadataHost(hostname) || isPrivateAddress(hostname)) {
+        throw blockedTargetError(hostname);
     }
 }
 

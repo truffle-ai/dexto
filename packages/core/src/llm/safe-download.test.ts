@@ -38,6 +38,10 @@ afterEach(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
+/** A refusal made while connecting reaches the caller wrapped, ending in the generic message. */
+const lookupRefusal = (host: string) =>
+    new RegExp(`: Error: Download from ${host.replaceAll('.', '\\.')} is blocked$`);
+
 const request = (url: string) => [{ url: new URL(url), isUrlSupportedByModel: false }];
 
 describe('createSafeDownload', () => {
@@ -46,7 +50,7 @@ describe('createSafeDownload', () => {
         const download = createSafeDownload({ dnsLookup });
 
         await expect(download(request(`http://rebind.example:${port}/image.png`))).rejects.toThrow(
-            /private address 127\.0\.0\.1/
+            lookupRefusal('rebind.example')
         );
         expect(hits).toEqual([]);
     });
@@ -59,7 +63,7 @@ describe('createSafeDownload', () => {
         const download = createSafeDownload({ dnsLookup });
 
         await expect(download(request(`http://mixed.example:${port}/image.png`))).rejects.toThrow(
-            /private address 10\.0\.0\.5/
+            lookupRefusal('mixed.example')
         );
     });
 
@@ -67,14 +71,14 @@ describe('createSafeDownload', () => {
         const download = createSafeDownload();
 
         await expect(download(request(`http://localhost:${port}/image.png`))).rejects.toThrow();
-        await expect(download(request(`http://127.0.0.1:${port}/image.png`))).rejects.toThrow(
-            /private address/
+        await expect(download(request(`http://127.0.0.1:${port}/image.png`))).rejects.toMatchObject(
+            { message: 'Download from 127.0.0.1 is blocked' }
         );
-        await expect(download(request(`http://[::1]:${port}/image.png`))).rejects.toThrow(
-            /private address/
-        );
-        await expect(download(request('http://[64:ff9b::7f00:1]/image.png'))).rejects.toThrow(
-            /private address/
+        await expect(download(request(`http://[::1]:${port}/image.png`))).rejects.toMatchObject({
+            message: 'Download from [::1] is blocked',
+        });
+        await expect(download(request('http://[64:ff9b::7f00:1]/image.png'))).rejects.toMatchObject(
+            { message: 'Download from [64:ff9b::7f00:1] is blocked' }
         );
         expect(hits).toEqual([]);
     });
@@ -109,7 +113,7 @@ describe('createSafeDownload', () => {
         });
 
         await expect(download(request(`http://files.example:${port}/to-internal`))).rejects.toThrow(
-            /private address 10\.0\.0\.5/
+            lookupRefusal('internal.example')
         );
         expect(hits).toEqual(['/to-internal']);
     });
@@ -124,9 +128,10 @@ describe('createSafeDownload', () => {
         const dnsLookup = vi.fn().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
         const download = createSafeDownload({ dnsLookup, isBlockedAddress: () => false });
 
-        await expect(download(request(`http://${host}:${port}/token`))).rejects.toThrow(
-            /cloud metadata host/
-        );
+        const expected = new URL(`http://${host}`).hostname;
+        await expect(download(request(`http://${host}:${port}/token`))).rejects.toMatchObject({
+            message: `Download from ${expected} is blocked`,
+        });
         expect(dnsLookup).not.toHaveBeenCalled();
         expect(hits).toEqual([]);
     });
@@ -142,9 +147,7 @@ describe('createSafeDownload', () => {
 
             await expect(
                 download(request(`http://files.example:${port}/image.png`))
-            ).rejects.toThrow(
-                new RegExp(`cloud metadata address ${address.replaceAll('.', '\\.')}`)
-            );
+            ).rejects.toThrow(lookupRefusal('files.example'));
             expect(dnsLookup).toHaveBeenCalledOnce();
             expect(hits).toEqual([]);
         }
@@ -155,7 +158,7 @@ describe('createSafeDownload', () => {
         const download = createSafeDownload({ dnsLookup });
 
         await expect(download(request(`http://files.example:${port}/image.png`))).rejects.toThrow(
-            /cloud metadata address 168\.63\.129\.16/
+            lookupRefusal('files.example')
         );
         expect(hits).toEqual([]);
     });
@@ -164,9 +167,9 @@ describe('createSafeDownload', () => {
         const dnsLookup = vi.fn().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
         const download = createSafeDownload({ dnsLookup, isBlockedAddress: () => false });
 
-        await expect(download(request(`http://files.example:${port}/to-metadata`))).rejects.toThrow(
-            /cloud metadata host/
-        );
+        await expect(
+            download(request(`http://files.example:${port}/to-metadata`))
+        ).rejects.toMatchObject({ message: 'Download from metadata.google.internal is blocked' });
         expect(hits).toEqual(['/to-metadata']);
     });
 

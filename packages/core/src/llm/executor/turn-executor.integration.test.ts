@@ -746,7 +746,7 @@ describe('TurnExecutor Integration Tests', () => {
                             isUrlSupportedByModel: false,
                         },
                     ])
-                ).rejects.toThrow(/private address/);
+                ).rejects.toMatchObject({ message: 'Download from 127.0.0.1 is blocked' });
             } finally {
                 driver.dispose();
             }

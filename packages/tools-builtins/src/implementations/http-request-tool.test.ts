@@ -87,6 +87,35 @@ describe('http_request tool', () => {
         }
     });
 
+    it('refuses a name that answers a private address without echoing the answer', async () => {
+        const dnsLookup = vi.fn().mockResolvedValue([
+            { address: '93.184.216.34', family: 4 },
+            { address: '10.20.30.40', family: 4 },
+        ]);
+        const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
+            createSafeLookup({ dnsLookup })(
+                'files.example.com',
+                { all: true } as LookupOptions,
+                ((err: NodeJS.ErrnoException | null) => resolve(err)) as never
+            );
+        });
+
+        expect(error).toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+        expect(error?.message).toBe('Request to files.example.com is blocked');
+    });
+
+    it.each(['localhost', '10.0.0.1', '[::1]'])(
+        'refuses %s with a message that only names the host',
+        async (host) => {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: `http://${host}/`, method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({ message: `Request to ${host} is blocked` });
+        }
+    );
+
     it('blocks a redirect to a private literal before the next request', async () => {
         const fetchSpy = vi
             .spyOn(globalThis, 'fetch')
@@ -302,6 +331,9 @@ describe('http_request cloud metadata hosts', () => {
         '169.254.169.254',
         '[fd00:ec2::254]',
         '100.100.100.200',
+        // Not private ranges, so only the metadata check refuses them.
+        '168.63.129.16',
+        '[::ffff:a83f:8110]',
     ];
 
     it.each(METADATA_HOSTS)('refuses %s before fetching', async (host) => {
@@ -312,7 +344,10 @@ describe('http_request cloud metadata hosts', () => {
                     { url: `http://${host}/latest/meta-data/`, method: 'GET', timeoutMs: 1000 },
                     {} as never
                 )
-            ).rejects.toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            ).rejects.toMatchObject({
+                code: 'HTTP_REQUEST_UNSAFE_TARGET',
+                message: `Request to ${new URL(`http://${host}`).hostname} is blocked`,
+            });
             expect(fetchSpy).not.toHaveBeenCalled();
         } finally {
             fetchSpy.mockRestore();
@@ -334,7 +369,7 @@ describe('http_request cloud metadata hosts', () => {
                 )
             ).rejects.toMatchObject({
                 code: 'HTTP_REQUEST_UNSAFE_TARGET',
-                message: expect.stringContaining('cloud metadata host'),
+                message: 'Request to metadata.google.internal is blocked',
             });
             expect(fetchSpy).toHaveBeenCalledTimes(1);
         } finally {
@@ -342,7 +377,16 @@ describe('http_request cloud metadata hosts', () => {
         }
     });
 
-    it.each(['168.63.129.16', '192.0.0.192', '100.100.100.200'])(
+    it.each([
+        // Not private ranges, so only the metadata check refuses them.
+        '168.63.129.16',
+        '::ffff:168.63.129.16',
+        // Also private ranges.
+        '169.254.169.254',
+        'fd00:ec2::254',
+        '192.0.0.192',
+        '100.100.100.200',
+    ])(
         'the connection lookup refuses a public name that answers the metadata address %s',
         async (address) => {
             const dnsLookup = vi.fn().mockResolvedValue([
@@ -361,7 +405,7 @@ describe('http_request cloud metadata hosts', () => {
 
             expect(dnsLookup).toHaveBeenCalledOnce();
             expect(error).toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
-            expect(String(error?.message)).toContain(address);
+            expect(error?.message).toBe('Request to files.example.com is blocked');
         }
     );
 
