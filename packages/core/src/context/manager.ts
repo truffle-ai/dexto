@@ -1466,9 +1466,10 @@ export class ContextManager<TMessage = unknown> {
      * Does not reset the system prompt
      */
     async resetConversation(): Promise<void> {
-        // Clear persisted history
-        await this.conversationStore.clearMessages({ sessionId: this.sessionId });
+        // Clear persisted history. Drop the held reply first: a delta while the clear is in
+        // flight must not write the deleted message back.
         this.inFlightAssistant = null;
+        await this.conversationStore.clearMessages({ sessionId: this.sessionId });
         this.resetActualTokenTracking();
         this.logger.debug(
             `ContextManager: Conversation history cleared for session ${this.sessionId}`

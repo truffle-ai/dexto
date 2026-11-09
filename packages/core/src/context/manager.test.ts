@@ -855,6 +855,30 @@ describe('ContextManager', () => {
 
             await expect(manager.appendAssistantText(messageId, '!')).rejects.toThrow();
         });
+
+        it('does not write to the old message when a delta arrives while the reset is in flight', async () => {
+            const { store, updateMessage } = countingStore();
+            const manager = createContextManager({ conversationStore: store });
+            const messageId = await manager.addAssistantMessage('reply');
+            // A store that has removed the rows but has not yet answered the clear.
+            let finishClear = () => {};
+            const clear = store.clearMessages.bind(store);
+            vi.spyOn(store, 'clearMessages').mockImplementation(async (input) => {
+                await clear(input);
+                await new Promise<void>((resolve) => {
+                    finishClear = resolve;
+                });
+            });
+            updateMessage.mockClear();
+
+            const reset = manager.resetConversation();
+            await expect(manager.appendAssistantText(messageId, '!')).rejects.toThrow();
+            finishClear();
+            await reset;
+
+            expect(updateMessage).not.toHaveBeenCalled();
+            expect(await store.listMessages({ sessionId })).toEqual([]);
+        });
     });
 
     describe('addToolResult', () => {
