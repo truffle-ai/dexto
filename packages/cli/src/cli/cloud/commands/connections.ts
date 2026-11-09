@@ -259,7 +259,7 @@ const claude: Command = {
 const Wait = z.discriminatedUnion('outcome', [
     z.object({ outcome: z.literal('connected'), name: z.string(), nextAction: z.null() }),
     z.object({
-        outcome: z.enum(['timeout', 'expired', 'ended']),
+        outcome: z.enum(['timeout', 'expired', 'ended', 'expired_retry_sign_in']),
         attemptId: z.string(),
         nextAction: z.string(),
     }),
@@ -348,6 +348,14 @@ const codex: Command = {
             if (waited.outcome === 'connected') {
                 writeResult(context, waited, 'Codex connected.');
                 return 0;
+            }
+            if (waited.outcome === 'expired_retry_sign_in') {
+                writeResult(
+                    context,
+                    { ...waited, nextCommand: 'dexto connect codex' },
+                    "Sign-in didn't finish. Run `dexto connect codex` again."
+                );
+                return EXIT_CODES.failed;
             }
             if (waited.outcome !== 'timeout' || tries === 119) {
                 const nextCommand =

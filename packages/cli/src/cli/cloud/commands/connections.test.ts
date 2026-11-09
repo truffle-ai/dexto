@@ -193,6 +193,20 @@ describe('subscription connections over MCP', () => {
         });
         expect(stderr).toBe('');
     });
+    it('tells the person to restart after an uncertain Codex exchange', async () => {
+        replies = [
+            {
+                outcome: 'expired_retry_sign_in',
+                attemptId: 'attempt-1',
+                nextAction: 'dexto_connection_start',
+            },
+        ];
+        stdoutIsTerminal = true;
+        expect(
+            await runCloud(host, ['connect', 'codex', '--attempt', 'attempt-1', '--no-browser'])
+        ).toBe(1);
+        expect(stdout).toContain("Sign-in didn't finish. Run `dexto connect codex` again.");
+    });
     it('waits for Codex across pending checks with the original attempt', async () => {
         replies = [
             {
