@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
+import { isPrivateAddress } from '@dexto/core/llm';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
 import {
     TOOL_ACTIVITY,
@@ -73,64 +74,6 @@ const SAFE_DISPATCHER = createSafeDispatcher();
 type LookupCallback =
     | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
     | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
-
-function isPrivateIpv4(ip: string): boolean {
-    const parts = ip.split('.').map((part) => Number(part));
-    if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
-        return false;
-    }
-
-    const a = parts[0];
-    const b = parts[1];
-    const c = parts[2];
-    const d = parts[3];
-    if (a === undefined || b === undefined || c === undefined || d === undefined) {
-        return false;
-    }
-    if (a === 0) return true;
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    if (a === 192 && b === 0 && c === 0) return true;
-    if (a === 192 && b === 0 && c === 2) return true;
-    if (a === 198 && b === 51 && c === 100) return true;
-    if (a === 203 && b === 0 && c === 113) return true;
-    if (a === 198 && (b === 18 || b === 19)) return true;
-    if (a >= 224 && a <= 239) return true;
-    if (a >= 240) return true;
-
-    return false;
-}
-
-/** Reject local IPv6 and mapped IPv4 addresses that are not safe request targets. */
-function isPrivateIpv6(ip: string): boolean {
-    const normalized = new URL(`http://[${ip.split('%')[0]}]/`).hostname.slice(1, -1);
-    if (normalized === '::' || normalized === '::1') return true;
-    if (normalized.startsWith('64:ff9b:1:')) return true;
-    if (/^fe[89ab][0-9a-f]:/.test(normalized)) return true;
-    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
-    if (normalized.startsWith('::ffff:')) {
-        const parts = normalized.slice('::ffff:'.length).split(':');
-        if (parts.length === 2) {
-            const high = Number.parseInt(parts[0] ?? '', 16);
-            const low = Number.parseInt(parts[1] ?? '', 16);
-            return isPrivateIpv4(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`);
-        }
-    }
-    return false;
-}
-
-/** Check IP literals and DNS results, accepting URL-bracketed IPv6 literals. */
-function isPrivateAddress(ip: string): boolean {
-    const address = ip.startsWith('[') && ip.endsWith(']') ? ip.slice(1, -1) : ip;
-    const version = isIP(address);
-    if (version === 4) return isPrivateIpv4(address);
-    if (version === 6) return isPrivateIpv6(address);
-    return false;
-}
 
 export function createSafeLookup(config?: {
     dnsLookup?: typeof dns.lookup;
@@ -441,6 +384,18 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                     }
                     const nextUrl = new URL(location, currentUrl);
                     if (nextUrl.origin !== currentUrl.origin) {
+                        // 307 and 308 repeat the request, body included, so refuse to send it on.
+                        if (
+                            requestInit.body !== undefined &&
+                            [307, 308].includes(response.status)
+                        ) {
+                            throw new DextoRuntimeError(
+                                'HTTP_REQUEST_REDIRECT_BLOCKED',
+                                ErrorScope.TOOLS,
+                                ErrorType.FORBIDDEN,
+                                `Blocked a ${response.status} redirect to ${nextUrl.origin}: the request body is not sent to another origin`
+                            );
+                        }
                         for (const key of Object.keys(requestHeaders)) {
                             delete requestHeaders[key];
                         }

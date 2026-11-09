@@ -67,6 +67,12 @@ describe('http_request tool', () => {
         '[::ffff:127.0.0.1]',
         '[::ffff:10.0.0.1]',
         '[64:ff9b:1::a00:1]',
+        '[64:ff9b::7f00:1]',
+        '[64:ff9b::808:808]',
+        '[fec0::1]',
+        '[feff::1]',
+        '[ff02::1]',
+        '[ff00::1]',
     ])('blocks private IPv6 literal %s before fetching', async (host) => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
         try {
@@ -144,6 +150,80 @@ describe('http_request tool', () => {
                 {} as never
             );
             expect(fetchSpy.mock.calls[1]?.[1]?.headers).toEqual({});
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it.each([307, 308])(
+        'refuses a %i redirect that would send the body to another origin',
+        async (status) => {
+            const fetchSpy = vi
+                .spyOn(globalThis, 'fetch')
+                .mockResolvedValueOnce(
+                    new Response(null, {
+                        status,
+                        headers: { location: 'https://other.example/collect' },
+                    })
+                )
+                .mockResolvedValueOnce(new Response('ok'));
+            try {
+                await expect(
+                    createHttpRequestTool().execute(
+                        {
+                            url: 'https://example.com/submit',
+                            method: 'POST',
+                            body: { note: 'private text' },
+                            timeoutMs: 1000,
+                        },
+                        {} as never
+                    )
+                ).rejects.toMatchObject({ code: 'HTTP_REQUEST_REDIRECT_BLOCKED' });
+                expect(fetchSpy).toHaveBeenCalledTimes(1);
+            } finally {
+                fetchSpy.mockRestore();
+            }
+        }
+    );
+
+    it.each([307, 308])('keeps the body on a same-origin %i redirect', async (status) => {
+        const fetchSpy = vi
+            .spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(null, { status, headers: { location: '/moved' } }))
+            .mockResolvedValueOnce(new Response('ok'));
+        try {
+            await createHttpRequestTool().execute(
+                {
+                    url: 'https://example.com/submit',
+                    method: 'POST',
+                    body: 'payload',
+                    timeoutMs: 1000,
+                },
+                {} as never
+            );
+            expect(fetchSpy.mock.calls[1]?.[0]).toBe('https://example.com/moved');
+            expect(fetchSpy.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', body: 'payload' });
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it('still follows a cross-origin 307 when there is no body', async () => {
+        const fetchSpy = vi
+            .spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(
+                new Response(null, {
+                    status: 307,
+                    headers: { location: 'https://other.example/' },
+                })
+            )
+            .mockResolvedValueOnce(new Response('ok'));
+        try {
+            const result = await createHttpRequestTool().execute(
+                { url: 'https://example.com/', method: 'GET', timeoutMs: 1000 },
+                {} as never
+            );
+            expect(result).toMatchObject({ ok: true, body: 'ok' });
         } finally {
             fetchSpy.mockRestore();
         }

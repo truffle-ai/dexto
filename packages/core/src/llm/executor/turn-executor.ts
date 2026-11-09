@@ -71,6 +71,7 @@ import {
 import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
+import { createSafeDownload } from '../safe-download.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
@@ -91,6 +92,9 @@ import {
     describeInternalMessageTailForAudit,
 } from '../../context/content-audit.js';
 import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.js';
+
+// Downloads image and file URLs for the model, refusing private addresses.
+const safeDownload = createSafeDownload();
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
@@ -1811,6 +1815,7 @@ export class TurnExecutor {
                         tools: request.tools,
                         abortSignal,
                         messages: request.messages,
+                        experimental_download: safeDownload,
                         ...(this.config.maxOutputTokens !== undefined && {
                             maxOutputTokens: this.config.maxOutputTokens,
                         }),

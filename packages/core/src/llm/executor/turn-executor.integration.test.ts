@@ -730,6 +730,28 @@ describe('TurnExecutor Integration Tests', () => {
             }
         });
 
+        it('downloads media URLs with the downloader that refuses private addresses', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                await driver.runNextModelStep();
+
+                const download = vi.mocked(streamText).mock.calls[0]?.[0].experimental_download;
+                expect(download).toBeTypeOf('function');
+                await expect(
+                    download?.([
+                        {
+                            url: new URL('http://127.0.0.1:9/image.png'),
+                            isUrlSupportedByModel: false,
+                        },
+                    ])
+                ).rejects.toThrow(/private address/);
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('keeps MCP annotation extensions in a prepared step checkpoint', async () => {
             toolManager.addTools([
                 defineTool({
