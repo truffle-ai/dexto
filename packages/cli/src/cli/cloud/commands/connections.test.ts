@@ -143,6 +143,12 @@ describe('subscription connections over MCP', () => {
         ]);
         expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'github' });
     });
+    it('reports a catalog connector that completes without browser authorization', async () => {
+        replies = [{ outcome: 'connected', name: 'public-mcp', nextAction: null }];
+        expect(await runCloud(host, ['connect', 'public-mcp', '--no-browser', '--json'])).toBe(0);
+        expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'public-mcp' });
+        expect(calls).toHaveLength(1);
+    });
     it('lists and disconnects an owned connector', async () => {
         const row = {
             kind: 'connector',

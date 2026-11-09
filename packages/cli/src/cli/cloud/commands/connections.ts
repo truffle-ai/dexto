@@ -397,14 +397,25 @@ const connector: Command = {
         let startedHere = false;
         if (attempt === undefined) {
             const started = z
-                .object({
-                    outcome: z.literal('started'),
-                    provider: z.string(),
-                    attemptId: z.string(),
-                    url: z.string().url(),
-                    nextAction: z.string(),
-                })
+                .discriminatedUnion('outcome', [
+                    z.object({
+                        outcome: z.literal('started'),
+                        provider: z.string(),
+                        attemptId: z.string(),
+                        url: z.string().url(),
+                        nextAction: z.string(),
+                    }),
+                    z.object({
+                        outcome: z.literal('connected'),
+                        name: z.string(),
+                        nextAction: z.null(),
+                    }),
+                ])
                 .parse(await queryWorkspaceTool(context, 'dexto_connection_start', { provider }));
+            if (started.outcome === 'connected') {
+                writeResult(context, started, `${provider} connected.`);
+                return 0;
+            }
             attempt = started.attemptId;
             startedHere = true;
             await showAuthorization(context, input, started);
