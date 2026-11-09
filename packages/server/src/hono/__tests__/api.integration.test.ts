@@ -82,6 +82,15 @@ describe('Hono API Integration Tests', () => {
             expect((res.body as { config: unknown }).config).toBeDefined();
         });
 
+        it('POST /api/llm/key rejects an API key with an inner line break as a bad request', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/llm/key', {
+                provider: 'openai',
+                apiKey: 'first-line\nOTHER_VAR=second-line',
+            });
+            expect(res.status).toBe(400);
+        });
+
         it('GET /api/llm/catalog returns LLM catalog', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/llm/catalog');
@@ -1071,6 +1080,19 @@ describe('Hono API Integration Tests', () => {
                 url: 'not-a-url',
             });
             expect(res.status).toBeGreaterThanOrEqual(400);
+        });
+
+        it.each([
+            'ftp://example.com/hook',
+            'https://user:pass@example.com/hook',
+            'http://169.254.169.254/latest',
+            'http://[::ffff:169.254.169.254]/latest',
+            'http://metadata.google.internal./',
+            'http://100.100.100.200/',
+        ])('POST /api/webhooks rejects %s', async (url) => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/webhooks', { url });
+            expect(res.status).toBe(400);
         });
 
         it('POST /api/webhooks creates webhook', async () => {

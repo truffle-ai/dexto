@@ -347,9 +347,7 @@ export class CommandValidator {
 
         // 7. Check against allowed commands list (if not empty)
         if (this.config.allowedCommands.length > 0) {
-            const isAllowed = this.config.allowedCommands.some((allowedCmd) =>
-                trimmedCommand.startsWith(allowedCmd)
-            );
+            const isAllowed = this.config.allowedCommands.includes(trimmedCommand);
 
             if (!isAllowed) {
                 return {
