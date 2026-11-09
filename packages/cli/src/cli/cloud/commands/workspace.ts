@@ -307,7 +307,14 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
             ? lastEventData(text)
             : text
     );
-    if (message.error !== undefined) throw refusalFailure(context, message.error);
+    if (message.error !== undefined) {
+        const failure = refusalFailure(context, message.error);
+        if (failure instanceof MissingScopeFailure) throw failure;
+        throw new WorkspaceToolFailure(
+            failure,
+            RefusalDataSchema.safeParse(message.error.data).data ?? RefusalDataSchema.parse({})
+        );
+    }
     return message.result;
 }
 
@@ -319,7 +326,7 @@ function refusalFailure(
     context: CommandContext,
     error: NonNullable<z.output<typeof JsonRpcResponseSchema>['error']>
 ): CommandFailure {
-    const data = RefusalDataSchema.safeParse(error.data).data ?? {};
+    const data = RefusalDataSchema.safeParse(error.data).data ?? RefusalDataSchema.parse({});
     // `scopes` when any one of several would do: asking for the first is enough.
     const scope = data.scope ?? data.scopes?.[0] ?? MISSING_SCOPE.exec(error.message)?.[1];
     if (scope !== undefined)
@@ -353,10 +360,32 @@ const MISSING_SCOPE = /missing required scope: ([\w:.-]+?)\.?$/u;
 
 const RefusalDataSchema = z.object({
     kind: z.string().optional(),
+    sessionId: z.string().optional(),
+    retryable: z.boolean().default(false),
+    resume: z
+        .object({
+            action: z.literal('save'),
+            tool: z.literal('dexto_connection_finish'),
+            arguments: z.object({ attemptId: z.string() }),
+        })
+        .nullable()
+        .default(null)
+        .catch(null),
     level: z.string().optional(),
     scope: z.string().optional(),
     scopes: z.array(z.string()).optional(),
 });
+
+/** Typed recovery metadata is retained without printing raw provider responses. */
+export class WorkspaceToolFailure extends CommandFailure {
+    constructor(
+        failure: CommandFailure,
+        readonly data: z.output<typeof RefusalDataSchema>
+    ) {
+        super(failure.kind, failure.message, failure.fix);
+        this.name = 'WorkspaceToolFailure';
+    }
+}
 
 const JsonRpcResponseSchema = z.object({
     error: z
