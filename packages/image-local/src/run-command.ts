@@ -20,9 +20,14 @@ export interface RunCommandResult {
  */
 export function runCommand(
     command: string,
-    options: { cwd: string; timeout?: number; signal?: AbortSignal | undefined }
+    options: {
+        cwd: string;
+        env: Record<string, string>;
+        timeout?: number;
+        signal?: AbortSignal | undefined;
+    }
 ): Promise<RunCommandResult> {
-    const { cwd, timeout, signal } = options;
+    const { cwd, env, timeout, signal } = options;
     return new Promise((resolve, reject) => {
         if (signal?.aborted) {
             resolve({ exitCode: ABORTED_EXIT_CODE, stdout: '', stderr: '(Command was cancelled)' });
@@ -31,6 +36,7 @@ export function runCommand(
 
         const child = spawn(command, {
             cwd,
+            env,
             shell: true,
             detached: process.platform !== 'win32',
         });

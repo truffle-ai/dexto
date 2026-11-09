@@ -17,6 +17,7 @@ function validatorWith(allowedCommands: string[]): CommandValidator {
         allowedCommands,
         blockedCommands: [],
         environment: {},
+        passEnvironment: [],
     };
     return new CommandValidator(config, logger);
 }

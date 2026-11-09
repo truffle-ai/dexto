@@ -18,7 +18,7 @@ import {
 } from './types.js';
 import { CommandValidator } from './command-validator.js';
 import { ProcessError } from './errors.js';
-import { buildShellEnvironment } from './shell-environment.js';
+import { buildCommandEnvironment } from './command-environment.js';
 import type { Logger } from '@dexto/core/logger';
 import { DextoLogComponent } from '@dexto/core/logger';
 
@@ -144,7 +144,7 @@ export class ProcessService {
         // Setup working directory
         const cwd: string = this.resolveSafeCwd(options.cwd);
 
-        const env = buildShellEnvironment(process.env, this.config.environment, options.env);
+        const env = buildCommandEnvironment(this.config, options.env);
 
         // If running in background, return the process handle directly
         if (options.runInBackground) {
@@ -410,7 +410,7 @@ export class ProcessService {
         // Setup working directory
         const cwd: string = this.resolveSafeCwd(options.cwd);
 
-        const env = buildShellEnvironment(process.env, this.config.environment, options.env);
+        const env = buildCommandEnvironment(this.config, options.env);
 
         this.logger.debug(`Starting background process ${processId}: ${command}`);
 

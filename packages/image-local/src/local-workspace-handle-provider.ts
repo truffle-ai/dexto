@@ -1,7 +1,7 @@
 import { lstat, mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'glob';
-import { WorkspaceError } from '@dexto/core/workspace';
+import { WorkspaceError, buildShellEnvironment } from '@dexto/core/workspace';
 import type {
     OpenWorkspaceInput,
     WorkspaceCapability,
@@ -143,10 +143,12 @@ class LocalWorkspaceProcesses {
         cwd?: string;
         timeout?: number;
         signal?: AbortSignal;
+        env?: Record<string, string>;
     }): ReturnType<WorkspaceProcesses['exec']> => {
         const cwd = input.cwd === undefined ? this.root : resolveInsideRoot(this.root, input.cwd);
         return runCommand(input.command, {
             cwd,
+            env: buildShellEnvironment(process.env, input.env),
             ...(input.timeout === undefined ? {} : { timeout: input.timeout }),
             signal: input.signal,
         });

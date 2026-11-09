@@ -56,6 +56,20 @@ describe('ProcessService environment', () => {
         expect(await readVariable(service, 'MY_CONFIGURED_VALUE')).toBe('from-config');
     });
 
+    it('forwards only the host variables named in passEnvironment', async () => {
+        vi.stubEnv('DEXTO_TEST_FORWARDED', 'forwarded-host-value');
+        vi.stubEnv('DEXTO_TEST_NOT_FORWARDED', 'other-host-value');
+        const config = ProcessToolsConfigSchema.parse({
+            type: 'process-tools',
+            securityLevel: 'permissive',
+            passEnvironment: ['DEXTO_TEST_FORWARDED'],
+        });
+        const service = new ProcessService(config, createLogger());
+
+        expect(await readVariable(service, 'DEXTO_TEST_FORWARDED')).toBe('forwarded-host-value');
+        expect(await readVariable(service, 'DEXTO_TEST_NOT_FORWARDED')).toBe('unset');
+    });
+
     it('applies the same environment to background commands', async () => {
         vi.stubEnv('OPENAI_API_KEY', 'sk-test-openai');
         const service = createService();

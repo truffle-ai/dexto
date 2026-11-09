@@ -40,6 +40,8 @@ export interface WorkspaceProcesses {
         cwd?: string;
         timeout?: number;
         signal?: AbortSignal;
+        /** Variables added to the handle's default environment for this command. */
+        env?: Record<string, string>;
     }): Promise<{ exitCode?: number; stdout: string; stderr: string; timedOut?: boolean }>;
 }
 

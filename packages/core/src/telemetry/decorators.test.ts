@@ -6,7 +6,7 @@ import {
     InMemorySpanExporter,
     SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { InstrumentClass } from './decorators.js';
+import { InstrumentClass, withSpan } from './decorators.js';
 
 describe('InstrumentClass', () => {
     let contextManager: AsyncHooksContextManager | undefined;
@@ -33,6 +33,19 @@ describe('InstrumentClass', () => {
         contextManager = undefined;
         Reflect.deleteProperty(globalThis, '__TELEMETRY__');
         trace.disable();
+    });
+
+    it('withSpan does not record arguments by default', () => {
+        const descriptor = withSpan({ spanName: 'direct' })(
+            {},
+            'run',
+            Object.getOwnPropertyDescriptor({ run(_value: string) {} }, 'run')
+        );
+
+        descriptor.value('private-argument');
+
+        const [span] = exporter.getFinishedSpans();
+        expect(JSON.stringify(span?.attributes)).not.toContain('private-argument');
     });
 
     it('does not record method arguments unless a class asks for them', () => {
