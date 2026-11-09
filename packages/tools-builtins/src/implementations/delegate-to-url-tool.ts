@@ -2,6 +2,7 @@ import { TextDecoder } from 'node:util';
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
+import { isMetadataTarget } from '@dexto/core';
 import {
     TOOL_ACTIVITY,
     createLocalToolCallHeader,
@@ -50,16 +51,21 @@ interface A2AMessage {
     kind: 'message';
 }
 
+/** Resolves a host name to all of its addresses. Defaults to a DNS lookup; tests inject one. */
+type HostResolver = (hostname: string) => Promise<string[]>;
+
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
-const BLOCKED_HOSTNAMES = new Set(['metadata.google.internal', '[fd00:ec2::254]']);
 
 /**
  * The delegation URL must be an agent base URL: http(s) only, no credentials, query or fragment
- * (a query would let the caller choose the request path), and not a cloud metadata address.
+ * (a query would let the caller choose the request path), and not a cloud metadata address (including names that resolve to one).
  * Loopback and private addresses stay allowed because delegating to a local agent is the
  * documented use of this tool.
  */
-function assertDelegationUrl(rawUrl: string): void {
+async function assertDelegationUrl(
+    rawUrl: string,
+    resolveHost: HostResolver | undefined
+): Promise<void> {
     const invalid = (reason: string) =>
         new DextoRuntimeError(
             'DELEGATION_INVALID_URL',
@@ -77,7 +83,7 @@ function assertDelegationUrl(rawUrl: string): void {
     if (rawUrl.includes('?') || rawUrl.includes('#')) {
         throw invalid('the URL must not contain a query or fragment');
     }
-    if (parsed.hostname.startsWith('169.254.') || BLOCKED_HOSTNAMES.has(parsed.hostname)) {
+    if (await isMetadataTarget(parsed.hostname, resolveHost)) {
         throw invalid('link-local and metadata addresses are not allowed');
     }
 }
@@ -244,7 +250,9 @@ class SimpleA2AClient {
  *
  * Delegates a message/task to another A2A-compliant agent URL via JSON-RPC and returns its response.
  */
-export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema> {
+export function createDelegateToUrlTool(
+    options: { resolveHost?: HostResolver } = {}
+): Tool<typeof DelegateToUrlInputSchema> {
     return defineTool({
         id: 'delegate_to_url',
         description:
@@ -261,7 +269,7 @@ export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema>
         async execute(input, _context: ToolExecutionContext) {
             const { url, message, sessionId, timeout } = input;
 
-            assertDelegationUrl(url);
+            await assertDelegationUrl(url, options.resolveHost);
 
             try {
                 const client = new SimpleA2AClient(url, timeout);
