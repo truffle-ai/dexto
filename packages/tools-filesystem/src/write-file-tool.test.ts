@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { allowAllPaths } from './test-helpers.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
@@ -113,7 +114,7 @@ async function readWorkspaceFile(workspaceRoot: string, filePath: string): Promi
 
 describe('write_file tool', () => {
     it('resolves the final activity from typed file display data', async () => {
-        const tool = createWriteFileTool(vi.fn());
+        const tool = createWriteFileTool(vi.fn(), allowAllPaths);
         const input = tool.inputSchema.parse({ file_path: 'config.json', content: '{}' });
         const context = createToolContext(createMockLogger());
 
@@ -182,7 +183,7 @@ describe('write_file tool', () => {
         const getFileSystemService = vi.fn(async () => {
             throw new Error('write_file execute must not use FileSystemService');
         });
-        const tool = createWriteFileTool(getFileSystemService);
+        const tool = createWriteFileTool(getFileSystemService, allowAllPaths);
         const parsedInput = tool.inputSchema.parse({
             file_path: 'workspace.txt',
             content: 'workspace write',
@@ -201,7 +202,7 @@ describe('write_file tool', () => {
     });
 
     it('creates missing parent directories by default', async () => {
-        const tool = createWriteFileTool(vi.fn());
+        const tool = createWriteFileTool(vi.fn(), allowAllPaths);
         const parsedInput = tool.inputSchema.parse({
             file_path: 'missing-parent/file.txt',
             content: 'content',
@@ -219,7 +220,7 @@ describe('write_file tool', () => {
     });
 
     it('rejects obsolete create_dirs input', async () => {
-        const tool = createWriteFileTool(vi.fn());
+        const tool = createWriteFileTool(vi.fn(), allowAllPaths);
 
         expect(() =>
             tool.inputSchema.parse({
@@ -254,7 +255,7 @@ describe('write_file tool', () => {
                 },
             })),
         };
-        const tool = createWriteFileTool(vi.fn());
+        const tool = createWriteFileTool(vi.fn(), allowAllPaths);
         const context = createToolContext(mockLogger, {
             services: {
                 ...createWorkspaceServices(tempDir),
@@ -277,7 +278,7 @@ describe('write_file tool', () => {
         const getFileSystemService = vi.fn(async () => {
             throw new Error('write_file preview must not use FileSystemService in workspace mode');
         });
-        const tool = createWriteFileTool(getFileSystemService);
+        const tool = createWriteFileTool(getFileSystemService, allowAllPaths);
 
         const preview = await tool.presentation!.preview!(
             tool.inputSchema.parse({
@@ -318,7 +319,7 @@ describe('write_file tool', () => {
                 },
             })),
         };
-        const tool = createWriteFileTool(vi.fn());
+        const tool = createWriteFileTool(vi.fn(), allowAllPaths);
         const context = createToolContext(mockLogger, {
             services: {
                 ...createWorkspaceServices(tempDir),
@@ -362,7 +363,7 @@ describe('write_file tool', () => {
                 },
             })),
         };
-        const tool = createWriteFileTool(vi.fn());
+        const tool = createWriteFileTool(vi.fn(), allowAllPaths);
         const context = createToolContext(mockLogger, {
             services: {
                 ...createWorkspaceServices(tempDir),
@@ -381,7 +382,7 @@ describe('write_file tool', () => {
 
     describe('File Modification Detection - Existing Files', () => {
         it('should generate preview for existing files outside config-allowed roots (preview read only)', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
 
             const rawExternalDir = await fs.mkdtemp(
                 path.join(os.tmpdir(), 'dexto-write-outside-allowed-')
@@ -424,7 +425,7 @@ describe('write_file tool', () => {
         });
 
         it('should succeed when existing file is not modified between preview and execute', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -466,7 +467,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when existing file is modified between preview and execute', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -503,7 +504,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when existing file is deleted between preview and execute', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original content');
 
@@ -554,7 +555,7 @@ describe('write_file tool', () => {
                 mockLogger
             );
             await fileSystemServiceForHome.initialize();
-            const tool = createWriteFileTool(async () => fileSystemServiceForHome);
+            const tool = createWriteFileTool(async () => fileSystemServiceForHome, allowAllPaths);
 
             try {
                 const parsedInput = tool.inputSchema.parse({
@@ -578,7 +579,7 @@ describe('write_file tool', () => {
         });
 
         it('should succeed when creating new file that still does not exist', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
             const testFile = path.join(tempDir, 'new-file.txt');
 
             const toolCallId = 'test-call-new';
@@ -625,7 +626,7 @@ describe('write_file tool', () => {
         });
 
         it('should fail when file is created by someone else between preview and execute', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'race-condition.txt');
@@ -666,7 +667,7 @@ describe('write_file tool', () => {
 
     describe('Cache Cleanup', () => {
         it('should clean up hash cache after successful execution', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original');
 
@@ -704,7 +705,7 @@ describe('write_file tool', () => {
         });
 
         it('should clean up hash cache after failed execution', async () => {
-            const tool = createWriteFileTool(async () => fileSystemService);
+            const tool = createWriteFileTool(async () => fileSystemService, allowAllPaths);
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'original');
 

@@ -3,6 +3,7 @@ import { InMemoryDextoStores } from '@dexto/core/storage';
 import type { ToolExecutionContext, ToolServices } from '@dexto/core/tools';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { allowAllPaths } from './test-helpers.js';
 import { createReadFileTool } from './read-file-tool.js';
 
 async function createContext(
@@ -55,7 +56,7 @@ describe('read_file tool', () => {
         const getFileSystemService = vi.fn(async () => {
             throw new Error('read_file execute must not use FileSystemService');
         });
-        const tool = createReadFileTool(getFileSystemService);
+        const tool = createReadFileTool(getFileSystemService, allowAllPaths);
 
         const result = await tool.execute({ file_path: 'local.txt' }, await createContext('alpha'));
 
@@ -70,7 +71,7 @@ describe('read_file tool', () => {
     });
 
     it('applies pagination after workspace reads', async () => {
-        const tool = createReadFileTool(vi.fn());
+        const tool = createReadFileTool(vi.fn(), allowAllPaths);
 
         const result = await tool.execute(
             { file_path: 'local.txt', offset: 2, limit: 2 },
@@ -88,7 +89,7 @@ describe('read_file tool', () => {
 
     it('normalizes workspace-contained absolute paths before reading', async () => {
         const readText = vi.fn(async () => 'alpha');
-        const tool = createReadFileTool(vi.fn());
+        const tool = createReadFileTool(vi.fn(), allowAllPaths);
 
         await tool.execute(
             { file_path: path.join('/repo', 'local.txt') },
@@ -100,7 +101,7 @@ describe('read_file tool', () => {
 
     it('rejects external absolute paths before file provider calls', async () => {
         const readText = vi.fn(async () => 'alpha');
-        const tool = createReadFileTool(vi.fn());
+        const tool = createReadFileTool(vi.fn(), allowAllPaths);
 
         await expect(
             tool.execute(

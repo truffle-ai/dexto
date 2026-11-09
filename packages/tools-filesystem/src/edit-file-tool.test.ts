@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { allowAllPaths } from './test-helpers.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
@@ -133,7 +134,7 @@ describe('edit_file tool', () => {
         const getFileSystemService = vi.fn(async () => {
             throw new Error('edit_file execute must not use FileSystemService');
         });
-        const tool = createEditFileTool(getFileSystemService);
+        const tool = createEditFileTool(getFileSystemService, allowAllPaths);
         const parsedInput = tool.inputSchema.parse({
             file_path: 'workspace.txt',
             old_string: 'world',
@@ -178,7 +179,7 @@ describe('edit_file tool', () => {
                 },
             })),
         };
-        const tool = createEditFileTool(vi.fn());
+        const tool = createEditFileTool(vi.fn(), allowAllPaths);
 
         await tool.execute(
             tool.inputSchema.parse({
@@ -220,7 +221,7 @@ describe('edit_file tool', () => {
                 },
             })),
         };
-        const tool = createEditFileTool(vi.fn());
+        const tool = createEditFileTool(vi.fn(), allowAllPaths);
 
         await expect(
             tool.execute(
@@ -244,7 +245,7 @@ describe('edit_file tool', () => {
     });
 
     it('should describe edit calls with an Edit header', () => {
-        const tool = createEditFileTool(async () => fileSystemService);
+        const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
         const header = tool.presentation?.describeHeader?.(
             tool.inputSchema.parse({
                 file_path: 'snake.py',
@@ -262,7 +263,7 @@ describe('edit_file tool', () => {
 
     describe('File Modification Detection', () => {
         it('should generate preview for files outside config-allowed roots (preview read only)', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
@@ -301,7 +302,7 @@ describe('edit_file tool', () => {
         });
 
         it('should succeed when file is not modified between preview and execute', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -340,7 +341,7 @@ describe('edit_file tool', () => {
         });
 
         it('should fail when file is modified between preview and execute', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -381,7 +382,7 @@ describe('edit_file tool', () => {
         });
 
         it('should detect file modification with correct error code', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -418,7 +419,7 @@ describe('edit_file tool', () => {
         });
 
         it('should work without toolCallId (no modification check)', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -453,7 +454,7 @@ describe('edit_file tool', () => {
         });
 
         it('should clean up hash cache after successful execution', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -495,7 +496,7 @@ describe('edit_file tool', () => {
         });
 
         it('should clean up hash cache after failed execution', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(async () => fileSystemService, allowAllPaths);
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');

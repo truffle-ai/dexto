@@ -25,6 +25,7 @@ import { FileSystemErrorCode } from './error-codes.js';
 import { BufferEncoding } from './types.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
+import { assertPathNotBlocked, type BlockedPathCheck } from './blocked-path-check.js';
 import { isWorkspaceFileNotFound, toWorkspaceRelativePath } from './workspace-paths.js';
 
 /**
@@ -92,7 +93,8 @@ function generateDiffPreview(
  * Create the write_file internal tool with directory approval support
  */
 export function createWriteFileTool(
-    getFileSystemService: FileSystemServiceGetter
+    getFileSystemService: FileSystemServiceGetter,
+    blockedPathCheck: BlockedPathCheck
 ): Tool<typeof WriteFileInputSchema> {
     return defineTool({
         id: 'write_file',
@@ -243,6 +245,12 @@ export function createWriteFileTool(
                 'write_file',
                 handle.context.path,
                 file_path
+            );
+            await assertPathNotBlocked(
+                blockedPathCheck,
+                handle.context.path,
+                workspacePath,
+                context.logger
             );
 
             // Check if file was modified since preview (safety check)
