@@ -1,5 +1,29 @@
 # @dexto/tools-filesystem
 
+## 1.17.0
+
+### Patch Changes
+
+- 9e8e39a: Apply the configured blocked paths and blocked extensions when `read_file`, `write_file`, `edit_file` and `grep_content` run.
+- 2e206af: Match blocked names regardless of case, so a differently cased name no longer slips past on case-insensitive file systems. `read_file` and `edit_file` check a file's size before reading it when the workspace handle can report one, and the local handle now reports file sizes. `glob_files` checks blocked paths only for the entries it returns, which makes large results much faster. A foreground command that times out or is aborted now also has its whole process group killed when the shell exits first, so a child that ignores SIGTERM and has its output redirected away no longer survives.
+- b15ac06: Close smaller gaps in the file tools. Blocked entries such as `.env` and `.git` now also block the same names in subdirectories. `glob_files` leaves blocked files out of its results, and the glob guard checks every brace expansion of a pattern. `read_file` and `edit_file` enforce `maxFileSize`. `edit_file` previews are limited to files inside the workspace that are not blocked. `edit_file` writes `$` sequences in the replacement text as written.
+- Updated dependencies [2827371]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+    - @dexto/core@1.17.0
+    - @dexto/agent-config@1.17.0
+
 ## 1.16.6
 
 ### Patch Changes
