@@ -5,7 +5,22 @@ export type LlmRuntimeAuthOverrides = {
     baseURL?: string | undefined;
     headers?: Record<string, string> | undefined;
     fetch?: typeof fetch | undefined;
+    /** Optional host-owned credential provenance and failure classification for each request. */
+    requestAuth?: LlmRequestAuth | undefined;
     auth?: LlmRuntimeAuthInfo | undefined;
+};
+
+/** Request authentication may replace the API key. The classification body is bounded to 64 KiB. */
+export type LlmRequestAuth = {
+    fetch: (
+        input: RequestInfo | URL,
+        init?: RequestInit
+    ) => Promise<{ response: Response; provenance: unknown }>;
+    isRetryableResponse: (input: {
+        response: Response;
+        provenance: unknown;
+        signal?: AbortSignal | null;
+    }) => Promise<boolean>;
 };
 
 export type LlmRuntimeAuthInfo = {
