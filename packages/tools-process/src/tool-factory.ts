@@ -1,7 +1,7 @@
 import type { ToolFactory } from '@dexto/agent-config';
 import type { ToolExecutionContext } from '@dexto/core/tools';
 import type { WorkspaceHandle } from '@dexto/core/workspace';
-import { ProcessService } from './process-service.js';
+import { DEFAULT_TIMEOUT, ProcessService } from './process-service.js';
 import { createBashExecTool } from './bash-exec-tool.js';
 import { createBashOutputTool } from './bash-output-tool.js';
 import { createKillProcessTool } from './kill-process-tool.js';
@@ -166,15 +166,20 @@ class WorkspaceProcessService implements ProcessCommandService {
             throw ProcessError.invalidCommand(command, validation.error || 'Unknown error');
         }
 
+        const timeout = Math.min(options.timeout ?? DEFAULT_TIMEOUT, this.processConfig.maxTimeout);
         const startedAt = Date.now();
         const result = await this.handle.processes?.exec({
             command: validation.normalizedCommand,
             ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-            ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+            timeout,
+            ...(options.abortSignal === undefined ? {} : { signal: options.abortSignal }),
         });
 
         if (result === undefined) {
             throw ProcessError.executionFailed(command, 'Workspace process execution unavailable');
+        }
+        if (result.timedOut === true) {
+            throw ProcessError.timeout(command, timeout);
         }
 
         return {
