@@ -1,10 +1,11 @@
-const METADATA_HOSTNAMES = new Set(['metadata.google.internal', '[fd00:ec2::254]']);
+import { isMetadataHost } from '@dexto/core';
 
 /**
  * Why a webhook URL is not accepted, or undefined when it is fine.
  *
  * Webhook events carry prompts and model output, so the target must be a plain http(s) URL
- * without credentials, and not a cloud metadata address. Loopback and private addresses stay
+ * without credentials, and not a cloud metadata address or host name. Names that resolve to a metadata
+ * address are caught at delivery time. Loopback and private addresses stay
  * allowed because webhooks to local services are a normal setup.
  */
 export function webhookUrlProblem(rawUrl: string): string | undefined {
@@ -20,7 +21,7 @@ export function webhookUrlProblem(rawUrl: string): string | undefined {
     if (parsed.username || parsed.password) {
         return 'Webhook URL must not contain credentials';
     }
-    if (parsed.hostname.startsWith('169.254.') || METADATA_HOSTNAMES.has(parsed.hostname)) {
+    if (isMetadataHost(parsed.hostname)) {
         return 'Webhook URL must not point at a link-local or metadata address';
     }
     return undefined;

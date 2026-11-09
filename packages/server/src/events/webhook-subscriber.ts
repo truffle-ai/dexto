@@ -6,7 +6,7 @@ import {
     type AgentEventMap,
     type AgentEventName,
 } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { isMetadataTarget, logger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 import {
     type WebhookConfig,
@@ -32,14 +32,21 @@ export class WebhookEventSubscriber implements EventSubscriber {
     private abortController?: AbortController;
     private deliveryOptions: Required<WebhookDeliveryOptions>;
     private fetchFn: typeof globalThis.fetch;
+    private resolveHost: ((hostname: string) => Promise<string[]>) | undefined;
 
     constructor({
         fetchFn,
+        resolveHost,
         ...deliveryOptions
-    }: WebhookDeliveryOptions & { fetchFn?: typeof globalThis.fetch } = {}) {
+    }: WebhookDeliveryOptions & {
+        fetchFn?: typeof globalThis.fetch;
+        /** Resolves a host name to all of its addresses; defaults to a DNS lookup. */
+        resolveHost?: (hostname: string) => Promise<string[]>;
+    } = {}) {
         this.deliveryOptions = { ...DEFAULT_DELIVERY_OPTIONS, ...deliveryOptions };
         // Use native fetch (Node.js 20+) or injected implementation (tests)
         this.fetchFn = fetchFn || fetch;
+        this.resolveHost = resolveHost;
         logger.debug('WebhookEventSubscriber initialized');
     }
 
@@ -303,6 +310,16 @@ export class WebhookEventSubscriber implements EventSubscriber {
         }
 
         try {
+            // Resolve at delivery time so a name that later points at a metadata address is refused.
+            if (await isMetadataTarget(new URL(webhook.url).hostname, this.resolveHost)) {
+                return {
+                    success: false,
+                    error: 'Webhook URL points at a metadata address',
+                    responseTime: Date.now() - startTime,
+                    attempt,
+                };
+            }
+
             const response = await this.fetchFn(webhook.url, {
                 method: 'POST',
                 headers,
