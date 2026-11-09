@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { DextoLogger } from './dexto-logger.js';
 import { DextoLogComponent, type LogEntry } from './types.js';
 
@@ -121,5 +123,38 @@ describe('DextoLogger redaction', () => {
         logger.info('deep', deep);
 
         expect(JSON.stringify(entries[0]?.context)).toContain('[Truncated]');
+    });
+
+    it('keeps the fields of a DextoRuntimeError and of a Node error with a code', () => {
+        const { logger, entries } = createLogger();
+        const runtimeError = new DextoRuntimeError(
+            'mcp_connection_failed',
+            ErrorScope.MCP,
+            ErrorType.THIRD_PARTY,
+            'Could not connect to the server',
+            { server: 'files', headers: { Authorization: 'Bearer abc123' } },
+            'Check the server URL'
+        );
+        const nodeError = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:80'), {
+            code: 'ECONNREFUSED',
+            errno: -111,
+            syscall: 'connect',
+        });
+
+        logger.error('failed', { error: runtimeError, cause: nodeError });
+
+        expect(entries[0]?.context).toMatchObject({
+            error: {
+                name: 'DextoRuntimeError',
+                message: 'Could not connect to the server',
+                code: 'mcp_connection_failed',
+                scope: 'mcp',
+                type: 'third_party',
+                recovery: 'Check the server URL',
+                context: { server: 'files', headers: { Authorization: '[REDACTED]' } },
+            },
+            cause: { code: 'ECONNREFUSED', errno: -111, syscall: 'connect' },
+        });
+        expect(JSON.stringify(entries)).not.toContain('abc123');
     });
 });

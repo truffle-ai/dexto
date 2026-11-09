@@ -468,15 +468,37 @@ describe('redactLogText', () => {
     test('masks secret-named keys of any shape', () => {
         for (const line of [
             'client_secret=abc',
-            'CLIENT-SECRET: abc',
-            'accessToken: abc',
+            'CLIENT-SECRET: abc123',
+            'accessToken: abc123',
             'DB_PASSWORD=abc',
             'X-Api-Key: abc',
             'privateKey=abc',
         ]) {
             expect(redactLogText(line), line).toContain('[REDACTED]');
-            expect(redactLogText(line), line).not.toContain('abc');
+            expect(redactLogText(line), line).not.toMatch(/abc/);
         }
+    });
+
+    test('keeps a sentence that only names a secret', () => {
+        for (const line of [
+            'Failed to refresh token: network error',
+            'Invalid password: too short',
+            'Missing secret: not configured',
+            'token: expired',
+            'fetch options credentials: include',
+            'secretName=my-config cookieName=sid',
+        ]) {
+            expect(redactLogText(line), line).toBe(line);
+        }
+    });
+
+    test('still masks a credential after a colon, and any value after =', () => {
+        expect(redactLogText('token: eyAbc123.def456')).toBe('token: [REDACTED]');
+        expect(redactLogText('password: hunter2')).toBe('password: [REDACTED]');
+        expect(redactLogText('apiKey: abcdefghijklmnopqrstuv')).toBe('apiKey: [REDACTED]');
+        expect(redactLogText('password="too short"')).toBe('password="[REDACTED]"');
+        expect(redactLogText('password=short')).toBe('password=[REDACTED]');
+        expect(redactLogText('X-Api-Key: abcdef')).toBe('X-Api-Key: [REDACTED]');
     });
 
     test('finds a secret inside the value of a plain key', () => {
@@ -610,6 +632,11 @@ describe('redactLogData', () => {
 
     test('does not mask ordinary fields that share a word with a secret name', () => {
         const data = {
+            credentials: 'include',
+            secretName: 'my-config',
+            cookieName: 'sid',
+            passwordPolicy: 'strong',
+            tokenType: 'Bearer',
             keys: 'a, b, c',
             key: 'cache-1',
             cacheKey: 'abc',
@@ -798,5 +825,87 @@ describe('log redaction never throws', () => {
             },
         };
         expect(redactLogMessage(hostile)).toBe(UNREDACTABLE_LOG_DATA);
+    });
+});
+
+describe('redactLogRecord errors', () => {
+    test('keeps an error’s own fields and masks them', () => {
+        class HttpError extends Error {
+            readonly status = 502;
+            readonly code = 'ECONNRESET';
+            readonly authorization = 'Bearer abc123';
+        }
+        const error = new HttpError('upstream failed');
+        const result = redactLogData({ error });
+        expect(result).toMatchObject({
+            error: {
+                name: 'Error',
+                message: 'upstream failed',
+                status: 502,
+                code: 'ECONNRESET',
+                authorization: '[REDACTED]',
+            },
+        });
+        expect(JSON.stringify(result)).not.toContain('abc123');
+    });
+
+    test('uses an error’s toJSON fields', () => {
+        class DetailedError extends Error {
+            toJSON() {
+                return { scope: 'mcp', context: { server: 'a', apiKey: 'abc123' }, traceId: 't1' };
+            }
+        }
+        const result = redactLogData(new DetailedError('failed'));
+        expect(result).toMatchObject({
+            message: 'failed',
+            scope: 'mcp',
+            context: { server: 'a', apiKey: '[REDACTED]' },
+            traceId: 't1',
+        });
+    });
+
+    test('keeps the cause of an error', () => {
+        const result = redactLogData(
+            new Error('outer', { cause: new Error('inner token=abc123') })
+        );
+        expect(JSON.stringify(result)).toContain('inner token=[REDACTED]');
+    });
+});
+
+describe('redaction of densely linked graphs', () => {
+    function mutuallyLinked(count: number): Record<string, unknown>[] {
+        const nodes: Record<string, unknown>[] = Array.from({ length: count }, (_, i) => ({
+            id: i,
+        }));
+        for (const node of nodes) {
+            node.others = nodes.filter((other) => other !== node);
+            nodes.forEach((other, i) => (node[`n${i}`] = other));
+        }
+        return nodes;
+    }
+
+    test('a log entry of 12 mutually referencing nodes finishes fast with bounded output', () => {
+        const start = Date.now();
+        const result = JSON.stringify(redactLogData(mutuallyLinked(12)));
+        expect(Date.now() - start).toBeLessThan(2000);
+        expect(result.length).toBeLessThan(5_000_000);
+        expect(result).toContain('[Truncated]');
+    });
+
+    test('an API response of 12 mutually referencing nodes is read once per node', () => {
+        const start = Date.now();
+        const result = redact(mutuallyLinked(12));
+        expect(Date.now() - start).toBeLessThan(2000);
+        expect(Array.isArray(result)).toBe(true);
+    });
+
+    test('a real cycle is still marked', () => {
+        const a: Record<string, unknown> = { name: 'a' };
+        const b: Record<string, unknown> = { name: 'b', a };
+        a.b = b;
+        expect(redactLogData(a)).toEqual({
+            name: 'a',
+            b: { name: 'b', a: '[REDACTED_CIRCULAR]' },
+        });
     });
 });
