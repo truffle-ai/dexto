@@ -50,6 +50,9 @@ Shell commands used to inherit Dexto's whole environment. They no longer do. A c
 API key (or any other variable) from the environment must now be given it, as shown below. Local MCP
 stdio servers changed the same way; see
 [MCP configuration](./mcpConfiguration.md#what-a-stdio-server-can-see).
+
+Server and web modes also bind to loopback by default; see the [deployment guide](../deployment.md)
+to allow network access with an API key.
 :::
 
 Commands run by `process-tools` (`bash_exec` and the other process tools, including commands run
