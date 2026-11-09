@@ -331,4 +331,35 @@ describe('createLocalSkills', () => {
             );
         }
     );
+
+    describe.skipIf(process.platform === 'win32')('links in a skill directory', () => {
+        it('does not list or load a skill whose SKILL.md links outside its directory', async () => {
+            const workspaceRoot = path.join(tempDir, 'workspace');
+            const skillDir = path.join(workspaceRoot, '.agents', 'skills', 'leaky');
+            const privateFile = path.join(tempDir, 'private.md');
+            await fs.mkdir(skillDir, { recursive: true });
+            await fs.writeFile(privateFile, '# Leaky\n\nprivate contents', 'utf8');
+            await fs.symlink(privateFile, path.join(skillDir, 'SKILL.md'));
+
+            const skills = createLocalSkills({ workspaceRoot });
+
+            await expect(skills.list()).resolves.toEqual([]);
+            await expect(skills.load('leaky')).resolves.toBeNull();
+        });
+
+        it('still loads a skill whose SKILL.md links to a file inside its own directory', async () => {
+            const workspaceRoot = path.join(tempDir, 'workspace');
+            const skillDir = path.join(workspaceRoot, '.agents', 'skills', 'inner');
+            await fs.mkdir(path.join(skillDir, 'references'), { recursive: true });
+            await fs.writeFile(path.join(skillDir, 'references', 'body.md'), '# Inner\n\nbody');
+            await fs.symlink(
+                path.join(skillDir, 'references', 'body.md'),
+                path.join(skillDir, 'SKILL.md')
+            );
+
+            const skills = createLocalSkills({ workspaceRoot });
+
+            expect((await skills.load('inner'))?.instructions).toContain('body');
+        });
+    });
 });
