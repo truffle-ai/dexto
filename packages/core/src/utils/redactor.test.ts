@@ -760,6 +760,26 @@ describe('redactLogRecord values', () => {
         expect(Date.now() - start).toBeLessThan(500);
     });
 
+    test('an object reached under a secret map key is masked whichever place reads it first', () => {
+        const shared = { token: 'abc', name: 'plain' };
+        const secretFirst = redactLogData({ headers: shared, other: shared });
+        expect(secretFirst).toEqual({
+            headers: { token: '[REDACTED]', name: '[REDACTED]' },
+            other: '[Shared]',
+        });
+        const plainFirst = redactLogData({ other: shared, headers: shared });
+        expect(plainFirst).toEqual({
+            other: { token: '[REDACTED]', name: 'plain' },
+            headers: '[REDACTED]',
+        });
+        const plainFirstEnv = redactLogData({ list: [shared], env: { A: shared } });
+        expect(JSON.stringify(plainFirstEnv)).not.toContain('plain":"');
+        expect(plainFirstEnv).toEqual({
+            list: [{ token: '[REDACTED]', name: 'plain' }],
+            env: { A: '[REDACTED]' },
+        });
+    });
+
     test('writes a shared object once and marks a cycle', () => {
         const shared = { name: 'shared' };
         const cyclic: Record<string, unknown> = { name: 'cycle' };
@@ -944,6 +964,11 @@ describe('redactLogText connection URLs', () => {
             'amqp://guest:[REDACTED]@mq.example.com:5672/vhost',
         ],
         ['https://user:p%40ss@api.example.com/v1', 'https://user:[REDACTED]@api.example.com/v1'],
+        ['postgres://u:p@ss@host.example.com/db', 'postgres://u:[REDACTED]@host.example.com/db'],
+        [
+            'primary postgres://a:one@h1.example.com/db replica postgres://b:two@h2.example.com/db',
+            'primary postgres://a:[REDACTED]@h1.example.com/db replica postgres://b:[REDACTED]@h2.example.com/db',
+        ],
         [
             'connect failed for "postgres://u:p@h.example.com/db", retrying',
             'connect failed for "postgres://u:[REDACTED]@h.example.com/db", retrying',
@@ -961,6 +986,20 @@ describe('redactLogText connection URLs', () => {
         ]) {
             expect(redactLogText(line), line).toBe(line);
         }
+    });
+
+    test.each([
+        [
+            'https://host.example.com:8080?email=a@b.com',
+            'https://host.example.com:8080?email=[REDACTED]',
+        ],
+        ['https://host.example.com:8080#a@b.com', 'https://host.example.com:8080#[REDACTED]'],
+        [
+            'https://host.example.com:8080/p?email=a@b.com',
+            'https://host.example.com:8080/p?email=[REDACTED]',
+        ],
+    ])('treats an "@" after the authority of %s as an email, not a password', (input, expected) => {
+        expect(redactLogText(input)).toBe(expected);
     });
 
     test('masks a connection URL in log data', () => {

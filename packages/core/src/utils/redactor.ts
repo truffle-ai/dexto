@@ -309,7 +309,7 @@ function redactValue(
     }
 
     if (walk.ancestors.has(input)) return REDACTED_CIRCULAR;
-    if (walk.shared?.has(input)) return SHARED;
+    if (walk.shared?.has(input)) return insideSecret ? REDACTED : SHARED;
     const memoized = walk.memo?.get(input);
     if (memoized !== undefined) return memoized;
     if (mode === 'log' && depth >= MAX_LOG_DEPTH) return TRUNCATED;
@@ -507,9 +507,11 @@ function maskedLike(value: string): string {
 // Connection URLs (postgres://user:pass@host/db, redis://:pass@host, amqp://, mongodb+srv://)
 // carry a password in their userinfo. The scheme, user, host and path stay readable; the password
 // is masked. The scheme is tried only from a word edge and capped, so no input makes the scan
-// quadratic, and the password ends at the first "/", so "https://host:8080/p" is not one.
+// quadratic. The authority ends at the first "/", "?" or "#", so "https://host:8080/p" and
+// "https://host:8080?email=a@b.com" are not connection URLs, and a password holding a raw "/",
+// "?", "#" or quote is left as it is (encode it, as a URL requires).
 const URL_USERINFO_PATTERN =
-    /(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/[^\s/@:"'?#]*:)[^\s/"']*@/g;
+    /(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/[^\s/@:"'?#]*:)[^\s/?#"']*@/g;
 
 /** Masks the password of connection URLs. Runs first: the email pattern would take "pass@host". */
 function maskUrlUserinfo(text: string): string {
