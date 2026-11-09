@@ -14,8 +14,6 @@ const MAX_INLINE_TOKENS = 4_000;
 const INLINE_WINDOW_RATIO = 0.1;
 /** One step's results together keep at most 40% of the input window inline. */
 const STEP_WINDOW_RATIO = 0.4;
-/** A result stored only to fit the step budget keeps this much inline, or its cap if smaller. */
-const STEP_SPILL_PREVIEW_CHARS = 8_000;
 const PREVIEW_HEAD_RATIO = 0.75;
 
 export interface ToolOutputBudget {
@@ -50,26 +48,52 @@ export function planToolOutputSpills(
     let inlineChars = 0;
     for (const result of results) {
         if (result.textLength > budget.inlineCapChars) {
-            previewChars.set(result.toolCallId, budget.inlineCapChars);
-            inlineChars += budget.inlineCapChars;
+            const cap = Math.max(
+                budget.inlineCapChars,
+                outputMarker(result.toolCallId, result.textLength, 0, 0).length
+            );
+            if (cap < result.textLength) {
+                previewChars.set(result.toolCallId, cap);
+                inlineChars += cap;
+            } else {
+                inlineChars += result.textLength;
+            }
         } else {
             inlineChars += result.textLength;
         }
     }
     // A result already cut to the inline cap can be cut again to the smaller step preview.
-    const stepPreviewChars = Math.min(
-        Math.floor(budget.inlineCapChars / 2),
-        STEP_SPILL_PREVIEW_CHARS
-    );
+    const stepPreviewChars = Math.floor(budget.inlineCapChars / 2);
     const largestFirst = results
         .filter((result) => result.textLength > stepPreviewChars)
         .sort((left, right) => right.textLength - left.textLength);
     for (const result of largestFirst) {
         if (inlineChars <= budget.stepBudgetChars) break;
         const inlineNow = previewChars.get(result.toolCallId) ?? result.textLength;
-        if (inlineNow <= stepPreviewChars) continue;
-        previewChars.set(result.toolCallId, stepPreviewChars);
-        inlineChars -= inlineNow - stepPreviewChars;
+        const target = Math.max(
+            stepPreviewChars,
+            outputMarker(result.toolCallId, result.textLength, 0, 0).length
+        );
+        if (inlineNow <= target) continue;
+        previewChars.set(result.toolCallId, target);
+        inlineChars -= inlineNow - target;
+    }
+    if (inlineChars <= budget.stepBudgetChars) return previewChars;
+
+    // If previews alone exceed the budget, reduce the largest remaining inline results.
+    // A full marker is the irreducible minimum, unless the original text is shorter.
+    for (const result of [...results].sort(
+        (a, b) =>
+            (previewChars.get(b.toolCallId) ?? b.textLength) -
+            (previewChars.get(a.toolCallId) ?? a.textLength)
+    )) {
+        if (inlineChars <= budget.stepBudgetChars) break;
+        const inlineNow = previewChars.get(result.toolCallId) ?? result.textLength;
+        const minimum = outputMarker(result.toolCallId, result.textLength, 0, 0).length;
+        const target = Math.max(minimum, inlineNow - (inlineChars - budget.stepBudgetChars));
+        if (target >= inlineNow) continue;
+        previewChars.set(result.toolCallId, target);
+        inlineChars -= inlineNow - target;
     }
     return previewChars;
 }
@@ -84,10 +108,7 @@ export function withToolOutputPreview(
     previewChars: number
 ): SanitizedToolResult {
     const id = result.meta.toolCallId;
-    const marker = (head: number, tail: number) =>
-        `\n\n[Output truncated: showing the first ${head} and last ${tail} of ${fullText.length} characters. ` +
-        `The full output is stored. Read any part with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "offset": <line> }) ` +
-        `or search it with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "pattern": "<text>" }) instead of re-running the tool.]\n\n`;
+    const marker = (head: number, tail: number) => outputMarker(id, fullText.length, head, tail);
     // Reserve enough space even if the counts in the marker have the maximum number of digits.
     const available = Math.max(0, previewChars - marker(previewChars, previewChars).length);
     const headChars = safeTextBoundary(fullText, Math.floor(available * PREVIEW_HEAD_RATIO));
@@ -96,10 +117,7 @@ export function withToolOutputPreview(
         safeTextBoundary(fullText, tailStart) === tailStart ? tailStart : tailStart + 1;
     const tailChars = fullText.length - safeTailStart;
     const previewMarker = marker(headChars, tailChars);
-    const preview =
-        previewMarker.length > previewChars
-            ? previewMarker.slice(0, safeTextBoundary(previewMarker, previewChars))
-            : fullText.slice(0, headChars) + previewMarker + fullText.slice(safeTailStart);
+    const preview = fullText.slice(0, headChars) + previewMarker + fullText.slice(safeTailStart);
     const content: ContentPart[] = [];
     let previewAdded = false;
     for (const part of result.content) {
@@ -111,4 +129,12 @@ export function withToolOutputPreview(
         }
     }
     return { ...result, content };
+}
+
+function outputMarker(id: string, length: number, head: number, tail: number): string {
+    return (
+        `\n\n[Output truncated: showing the first ${head} and last ${tail} of ${length} characters. ` +
+        `The full output is stored. Read any part with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "offset": <line> }) ` +
+        `or search it with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "pattern": "<text>" }) instead of re-running the tool.]\n\n`
+    );
 }

@@ -168,7 +168,7 @@ function searchLines(text: string, pattern: string, maxMatches: number): string 
         if (!line.toLowerCase().includes(needle)) return;
         total += 1;
         if (outOfRoom || found.length >= maxMatches) return;
-        const match = `${index + 1}: ${line.slice(0, MAX_MATCH_LINE_CHARS)}`;
+        const match = `${index + 1}: ${line.slice(0, safeTextBoundary(line, MAX_MATCH_LINE_CHARS))}`;
         if (chars + match.length > MAX_READ_CHARS) {
             outOfRoom = true;
             return;
