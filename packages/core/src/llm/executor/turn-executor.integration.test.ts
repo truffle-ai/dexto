@@ -917,6 +917,95 @@ describe('TurnExecutor Integration Tests', () => {
             expect(chunkHandler.mock.calls.some((call) => call[0].chunkType === 'text')).toBe(true);
         });
 
+        it('stores the same messages, emits the same events, and reads no history per delta for a streamed reply with a tool call', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'stream_tool',
+                    description: 'Returns a string',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: async () => 'tool done',
+                }),
+            ]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Checking.',
+                            reasoning: 'Hm.',
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-stream',
+                                    toolName: 'stream_tool',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Done.',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use the tool' }]);
+            const emit = vi.spyOn(sessionEventBus, 'emit');
+            const listMessages = vi.spyOn(conversationStore, 'listMessages');
+
+            await executor.execute({ mcpManager }, true);
+
+            // Ids, timestamps and timings differ between runs; the rest must not.
+            const oneLinePerItem = (items: unknown[]) =>
+                items.map((item) =>
+                    JSON.stringify(item)
+                        .replace(
+                            /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+                            '<id>'
+                        )
+                        .replace(/"(timestamp|compactedAt|durationMs|latencyMs)":\d+/g, '"$1":0')
+                );
+            expect(oneLinePerItem(await conversationStore.listMessages({ sessionId })))
+                .toMatchInlineSnapshot(`
+              [
+                "{"role":"user","id":"<id>","timestamp":0,"content":[{"type":"text","text":"Use the tool"}]}",
+                "{"role":"assistant","assistantOutput":{"status":"complete"},"provider":"openai","model":"gpt-4","id":"<id>","timestamp":0,"toolCalls":[{"id":"call-stream","type":"function","function":{"name":"stream_tool","arguments":"{\\"value\\":\\"one\\"}"}}],"tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"estimatedCost":0.006,"pricingStatus":"estimated","reasoning":"Hm.","content":[{"type":"text","text":"Checking."}]}",
+                "{"role":"tool","toolCallId":"call-stream","name":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"success":true,"id":"<id>","timestamp":0,"content":[{"type":"text","text":"tool done"}]}",
+                "{"role":"assistant","assistantOutput":{"status":"complete"},"provider":"openai","model":"gpt-4","id":"<id>","timestamp":0,"tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"estimatedCost":0.006,"pricingStatus":"estimated","content":[{"type":"text","text":"Done."}]}",
+              ]
+            `);
+            expect(oneLinePerItem(emit.mock.calls)).toMatchInlineSnapshot(`
+              [
+                "["llm:thinking",{}]",
+                "["llm:chunk",{"chunkType":"reasoning","content":"H"}]",
+                "["llm:chunk",{"chunkType":"reasoning","content":"m"}]",
+                "["llm:chunk",{"chunkType":"reasoning","content":"."}]",
+                "["llm:chunk",{"chunkType":"text","content":"C"}]",
+                "["llm:chunk",{"chunkType":"text","content":"h"}]",
+                "["llm:chunk",{"chunkType":"text","content":"e"}]",
+                "["llm:chunk",{"chunkType":"text","content":"c"}]",
+                "["llm:chunk",{"chunkType":"text","content":"k"}]",
+                "["llm:chunk",{"chunkType":"text","content":"i"}]",
+                "["llm:chunk",{"chunkType":"text","content":"n"}]",
+                "["llm:chunk",{"chunkType":"text","content":"g"}]",
+                "["llm:chunk",{"chunkType":"text","content":"."}]",
+                "["llm:response",{"content":"Checking.","reasoning":"Hm.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":329,"finishReason":"tool-calls"}]",
+                "["llm:tool-call",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"args":{"value":"one"},"callId":"call-stream"}]",
+                "["llm:tool-result",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"callId":"call-stream","success":true,"sanitized":{"content":[{"type":"text","text":"tool done"}],"meta":{"toolName":"stream_tool","toolCallId":"call-stream","success":true}},"rawResult":"tool done"}]",
+                "["llm:chunk",{"chunkType":"text","content":"D"}]",
+                "["llm:chunk",{"chunkType":"text","content":"o"}]",
+                "["llm:chunk",{"chunkType":"text","content":"n"}]",
+                "["llm:chunk",{"chunkType":"text","content":"e"}]",
+                "["llm:chunk",{"chunkType":"text","content":"."}]",
+                "["llm:response",{"content":"Done.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":152,"finishReason":"stop"}]",
+                "["run:complete",{"finishReason":"stop","stepCount":1,"durationMs":0}]",
+              ]
+            `);
+            // 20 full reads before: one per streamed delta, tool call and usage update. Now a
+            // few per turn, none per delta.
+            expect(listMessages.mock.calls.length).toBeLessThanOrEqual(3);
+        });
+
         it('should not emit chunk events when not streaming', async () => {
             const chunkHandler = vi.fn();
             sessionEventBus.on('llm:chunk', chunkHandler);

@@ -662,6 +662,201 @@ describe('ContextManager', () => {
         });
     });
 
+    describe('streaming one assistant message', () => {
+        const sessionId = 'test-session-id';
+
+        function countingStore() {
+            const store = new InMemoryDextoStores().getStore('conversation');
+            const listMessages = vi.spyOn(store, 'listMessages');
+            const updateMessage = vi.spyOn(store, 'updateMessage');
+            return { store, listMessages, updateMessage };
+        }
+
+        const toolCall = (n: number) => ({
+            id: `call-${n}`,
+            type: 'function' as const,
+            function: { name: 'step_tool', arguments: `{"value":"${n}"}` },
+        });
+
+        async function streamReply(manager: ContextManager, messageId: string) {
+            for (let i = 0; i < 50; i++) {
+                await manager.appendAssistantText(messageId, `w${i} `);
+            }
+            await manager.addToolCall(messageId, toolCall(1));
+            await manager.addToolCall(messageId, toolCall(2));
+            await manager.updateAssistantMessage(messageId, {
+                assistantOutput: { status: 'complete' },
+                reasoning: 'thought',
+            });
+        }
+
+        const expectedText = Array.from({ length: 50 }, (_, i) => `w${i} `).join('');
+
+        it('reads no history to persist a reply the manager started', async () => {
+            const { store, listMessages, updateMessage } = countingStore();
+            const manager = createContextManager({ conversationStore: store });
+            await manager.addUserMessage([{ type: 'text', text: 'hi' }]);
+            const messageId = await manager.addAssistantMessage('', [], {
+                assistantOutput: { status: 'draft' },
+            });
+            listMessages.mockClear();
+
+            await streamReply(manager, messageId);
+
+            expect(listMessages).not.toHaveBeenCalled();
+            expect(updateMessage).toHaveBeenCalledTimes(50 + 2 + 1);
+            const stored = (await store.listMessages({ sessionId })).find(
+                (m) => m.id === messageId
+            );
+            expect(stored).toMatchObject({
+                role: 'assistant',
+                content: [{ type: 'text', text: expectedText }],
+                toolCalls: [toolCall(1), toolCall(2)],
+                assistantOutput: { status: 'complete' },
+                reasoning: 'thought',
+            });
+        });
+
+        it('stores the same message when the manager did not start the reply', async () => {
+            const first = countingStore();
+            const starter = createContextManager({ conversationStore: first.store });
+            const messageId = await starter.addAssistantMessage('', [], {
+                assistantOutput: { status: 'draft' },
+            });
+            const other = createContextManager({ conversationStore: first.store });
+            first.listMessages.mockClear();
+
+            await streamReply(other, messageId);
+
+            // One read finds the message, then it is held in memory.
+            expect(first.listMessages).toHaveBeenCalledTimes(1);
+
+            const second = countingStore();
+            const manager = createContextManager({ conversationStore: second.store });
+            const sameId = await manager.addAssistantMessage('', [], {
+                assistantOutput: { status: 'draft' },
+            });
+            await streamReply(manager, sameId);
+
+            const strip = async (store: ConversationStore, id: string) => {
+                const {
+                    id: _id,
+                    timestamp: _timestamp,
+                    ...rest
+                } = (await store.listMessages({ sessionId })).find(
+                    (m) => m.id === id
+                )! as InternalMessage & { timestamp?: number };
+                return rest;
+            };
+            expect(await strip(first.store, messageId)).toEqual(await strip(second.store, sameId));
+        });
+
+        it('keeps writing to the message of the current reply when a new one starts', async () => {
+            const { store, listMessages } = countingStore();
+            const manager = createContextManager({ conversationStore: store });
+            const firstId = await manager.addAssistantMessage('one');
+            const secondId = await manager.addAssistantMessage('two');
+            listMessages.mockClear();
+
+            await manager.appendAssistantText(secondId, '!');
+            await manager.appendAssistantText(firstId, '?');
+
+            const history = await store.listMessages({ sessionId });
+            expect(history.find((m) => m.id === firstId)?.content).toEqual([
+                { type: 'text', text: 'one?' },
+            ]);
+            expect(history.find((m) => m.id === secondId)?.content).toEqual([
+                { type: 'text', text: 'two!' },
+            ]);
+        });
+
+        it('still reports a missing or non-assistant message', async () => {
+            const { store } = countingStore();
+            const manager = createContextManager({ conversationStore: store });
+            const messageId = await manager.addAssistantMessage('reply');
+            await manager.addUserMessage([{ type: 'text', text: 'question' }]);
+            const userId = (await manager.getHistory())[1]?.id!;
+
+            await expect(manager.appendAssistantText('missing', 'x')).rejects.toThrow();
+            await expect(manager.addToolCall('missing', toolCall(1))).rejects.toThrow();
+            await expect(manager.updateAssistantMessage('missing', {})).rejects.toThrow();
+            await expect(manager.appendAssistantText(userId, 'x')).rejects.toThrow();
+            // The held message is not lost by those failures.
+            await manager.appendAssistantText(messageId, '!');
+            expect((await manager.getHistory())[0]?.content).toEqual([
+                { type: 'text', text: 'reply!' },
+            ]);
+        });
+
+        it('rereads the message after a failed write, so a retry does not repeat the delta', async () => {
+            const { store, updateMessage } = countingStore();
+            const manager = createContextManager({ conversationStore: store });
+            const messageId = await manager.addAssistantMessage('a');
+            updateMessage.mockRejectedValueOnce(new Error('write failed'));
+
+            await expect(manager.appendAssistantText(messageId, 'b')).rejects.toThrow(
+                'write failed'
+            );
+            await manager.appendAssistantText(messageId, 'b');
+
+            expect((await manager.getHistory())[0]?.content).toEqual([
+                { type: 'text', text: 'ab' },
+            ]);
+        });
+
+        it.each([
+            ['the step ends', (m: ContextManager) => m.releaseAssistantMessage()],
+            [
+                'another message is added',
+                (m: ContextManager) => m.addUserMessage([{ type: 'text', text: 'steer' }]),
+            ],
+            [
+                'messages are compacted',
+                (m: ContextManager) => m.markMessagesAsCompacted(['some-tool-message']),
+            ],
+        ])('keeps a write made outside the manager when %s', async (_name, boundary) => {
+            const { store } = countingStore();
+            const manager = createContextManager({ conversationStore: store });
+            const messageId = await manager.addAssistantMessage('a', [], {
+                assistantOutput: { status: 'draft' },
+            });
+            await manager.appendAssistantText(messageId, 'b');
+
+            await boundary(manager);
+            // A host writes the same message: here it finishes it and sets a reasoning.
+            const outside = (await store.listMessages({ sessionId })).find(
+                (m) => m.id === messageId
+            )!;
+            await store.updateMessage({
+                sessionId,
+                message: {
+                    ...outside,
+                    reasoning: 'from the host',
+                    assistantOutput: { status: 'complete' },
+                } as InternalMessage,
+            });
+            await manager.appendAssistantText(messageId, 'c');
+
+            expect(
+                (await store.listMessages({ sessionId })).find((m) => m.id === messageId)
+            ).toMatchObject({
+                content: [{ type: 'text', text: 'abc' }],
+                reasoning: 'from the host',
+                assistantOutput: { status: 'complete' },
+            });
+        });
+
+        it('does not write to a message the conversation reset removed', async () => {
+            const { store } = countingStore();
+            const manager = createContextManager({ conversationStore: store });
+            const messageId = await manager.addAssistantMessage('reply');
+
+            await manager.resetConversation();
+
+            await expect(manager.appendAssistantText(messageId, '!')).rejects.toThrow();
+        });
+    });
+
     describe('addToolResult', () => {
         it('should add a tool result message', async () => {
             const sanitizedResult: SanitizedToolResult = {

@@ -106,6 +106,15 @@ export class ContextManager<TMessage = unknown> {
     private lastCallMessageCount: number | null = null;
 
     private conversationStore: ConversationStore;
+    /**
+     * The assistant message of the reply being streamed. Each streamed delta, tool call and the
+     * final usage update changes it, so it is held here and written through instead of being
+     * found in the whole stored history every time. Stores copy a message when they save it.
+     * It lives for one model step: any other write through this manager, a failed write, and the
+     * end of the step (`releaseAssistantMessage`) drop it, so a write by anyone else between
+     * steps is read again, never overwritten by this copy.
+     */
+    private inFlightAssistant: AssistantMessage | null = null;
     private readonly sessionId: string;
 
     /**
@@ -660,25 +669,48 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Finds the assistant message of the reply being streamed. The one this manager started is
+     * held in memory; any other id is found with one read of the history and held from then on.
+     */
+    private async loadAssistantMessage(messageId: string): Promise<AssistantMessage> {
+        if (this.inFlightAssistant?.id === messageId) {
+            return this.inFlightAssistant;
+        }
+
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
+        const message = history.find((m) => m.id === messageId);
+        if (!message) {
+            throw ContextError.messageNotFound(messageId);
+        }
+        if (!isAssistantMessage(message)) {
+            throw ContextError.messageNotAssistant(messageId);
+        }
+
+        this.inFlightAssistant = message;
+        return message;
+    }
+
+    /** Ends the streamed reply: the next change to its message reads it from the store again. */
+    releaseAssistantMessage(): void {
+        this.inFlightAssistant = null;
+    }
+
+    /** Writes the held assistant message through. A failed write drops it, so a retry rereads. */
+    private async writeAssistantMessage(message: AssistantMessage): Promise<void> {
+        try {
+            await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
+        } catch (error) {
+            this.inFlightAssistant = null;
+            throw error;
+        }
+    }
+
+    /**
      * Appends text to an existing assistant message.
      * Used for streaming responses.
      */
     async appendAssistantText(messageId: string, text: string): Promise<void> {
-        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
-        const messageIndex = history.findIndex((m) => m.id === messageId);
-
-        if (messageIndex === -1) {
-            throw ContextError.messageNotFound(messageId);
-        }
-
-        const message = history[messageIndex];
-        if (!message) {
-            throw ContextError.messageNotFound(messageId);
-        }
-
-        if (message.role !== 'assistant') {
-            throw ContextError.messageNotAssistant(messageId);
-        }
+        const message = await this.loadAssistantMessage(messageId);
 
         // Append text to content array
         if (message.content === null) {
@@ -693,7 +725,7 @@ export class ContextManager<TMessage = unknown> {
             }
         }
 
-        await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
+        await this.writeAssistantMessage(message);
     }
 
     /**
@@ -701,28 +733,14 @@ export class ContextManager<TMessage = unknown> {
      * Used for streaming responses.
      */
     async addToolCall(messageId: string, toolCall: ToolCall): Promise<void> {
-        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
-        const messageIndex = history.findIndex((m) => m.id === messageId);
-
-        if (messageIndex === -1) {
-            throw ContextError.messageNotFound(messageId);
-        }
-
-        const message = history[messageIndex];
-        if (!message) {
-            throw ContextError.messageNotFound(messageId);
-        }
-
-        if (message.role !== 'assistant') {
-            throw ContextError.messageNotAssistant(messageId);
-        }
+        const message = await this.loadAssistantMessage(messageId);
 
         if (!message.toolCalls) {
             message.toolCalls = [];
         }
 
         message.toolCalls.push(toolCall);
-        await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
+        await this.writeAssistantMessage(message);
     }
 
     /**
@@ -733,24 +751,10 @@ export class ContextManager<TMessage = unknown> {
         messageId: string,
         updates: Partial<InternalMessage>
     ): Promise<void> {
-        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
-        const messageIndex = history.findIndex((m) => m.id === messageId);
-
-        if (messageIndex === -1) {
-            throw ContextError.messageNotFound(messageId);
-        }
-
-        const message = history[messageIndex];
-        if (!message) {
-            throw ContextError.messageNotFound(messageId);
-        }
-
-        if (message.role !== 'assistant') {
-            throw ContextError.messageNotAssistant(messageId);
-        }
+        const message = await this.loadAssistantMessage(messageId);
 
         Object.assign(message, updates);
-        await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
+        await this.writeAssistantMessage(message);
     }
 
     /**
@@ -770,6 +774,7 @@ export class ContextManager<TMessage = unknown> {
             return 0;
         }
 
+        this.inFlightAssistant = null;
         const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         const timestamp = Date.now();
         let markedCount = 0;
@@ -884,6 +889,7 @@ export class ContextManager<TMessage = unknown> {
             `ContextManager: Adding message to conversation store: ${JSON.stringify(message, null, 2)}`
         );
 
+        this.inFlightAssistant = null;
         await this.conversationStore.saveMessage({ sessionId: this.sessionId, message });
         this.logger.debug('ContextManager: Message saved to conversation store', {
             messageId: message.id,
@@ -981,6 +987,9 @@ export class ContextManager<TMessage = unknown> {
             throw ContextError.assistantMessageIdMissing();
         }
 
+        if (isAssistantMessage(message)) {
+            this.inFlightAssistant = message;
+        }
         return message.id;
     }
 
@@ -1459,6 +1468,7 @@ export class ContextManager<TMessage = unknown> {
     async resetConversation(): Promise<void> {
         // Clear persisted history
         await this.conversationStore.clearMessages({ sessionId: this.sessionId });
+        this.inFlightAssistant = null;
         this.resetActualTokenTracking();
         this.logger.debug(
             `ContextManager: Conversation history cleared for session ${this.sessionId}`
