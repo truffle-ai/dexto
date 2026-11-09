@@ -19,6 +19,10 @@ curl http://localhost:3001/health
 
 The server listens on `127.0.0.1` (loopback) by default. To accept connections from other hosts, pass `--host 0.0.0.0` (or set `DEXTO_SERVER_HOST`) and set `DEXTO_SERVER_API_KEY`; startup fails on a non-loopback host without a key. Whenever `DEXTO_SERVER_API_KEY` is set, every API request must send `Authorization: Bearer <DEXTO_SERVER_API_KEY>`.
 
+### Origin and Host checks
+
+When upgrading to 1.17, allow a frontend on another port with `DEXTO_ALLOWED_ORIGINS=http://localhost:5173`. Scripts sending a POST without a body or with `text/plain` must add `X-Dexto-Request: 1`. For an unauthenticated server accessed using a non-loopback Host name, allow it with `DEXTO_ALLOWED_HOSTS=myhost`.
+
 Supply the model credentials required by your agent configuration. The CLI reports the server as running after agent initialization and successful socket binding. If the port is already occupied, startup exits with an error instead of reporting success.
 
 Use Ctrl+C or send SIGTERM to stop the local server. Shutdown closes the HTTP listener and active connections, closes its MCP transport, and stops the current agent. Streaming clients disconnect during shutdown.
