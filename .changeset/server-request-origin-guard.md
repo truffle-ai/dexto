@@ -1,4 +1,5 @@
 ---
+'dexto': minor
 '@dexto/server': minor
 '@dexto/client-sdk': patch
 '@dexto/webui': patch
