@@ -18,9 +18,10 @@ export async function saveProviderApiKey(
     const envVar = getPrimaryApiKeyEnvVar(provider);
     const targetEnvPath = getDextoEnvPath(startPath);
 
-    await updateEnvFile(targetEnvPath, { [envVar]: apiKey });
+    const trimmedKey = apiKey.trim();
+    await updateEnvFile(targetEnvPath, { [envVar]: trimmedKey });
 
-    process.env[envVar] = apiKey;
+    process.env[envVar] = trimmedKey;
 
     return { envVar, targetEnvPath };
 }

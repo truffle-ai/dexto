@@ -82,6 +82,15 @@ describe('Hono API Integration Tests', () => {
             expect((res.body as { config: unknown }).config).toBeDefined();
         });
 
+        it('POST /api/llm/key rejects an API key with an inner line break as a bad request', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/llm/key', {
+                provider: 'openai',
+                apiKey: 'first-line\nOTHER_VAR=second-line',
+            });
+            expect(res.status).toBe(400);
+        });
+
         it('GET /api/llm/catalog returns LLM catalog', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/llm/catalog');
