@@ -164,7 +164,10 @@ function boundedClassificationResponse(response: Response): { view: Response; ca
         statusText: clone.statusText,
         headers: clone.headers,
     });
-    Object.defineProperty(view, 'url', { value: response.url });
+    Object.defineProperties(view, {
+        url: { value: response.url },
+        redirected: { value: response.redirected },
+    });
     return {
         view,
         cancel: () => {
@@ -181,14 +184,32 @@ async function readRetryErrorBody(
     response: Response,
     signal?: AbortSignal | null
 ): Promise<string> {
+    if (signal?.aborted) {
+        void response.body?.cancel().catch(() => {});
+        throw new globalThis.DOMException('Request aborted', 'AbortError');
+    }
     if (!response.body) return '';
     const reader = response.body.getReader();
     const decoder = new globalThis.TextDecoder();
     let body = '';
     let bytes = 0;
+    let onAbort: (() => void) | undefined;
+    const aborted = signal
+        ? new Promise<never>((_, reject) => {
+              onAbort = () => {
+                  reject(new globalThis.DOMException('Request aborted', 'AbortError'));
+                  void reader.cancel().catch(() => {});
+              };
+              if (signal.aborted) onAbort();
+              else signal.addEventListener('abort', onAbort, { once: true });
+          })
+        : undefined;
+    void aborted?.catch(() => {});
     try {
         for (;;) {
-            const chunk = await reader.read();
+            if (signal?.aborted) throw new globalThis.DOMException('Request aborted', 'AbortError');
+            const read = reader.read();
+            const chunk = aborted ? await Promise.race([read, aborted]) : await read;
             if (chunk.done) break;
             const remaining = MAX_RETRY_ERROR_BODY_BYTES - bytes;
             body += decoder.decode(chunk.value.subarray(0, remaining), { stream: true });
@@ -201,6 +222,8 @@ async function readRetryErrorBody(
         body += decoder.decode();
     } catch (error) {
         rethrowAbort(error, signal);
+    } finally {
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
     }
     return body;
 }
@@ -260,7 +283,7 @@ export async function createVercelModel(
                       retryable = await Promise.race([decision, aborted]);
                   } else retryable = await decision;
               } catch (error) {
-                  if (signal?.aborted) {
+                  if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
                       void response.body?.cancel().catch(() => {});
                   }
                   rethrowAbort(error, signal);
@@ -358,7 +381,7 @@ export async function createVercelModel(
         case 'openrouter': {
             // OpenRouter - unified API gateway for 100+ models (BYOK)
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
-            const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
+            const orBaseURL = effectiveBaseURL || 'https://openrouter.ai/api/v1';
             const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
             const provider = createOpenRouter({
                 apiKey: apiKey ?? '',
@@ -433,7 +456,7 @@ export async function createVercelModel(
             // Users explicitly choose `provider: dexto-nova` in their config
             //
             // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
-            const dextoBaseURL = resolveDextoGatewayBaseURL(baseURL);
+            const dextoBaseURL = resolveDextoGatewayBaseURL(runtimeBaseURL ?? baseURL);
 
             // Build headers for usage tracking
             const headers: Record<string, string> = {
@@ -454,7 +477,7 @@ export async function createVercelModel(
                 baseURL: dextoBaseURL,
                 compatibility: 'strict',
                 headers,
-                ...(apiKey?.trim() ? { apiKey } : {}),
+                ...(apiKey?.trim() ? { apiKey } : requestAuth ? { apiKey: '' } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             });
             const chatModel = provider.chat(model);

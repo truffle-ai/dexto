@@ -434,3 +434,197 @@ describe('request auth cancellation and bounds', () => {
         expect(url).toBe('https://example.test/v1/chat/completions');
     });
 });
+
+describe('request auth transport regressions', () => {
+    it('uses the runtime gateway URL for OpenRouter', async () => {
+        let url = '';
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({
+                provider: 'openrouter',
+                model: 'openai/gpt-4o',
+                apiKey: 'test',
+            }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        baseURL: 'https://gateway.example/v1',
+                        requestAuth: {
+                            fetch: async (input) => {
+                                url = new URL(
+                                    typeof input === 'string'
+                                        ? input
+                                        : input instanceof URL
+                                          ? input.href
+                                          : input.url
+                                ).href;
+                                return {
+                                    response: new Response('error', { status: 401 }),
+                                    provenance: null,
+                                };
+                            },
+                            isRetryableResponse: async () => true,
+                        },
+                    }),
+                },
+            }
+        );
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            statusCode: 401,
+        });
+        expect(url).toMatch(/^https:\/\/gateway\.example\/v1\//);
+    });
+    it('preserves redirected metadata in the classifier view', async () => {
+        const response = new Response('error', { status: 401 });
+        Object.defineProperty(response, 'redirected', { value: true });
+        let redirected = false;
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({
+                provider: 'openai-compatible',
+                model: 'test',
+                apiKey: 'test',
+                baseURL: 'https://example.test/v1',
+            }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        requestAuth: {
+                            fetch: async () => ({ response, provenance: null }),
+                            isRetryableResponse: async ({ response: view }) => {
+                                redirected = view.redirected;
+                                return false;
+                            },
+                        },
+                    }),
+                },
+            }
+        );
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            statusCode: 401,
+        });
+        expect(redirected).toBe(true);
+    });
+    it('cancels the original stream when a classifier throws AbortError', async () => {
+        let cancelled = () => {};
+        const cancellation = new Promise<void>((resolve) => {
+            cancelled = resolve;
+        });
+        const response = new Response(
+            new globalThis.ReadableStream({
+                cancel() {
+                    cancelled();
+                },
+            }),
+            { status: 401 }
+        );
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({
+                provider: 'openai-compatible',
+                model: 'test',
+                apiKey: 'test',
+                baseURL: 'https://example.test/v1',
+            }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        requestAuth: {
+                            fetch: async () => ({ response, provenance: null }),
+                            isRetryableResponse: async () => {
+                                throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+                            },
+                        },
+                    }),
+                },
+            }
+        );
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            name: 'AbortError',
+        });
+        await cancellation;
+    }, 2000);
+    it('aborts a stalled retry response body', async () => {
+        const controller = new globalThis.AbortController();
+        let started = () => {};
+        const reading = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+        const response = new Response(
+            new globalThis.ReadableStream({
+                pull() {},
+            }),
+            { status: 401 }
+        );
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({
+                provider: 'openai-compatible',
+                model: 'test',
+                apiKey: 'test',
+                baseURL: 'https://example.test/v1',
+            }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        requestAuth: {
+                            fetch: async () => ({ response, provenance: null }),
+                            isRetryableResponse: async () => {
+                                const source = response.body;
+                                if (!source) throw new Error('Expected a response body');
+                                const getReader = source.getReader.bind(source);
+                                Object.defineProperty(source, 'getReader', {
+                                    value: () => {
+                                        started();
+                                        return getReader();
+                                    },
+                                });
+                                return true;
+                            },
+                        },
+                    }),
+                },
+            }
+        );
+        const result = generateText({
+            model,
+            prompt: 'hi',
+            maxRetries: 0,
+            abortSignal: controller.signal,
+        });
+        await reading;
+        controller.abort();
+        await expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    }, 2000);
+    it('uses request authentication for a keyless dexto gateway', async () => {
+        let fetched = false;
+        let url = '';
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({ provider: 'dexto-nova', model: 'openai/gpt-4o' }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        baseURL: 'https://gateway.example/v1',
+                        requestAuth: {
+                            fetch: async (input) => {
+                                url =
+                                    typeof input === 'string'
+                                        ? input
+                                        : input instanceof URL
+                                          ? input.href
+                                          : input.url;
+                                fetched = true;
+                                return {
+                                    response: new Response('error', { status: 401 }),
+                                    provenance: null,
+                                };
+                            },
+                            isRetryableResponse: async () => true,
+                        },
+                    }),
+                },
+            }
+        );
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+            statusCode: 401,
+        });
+        expect(fetched).toBe(true);
+        expect(url).toMatch(/^https:\/\/gateway\.example\/v1\//);
+    });
+});
