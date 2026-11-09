@@ -35,6 +35,30 @@ describe('InstrumentClass', () => {
         trace.disable();
     });
 
+    it('does not record method arguments unless a class asks for them', () => {
+        const secret = { env: { API_TOKEN: 'secret-token' } };
+
+        @InstrumentClass({ prefix: 'default' })
+        class DefaultService {
+            connect(_config: unknown): void {}
+        }
+
+        @InstrumentClass({ prefix: 'opted_in', captureArguments: true })
+        class OptedInService {
+            connect(_config: unknown): void {}
+        }
+
+        new DefaultService().connect(secret);
+        new OptedInService().connect(secret);
+
+        const spans = exporter.getFinishedSpans();
+        const defaultSpan = spans.find((span) => span.name === 'default.connect');
+        const optedInSpan = spans.find((span) => span.name === 'opted_in.connect');
+        expect(JSON.stringify(defaultSpan?.attributes)).not.toContain('secret-token');
+        expect(defaultSpan?.attributes['default.connect.argument.0']).toBeUndefined();
+        expect(JSON.stringify(optedInSpan?.attributes)).toContain('secret-token');
+    });
+
     it('can trace method timing without copying private values into telemetry', async () => {
         const argument = 'private-argument';
         const result = 'private-result';

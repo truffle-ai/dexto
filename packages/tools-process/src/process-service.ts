@@ -18,6 +18,7 @@ import {
 } from './types.js';
 import { CommandValidator } from './command-validator.js';
 import { ProcessError } from './errors.js';
+import { buildShellEnvironment } from './shell-environment.js';
 import type { Logger } from '@dexto/core/logger';
 import { DextoLogComponent } from '@dexto/core/logger';
 
@@ -143,17 +144,7 @@ export class ProcessService {
         // Setup working directory
         const cwd: string = this.resolveSafeCwd(options.cwd);
 
-        // Setup environment - filter out undefined values
-        const env: Record<string, string> = {};
-        for (const [key, value] of Object.entries({
-            ...process.env,
-            ...this.config.environment,
-            ...options.env,
-        })) {
-            if (value !== undefined) {
-                env[key] = value;
-            }
-        }
+        const env = buildShellEnvironment(process.env, this.config.environment, options.env);
 
         // If running in background, return the process handle directly
         if (options.runInBackground) {
@@ -419,17 +410,7 @@ export class ProcessService {
         // Setup working directory
         const cwd: string = this.resolveSafeCwd(options.cwd);
 
-        // Setup environment - filter out undefined values
-        const env: Record<string, string> = {};
-        for (const [key, value] of Object.entries({
-            ...process.env,
-            ...this.config.environment,
-            ...options.env,
-        })) {
-            if (value !== undefined) {
-                env[key] = value;
-            }
-        }
+        const env = buildShellEnvironment(process.env, this.config.environment, options.env);
 
         this.logger.debug(`Starting background process ${processId}: ${command}`);
 
