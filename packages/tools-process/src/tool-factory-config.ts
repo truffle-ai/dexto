@@ -71,9 +71,7 @@ export const ProcessToolsConfigSchema = z
         allowedCommands: z
             .array(z.string())
             .default(DEFAULT_ALLOWED_COMMANDS)
-            .describe(
-                'Explicitly allowed commands (empty = all allowed with approval, strict mode only)'
-            ),
+            .describe('Exact shell commands allowed (empty = all allowed with approval)'),
         blockedCommands: z
             .array(z.string())
             .default(DEFAULT_BLOCKED_COMMANDS)
