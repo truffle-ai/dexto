@@ -594,6 +594,7 @@ export async function createVercelModel(
             const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
             return createGoogleGenerativeAI({
                 apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
@@ -601,6 +602,7 @@ export async function createVercelModel(
             const { createGroq } = await import('@ai-sdk/groq');
             return createGroq({
                 apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
@@ -608,6 +610,7 @@ export async function createVercelModel(
             const { createXai } = await import('@ai-sdk/xai');
             return createXai({
                 apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
@@ -615,6 +618,7 @@ export async function createVercelModel(
             const { createCohere } = await import('@ai-sdk/cohere');
             return createCohere({
                 apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }

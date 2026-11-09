@@ -628,3 +628,41 @@ describe('request auth transport regressions', () => {
         expect(url).toMatch(/^https:\/\/gateway\.example\/v1\//);
     });
 });
+
+it.each([
+    ['google', 'gemini-2.5-flash'],
+    ['groq', 'llama-3.3-70b-versatile'],
+    ['xai', 'grok-4.3'],
+    ['cohere', 'command-r-08-2024'],
+] as const)('uses the runtime gateway URL for %s', async (provider, modelId) => {
+    let url = '';
+    const model = await createVercelModel(
+        LLMConfigSchema.parse({ provider, model: modelId, apiKey: 'test' }),
+        {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    baseURL: 'https://gateway.example/v1',
+                    requestAuth: {
+                        fetch: async (input) => {
+                            url =
+                                typeof input === 'string'
+                                    ? input
+                                    : input instanceof URL
+                                      ? input.href
+                                      : input.url;
+                            return {
+                                response: new Response('error', { status: 401 }),
+                                provenance: null,
+                            };
+                        },
+                        isRetryableResponse: async () => true,
+                    },
+                }),
+            },
+        }
+    );
+    await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toMatchObject({
+        statusCode: 401,
+    });
+    expect(url).toMatch(/^https:\/\/gateway\.example\/v1\//);
+});
