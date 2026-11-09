@@ -5,7 +5,7 @@
  */
 
 import * as path from 'path';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync } from 'fs';
 import { execFileSync, execSync } from 'child_process';
 import {
     getMarketplacesDir,
@@ -341,13 +341,21 @@ export function listMarketplaces(): MarketplaceEntry[] {
 }
 
 /**
- * Scan a marketplace directory for plugins
+ * True when `target` really lives inside `directory`, after following every symlink on both
+ * paths. A missing path counts as not inside.
  */
-function isInsideDirectory(directory: string, target: string): boolean {
-    const relative = path.relative(path.resolve(directory), target);
-    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+function isRealPathInside(directory: string, target: string): boolean {
+    try {
+        const relative = path.relative(realpathSync(directory), realpathSync(target));
+        return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+    } catch {
+        return false;
+    }
 }
 
+/**
+ * Scan a marketplace directory for plugins
+ */
 export function scanMarketplacePlugins(
     marketplacePath: string,
     marketplaceName: string
@@ -367,11 +375,12 @@ export function scanMarketplacePlugins(
                 if (manifest.plugins && manifest.plugins.length > 0) {
                     for (const plugin of manifest.plugins) {
                         const pluginPath = path.resolve(marketplacePath, plugin.source);
-                        if (!isInsideDirectory(marketplacePath, pluginPath)) {
-                            // A manifest cannot point a plugin at files outside its own repo.
-                            continue;
-                        }
-                        if (existsSync(pluginPath)) {
+                        // A manifest cannot point a plugin at files outside its own repo, by path
+                        // or through a symlink.
+                        if (
+                            existsSync(pluginPath) &&
+                            isRealPathInside(marketplacePath, pluginPath)
+                        ) {
                             plugins.push({
                                 name: plugin.name,
                                 ...(plugin.description !== undefined && {

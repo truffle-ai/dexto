@@ -18,6 +18,7 @@ vi.mock('fs', async () => {
         readdirSync: vi.fn(),
         rmSync: vi.fn(),
         statSync: vi.fn(),
+        realpathSync: vi.fn((target: string) => target),
     };
 });
 
