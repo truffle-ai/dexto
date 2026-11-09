@@ -141,6 +141,41 @@ describe('planToolOutputSpills', () => {
         expect(preview).toContain('instead of re-running the tool.]');
     });
 
+    it('renders every planned preview within its planned length', () => {
+        const results = [
+            { toolCallId: 'a'.repeat(300), textLength: 10_000 },
+            { toolCallId: 'short', textLength: 10_000 },
+        ];
+        const plan = planToolOutputSpills(results, { inlineCapChars: 1_000, stepBudgetChars: 500 });
+        for (const item of results) {
+            const planned = plan.get(item.toolCallId);
+            expect(planned).toBeDefined();
+            if (planned === undefined) throw new Error('Expected a planned preview');
+            const text = 'x'.repeat(item.textLength);
+            const rendered = toolResultText(
+                withToolOutputPreview(
+                    result(item.toolCallId, [{ type: 'text', text }]),
+                    text,
+                    planned
+                )
+            );
+            expect(rendered.length).toBeLessThanOrEqual(planned);
+        }
+    });
+
+    it('trims only the remaining overshoot from the largest inline result', () => {
+        const plan = planToolOutputSpills(
+            [
+                { toolCallId: 'small', textLength: 800 },
+                { toolCallId: 'large', textLength: 1_000 },
+                { toolCallId: 'medium', textLength: 900 },
+            ],
+            { inlineCapChars: 2_000, stepBudgetChars: 2_600 }
+        );
+
+        expect(plan).toEqual(new Map([['large', 900]]));
+    });
+
     it('prefers the largest result, earlier calls first on ties, for the step budget', () => {
         const plan = planToolOutputSpills(
             [
