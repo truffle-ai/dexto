@@ -347,6 +347,47 @@ describe('edit_file tool', () => {
             );
         });
 
+        it('checks the size before reading when previewing and editing', async () => {
+            const readText = vi.fn(async () => 'x'.repeat(11));
+            const readFileSize = vi.fn(async () => 11);
+            const writeFile = vi.fn(async () => undefined);
+            const services = {
+                ...createWorkspaceServices(tempDir),
+                workspaceManager: {
+                    open: async () => ({
+                        context: { id: 'w', path: tempDir, createdAt: 1, lastActiveAt: 1 },
+                        capabilities: ['files' as const],
+                        files: {
+                            readFile: readText,
+                            readText,
+                            readFileSize,
+                            glob: vi.fn(async () => []),
+                            writeFile,
+                            listFiles: vi.fn(async () => []),
+                        },
+                    }),
+                } as unknown as ToolServices['workspaceManager'],
+            };
+            const tool = createEditFileTool(vi.fn(), allowAllPaths, 10);
+            const input = tool.inputSchema.parse({
+                file_path: 'big.txt',
+                old_string: 'x',
+                new_string: 'y',
+                replace_all: true,
+            });
+
+            await expect(
+                tool.presentation!.preview!(input, createToolContext(mockLogger, { services }))
+            ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+            await expect(
+                tool.execute(input, createToolContext(mockLogger, { services }))
+            ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
+
+            expect(readFileSize).toHaveBeenCalledTimes(2);
+            expect(readText).not.toHaveBeenCalled();
+            expect(writeFile).not.toHaveBeenCalled();
+        });
+
         it.each([
             ['$&', 'cost $& now'],
             ['$1', 'cost $1 now'],

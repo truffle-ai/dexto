@@ -19,7 +19,7 @@ import {
 import { DextoRuntimeError } from '@dexto/core/errors';
 import type { DiffDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
-import { assertWithinMaxFileSize } from './file-size.js';
+import { readTextWithinMaxFileSize } from './file-size.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
 import { toWorkspaceRelativePath } from './workspace-paths.js';
 
@@ -146,8 +146,11 @@ export function createEditFileTool(
                         workspacePath,
                         context.logger
                     );
-                    const originalContent = await handle.files.readText(workspacePath);
-                    assertWithinMaxFileSize(workspacePath, originalContent, maxFileSize);
+                    const originalContent = await readTextWithinMaxFileSize(
+                        handle.files,
+                        workspacePath,
+                        maxFileSize
+                    );
 
                     // Store content hash for change detection in execute phase
                     if (context.toolCallId) {
@@ -228,8 +231,11 @@ export function createEditFileTool(
 
             // Check if file was modified since preview (safety check)
             // This prevents corrupting user edits made between preview approval and execution
-            let currentContent = await handle.files.readText(workspacePath);
-            assertWithinMaxFileSize(workspacePath, currentContent, maxFileSize);
+            let currentContent = await readTextWithinMaxFileSize(
+                handle.files,
+                workspacePath,
+                maxFileSize
+            );
             const toolCallId = context.toolCallId;
             if (toolCallId) {
                 const expectedHash = previewContentHashCache.get(toolCallId);
@@ -241,7 +247,11 @@ export function createEditFileTool(
 
                     // Read current content to verify it hasn't changed
                     try {
-                        currentContent = await handle.files.readText(workspacePath);
+                        currentContent = await readTextWithinMaxFileSize(
+                            handle.files,
+                            workspacePath,
+                            maxFileSize
+                        );
                     } catch {
                         // File was deleted between preview and execute - treat as modified
                         throw ToolError.fileModifiedSincePreview('edit_file', file_path);

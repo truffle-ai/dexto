@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'glob';
 import { WorkspaceError } from '@dexto/core/workspace';
@@ -46,6 +46,18 @@ class LocalWorkspaceFiles {
     readText = async (filePath: string): Promise<string> => {
         try {
             return await readFile(await this.resolveInsideRoot(filePath), 'utf-8');
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                throw WorkspaceError.fileNotFound(filePath);
+            }
+            throw error;
+        }
+    };
+
+    /** Size in bytes, from the same contained real path `readText` would read. */
+    readFileSize = async (filePath: string): Promise<number> => {
+        try {
+            return (await stat(await this.resolveInsideRoot(filePath))).size;
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 throw WorkspaceError.fileNotFound(filePath);

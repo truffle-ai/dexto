@@ -84,13 +84,16 @@ export function createGlobFilesTool(
             }
             const handle = await context.services.workspaceManager.open({ intent: 'read' });
             const workspacePattern = joinWorkspacePattern(handle.context.path, searchPath, pattern);
-            const matches: string[] = [];
+            // Check blocked paths lazily, one match past the cap, so a large result is not
+            // checked in full: the extra match shows whether the result was cut off.
+            const allowedMatches: string[] = [];
             for (const match of await handle.files.glob(workspacePattern)) {
+                if (allowedMatches.length > max_results) break;
                 const blocked = await blockedPathCheck(handle.context.path, match, context.logger);
-                if (blocked === null) matches.push(match);
+                if (blocked === null) allowedMatches.push(match);
             }
-            const limitedMatches = matches.slice(0, max_results);
-            const truncated = matches.length > max_results;
+            const limitedMatches = allowedMatches.slice(0, max_results);
+            const truncated = allowedMatches.length > max_results;
 
             // Build display data (reuse SearchDisplayData for file list)
             const _display: SearchDisplayData = {

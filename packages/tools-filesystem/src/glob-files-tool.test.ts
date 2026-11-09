@@ -202,4 +202,34 @@ describe('glob_files tool', () => {
         expect(result.files).toEqual([{ path: 'src/a.ts' }]);
         expect(result.total_found).toBe(1);
     });
+
+    it('checks only the entries it returns, stopping at the result cap', async () => {
+        const files = ['.env', ...Array.from({ length: 50 }, (_, index) => `src/f${index}.ts`)];
+        const glob = vi.fn(async () => files);
+        const check = vi.fn(blockedPathCheck);
+        const tool = createGlobFilesTool(vi.fn(), check);
+
+        const result = (await tool.execute(
+            tool.inputSchema.parse({ pattern: '**/*', max_results: 2 }),
+            createToolContext(createMockLogger(), glob)
+        )) as { files: Array<{ path: string }>; truncated: boolean };
+
+        expect(result.files).toEqual([{ path: 'src/f0.ts' }, { path: 'src/f1.ts' }]);
+        expect(result.truncated).toBe(true);
+        // The blocked entry, the two returned and one more to know the result is cut off.
+        expect(check).toHaveBeenCalledTimes(4);
+    });
+
+    it('does not report truncation when exactly max_results files are left', async () => {
+        const glob = vi.fn(async () => ['.env', 'src/a.ts', 'src/b.ts']);
+        const tool = createGlobFilesTool(vi.fn(), blockedPathCheck);
+
+        const result = (await tool.execute(
+            tool.inputSchema.parse({ pattern: '**/*', max_results: 2 }),
+            createToolContext(createMockLogger(), glob)
+        )) as { files: Array<{ path: string }>; truncated: boolean };
+
+        expect(result.files).toHaveLength(2);
+        expect(result.truncated).toBe(false);
+    });
 });

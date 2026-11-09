@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -118,6 +118,23 @@ describe('LocalWorkspaceHandleProvider', () => {
         await expect(skills.readFile('local', 'references/guide.md')).resolves.toBe(
             'Local guide.\n'
         );
+    });
+
+    it('reports a file size without reading it, inside the workspace only', async () => {
+        const provider = new LocalWorkspaceHandleProvider();
+        const handle = await provider.open({ context: context(), input: { intent: 'read' } });
+        const outsideFile = path.join(path.dirname(workspaceRoot), 'outside-sized.txt');
+        await writeFile(path.join(workspaceRoot, 'sized.txt'), 'héllo');
+        await writeFile(outsideFile, 'x');
+        await symlink(outsideFile, path.join(workspaceRoot, 'link.txt'));
+
+        try {
+            await expect(handle.files.readFileSize?.('sized.txt')).resolves.toBe(6);
+            await expect(handle.files.readFileSize?.('missing.txt')).rejects.toThrow();
+            await expect(handle.files.readFileSize?.('link.txt')).rejects.toThrow();
+        } finally {
+            await rm(outsideFile, { force: true });
+        }
     });
 
     it('advertises process capability only when requested', async () => {
