@@ -6,8 +6,9 @@ import { isIP } from 'node:net';
  * credentials. Tools that fetch a URL chosen by a model or a caller must never reach them.
  *
  * Blocked: link-local addresses (169.254.0.0/16 and fe80::/10, which include the AWS, Azure and
- * GCP metadata address), the AWS IPv6 metadata address, the Alibaba Cloud metadata address and
- * the well-known metadata host names. Loopback and other private addresses are not blocked here.
+ * GCP metadata address), the AWS (fd00:ec2::254) and GCP (fd20:ce::254) IPv6 metadata addresses,
+ * the Alibaba Cloud (100.100.100.200), Oracle Cloud (192.0.0.192) and Azure WireServer
+ * (168.63.129.16) addresses, and the well-known metadata host names. Loopback and other private addresses are not blocked here.
  */
 const METADATA_HOSTNAMES = new Set([
     'metadata.google.internal',
@@ -23,8 +24,10 @@ async function resolveAllAddresses(hostname: string): Promise<string[]> {
     return records.map((record) => record.address);
 }
 
+const METADATA_IPV4 = ['100.100.100.200', '192.0.0.192', '168.63.129.16'];
+
 function isMetadataIpv4(a: number, b: number, c: number, d: number): boolean {
-    return (a === 169 && b === 254) || (a === 100 && b === 100 && c === 100 && d === 200);
+    return (a === 169 && b === 254) || METADATA_IPV4.includes(`${a}.${b}.${c}.${d}`);
 }
 
 /** Expand a compressed IPv6 address (as printed by the URL parser) into eight 16-bit groups. */
@@ -44,8 +47,10 @@ function isMetadataIpv6(address: string): boolean {
     const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] = g;
 
     if ((g0 & 0xffc0) === 0xfe80) return true; // fe80::/10
-    if (g0 === 0xfd00 && g1 === 0x0ec2 && g2 + g3 + g4 + g5 + g6 === 0 && g7 === 0x0254) {
-        return true; // AWS IPv6 metadata address
+    const isMetadataUniqueLocal =
+        (g0 === 0xfd00 && g1 === 0x0ec2) || (g0 === 0xfd20 && g1 === 0x00ce);
+    if (isMetadataUniqueLocal && g2 + g3 + g4 + g5 + g6 === 0 && g7 === 0x0254) {
+        return true; // AWS fd00:ec2::254 and GCP fd20:ce::254 IPv6 metadata addresses
     }
 
     const v4 = (high: number, low: number) =>
