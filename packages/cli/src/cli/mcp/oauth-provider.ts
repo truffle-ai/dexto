@@ -9,7 +9,7 @@ import { createMcpCallbackServer } from './oauth-server.js';
 import { openAuthUrl } from './oauth-ui.js';
 
 export type McpOAuthClientConfig = {
-    serverId: string;
+    serverUrl: string;
     redirectUrl: string;
     clientMetadata: OAuthClientMetadata;
     clientMetadataUrl?: string | undefined;
@@ -27,23 +27,23 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             return config.clientMetadata;
         },
         async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.serverUrl);
             return store.clientInformation;
         },
         async saveClientInformation(clientInformation: OAuthClientInformationMixed) {
-            const store = await loadMcpAuthStore(config.serverId);
-            await saveMcpAuthStore(config.serverId, {
+            const store = await loadMcpAuthStore(config.serverUrl);
+            await saveMcpAuthStore(config.serverUrl, {
                 ...store,
                 clientInformation,
             });
         },
         async tokens(): Promise<OAuthTokens | undefined> {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.serverUrl);
             return store.tokens;
         },
         async saveTokens(tokens: OAuthTokens) {
-            const store = await loadMcpAuthStore(config.serverId);
-            await saveMcpAuthStore(config.serverId, {
+            const store = await loadMcpAuthStore(config.serverUrl);
+            await saveMcpAuthStore(config.serverUrl, {
                 ...store,
                 tokens,
             });
@@ -52,14 +52,14 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             await openAuthUrl(authorizationUrl.toString());
         },
         async saveCodeVerifier(codeVerifier: string) {
-            const store = await loadMcpAuthStore(config.serverId);
-            await saveMcpAuthStore(config.serverId, {
+            const store = await loadMcpAuthStore(config.serverUrl);
+            await saveMcpAuthStore(config.serverUrl, {
                 ...store,
                 codeVerifier,
             });
         },
         async codeVerifier(): Promise<string> {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.serverUrl);
             if (!store.codeVerifier) {
                 throw new Error('No code verifier saved');
             }
@@ -74,7 +74,7 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             return result;
         },
         async invalidateCredentials(scope) {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.serverUrl);
             const updated = { ...store };
 
             authorizationCode = undefined;
@@ -89,7 +89,7 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
                 updated.codeVerifier = undefined;
             }
 
-            await saveMcpAuthStore(config.serverId, updated);
+            await saveMcpAuthStore(config.serverUrl, updated);
         },
     } satisfies McpAuthProvider;
 }
