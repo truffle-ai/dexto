@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { redactSensitiveData as redact } from './redactor.js';
+import { redactSensitiveData as redact, redactLogData, redactLogText } from './redactor.js';
 
 // Realistic signature shapes: a SigV4 signature is 64 hex characters, a SigV2 one base64.
 const sigV4Hex = 'a1'.repeat(32);
@@ -408,5 +408,213 @@ describe('redact', () => {
             const redacted = redact(arr);
             expect(redacted).toEqual([1, [2, '[REDACTED_CIRCULAR]']]);
         });
+    });
+});
+
+describe('redact: extra secret field names in API responses', () => {
+    test('masks authorization, cookie, x-api-key and client_secret', () => {
+        expect(
+            redact({
+                Authorization: 'Bearer abc',
+                cookie: 'sid=1',
+                'X-Api-Key': 'k',
+                client_secret: 's',
+            })
+        ).toEqual({
+            Authorization: '[REDACTED]',
+            cookie: '[REDACTED]',
+            'X-Api-Key': '[REDACTED]',
+            client_secret: '[REDACTED]',
+        });
+    });
+
+    test('leaves response fields that only look like secrets alone', () => {
+        const page = { nextPageToken: 'page-2', posthogKey: 'phc_public', maxInputTokens: 100 };
+        expect(redact(page)).toEqual(page);
+    });
+});
+
+describe('redactLogText', () => {
+    test('masks an unquoted value and keeps the rest of the line', () => {
+        expect(redactLogText('connect apiKey=abc123def other=1')).toBe(
+            'connect apiKey=[REDACTED] other=1'
+        );
+        expect(redactLogText('password: hunter2')).toBe('password: [REDACTED]');
+    });
+
+    test('masks double-quoted, single-quoted and JSON-escaped values', () => {
+        expect(redactLogText('{"apiKey":"abc 123"}')).toBe('{"apiKey":"[REDACTED]"}');
+        expect(redactLogText("{'password': 'abc 123'}")).toBe("{'password': '[REDACTED]'}");
+        expect(redactLogText('{\\"token\\":\\"abc 123\\"}')).toBe('{\\"token\\":\\"[REDACTED]\\"}');
+    });
+
+    test('masks a value that stops at a query separator', () => {
+        expect(redactLogText('GET /cb?token=abc123&state=ok')).toBe(
+            'GET /cb?token=[REDACTED]&state=ok'
+        );
+    });
+
+    test('masks secret-named keys of any shape', () => {
+        for (const line of [
+            'client_secret=abc',
+            'CLIENT-SECRET: abc',
+            'accessToken: abc',
+            'DB_PASSWORD=abc',
+            'X-Api-Key: abc',
+            'api key: abc',
+            'privateKey=abc',
+        ]) {
+            expect(redactLogText(line), line).toContain('[REDACTED]');
+            expect(redactLogText(line), line).not.toContain('abc');
+        }
+    });
+
+    test('masks the whole authorization and cookie header lines', () => {
+        expect(redactLogText('Authorization: Basic dXNlcjpwYXNz')).toBe(
+            'Authorization: [REDACTED]'
+        );
+        expect(redactLogText('Proxy-Authorization: Digest user="a", nonce="b"')).toBe(
+            'Proxy-Authorization: [REDACTED]'
+        );
+        expect(redactLogText('Cookie: sid=abc; theme=dark\nnext line')).toBe(
+            'Cookie: [REDACTED]\nnext line'
+        );
+        expect(redactLogText('Set-Cookie: sid=abc; HttpOnly')).toBe('Set-Cookie: [REDACTED]');
+        expect(redactLogText('{"Authorization":"Basic dXNlcjpwYXNz"}')).toBe(
+            '{"Authorization":"[REDACTED]"}'
+        );
+    });
+
+    test('masks every value in an env or headers map and keeps the names', () => {
+        expect(redactLogText('{"env":{"DB_URL":"postgres://x","REGION":"eu"}}')).toBe(
+            '{"env":{"DB_URL":"[REDACTED]","REGION":"[REDACTED]"}}'
+        );
+        expect(redactLogText('headers: { X-Custom: abc, Other: "d e" }')).toBe(
+            'headers: { X-Custom: [REDACTED], Other: "[REDACTED]" }'
+        );
+    });
+
+    test('leaves ordinary text, numbers and look-alike names alone', () => {
+        for (const line of [
+            'maxTokens: 4096',
+            'tokenCount=12',
+            'name=alice',
+            'keyword: search',
+            'keyboard=us',
+            'author: bob',
+            'Started agent in 120ms',
+        ]) {
+            expect(redactLogText(line), line).toBe(line);
+        }
+    });
+
+    test('is idempotent', () => {
+        const once = redactLogText('apiKey=abc Authorization: Bearer x {"env":{"A":"b"}}');
+        expect(redactLogText(once)).toBe(once);
+    });
+
+    test('masks the rest of the line for a quote that never closes', () => {
+        expect(redactLogText('secret="abc def')).toBe('secret=[REDACTED]');
+    });
+
+    test('scans long input in linear time', () => {
+        const hostile = [
+            'token="'.repeat(20000),
+            'headers={'.repeat(20000),
+            `a${'x'.repeat(100000)}=1`,
+            `apiKey=\\"${'a '.repeat(50000)}`,
+        ];
+        for (const input of hostile) {
+            const start = Date.now();
+            redactLogText(input);
+            expect(Date.now() - start).toBeLessThan(1500);
+        }
+    });
+});
+
+describe('redactLogData', () => {
+    test('masks header and env maps whatever the entry names are', () => {
+        expect(
+            redactLogData({
+                headers: { 'X-Custom-Auth': 'abc', Accept: 'json' },
+                mcpServers: { s: { env: { DB_URL: 'postgres://x' } } },
+            })
+        ).toEqual({
+            headers: { 'X-Custom-Auth': '[REDACTED]', Accept: '[REDACTED]' },
+            mcpServers: { s: { env: { DB_URL: '[REDACTED]' } } },
+        });
+    });
+
+    test('masks authorization, cookie and x-api-key keys', () => {
+        expect(
+            redactLogData({ Authorization: 'Bearer abc', Cookie: 'sid=1', 'x-api-key': 'k' })
+        ).toEqual({
+            Authorization: '[REDACTED]',
+            Cookie: '[REDACTED]',
+            'x-api-key': '[REDACTED]',
+        });
+    });
+
+    test('masks keys that contain secret, token, password or key as a word', () => {
+        expect(
+            redactLogData({
+                client_secret: 'a',
+                clientSecret: 'a',
+                accessToken: 'a',
+                'refresh-token': 'a',
+                dbPassword: 'a',
+                signingKey: 'a',
+                key: 'a',
+                apiKeys: { openai: 'a' },
+                secrets: ['a', 'b'],
+            })
+        ).toEqual({
+            client_secret: '[REDACTED]',
+            clientSecret: '[REDACTED]',
+            accessToken: '[REDACTED]',
+            'refresh-token': '[REDACTED]',
+            dbPassword: '[REDACTED]',
+            signingKey: '[REDACTED]',
+            key: '[REDACTED]',
+            apiKeys: { openai: '[REDACTED]' },
+            secrets: ['[REDACTED]', '[REDACTED]'],
+        });
+    });
+
+    test('keeps numbers and booleans under secret-looking names', () => {
+        const data = { maxTokens: 4096, inputTokens: 12, hasApiKey: true, tokenLimit: 5 };
+        expect(redactLogData(data)).toEqual(data);
+    });
+
+    test('keeps names that only contain "key" inside another word', () => {
+        const data = { keyword: 'search', keyboard: 'us', monkey: 'see', author: 'bob' };
+        expect(redactLogData(data)).toEqual(data);
+    });
+
+    test('masks secrets written into a string value', () => {
+        expect(redactLogData({ detail: 'failed with apiKey=abc and Bearer xyz123' })).toEqual({
+            detail: 'failed with apiKey=[REDACTED] and [REDACTED]',
+        });
+    });
+
+    test('keeps an error readable and masks its message and stack', () => {
+        const error = new Error('bad token=abc123');
+        const redacted = redactLogData({ error });
+        expect(redacted).toMatchObject({
+            error: { name: 'Error', message: 'bad token=[REDACTED]' },
+        });
+        expect(JSON.stringify(redacted)).not.toContain('abc123');
+    });
+
+    test('survives a cyclic error cause', () => {
+        const error = new Error('loop');
+        error.cause = error;
+        expect(JSON.stringify(redactLogData(error))).toContain('[REDACTED_CIRCULAR]');
+    });
+
+    test('does not change the input', () => {
+        const data = { headers: { A: 'b' } };
+        redactLogData(data);
+        expect(data).toEqual({ headers: { A: 'b' } });
     });
 });

@@ -66,6 +66,7 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 import * as fs from 'fs';
 import * as path from 'path';
+import { redactLogData } from '../utils/redactor.js';
 
 // Winston logger configuration
 const logLevels = {
@@ -128,16 +129,12 @@ const consoleFormat = winston.format.printf(({ level, message, timestamp, color 
  * On by default, we can set the environment variable REDACT_SECRETS to false to disable this behavior.
  */
 const SHOULD_REDACT = process.env.REDACT_SECRETS !== 'false';
-const SENSITIVE_KEYS = ['apiKey', 'password', 'secret', 'token'];
-const MASK_REGEX = new RegExp(
-    `(${SENSITIVE_KEYS.join('|')})(["']?\\s*[:=]\\s*)(["'])?.*?\\3`,
-    'gi'
-);
+// Winston keeps the message and the logged metadata as properties of the same entry; "level" and
+// "timestamp" are its own. Everything else goes through the same redactor as the DextoLogger.
 const maskFormat = winston.format((info) => {
-    if (SHOULD_REDACT && typeof info.message === 'string') {
-        info.message = info.message.replace(MASK_REGEX, '$1$2$3[REDACTED]$3');
-    }
-    return info;
+    if (!SHOULD_REDACT) return info;
+    const { level: _level, timestamp: _timestamp, ...entry } = info;
+    return Object.assign(info, redactLogData(entry));
 });
 
 export interface GlobalLoggerOptions {
