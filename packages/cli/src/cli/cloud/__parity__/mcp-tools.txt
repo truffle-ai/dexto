@@ -6991,7 +6991,7 @@
             "maxLength": 1000
           },
           "timeoutSeconds": {
-            "default": 20,
+            "default": 25,
             "type": "integer",
             "minimum": 0,
             "maximum": 25
