@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
+import { isMetadataHost } from '@dexto/core';
 import { isPrivateAddress } from '@dexto/core/llm';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
 import {
@@ -75,6 +76,15 @@ type LookupCallback =
     | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
     | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
 
+function metadataHostError(hostname: string): DextoRuntimeError {
+    return new DextoRuntimeError(
+        'HTTP_REQUEST_UNSAFE_TARGET',
+        ErrorScope.TOOLS,
+        ErrorType.FORBIDDEN,
+        `Blocked request to cloud metadata host: ${hostname}`
+    );
+}
+
 export function createSafeLookup(config?: {
     dnsLookup?: typeof dns.lookup;
 }): (hostname: string, options: LookupOptions, callback: LookupCallback) => void {
@@ -121,6 +131,11 @@ export function createSafeLookup(config?: {
                             )
                         )
                     );
+                    return;
+                }
+
+                if (isMetadataHost(hostname)) {
+                    emitError(toErrnoException(metadataHostError(hostname)));
                     return;
                 }
 
@@ -249,6 +264,10 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
             ErrorType.FORBIDDEN,
             `Blocked request to local hostname: ${hostname}`
         );
+    }
+
+    if (isMetadataHost(hostname)) {
+        throw metadataHostError(hostname);
     }
 
     if (isPrivateAddress(hostname)) {

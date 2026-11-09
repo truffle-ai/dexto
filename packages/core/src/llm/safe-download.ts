@@ -2,6 +2,7 @@ import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dn
 import http, { type IncomingMessage } from 'node:http';
 import https from 'node:https';
 import { DownloadError, type Experimental_DownloadFunction as DownloadFunction } from 'ai';
+import { isMetadataHost } from '../utils/metadata-address.js';
 import { isPrivateAddress } from './private-address.js';
 
 const MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024;
@@ -119,6 +120,12 @@ export function createSafeDownload(options: SafeDownloadOptions = {}): DownloadF
                 throw new DownloadError({
                     url: url.toString(),
                     message: `URL scheme must be http or https, got ${url.protocol}`,
+                });
+            }
+            if (isMetadataHost(url.hostname)) {
+                throw new DownloadError({
+                    url: url.toString(),
+                    message: `Download from cloud metadata host ${url.hostname} is blocked`,
                 });
             }
             // An IP literal is connected to without a lookup, so it is checked here.

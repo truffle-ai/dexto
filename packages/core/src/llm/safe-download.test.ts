@@ -19,6 +19,9 @@ beforeEach(async () => {
         } else if (request.url === '/to-internal') {
             response.writeHead(302, { location: `http://internal.example:${port}/secret` });
             response.end();
+        } else if (request.url === '/to-metadata') {
+            response.writeHead(302, { location: `http://metadata.google.internal:${port}/token` });
+            response.end();
         } else if (request.url === '/loop') {
             response.writeHead(302, { location: '/loop' });
             response.end();
@@ -109,6 +112,33 @@ describe('createSafeDownload', () => {
             /private address 10\.0\.0\.5/
         );
         expect(hits).toEqual(['/to-internal']);
+    });
+
+    it.each([
+        'metadata.google.internal',
+        'METADATA.GOOG',
+        'instance-data.',
+        'instance-data.ec2.internal',
+        '169.254.169.254',
+    ])('refuses the cloud metadata host %s without resolving it', async (host) => {
+        const dnsLookup = vi.fn().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+        const download = createSafeDownload({ dnsLookup, isBlockedAddress: () => false });
+
+        await expect(download(request(`http://${host}:${port}/token`))).rejects.toThrow(
+            /cloud metadata host/
+        );
+        expect(dnsLookup).not.toHaveBeenCalled();
+        expect(hits).toEqual([]);
+    });
+
+    it('refuses a redirect to a metadata host name', async () => {
+        const dnsLookup = vi.fn().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+        const download = createSafeDownload({ dnsLookup, isBlockedAddress: () => false });
+
+        await expect(download(request(`http://files.example:${port}/to-metadata`))).rejects.toThrow(
+            /cloud metadata host/
+        );
+        expect(hits).toEqual(['/to-metadata']);
     });
 
     it('stops redirect loops', async () => {
