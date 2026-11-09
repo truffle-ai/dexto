@@ -254,6 +254,9 @@ export async function createVercelModel(
     const apiKey = runtimeAuth?.apiKey || llmConfig.apiKey || resolvedProviderApiKey;
     const runtimeBaseURL = runtimeAuth?.baseURL;
     const runtimeHeaders = runtimeAuth?.headers;
+    if (runtimeBaseURL !== undefined && !runtimeBaseURL.trim()) {
+        throw LLMError.invalidRuntimeBaseURL(provider);
+    }
     const requestAuth = runtimeAuth?.requestAuth;
     if (requestAuth && runtimeAuth?.fetch) {
         throw LLMError.runtimeAuthConflict(provider);
@@ -316,6 +319,23 @@ export async function createVercelModel(
     const effectiveBaseURL =
         runtimeBaseURL?.trim().replace(/\/$/, '') || baseURL?.trim().replace(/\/$/, '');
     const usesCodexRuntimeAuth = runtimeBaseURL ? isCodexBaseURL(runtimeBaseURL) : false;
+
+    // Codex's own URL selects its app-server transport; other gateway overrides cannot reach it.
+    if (
+        (provider === 'bedrock' || provider === 'local') &&
+        (runtimeBaseURL !== undefined ||
+            runtimeHeaders !== undefined ||
+            runtimeAuth?.fetch ||
+            requestAuth)
+    ) {
+        throw LLMError.runtimeAuthUnsupported(provider);
+    }
+    if (
+        usesCodexRuntimeAuth &&
+        (runtimeHeaders !== undefined || runtimeAuth?.fetch || requestAuth)
+    ) {
+        throw LLMError.runtimeAuthUnsupported(provider);
+    }
 
     logRuntimeAuthResolution({
         context,

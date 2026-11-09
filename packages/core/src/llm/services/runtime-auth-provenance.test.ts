@@ -1,5 +1,5 @@
 import { APICallError, generateText } from 'ai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LLMConfigSchema } from '../schemas.js';
 import { createVercelModel } from './factory.js';
 
@@ -297,6 +297,41 @@ describe('request auth cancellation and bounds', () => {
             responseBody: '\0'.repeat(65536),
         });
     }, 2000);
+    it('passes the request signal to the classifier and removes abort listeners', async () => {
+        const controller = new globalThis.AbortController();
+        let requestSignal: AbortSignal | null | undefined;
+        let classifierSignal: AbortSignal | null | undefined;
+        let remove: ReturnType<typeof vi.spyOn> | undefined;
+        const model = await createVercelModel(config, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    requestAuth: {
+                        fetch: async (_input, init) => {
+                            requestSignal = init?.signal;
+                            if (requestSignal)
+                                remove = vi.spyOn(requestSignal, 'removeEventListener');
+                            return {
+                                response: new Response('error', { status: 401 }),
+                                provenance: null,
+                            };
+                        },
+                        isRetryableResponse: async ({ signal }) => {
+                            classifierSignal = signal;
+                            return true;
+                        },
+                    },
+                }),
+            },
+        });
+        await expect(
+            generateText({ model, prompt: 'hi', maxRetries: 0, abortSignal: controller.signal })
+        ).rejects.toMatchObject({ isRetryable: true });
+        expect(requestSignal).toBeDefined();
+        expect(classifierSignal).toBe(requestSignal);
+        expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+        expect(remove).toHaveBeenCalledTimes(2);
+        remove?.mockRestore();
+    });
     it('aborts a pending classifier', async () => {
         const controller = new globalThis.AbortController();
         let classifyStarted = () => {};

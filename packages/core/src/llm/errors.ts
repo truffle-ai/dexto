@@ -34,6 +34,26 @@ export class LLMError {
         );
     }
 
+    static runtimeAuthUnsupported(provider: LLMProvider) {
+        return new DextoRuntimeError(
+            LLMErrorCode.RUNTIME_AUTH_UNSUPPORTED,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `Provider '${provider}' cannot use these runtime gateway overrides`,
+            { provider }
+        );
+    }
+
+    static invalidRuntimeBaseURL(provider: LLMProvider) {
+        return new DextoRuntimeError(
+            LLMErrorCode.BASE_URL_INVALID,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `Runtime baseURL for '${provider}' cannot be blank`,
+            { provider }
+        );
+    }
+
     static runtimeAuthConflict(provider: LLMProvider) {
         return new DextoRuntimeError(
             LLMErrorCode.RUNTIME_AUTH_CONFLICT,
