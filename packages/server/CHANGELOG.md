@@ -1,5 +1,106 @@
 # @dexto/server
 
+## 1.17.0
+
+### Minor Changes
+
+- 4bbddb0: **Upgrade note: `dexto --mode server` and `--mode web` now listen on 127.0.0.1 only.** If other hosts or containers reach your server, bind it to a network host with a key after upgrading. Replace `<key>` with a strong secret in these examples.
+
+    ```bash
+    DEXTO_SERVER_API_KEY='<key>' dexto --mode server --host 0.0.0.0
+
+    # Or configure the bind address through the environment:
+    DEXTO_SERVER_HOST=0.0.0.0 DEXTO_SERVER_API_KEY='<key>' dexto --mode server
+
+    # The image binds to 0.0.0.0 and needs a key to start:
+    docker run -e DEXTO_SERVER_API_KEY='<key>' -p 3001:3001 dexto
+    ```
+
+    For an embedded server, set `DEXTO_SERVER_API_KEY` in its environment and pass a hostname:
+
+    ```ts
+    await startDextoServer(agent, { hostname: '0.0.0.0' });
+    ```
+
+    Clients must send `Authorization: Bearer <key>`. The bundled Web UI does not send a key, so leave `DEXTO_SERVER_API_KEY` unset when using it locally. See the [deployment guide](https://cli.dexto.ai/docs/guides/deployment).
+
+    The web/server API now binds to `127.0.0.1` by default and enforces bearer auth whenever `DEXTO_SERVER_API_KEY` is set.
+
+    Behavior changes:
+    - `dexto --mode web` / `--mode server`, `startDextoServer`, and `createNodeServer` listen on `127.0.0.1` unless a host is given (`--host`, `DEXTO_SERVER_HOST`, or the `hostname` option). Previously they listened on `0.0.0.0`.
+    - Listening on any non-loopback host (including `0.0.0.0` and `localhost`) requires `DEXTO_SERVER_API_KEY`; startup fails without it. Apps created with `disableAuth: true` are exempt.
+    - When `DEXTO_SERVER_API_KEY` is set, every protected request needs `Authorization: Bearer <key>`, also outside production. The bundled Web UI does not send a key, so leave it unset to use the Web UI locally.
+    - Code that embeds the server with `startDextoServer` or `createNodeServer` and expects other hosts (containers, PaaS) to reach it must now pass `hostname: '0.0.0.0'` (or set `DEXTO_SERVER_HOST`) and set `DEXTO_SERVER_API_KEY`; without a hostname it listens on loopback only.
+    - The Docker image sets `DEXTO_SERVER_HOST=0.0.0.0`, so it now requires `DEXTO_SERVER_API_KEY` to start.
+
+- 27c0032: **Upgrade note: the local API server now checks Origin and Host.** Frontends on another port, scripts sending simple POST requests, and unauthenticated clients using a non-loopback Host may need configuration after upgrading.
+
+    For a frontend at another origin, allow its exact origin when starting the server:
+
+    ```bash
+    DEXTO_ALLOWED_ORIGINS=http://localhost:5173 dexto --mode server
+    ```
+
+    For a POST with no body or `text/plain`, add the request header:
+
+    ```bash
+    curl -X POST -H 'X-Dexto-Request: 1' http://localhost:3001/api/message
+    ```
+
+    For an unauthenticated server accessed using a non-loopback Host name, allow that name:
+
+    ```bash
+    DEXTO_ALLOWED_HOSTS=myhost dexto --mode server
+    ```
+
+    Validate Origin and Host on the local API server and require a non-simple header on state-changing requests.
+
+    Behavior changes:
+    - Browser origins are trusted per origin, not per host: only the server's own origin (the `Origin` host and port match the request `Host`) and origins listed in `DEXTO_ALLOWED_ORIGINS` are accepted. Pages on other `localhost`/`127.0.0.1`/`[::1]` ports are no longer trusted, and CORS headers are sent only for `DEXTO_ALLOWED_ORIGINS`. A frontend on another port must be added to `DEXTO_ALLOWED_ORIGINS`.
+    - Any request with an untrusted `Origin` (or `Origin: null`) is rejected with `403`. `POST`/`PUT`/`PATCH`/`DELETE` requests are also rejected when `Sec-Fetch-Site` is `same-site` or `cross-site` from an origin not in `DEXTO_ALLOWED_ORIGINS`, or when they send none of `Authorization`, `X-Dexto-Request`, or a non-simple `Content-Type` (for example `application/json`). `@dexto/client-sdk` now sends `X-Dexto-Request: 1`; scripts that POST without a body or with `text/plain` need to add that header.
+    - When the server runs without auth (no API key, not production, no `DEXTO_SERVER_REQUIRE_AUTH`), requests must use a loopback `Host` header (`localhost`, `127.x.x.x`, `0.0.0.0`, `[::1]`). Other names can be allowed with `DEXTO_ALLOWED_HOSTS`.
+
+### Patch Changes
+
+- 960e656: Accept only well-formed blob ids (16 hex characters, with or without the `blob:` prefix) in the local and in-memory blob stores. A2A JSON-RPC no longer returns internal error messages to callers: unexpected failures answer with a generic "Internal error", while missing or unknown parameters keep their message and now use the JSON-RPC invalid-params code. `dexto plugin marketplace add` now rejects a `--name` (or a name derived from the source) that is not a safe single path segment.
+- 09be87c: Mask secrets the same way in both loggers. Log messages now hide quoted and unquoted values for secret-named keys (including `client_secret`, `Authorization`, `Cookie`, `X-Api-Key` and anything with secret, token, password or key in its name) and every value in `env` and `headers` maps, in the message and in the logged data. The structured logger now masks as well. Saving a custom agent logs only its id and size, not its configuration.
+- f4bc7b7: Mask environment and header values in the MCP server config route, using the same masking as the config export route. Header values on HTTP and SSE servers are now masked in the export as well.
+- 15a8e9f: Connect `delegate_to_url` and webhook deliveries through the address that was checked for metadata addresses, so a name that answers differently to a second DNS lookup cannot reach one.
+- 4b9dbc3: Refuse metadata IP literals at webhook delivery, add the Oracle Cloud, GCP IPv6 and Azure WireServer metadata addresses, and close the webhook dispatcher on cleanup.
+- c50b947: Accept only plain http(s) webhook URLs without credentials or metadata addresses, and do not follow redirects when delivering webhook events.
+- Updated dependencies [da25d8c]
+- Updated dependencies [2827371]
+- Updated dependencies [960e656]
+- Updated dependencies [503c31d]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [cc28d92]
+- Updated dependencies [2e206af]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [e361868]
+- Updated dependencies [4df6177]
+- Updated dependencies [f38dc1f]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [65d848a]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+- Updated dependencies [005da68]
+- Updated dependencies [5699c16]
+    - @dexto/agent-management@1.17.0
+    - @dexto/core@1.17.0
+    - @dexto/image-local@1.17.0
+    - @dexto/storage@1.17.0
+    - @dexto/agent-config@1.17.0
+    - @dexto/tools-scheduler@1.17.0
+    - @dexto/llm@1.17.0
+
 ## 1.16.6
 
 ### Patch Changes

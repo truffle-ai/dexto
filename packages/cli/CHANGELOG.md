@@ -1,5 +1,143 @@
 # dexto
 
+## 1.17.0
+
+### Minor Changes
+
+- 1f174f7: **Upgrade note: local MCP stdio servers and shell commands no longer inherit your whole environment.** If an MCP server or a command the agent runs read an API key (or any other variable) from the environment, you must now give it that variable. Without it the server or command starts without the key and fails, or does less than before.
+
+    Both now receive only a small allowlist of host variables (`PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `TZ`, `XDG_*`, CA bundle and proxy variables, and the Windows system variables), plus whatever your config names. Model provider keys and every other host variable are no longer visible to them. `PATH` is still passed, so `npx` and `node` servers start as before.
+
+    **MCP stdio servers.** Forward a host variable with `passEnvironment`, or set it under `env` (a `$VAR` reference is expanded from the host when the config loads):
+
+    ```yaml
+    mcpServers:
+        github:
+            type: stdio
+            command: npx
+            args: ['-y', '@modelcontextprotocol/server-github']
+            passEnvironment: [MY_API_KEY]
+            # or: env: { MY_API_KEY: $MY_API_KEY }
+    ```
+
+    Remote `http` and `sse` servers are not affected: they run elsewhere and never saw your environment.
+
+    **Shell commands** (`bash_exec` and the other process tools, including commands run through a workspace, which is the CLI default). Forward a host variable with `passEnvironment`, or set a literal value with `environment`, on the `process-tools` entry:
+
+    ```yaml
+    tools:
+        - type: process-tools
+          passEnvironment: [GH_TOKEN]
+          environment:
+              MY_FLAG: '1'
+    ```
+
+    `environment` values are literal strings and are not expanded from the host. `passEnvironment` hands the variable to every command the agent runs, so list only what the agent should be able to use.
+
+    See [MCP configuration](https://cli.dexto.ai/docs/guides/configuring-dexto/mcpConfiguration#what-a-stdio-server-can-see) and [Tools: command environment](https://cli.dexto.ai/docs/guides/configuring-dexto/tools#command-environment).
+
+- 4bbddb0: **Upgrade note: `dexto --mode server` and `--mode web` now listen on 127.0.0.1 only.** If other hosts or containers reach your server, bind it to a network host with a key after upgrading. Replace `<key>` with a strong secret in these examples.
+
+    ```bash
+    DEXTO_SERVER_API_KEY='<key>' dexto --mode server --host 0.0.0.0
+
+    # Or configure the bind address through the environment:
+    DEXTO_SERVER_HOST=0.0.0.0 DEXTO_SERVER_API_KEY='<key>' dexto --mode server
+
+    # The image binds to 0.0.0.0 and needs a key to start:
+    docker run -e DEXTO_SERVER_API_KEY='<key>' -p 3001:3001 dexto
+    ```
+
+    For an embedded server, set `DEXTO_SERVER_API_KEY` in its environment and pass a hostname:
+
+    ```ts
+    await startDextoServer(agent, { hostname: '0.0.0.0' });
+    ```
+
+    Clients must send `Authorization: Bearer <key>`. The bundled Web UI does not send a key, so leave `DEXTO_SERVER_API_KEY` unset when using it locally. See the [deployment guide](https://cli.dexto.ai/docs/guides/deployment).
+
+    The web/server API now binds to `127.0.0.1` by default and enforces bearer auth whenever `DEXTO_SERVER_API_KEY` is set.
+
+    Behavior changes:
+    - `dexto --mode web` / `--mode server`, `startDextoServer`, and `createNodeServer` listen on `127.0.0.1` unless a host is given (`--host`, `DEXTO_SERVER_HOST`, or the `hostname` option). Previously they listened on `0.0.0.0`.
+    - Listening on any non-loopback host (including `0.0.0.0` and `localhost`) requires `DEXTO_SERVER_API_KEY`; startup fails without it. Apps created with `disableAuth: true` are exempt.
+    - When `DEXTO_SERVER_API_KEY` is set, every protected request needs `Authorization: Bearer <key>`, also outside production. The bundled Web UI does not send a key, so leave it unset to use the Web UI locally.
+    - Code that embeds the server with `startDextoServer` or `createNodeServer` and expects other hosts (containers, PaaS) to reach it must now pass `hostname: '0.0.0.0'` (or set `DEXTO_SERVER_HOST`) and set `DEXTO_SERVER_API_KEY`; without a hostname it listens on loopback only.
+    - The Docker image sets `DEXTO_SERVER_HOST=0.0.0.0`, so it now requires `DEXTO_SERVER_API_KEY` to start.
+
+- 27c0032: **Upgrade note: the local API server now checks Origin and Host.** Frontends on another port, scripts sending simple POST requests, and unauthenticated clients using a non-loopback Host may need configuration after upgrading.
+
+    For a frontend at another origin, allow its exact origin when starting the server:
+
+    ```bash
+    DEXTO_ALLOWED_ORIGINS=http://localhost:5173 dexto --mode server
+    ```
+
+    For a POST with no body or `text/plain`, add the request header:
+
+    ```bash
+    curl -X POST -H 'X-Dexto-Request: 1' http://localhost:3001/api/message
+    ```
+
+    For an unauthenticated server accessed using a non-loopback Host name, allow that name:
+
+    ```bash
+    DEXTO_ALLOWED_HOSTS=myhost dexto --mode server
+    ```
+
+    Validate Origin and Host on the local API server and require a non-simple header on state-changing requests.
+
+    Behavior changes:
+    - Browser origins are trusted per origin, not per host: only the server's own origin (the `Origin` host and port match the request `Host`) and origins listed in `DEXTO_ALLOWED_ORIGINS` are accepted. Pages on other `localhost`/`127.0.0.1`/`[::1]` ports are no longer trusted, and CORS headers are sent only for `DEXTO_ALLOWED_ORIGINS`. A frontend on another port must be added to `DEXTO_ALLOWED_ORIGINS`.
+    - Any request with an untrusted `Origin` (or `Origin: null`) is rejected with `403`. `POST`/`PUT`/`PATCH`/`DELETE` requests are also rejected when `Sec-Fetch-Site` is `same-site` or `cross-site` from an origin not in `DEXTO_ALLOWED_ORIGINS`, or when they send none of `Authorization`, `X-Dexto-Request`, or a non-simple `Content-Type` (for example `application/json`). `@dexto/client-sdk` now sends `X-Dexto-Request: 1`; scripts that POST without a body or with `text/plain` need to add that header.
+    - When the server runs without auth (no API key, not production, no `DEXTO_SERVER_REQUIRE_AUTH`), requests must use a loopback `Host` header (`localhost`, `127.x.x.x`, `0.0.0.0`, `[::1]`). Other names can be allowed with `DEXTO_ALLOWED_HOSTS`.
+
+### Patch Changes
+
+- 1a007d3: Keep saved MCP OAuth credentials tied to the server URL they were issued for, so a config that reuses a server name for a different URL no longer receives them. Credentials saved by an earlier version under the server name are deleted on upgrade, because nothing records which URL they belong to; sign in to those MCP servers again. The browser is opened only for http(s) authorization URLs, the sign-in callback listens on 127.0.0.1 only, and the credential file and folder are readable only by their owner.
+- 687c197: Keep MCP OAuth sign-in working when an old name-keyed credential file cannot be deleted (for example a root-owned file left by an earlier `sudo` run). The CLI now logs a warning naming the file and carries on instead of failing every sign-in.
+- Updated dependencies [da25d8c]
+- Updated dependencies [2827371]
+- Updated dependencies [960e656]
+- Updated dependencies [503c31d]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [cc28d92]
+- Updated dependencies [2e206af]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [e361868]
+- Updated dependencies [4df6177]
+- Updated dependencies [f38dc1f]
+- Updated dependencies [f4bc7b7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [65d848a]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [4bbddb0]
+- Updated dependencies [27c0032]
+- Updated dependencies [2132ed2]
+- Updated dependencies [005da68]
+- Updated dependencies [c50b947]
+- Updated dependencies [5699c16]
+    - @dexto/agent-management@1.17.0
+    - @dexto/core@1.17.0
+    - @dexto/image-local@1.17.0
+    - @dexto/storage@1.17.0
+    - @dexto/server@1.17.0
+    - @dexto/client-sdk@1.17.0
+    - @dexto/analytics@1.17.0
+    - @dexto/image-logger-agent@1.17.0
+    - @dexto/tui@1.17.0
+    - @dexto/agent-config@1.17.0
+    - @dexto/llm@1.17.0
+    - @dexto/registry@1.17.0
+
 ## 1.16.6
 
 ### Patch Changes

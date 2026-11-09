@@ -1,5 +1,70 @@
 # @dexto/image-local
 
+## 1.17.0
+
+### Minor Changes
+
+- 2132ed2: Shell commands now start with a small environment instead of the full host environment, including commands run through a workspace (the CLI default). Commands receive only: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `TZ`, `XDG_*`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` (proxy names in upper or lower case), and the Windows system variables. Model provider keys, the server key and every other host variable are no longer visible to commands.
+
+    If a command relied on another inherited variable, either name it under `passEnvironment` to forward the host's value, or set a value under `environment`, in the `process-tools` config:
+
+    ```yaml
+    tools:
+        - type: process-tools
+          passEnvironment: [GH_TOKEN, GITHUB_TOKEN, SSH_AUTH_SOCK]
+          environment:
+              MY_FLAG: '1'
+    ```
+
+    `passEnvironment` forwards credentials such as `GH_TOKEN`, `GITHUB_TOKEN` and `SSH_AUTH_SOCK` to every command the agent runs, so list only what the agent should be able to use. `environment` values are literal strings and are not expanded from the host. `environment` and per-call `env` now also apply to commands run through a workspace.
+
+    Telemetry spans on agent classes no longer record method arguments by default. A class that wants them opts in with `captureArguments: true`.
+
+### Patch Changes
+
+- 2827371: Make foreground `bash_exec` through the workspace handle honour its timeout and the abort signal, stopping the command and everything it started. A non-zero exit is returned as a result instead of thrown. Background commands are now stopped as a process group, so their child processes stop too. `WorkspaceProcesses.exec` accepts an optional `signal` and may report `timedOut`.
+- 2e206af: Match blocked names regardless of case, so a differently cased name no longer slips past on case-insensitive file systems. `read_file` and `edit_file` check a file's size before reading it when the workspace handle can report one, and the local handle now reports file sizes. `glob_files` checks blocked paths only for the entries it returns, which makes large results much faster. A foreground command that times out or is aborted now also has its whole process group killed when the shell exits first, so a child that ignores SIGTERM and has its output redirected away no longer survives.
+- 5699c16: Keep workspace file reads and writes inside the workspace when a symlink points elsewhere.
+- Updated dependencies [da25d8c]
+- Updated dependencies [2827371]
+- Updated dependencies [960e656]
+- Updated dependencies [503c31d]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [cc28d92]
+- Updated dependencies [9e8e39a]
+- Updated dependencies [2e206af]
+- Updated dependencies [b15ac06]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [e361868]
+- Updated dependencies [4df6177]
+- Updated dependencies [f38dc1f]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [65d848a]
+- Updated dependencies [e0126f9]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+- Updated dependencies [005da68]
+    - @dexto/agent-management@1.17.0
+    - @dexto/core@1.17.0
+    - @dexto/tools-process@1.17.0
+    - @dexto/storage@1.17.0
+    - @dexto/tools-builtins@1.17.0
+    - @dexto/tools-filesystem@1.17.0
+    - @dexto/agent-config@1.17.0
+    - @dexto/tools-lifecycle@1.17.0
+    - @dexto/tools-plan@1.17.0
+    - @dexto/tools-scheduler@1.17.0
+    - @dexto/tools-todo@1.17.0
+
 ## 1.16.6
 
 ### Patch Changes

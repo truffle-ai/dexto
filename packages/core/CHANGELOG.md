@@ -1,5 +1,56 @@
 # @dexto/core
 
+## 1.17.0
+
+### Minor Changes
+
+- cd30ac1: Remove the unused `copyDirectory` helper from `@dexto/core`. It copied through symlinks without any check. `@dexto/agent-management` has its own guarded `copyDirectory`; use that instead.
+- 1acdc07: MCP stdio servers no longer inherit the full host environment. A server now receives only a small allowlist of host variables (`PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `TZ`, `XDG_*`, CA bundle and proxy variables, and the Windows system variables), plus the `env` set in its own MCP config. Model provider keys and every other host variable are no longer visible to MCP servers. `PATH` is still passed, so `npx` and `node` servers start as before.
+
+    If a server relied on an inherited variable, give it the variable in one of two ways. Set it under the server's `env`, with an explicit value or a `$VAR` reference that Dexto expands from the host when the config loads. Or name the host variable under the new per-server `passEnvironment` list, which forwards the host's value. For example, a GitHub server that needs `GITHUB_TOKEN`:
+
+    ```yaml
+    mcpServers:
+        github:
+            type: stdio
+            command: npx
+            args: ['-y', '@modelcontextprotocol/server-github']
+            passEnvironment: [GITHUB_TOKEN]
+    ```
+
+    `passEnvironment` hands the named variables to that server only, so list just what the server should be able to use. A value in `env` overrides a forwarded variable of the same name.
+
+- 2132ed2: Shell commands now start with a small environment instead of the full host environment, including commands run through a workspace (the CLI default). Commands receive only: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `TZ`, `XDG_*`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` (proxy names in upper or lower case), and the Windows system variables. Model provider keys, the server key and every other host variable are no longer visible to commands.
+
+    If a command relied on another inherited variable, either name it under `passEnvironment` to forward the host's value, or set a value under `environment`, in the `process-tools` config:
+
+    ```yaml
+    tools:
+        - type: process-tools
+          passEnvironment: [GH_TOKEN, GITHUB_TOKEN, SSH_AUTH_SOCK]
+          environment:
+              MY_FLAG: '1'
+    ```
+
+    `passEnvironment` forwards credentials such as `GH_TOKEN`, `GITHUB_TOKEN` and `SSH_AUTH_SOCK` to every command the agent runs, so list only what the agent should be able to use. `environment` values are literal strings and are not expanded from the host. `environment` and per-call `env` now also apply to commands run through a workspace.
+
+    Telemetry spans on agent classes no longer record method arguments by default. A class that wants them opts in with `captureArguments: true`.
+
+### Patch Changes
+
+- 2827371: Make foreground `bash_exec` through the workspace handle honour its timeout and the abort signal, stopping the command and everything it started. A non-zero exit is returned as a result instead of thrown. Background commands are now stopped as a process group, so their child processes stop too. `WorkspaceProcesses.exec` accepts an optional `signal` and may report `timedOut`.
+- 8719e1e: The errors for a refused `http_request` target and a refused image download now name only the host that was requested. They no longer print the address a name resolved to or say whether it was a metadata or a private address.
+- c0848d6: Close the remaining gaps in how model-driven requests are kept off private addresses. The private-address check now also blocks site-local (fec0::/10) and multicast (ff00::/8) IPv6 addresses and NAT64 (64:ff9b::/96) addresses that translate to a private IPv4 address. `http_request` refuses a redirect to another origin that would still send its request body, whatever the status or method. Image and file URLs that the AI SDK downloads for a model are now resolved first and refused when any answer is a private address, and the connection uses the address that was checked.
+- 4619707: `http_request` and the AI SDK image and file downloader now also refuse a host name whose DNS answer is a cloud metadata address, such as the Azure WireServer address 168.63.129.16, which is not in a private range.
+- 395eed2: `http_request` and the AI SDK image and file downloader now refuse cloud metadata host names (such as `metadata.google.internal`) by name, using the shared `isMetadataHost` check, before any DNS lookup or connection.
+- 09be87c: Mask secrets the same way in both loggers. Log messages now hide quoted and unquoted values for secret-named keys (including `client_secret`, `Authorization`, `Cookie`, `X-Api-Key` and anything with secret, token, password or key in its name) and every value in `env` and `headers` maps, in the message and in the logged data. The structured logger now masks as well. Saving a custom agent logs only its id and size, not its configuration.
+- 3034ae7: Log redaction now masks the password in connection URLs (`postgres://`, `redis://`, `mysql://`, `mongodb://`, `amqp://` and the like) in messages and data, keeping the scheme, user, host and database readable. An "@" in a URL's query or fragment is never read as part of its userinfo. An object that appears more than once in one log entry is written once and later references read `[Shared]`; an object that is also reached under an `env` or `headers` map reads `[REDACTED]` there, never `[Shared]`, so a densely linked object no longer makes a very large entry and a secret map is never left unmasked.
+- fcb27f2: Add `isMetadataHost` and `isMetadataTarget` to recognise cloud metadata addresses, including IPv4-mapped IPv6, trailing-dot, numeric IPv4 and names that resolve to one.
+- 15a8e9f: Connect `delegate_to_url` and webhook deliveries through the address that was checked for metadata addresses, so a name that answers differently to a second DNS lookup cannot reach one.
+- 4b9dbc3: Refuse metadata IP literals at webhook delivery, add the Oracle Cloud, GCP IPv6 and Azure WireServer metadata addresses, and close the webhook dispatcher on cleanup.
+- 6cbdd47: Stop listing and serving `.env` files (other than `.env.example`) as filesystem resources.
+    - @dexto/llm@1.17.0
+
 ## 1.16.6
 
 ### Patch Changes

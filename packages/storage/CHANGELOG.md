@@ -1,5 +1,26 @@
 # @dexto/storage
 
+## 1.17.0
+
+### Patch Changes
+
+- 960e656: Accept only well-formed blob ids (16 hex characters, with or without the `blob:` prefix) in the local and in-memory blob stores. A2A JSON-RPC no longer returns internal error messages to callers: unexpected failures answer with a generic "Internal error", while missing or unknown parameters keep their message and now use the JSON-RPC invalid-params code. `dexto plugin marketplace add` now rejects a `--name` (or a name derived from the source) that is not a safe single path segment.
+- Updated dependencies [2827371]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+    - @dexto/core@1.17.0
+
 ## 1.16.6
 
 ### Patch Changes
