@@ -97,6 +97,8 @@ export interface ProcessConfig {
     blockedCommands: string[];
     /** Custom environment variables */
     environment: Record<string, string>;
+    /** Names of host environment variables to forward to commands */
+    passEnvironment: string[];
     /** Working directory (defaults to process.cwd()) */
     workingDirectory?: string | undefined;
 }

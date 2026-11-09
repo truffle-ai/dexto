@@ -8,6 +8,7 @@ import { createKillProcessTool } from './kill-process-tool.js';
 import { ProcessToolsConfigSchema, type ProcessToolsConfig } from './tool-factory-config.js';
 import { CommandValidator } from './command-validator.js';
 import { ProcessError } from './errors.js';
+import { explicitCommandEnvironment } from './command-environment.js';
 import type { ExecuteOptions, ProcessConfig, ProcessOutput } from './types.js';
 import type { ProcessCommandService } from './bash-exec-tool.js';
 import { WorkspaceErrorCodes } from '@dexto/core/workspace';
@@ -29,6 +30,7 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
             allowedCommands: config.allowedCommands,
             blockedCommands: config.blockedCommands,
             environment: config.environment,
+            passEnvironment: config.passEnvironment,
         };
 
         let processService: ProcessService | undefined;
@@ -170,6 +172,7 @@ class WorkspaceProcessService implements ProcessCommandService {
         const startedAt = Date.now();
         const result = await this.handle.processes?.exec({
             command: validation.normalizedCommand,
+            env: explicitCommandEnvironment(this.processConfig, options.env),
             ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
             timeout,
             ...(options.abortSignal === undefined ? {} : { signal: options.abortSignal }),
