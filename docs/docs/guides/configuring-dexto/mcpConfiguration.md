@@ -97,7 +97,8 @@ commands run by `process-tools`, see [Command environment](./tools.md#command-en
 `http` and `sse` servers are not affected.
 
 Server and web modes also bind to loopback by default; see the [deployment guide](../deployment.md)
-to allow network access with an API key.
+to allow network access with an API key. Server Origin and Host checks may also require
+[configuration](../deployment.md#origin-and-host-checks).
 :::
 
 **Use when:**

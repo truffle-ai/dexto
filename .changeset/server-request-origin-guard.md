@@ -1,8 +1,28 @@
 ---
-"@dexto/server": patch
-"@dexto/client-sdk": patch
-"@dexto/webui": patch
+'@dexto/server': minor
+'@dexto/client-sdk': patch
+'@dexto/webui': patch
 ---
+
+**Upgrade note: the local API server now checks Origin and Host.** Frontends on another port, scripts sending simple POST requests, and unauthenticated clients using a non-loopback Host may need configuration after upgrading.
+
+For a frontend at another origin, allow its exact origin when starting the server:
+
+```bash
+DEXTO_ALLOWED_ORIGINS=http://localhost:5173 dexto --mode server
+```
+
+For a POST with no body or `text/plain`, add the request header:
+
+```bash
+curl -X POST -H 'X-Dexto-Request: 1' http://localhost:3001/api/message
+```
+
+For an unauthenticated server accessed using a non-loopback Host name, allow that name:
+
+```bash
+DEXTO_ALLOWED_HOSTS=myhost dexto --mode server
+```
 
 Validate Origin and Host on the local API server and require a non-simple header on state-changing requests.
 
