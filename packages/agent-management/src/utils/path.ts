@@ -106,11 +106,37 @@ export function getDextoGlobalPath(type: string, filename?: string): string {
 }
 
 /**
- * Copy entire directory recursively
+ * True when `candidate` resolves, after following every link, to `root` or something inside it.
+ * A missing path or any resolution error counts as outside.
+ */
+export async function resolvesInside(root: string, candidate: string): Promise<boolean> {
+    try {
+        const [physicalRoot, physicalCandidate] = await Promise.all([
+            fs.realpath(root),
+            fs.realpath(candidate),
+        ]);
+        const relative = path.relative(physicalRoot, physicalCandidate);
+        return (
+            relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+        );
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Copy entire directory recursively.
+ *
+ * Links are never followed out of the source: a link that resolves outside `src` is skipped, a
+ * link to a directory is skipped, and a link to a file inside `src` is copied as a regular file.
  * @param src Source directory path
  * @param dest Destination directory path
  */
 export async function copyDirectory(src: string, dest: string): Promise<void> {
+    await copyDirectoryWithin(src, dest, src);
+}
+
+async function copyDirectoryWithin(src: string, dest: string, sourceRoot: string): Promise<void> {
     await fs.mkdir(dest, { recursive: true });
 
     const entries = await fs.readdir(src, { withFileTypes: true });
@@ -119,8 +145,12 @@ export async function copyDirectory(src: string, dest: string): Promise<void> {
         const srcPath = path.join(src, entry.name);
         const destPath = path.join(dest, entry.name);
 
-        if (entry.isDirectory()) {
-            await copyDirectory(srcPath, destPath);
+        if (entry.isSymbolicLink()) {
+            if (!(await resolvesInside(sourceRoot, srcPath))) continue;
+            if (!(await fs.stat(srcPath)).isFile()) continue;
+            await fs.copyFile(srcPath, destPath);
+        } else if (entry.isDirectory()) {
+            await copyDirectoryWithin(srcPath, destPath, sourceRoot);
         } else {
             await fs.copyFile(srcPath, destPath);
         }
