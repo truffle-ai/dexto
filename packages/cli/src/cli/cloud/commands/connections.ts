@@ -72,7 +72,9 @@ const connectOptions = {
         description:
             'Use --code - to read a Claude authorization code from stdin. A literal code on argv is visible in shell history and ps.',
     },
-    session: { type: 'string', valueName: 'ID', description: 'Reuse a Claude sign-in chat.' },
+    chat: { type: 'string', valueName: 'ID', description: 'Reuse a Claude sign-in chat.' },
+    session: { type: 'string', valueName: 'ID', description: 'Alias for --chat.' },
+    console: { type: 'boolean', description: 'Sign in with an Anthropic Console account.' },
 } satisfies NonNullable<Command['options']>;
 
 type StartResult = z.output<typeof Start>;
@@ -112,7 +114,11 @@ const claude: Command = {
         if (code?.startsWith('sk-ant-'))
             throw new UsageError('API keys belong in dashboard Settings > Models.');
         if (attempt === undefined) {
-            let sessionId = stringOption(input, 'session');
+            const chat = stringOption(input, 'chat');
+            const session = stringOption(input, 'session');
+            if (chat !== undefined && session !== undefined)
+                throw new UsageError('Use either --chat or --session.');
+            let sessionId = chat ?? session;
             for (let tries = 0; tries < 12; tries++) {
                 context.runtime.signal.throwIfAborted();
                 let next: StartResult;
@@ -120,6 +126,7 @@ const claude: Command = {
                     next = Start.parse(
                         await queryWorkspaceTool(context, 'dexto_connection_start', {
                             provider: 'claude',
+                            ...(flag(input, 'console') ? { method: 'console' } : {}),
                             ...(sessionId === undefined ? {} : { sessionId }),
                         })
                     );
@@ -134,13 +141,13 @@ const claude: Command = {
                         `${error.message} Session: ${error.data.sessionId}.`,
                         error.kind === 'not_found'
                             ? 'dexto connect claude'
-                            : `dexto connect claude --session ${shellWord(error.data.sessionId)}`
+                            : `dexto connect claude --chat ${shellWord(error.data.sessionId)}${flag(input, 'console') ? ' --console' : ''}`
                     );
                 }
                 if (next.outcome === 'retry') {
                     sessionId = next.sessionId;
                     if (flag(input, 'no-wait') || tries === 11) {
-                        const nextCommand = `dexto connect claude --session ${shellWord(sessionId)}`;
+                        const nextCommand = `dexto connect claude --chat ${shellWord(sessionId)}${flag(input, 'console') ? ' --console' : ''}`;
                         writeResult(
                             context,
                             { ...next, nextCommand },
@@ -230,7 +237,7 @@ const claude: Command = {
                 const fix = dead
                     ? sessionId === undefined
                         ? 'dexto connect claude'
-                        : `dexto connect claude --session ${shellWord(sessionId)}`
+                        : `dexto connect claude --chat ${shellWord(sessionId)}${flag(input, 'console') ? ' --console' : ''}`
                     : submitCode(attempt);
                 throw new CommandFailure(error.kind, error.message, error.fix ?? fix);
             }

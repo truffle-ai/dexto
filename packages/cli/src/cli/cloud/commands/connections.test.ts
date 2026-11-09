@@ -121,6 +121,33 @@ describe('subscription connections over MCP', () => {
         vi.restoreAllMocks();
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
+    it('starts Console sign-in on the requested chat and preserves the method during retries', async () => {
+        replies = [
+            {
+                outcome: 'retry',
+                sessionId: 'chat-1',
+                retryAfterSeconds: 0,
+                nextAction: 'dexto_connection_start',
+            },
+            {
+                outcome: 'started',
+                provider: 'claude',
+                attemptId: 'a1',
+                sessionId: 'chat-1',
+                url: 'https://example.test/auth',
+                expiresAt: null,
+                nextAction: 'dexto_connection_finish',
+            },
+        ];
+        expect(
+            await runCloud(host, ['connect', 'claude', '--chat', 'chat-1', '--console', '--json']),
+            stderr
+        ).toBe(6);
+        expect(calls.map((call) => call.arguments)).toEqual([
+            { provider: 'claude', sessionId: 'chat-1', method: 'console' },
+            { provider: 'claude', sessionId: 'chat-1', method: 'console' },
+        ]);
+    });
     it('retries Claude start with the same session and never creates another chat', async () => {
         replies = [
             {
@@ -314,7 +341,7 @@ describe('subscription connections over MCP', () => {
         };
         expect(await runCloud(host, ['connect', 'claude', '--json'])).toBe(1);
         expect(stderr).toContain('retained');
-        expect(stderr).toContain('--session retained');
+        expect(stderr).toContain('--chat retained');
         expect(calls).toHaveLength(1);
     });
     it('does not resubmit a rejected code or an unhinted failure', async () => {
@@ -406,7 +433,7 @@ describe('subscription connections over MCP', () => {
                         JSON.stringify({ provider: 'claude', sessionId: 'same-chat' })
                 )
         ).toBe(true);
-        expect(lastResult().nextCommand).toBe('dexto connect claude --session same-chat');
+        expect(lastResult().nextCommand).toBe('dexto connect claude --chat same-chat');
     });
     it('keeps authorization codes out of permission-refusal suggestions', async () => {
         rpcError = {
@@ -847,7 +874,7 @@ describe('subscription connections over MCP', () => {
                 '--json',
             ])
         ).toBe(1);
-        expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude --session chat');
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude --chat chat');
     });
 
     it.each([
