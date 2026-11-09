@@ -10,6 +10,8 @@ import type { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 export type DextoApp = OpenAPIHono & {
     webhookSubscriber?: WebhookEventSubscriber;
     httpAuthorization?: HttpAuthorization;
+    /** True when the app was created with `disableAuth` (an external auth layer is in front). */
+    authDisabled?: boolean;
 };
 
 export type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;

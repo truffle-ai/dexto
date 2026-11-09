@@ -17,6 +17,8 @@ dexto --mode server --agent ./agent.yml --port 3001
 curl http://localhost:3001/health
 ```
 
+The server listens on `127.0.0.1` (loopback) by default. To accept connections from other hosts, pass `--host 0.0.0.0` (or set `DEXTO_SERVER_HOST`) and set `DEXTO_SERVER_API_KEY`; startup fails on a non-loopback host without a key. Whenever `DEXTO_SERVER_API_KEY` is set, every API request must send `Authorization: Bearer <DEXTO_SERVER_API_KEY>`.
+
 Supply the model credentials required by your agent configuration. The CLI reports the server as running after agent initialization and successful socket binding. If the port is already occupied, startup exits with an error instead of reporting success.
 
 Use Ctrl+C or send SIGTERM to stop the local server. Shutdown closes the HTTP listener and active connections, closes its MCP transport, and stops the current agent. Streaming clients disconnect during shutdown.
@@ -46,7 +48,7 @@ Use Ctrl+C or send SIGTERM to stop the local server. Shutdown closes the HTTP li
     docker run --env-file .env -p 3001:3001 dexto
     ```
 
-Production API and HTTP MCP requests require `Authorization: Bearer <DEXTO_SERVER_API_KEY>`; `/health` remains public. `DEXTO_SERVER_REQUIRE_AUTH=true` also enables this policy in development. Send the Bearer scheme explicitly; a bare key in the Authorization header is not accepted. Embedding hosts that explicitly disable built-in authentication remain responsible for their own boundary.
+The image sets `DEXTO_SERVER_HOST=0.0.0.0` so the published port is reachable, which makes `DEXTO_SERVER_API_KEY` mandatory: the container exits at startup without it. API and HTTP MCP requests require `Authorization: Bearer <DEXTO_SERVER_API_KEY>`; `/health` remains public. `DEXTO_SERVER_REQUIRE_AUTH=true` also enables this policy in development. Send the Bearer scheme explicitly; a bare key in the Authorization header is not accepted. Embedding hosts that explicitly disable built-in authentication remain responsible for their own boundary.
 
 Your Dexto server will be available at `http://localhost:3001` with:
 

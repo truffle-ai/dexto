@@ -182,6 +182,10 @@ program
         'cli'
     )
     .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
+    .option(
+        '--host <host>',
+        'bind address for web/server mode (default: 127.0.0.1; a non-loopback host requires DEXTO_SERVER_API_KEY)'
+    )
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
     .option(
         '--image <package>',
@@ -1169,6 +1173,7 @@ program
                 const mainModeOpts: MainModeOptions = {
                     mode: opts.mode,
                     port: opts.port,
+                    host: opts.host,
                     resume: opts.resume,
                     continue: opts.continue,
                     bypassPermissions: opts.bypassPermissions,

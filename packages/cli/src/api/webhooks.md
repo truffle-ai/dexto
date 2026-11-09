@@ -12,11 +12,11 @@ All webhook events follow a consistent structure inspired by Stripe's webhook ev
 
 ```typescript
 interface DextoWebhookEvent<T extends AgentEventName = AgentEventName> {
-    id: string;              // Unique event ID (e.g., "evt_1234567890_abc123def")
-    type: T;                 // Event type with TypeScript autocomplete
-    data: AgentEventMap[T];  // Event-specific payload
-    created: string;         // ISO-8601 timestamp of when the event occurred
-    apiVersion: string;      // API version (currently "2025-07-03")
+    id: string; // Unique event ID (e.g., "evt_1234567890_abc123def")
+    type: T; // Event type with TypeScript autocomplete
+    data: AgentEventMap[T]; // Event-specific payload
+    created: string; // ISO-8601 timestamp of when the event occurred
+    apiVersion: string; // API version (currently "2025-07-03")
 }
 ```
 
@@ -26,7 +26,7 @@ The webhook system provides full TypeScript autocomplete support for event types
 
 ```typescript
 // Your IDE will autocomplete available event types
-if (event.type === "llm:response") {
+if (event.type === 'llm:response') {
     // TypeScript knows event.data has response-specific fields
     console.log(event.data.content);
     console.log(event.data.tokenUsage?.totalTokens);
@@ -38,6 +38,7 @@ if (event.type === "llm:response") {
 The webhook system supports all integration events (Tier 2 events):
 
 **LLM Events:**
+
 - `llm:thinking` - AI model is processing
 - `llm:chunk` - Streaming response chunk received
 - `llm:tool-call` - Tool execution requested
@@ -48,20 +49,24 @@ The webhook system supports all integration events (Tier 2 events):
 - `llm:switched` - LLM provider or model switched
 
 **Session Events:**
+
 - `session:title-updated` - Session title was automatically updated
 - `session:created` - New conversation session created
 - `session:reset` - Conversation history cleared
 
 **MCP Events:**
+
 - `mcp:server-connected` - MCP server connection established
 - `mcp:server-restarted` - MCP server was restarted
 - `mcp:tools-list-changed` - MCP server tools changed
 - `mcp:prompts-list-changed` - MCP server prompts changed
 
 **Tool Events:**
+
 - `tools:available-updated` - Available tools changed (MCP + built-in)
 
 **State Events:**
+
 - `state:changed` - Agent state updated
 
 ## Webhook Management API
@@ -80,6 +85,7 @@ Content-Type: application/json
 ```
 
 Response:
+
 ```json
 {
     "webhook": {
@@ -135,12 +141,9 @@ function verifyWebhookSignature(payload, signature, secret) {
         .createHmac('sha256', secret)
         .update(payload, 'utf8')
         .digest('hex');
-    
+
     const expected = `sha256=${expectedSignature}`;
-    return crypto.timingSafeEqual(
-        Buffer.from(signature, 'utf8'),
-        Buffer.from(expected, 'utf8')
-    );
+    return crypto.timingSafeEqual(Buffer.from(signature, 'utf8'), Buffer.from(expected, 'utf8'));
 }
 
 // In your webhook handler
@@ -231,13 +234,13 @@ app.post('/webhooks/dexto', async (c) => {
 
 ## Differences from SSE
 
-| Feature | SSE | Webhooks |
-|---------|-----|----------|
-| Connection | Persistent connection required | Stateless HTTP requests |
-| Delivery | Real-time | Near real-time with retries |
-| Scalability | Limited by connection count | Scales with HTTP infrastructure |
-| Reliability | Connection can drop | Built-in retry mechanism |
-| Development | Requires EventSource client | Standard HTTP endpoint |
+| Feature        | SSE                             | Webhooks                        |
+| -------------- | ------------------------------- | ------------------------------- |
+| Connection     | Persistent connection required  | Stateless HTTP requests         |
+| Delivery       | Real-time                       | Near real-time with retries     |
+| Scalability    | Limited by connection count     | Scales with HTTP infrastructure |
+| Reliability    | Connection can drop             | Built-in retry mechanism        |
+| Development    | Requires EventSource client     | Standard HTTP endpoint          |
 | Cloud-friendly | Requires persistent connections | Works with serverless functions |
 
 ## Server Mode Requirement
