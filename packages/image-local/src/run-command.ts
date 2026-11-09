@@ -73,6 +73,10 @@ export function runCommand(
             reject(error);
         });
         child.once('close', (code) => {
+            // The shell may exit on SIGTERM while something it started ignores it and no longer
+            // holds our pipes, so 'close' can fire before the escalation timer. Kill the group
+            // now, because cleanUp cancels that timer.
+            if (timedOut || aborted) signalProcessGroup(child, 'SIGKILL');
             cleanUp();
             if (aborted) {
                 resolve({

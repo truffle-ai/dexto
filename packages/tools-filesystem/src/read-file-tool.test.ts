@@ -9,7 +9,8 @@ import { createReadFileTool } from './read-file-tool.js';
 
 async function createContext(
     content: string,
-    readText = vi.fn(async () => content)
+    readText = vi.fn(async () => content),
+    readFileSize?: (file: string) => Promise<number>
 ): Promise<ToolExecutionContext> {
     const stores = new InMemoryDextoStores();
     await stores.connect();
@@ -28,6 +29,7 @@ async function createContext(
                 files: {
                     readFile: vi.fn(async () => content),
                     readText,
+                    ...(readFileSize === undefined ? {} : { readFileSize }),
                     glob: vi.fn(async () => []),
                     writeFile: vi.fn(async () => undefined),
                     listFiles: vi.fn(async () => []),
@@ -137,5 +139,40 @@ describe('read_file tool', () => {
         await expect(
             tool.execute({ file_path: 'edge.txt' }, await createContext('x'.repeat(10)))
         ).resolves.toMatchObject({ size: 10 });
+    });
+
+    it('checks the size before reading the file', async () => {
+        const readText = vi.fn(async () => 'x'.repeat(11));
+        const readFileSize = vi.fn(async () => 11);
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute({ file_path: 'big.txt' }, await createContext('', readText, readFileSize))
+        ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
+
+        expect(readFileSize).toHaveBeenCalledWith('big.txt');
+        expect(readText).not.toHaveBeenCalled();
+    });
+
+    it('reads a file the handle reports at exactly maxFileSize', async () => {
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute(
+                { file_path: 'edge.txt' },
+                await createContext('x'.repeat(10), undefined, async () => 10)
+            )
+        ).resolves.toMatchObject({ size: 10 });
+    });
+
+    it('still checks after reading when the reported size was wrong', async () => {
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute(
+                { file_path: 'grew.txt' },
+                await createContext('x'.repeat(11), undefined, async () => 3)
+            )
+        ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
     });
 });

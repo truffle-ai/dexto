@@ -246,9 +246,13 @@ export class PathValidator {
      * Check if path matches blocked patterns (blacklist check)
      */
     private isPathBlocked(normalizedPath: string): string | null {
+        // Blocked names match regardless of case: on macOS and Windows a differently cased name
+        // reaches the same file, and blocking the extra spelling on Linux costs nothing.
+        const lowerPath = normalizedPath.toLowerCase();
         for (const { blocked, fullPath } of this.resolvedBlockedPaths) {
             // Segment-aware prefix check
-            if (normalizedPath === fullPath || normalizedPath.startsWith(fullPath + path.sep)) {
+            const lowerFullPath = fullPath.toLowerCase();
+            if (lowerPath === lowerFullPath || lowerPath.startsWith(lowerFullPath + path.sep)) {
                 return `Within blocked directory: ${blocked}`;
             }
         }
@@ -435,11 +439,16 @@ export class PathValidator {
     }
 }
 
-/** True when `needle` appears as consecutive segments anywhere in `segments`. */
+/** True when `needle` appears as consecutive segments anywhere in `segments`, ignoring case. */
 function containsSegments(segments: string[], needle: string[]): boolean {
     if (needle.length === 0) return false;
     for (let start = 0; start + needle.length <= segments.length; start += 1) {
-        if (needle.every((segment, offset) => segments[start + offset] === segment)) {
+        if (
+            needle.every(
+                (segment, offset) =>
+                    segments[start + offset]?.toLowerCase() === segment.toLowerCase()
+            )
+        ) {
             return true;
         }
     }
