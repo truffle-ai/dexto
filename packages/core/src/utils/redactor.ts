@@ -260,6 +260,7 @@ const MAX_LOG_DEPTH = 20;
 // pointing at every other) cannot be walked once per path.
 const MAX_LOG_NODES = 5000;
 const TRUNCATED = '[Truncated]';
+const SHARED = '[Shared]';
 
 /** The text a logger writes when it could not redact an entry, never the entry itself. */
 export const UNREDACTABLE_LOG_DATA = '[unredactable log data]';
@@ -270,6 +271,8 @@ interface Walk {
     ancestors: WeakSet<object>;
     /** Results already made, so a value reached twice is read once (API responses). */
     memo: WeakMap<object, unknown> | undefined;
+    /** Objects already written out once; a later reference is marked, not written again (logs). */
+    shared: WeakSet<object> | undefined;
     /** Objects this call may still read (logs). */
     remaining: number;
 }
@@ -289,8 +292,7 @@ function redactValue(
 ): unknown {
     if (typeof input === 'string') {
         if (insideSecret) return REDACTED;
-        const redacted = redactString(input);
-        return mode === 'log' ? redactKeyValueText(redacted) : redacted;
+        return mode === 'log' ? redactLogString(input) : redactString(input);
     }
     if (typeof input !== 'object' || input === null) return input;
 
@@ -307,6 +309,7 @@ function redactValue(
     }
 
     if (walk.ancestors.has(input)) return REDACTED_CIRCULAR;
+    if (walk.shared?.has(input)) return SHARED;
     const memoized = walk.memo?.get(input);
     if (memoized !== undefined) return memoized;
     if (mode === 'log' && depth >= MAX_LOG_DEPTH) return TRUNCATED;
@@ -317,6 +320,7 @@ function redactValue(
     try {
         const result = redactContainer(input, walk, mode, insideSecret, depth + 1);
         walk.memo?.set(input, result);
+        walk.shared?.add(input);
         return result;
     } finally {
         walk.ancestors.delete(input);
@@ -410,7 +414,7 @@ function isPlainObject(value: unknown): boolean {
 export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()): unknown {
     return redactValue(
         input,
-        { ancestors: seen, memo: new WeakMap(), remaining: Infinity },
+        { ancestors: seen, memo: new WeakMap(), shared: undefined, remaining: Infinity },
         'response',
         false
     );
@@ -500,6 +504,23 @@ function maskedLike(value: string): string {
     return REDACTED;
 }
 
+// Connection URLs (postgres://user:pass@host/db, redis://:pass@host, amqp://, mongodb+srv://)
+// carry a password in their userinfo. The scheme, user, host and path stay readable; the password
+// is masked. The scheme is tried only from a word edge and capped, so no input makes the scan
+// quadratic, and the password ends at the first "/", so "https://host:8080/p" is not one.
+const URL_USERINFO_PATTERN =
+    /(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/[^\s/@:"'?#]*:)[^\s/"']*@/g;
+
+/** Masks the password of connection URLs. Runs first: the email pattern would take "pass@host". */
+function maskUrlUserinfo(text: string): string {
+    return text.replace(URL_USERINFO_PATTERN, (_match, prefix: string) => `${prefix}${REDACTED}@`);
+}
+
+/** One string of log text or data: connection passwords, known secret shapes, then name=value. */
+function redactLogString(text: string): string {
+    return redactKeyValueText(redactString(maskUrlUserinfo(text)));
+}
+
 function redactKeyValueText(text: string): string {
     const withMaps = text
         .replace(
@@ -537,7 +558,7 @@ function redactKeyValueText(text: string): string {
 
 /** Redacts one log message: known secret shapes, then the value of any secret-named key. */
 export function redactLogText(text: string): string {
-    return redactKeyValueText(redactString(text));
+    return redactLogString(text);
 }
 
 /**
@@ -565,7 +586,12 @@ export function redactLogRecord(
         const entries = Object.entries(record).filter(([key]) => !skip.includes(key));
         const redacted = redactValue(
             Object.fromEntries(entries),
-            { ancestors: new WeakSet(), memo: undefined, remaining: MAX_LOG_NODES },
+            {
+                ancestors: new WeakSet(),
+                memo: undefined,
+                shared: new WeakSet(),
+                remaining: MAX_LOG_NODES,
+            },
             'log',
             false
         );

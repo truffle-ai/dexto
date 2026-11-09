@@ -157,4 +157,19 @@ describe('DextoLogger redaction', () => {
         });
         expect(JSON.stringify(entries)).not.toContain('abc123');
     });
+
+    it('masks connection URL passwords in the message and the context', () => {
+        const { logger, entries } = createLogger();
+
+        logger.error('connect to postgres://app:pw1234@db.example.com:5432/shop failed', {
+            DATABASE_URL: 'postgres://app:pw1234@db.example.com:5432/shop',
+        });
+
+        expect(entries[0]?.message).toBe(
+            'connect to postgres://app:[REDACTED]@db.example.com:5432/shop failed'
+        );
+        expect(entries[0]?.context).toEqual({
+            DATABASE_URL: 'postgres://app:[REDACTED]@db.example.com:5432/shop',
+        });
+    });
 });
