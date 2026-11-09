@@ -24,6 +24,7 @@ import {
     NotFoundErrorResponse,
 } from '../schemas/responses.js';
 import type { Context } from 'hono';
+import { maskMcpServerConfig } from '../mask-mcp-server-config.js';
 import type { GetAgentConfigPathFn, GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 /**
@@ -1053,17 +1054,7 @@ export function createAgentsRouter(
                     ? Object.fromEntries(
                           Object.entries(config.mcpServers).map(([name, serverConfig]) => [
                               name,
-                              serverConfig.type === 'stdio' && serverConfig.env
-                                  ? {
-                                        ...serverConfig,
-                                        env: Object.fromEntries(
-                                            Object.keys(serverConfig.env).map((key) => [
-                                                key,
-                                                '[REDACTED]',
-                                            ])
-                                        ),
-                                    }
-                                  : serverConfig,
+                              maskMcpServerConfig(serverConfig),
                           ])
                       )
                     : undefined,
