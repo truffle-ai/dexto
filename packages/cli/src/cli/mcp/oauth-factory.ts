@@ -14,14 +14,14 @@ const DEFAULT_CLIENT_METADATA = {
 export function createMcpAuthProviderFactory(_options: {
     logger?: typeof coreLogger;
 }): McpAuthProviderFactory {
-    return (serverName: string, config: ValidatedMcpServerConfig) => {
+    return (_serverName: string, config: ValidatedMcpServerConfig) => {
         if (config.type !== 'http' && config.type !== 'sse') {
             return undefined;
         }
 
         const redirectUrl = getMcpRedirectUrl();
         return createMcpOAuthProvider({
-            server: { name: serverName, url: config.url },
+            serverUrl: config.url,
             redirectUrl,
             clientMetadata: {
                 ...DEFAULT_CLIENT_METADATA,

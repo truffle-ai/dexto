@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { getDextoPath } from '@dexto/core';
 import { loadMcpAuthStore, saveMcpAuthStore, type McpAuthStore } from './oauth-store.js';
 
-vi.mock('@dexto/core', () => ({ getDextoPath: vi.fn() }));
+const infoMock = vi.hoisted(() => vi.fn());
+vi.mock('@dexto/core', () => ({ getDextoPath: vi.fn(), logger: { info: infoMock } }));
 
-const server = { name: 'fixture', url: 'https://good.example/mcp' };
-const legacyStore: McpAuthStore = {
+const serverUrl = 'https://good.example/mcp';
+const oldStore: McpAuthStore = {
     tokens: { access_token: 'legacy-token', token_type: 'Bearer' },
 };
 
@@ -40,58 +41,66 @@ describe('MCP OAuth SDK v1 persistence compatibility', () => {
             },
             codeVerifier: 'synthetic-verifier',
         };
-        await saveMcpAuthStore(server, store);
-        await expect(loadMcpAuthStore(server)).resolves.toEqual(store);
+        await saveMcpAuthStore(serverUrl, store);
+        await expect(loadMcpAuthStore(serverUrl)).resolves.toEqual(store);
     });
 });
 
 describe('MCP OAuth entries saved by server name', () => {
-    async function writeLegacyEntry(name: string): Promise<string> {
-        const folder = path.join(directory, 'mcp-auth');
-        await mkdir(folder, { recursive: true });
-        const legacyPath = path.join(folder, `${name}.json`);
-        await writeFile(legacyPath, JSON.stringify(legacyStore), { mode: 0o644 });
-        return legacyPath;
+    const storeDirectory = () => path.join(directory, 'mcp-auth');
+
+    async function writeNameKeyedEntry(name: string): Promise<void> {
+        await mkdir(storeDirectory(), { recursive: true });
+        await writeFile(path.join(storeDirectory(), `${name}.json`), JSON.stringify(oldStore), {
+            mode: 0o644,
+        });
     }
 
-    it('moves the entry to the first server URL that reads it', async () => {
-        await writeLegacyEntry(server.name);
+    it('does not send an old entry to the server that reuses its name', async () => {
+        await writeNameKeyedEntry('fixture');
 
-        await expect(loadMcpAuthStore(server)).resolves.toEqual(legacyStore);
-        await expect(loadMcpAuthStore(server)).resolves.toEqual(legacyStore);
-        expect(await readdir(path.join(directory, 'mcp-auth'))).toHaveLength(1);
+        await expect(loadMcpAuthStore(serverUrl)).resolves.toEqual({});
+        await expect(loadMcpAuthStore('https://other.example/mcp')).resolves.toEqual({});
     });
 
-    it('does not give the entry to a second URL that reuses the name', async () => {
-        await writeLegacyEntry(server.name);
-        await loadMcpAuthStore(server);
+    it('deletes old entries and logs one info line', async () => {
+        await writeNameKeyedEntry('fixture');
+        await writeNameKeyedEntry('another-server');
 
-        await expect(
-            loadMcpAuthStore({ name: server.name, url: 'https://other.example/mcp' })
-        ).resolves.toEqual({});
+        await loadMcpAuthStore(serverUrl);
+
+        expect(await readdir(storeDirectory())).toEqual([]);
+        expect(infoMock).toHaveBeenCalledTimes(1);
+        expect(infoMock).toHaveBeenCalledWith(expect.stringContaining('sign in'));
     });
 
-    it('makes a migrated entry private to its owner', async () => {
-        await writeLegacyEntry(server.name);
-        await loadMcpAuthStore(server);
+    it('keeps credentials saved by URL when it removes old entries', async () => {
+        await saveMcpAuthStore(serverUrl, oldStore);
+        await writeNameKeyedEntry('fixture');
 
-        const folder = path.join(directory, 'mcp-auth');
-        const [file] = await readdir(folder);
-        expect((await stat(path.join(folder, file ?? ''))).mode & 0o777).toBe(0o600);
+        await expect(loadMcpAuthStore(serverUrl)).resolves.toEqual(oldStore);
+        expect(await readdir(storeDirectory())).toHaveLength(1);
+    });
+
+    it('logs nothing when there are no old entries', async () => {
+        await saveMcpAuthStore(serverUrl, oldStore);
+
+        await loadMcpAuthStore(serverUrl);
+
+        expect(infoMock).not.toHaveBeenCalled();
     });
 
     it('returns an empty store when nothing was saved', async () => {
-        await expect(loadMcpAuthStore(server)).resolves.toEqual({});
+        await expect(loadMcpAuthStore(serverUrl)).resolves.toEqual({});
     });
 
     it('tightens the mode of a URL-keyed file saved world-readable', async () => {
-        await saveMcpAuthStore(server, legacyStore);
-        const folder = path.join(directory, 'mcp-auth');
-        const [file] = await readdir(folder);
-        await chmod(path.join(folder, file ?? ''), 0o644);
+        await saveMcpAuthStore(serverUrl, oldStore);
+        const [file] = await readdir(storeDirectory());
+        await chmod(path.join(storeDirectory(), file ?? ''), 0o644);
 
-        await loadMcpAuthStore(server);
+        await loadMcpAuthStore(serverUrl);
 
-        expect((await stat(path.join(folder, file ?? ''))).mode & 0o777).toBe(0o600);
+        expect((await stat(path.join(storeDirectory(), file ?? ''))).mode & 0o777).toBe(0o600);
     });
 });

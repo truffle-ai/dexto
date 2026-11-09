@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDextoPath, type ValidatedMcpServerConfig } from '@dexto/core';
 import { createMcpAuthProviderFactory } from './oauth-factory.js';
 
-vi.mock('@dexto/core', () => ({ getDextoPath: vi.fn(), logger: {} }));
+vi.mock('@dexto/core', () => ({ getDextoPath: vi.fn(), logger: { info: vi.fn() } }));
 
 const openMock = vi.hoisted(() => vi.fn());
 vi.mock('open', () => ({ default: openMock }));
@@ -59,6 +59,18 @@ describe('MCP OAuth credential binding', () => {
         await expect(
             createProvider('shared-name', 'https://good.example/team-b/mcp').tokens()
         ).resolves.toBeUndefined();
+    });
+
+    it('does not send a token an older version saved under the server name', async () => {
+        const storeDirectory = path.join(directory, 'mcp-auth');
+        await mkdir(storeDirectory, { recursive: true });
+        const oldFile = path.join(storeDirectory, 'shared-name.json');
+        await writeFile(oldFile, JSON.stringify({ tokens }));
+
+        await expect(
+            createProvider('shared-name', 'https://good.example/mcp').tokens()
+        ).resolves.toBeUndefined();
+        await expect(readdir(storeDirectory)).resolves.toEqual([]);
     });
 
     it('returns the saved token for the same URL whatever the server is named', async () => {
