@@ -23,6 +23,14 @@ export interface SafeDownloadOptions {
     isBlockedAddress?: (address: string) => boolean;
 }
 
+/**
+ * Every refused download reads the same: the host that was asked for, never the address it
+ * resolved to or which rule refused it, so a caller cannot map the network from the errors.
+ */
+function blockedDownloadMessage(hostname: string): string {
+    return `Download from ${hostname} is blocked`;
+}
+
 type LookupCallback = (
     err: NodeJS.ErrnoException | null,
     address: string | LookupAddress[],
@@ -43,22 +51,11 @@ function createCheckedLookup(
             (records) => {
                 // Cloud metadata addresses (168.63.129.16 is not in a private range) are refused
                 // whatever the address check is.
-                const metadata = records.find((record) => isMetadataHost(record.address));
-                if (metadata) {
-                    callback(
-                        new Error(
-                            `${hostname} resolves to cloud metadata address ${metadata.address}`
-                        ),
-                        []
-                    );
-                    return;
-                }
-                const blocked = records.find((record) => isBlockedAddress(record.address));
+                const blocked = records.find(
+                    (record) => isMetadataHost(record.address) || isBlockedAddress(record.address)
+                );
                 if (blocked) {
-                    callback(
-                        new Error(`${hostname} resolves to private address ${blocked.address}`),
-                        []
-                    );
+                    callback(new Error(blockedDownloadMessage(hostname)), []);
                     return;
                 }
                 const [first] = records;
@@ -134,17 +131,11 @@ export function createSafeDownload(options: SafeDownloadOptions = {}): DownloadF
                     message: `URL scheme must be http or https, got ${url.protocol}`,
                 });
             }
-            if (isMetadataHost(url.hostname)) {
-                throw new DownloadError({
-                    url: url.toString(),
-                    message: `Download from cloud metadata host ${url.hostname} is blocked`,
-                });
-            }
             // An IP literal is connected to without a lookup, so it is checked here.
-            if (isBlockedAddress(url.hostname)) {
+            if (isMetadataHost(url.hostname) || isBlockedAddress(url.hostname)) {
                 throw new DownloadError({
                     url: url.toString(),
-                    message: `Download from private address ${url.hostname} is blocked`,
+                    message: blockedDownloadMessage(url.hostname),
                 });
             }
             const response = await requestOnce(url, lookup, signal).catch((cause) => {
