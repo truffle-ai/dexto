@@ -3,7 +3,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { VercelLLMService } from './vercel.js';
-import type { LanguageModel } from 'ai';
+import { APICallError, type LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
@@ -154,7 +154,39 @@ export async function createVercelModel(
     const apiKey = runtimeAuth?.apiKey || llmConfig.apiKey || resolvedProviderApiKey;
     const runtimeBaseURL = runtimeAuth?.baseURL;
     const runtimeHeaders = runtimeAuth?.headers;
-    const runtimeFetch = runtimeAuth?.fetch;
+    const requestAuth = runtimeAuth?.requestAuth;
+    const runtimeFetch: typeof fetch | undefined = requestAuth
+        ? async (input, init) => {
+              const { response, provenance } = await requestAuth.fetch(input, init);
+              if (
+                  response.ok ||
+                  !(await requestAuth.isRetryableResponse({
+                      response: response.clone(),
+                      provenance,
+                  }))
+              ) {
+                  return response;
+              }
+              const responseHeaders: Record<string, string> = {};
+              response.headers.forEach((value, key) => {
+                  responseHeaders[key] = value;
+              });
+              throw new APICallError({
+                  message: 'Host classified model request failure as retryable',
+                  url:
+                      typeof input === 'string'
+                          ? input
+                          : input instanceof URL
+                            ? input.toString()
+                            : input.url,
+                  requestBodyValues: {},
+                  statusCode: response.status,
+                  responseHeaders,
+                  responseBody: await response.text(),
+                  isRetryable: true,
+              });
+          }
+        : runtimeAuth?.fetch;
     const effectiveBaseURL = runtimeBaseURL?.replace(/\/$/, '') || baseURL?.replace(/\/$/, '');
     const usesCodexRuntimeAuth = runtimeBaseURL ? isCodexBaseURL(runtimeBaseURL) : false;
 

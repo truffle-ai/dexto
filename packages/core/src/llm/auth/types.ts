@@ -5,6 +5,22 @@ export type LlmRuntimeAuthOverrides = {
     baseURL?: string | undefined;
     headers?: Record<string, string> | undefined;
     fetch?: typeof fetch | undefined;
+    /** Optional host-owned credential provenance and failure classification for each request. */
+    requestAuth?:
+        | {
+              fetch: (
+                  input: RequestInfo | URL,
+                  init?: RequestInit
+              ) => Promise<{
+                  response: Response;
+                  provenance: unknown;
+              }>;
+              isRetryableResponse: (input: {
+                  response: Response;
+                  provenance: unknown;
+              }) => Promise<boolean>;
+          }
+        | undefined;
     auth?: LlmRuntimeAuthInfo | undefined;
 };
 
