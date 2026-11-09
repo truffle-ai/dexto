@@ -342,6 +342,29 @@ describe('http_request cloud metadata hosts', () => {
         }
     });
 
+    it.each(['168.63.129.16', '192.0.0.192', '100.100.100.200'])(
+        'the connection lookup refuses a public name that answers the metadata address %s',
+        async (address) => {
+            const dnsLookup = vi.fn().mockResolvedValue([
+                { address: '93.184.216.34', family: 4 },
+                { address, family: 4 },
+            ]);
+            const safeLookup = createSafeLookup({ dnsLookup });
+
+            const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
+                safeLookup(
+                    'files.example.com',
+                    { all: true } as LookupOptions,
+                    ((err: NodeJS.ErrnoException | null) => resolve(err)) as never
+                );
+            });
+
+            expect(dnsLookup).toHaveBeenCalledOnce();
+            expect(error).toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            expect(String(error?.message)).toContain(address);
+        }
+    );
+
     it.each(['metadata.google.internal', 'metadata.goog', 'instance-data'])(
         'the connection lookup refuses %s without resolving it',
         async (host) => {

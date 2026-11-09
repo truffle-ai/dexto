@@ -162,6 +162,19 @@ export function createSafeLookup(config?: {
                 }
 
                 for (const record of records) {
+                    if (isMetadataHost(record.address)) {
+                        emitError(
+                            toErrnoException(
+                                new DextoRuntimeError(
+                                    'HTTP_REQUEST_UNSAFE_TARGET',
+                                    ErrorScope.TOOLS,
+                                    ErrorType.FORBIDDEN,
+                                    `Blocked request to cloud metadata address: ${record.address}`
+                                )
+                            )
+                        );
+                        return;
+                    }
                     if (isPrivateAddress(record.address)) {
                         emitError(
                             toErrnoException(

@@ -131,6 +131,35 @@ describe('createSafeDownload', () => {
         expect(hits).toEqual([]);
     });
 
+    it.each(['168.63.129.16', '192.0.0.192', '100.100.100.200'])(
+        'refuses a public name that answers the metadata address %s, even with the address check off',
+        async (address) => {
+            const dnsLookup = vi.fn().mockResolvedValue([
+                { address: '93.184.216.34', family: 4 },
+                { address, family: 4 },
+            ]);
+            const download = createSafeDownload({ dnsLookup, isBlockedAddress: () => false });
+
+            await expect(
+                download(request(`http://files.example:${port}/image.png`))
+            ).rejects.toThrow(
+                new RegExp(`cloud metadata address ${address.replaceAll('.', '\\.')}`)
+            );
+            expect(dnsLookup).toHaveBeenCalledOnce();
+            expect(hits).toEqual([]);
+        }
+    );
+
+    it('refuses the WireServer answer with the default address check', async () => {
+        const dnsLookup = vi.fn().mockResolvedValue([{ address: '168.63.129.16', family: 4 }]);
+        const download = createSafeDownload({ dnsLookup });
+
+        await expect(download(request(`http://files.example:${port}/image.png`))).rejects.toThrow(
+            /cloud metadata address 168\.63\.129\.16/
+        );
+        expect(hits).toEqual([]);
+    });
+
     it('refuses a redirect to a metadata host name', async () => {
         const dnsLookup = vi.fn().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
         const download = createSafeDownload({ dnsLookup, isBlockedAddress: () => false });

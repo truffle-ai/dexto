@@ -41,6 +41,18 @@ function createCheckedLookup(
     return (hostname, options, callback) => {
         dnsLookup(hostname, { all: true, verbatim: true }).then(
             (records) => {
+                // Cloud metadata addresses (168.63.129.16 is not in a private range) are refused
+                // whatever the address check is.
+                const metadata = records.find((record) => isMetadataHost(record.address));
+                if (metadata) {
+                    callback(
+                        new Error(
+                            `${hostname} resolves to cloud metadata address ${metadata.address}`
+                        ),
+                        []
+                    );
+                    return;
+                }
                 const blocked = records.find((record) => isBlockedAddress(record.address));
                 if (blocked) {
                     callback(
