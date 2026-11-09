@@ -109,6 +109,14 @@ describe('tool_output_read', () => {
         expect(await read('s1', { id: 'call-1', charOffset: 2 })).toContain('1: 😀b');
     });
 
+    it('backs up offsets inside each emoji of a ZWJ sequence', async () => {
+        const { toolOutputs, read } = await setup();
+        await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: 'a👩‍💻b' });
+
+        expect(await read('s1', { id: 'call-1', charOffset: 2 })).toContain('1: 👩‍💻b');
+        expect(await read('s1', { id: 'call-1', charOffset: 5 })).toContain('1: 💻b');
+    });
+
     it('does not split a surrogate pair in a search match', async () => {
         const { toolOutputs, read } = await setup();
         await toolOutputs.save({
