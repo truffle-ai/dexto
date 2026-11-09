@@ -5,7 +5,7 @@
  */
 
 import * as path from 'path';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync } from 'fs';
 import { execFileSync, execSync } from 'child_process';
 import {
     getMarketplacesDir,
@@ -341,6 +341,19 @@ export function listMarketplaces(): MarketplaceEntry[] {
 }
 
 /**
+ * True when `target` really lives inside `directory`, after following every symlink on both
+ * paths. A missing path counts as not inside.
+ */
+function isRealPathInside(directory: string, target: string): boolean {
+    try {
+        const relative = path.relative(realpathSync(directory), realpathSync(target));
+        return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Scan a marketplace directory for plugins
  */
 export function scanMarketplacePlugins(
@@ -361,8 +374,13 @@ export function scanMarketplacePlugins(
                 const manifest = result.data as MarketplaceManifest;
                 if (manifest.plugins && manifest.plugins.length > 0) {
                     for (const plugin of manifest.plugins) {
-                        const pluginPath = path.join(marketplacePath, plugin.source);
-                        if (existsSync(pluginPath)) {
+                        const pluginPath = path.resolve(marketplacePath, plugin.source);
+                        // A manifest cannot point a plugin at files outside its own repo, by path
+                        // or through a symlink.
+                        if (
+                            existsSync(pluginPath) &&
+                            isRealPathInside(marketplacePath, pluginPath)
+                        ) {
                             plugins.push({
                                 name: plugin.name,
                                 ...(plugin.description !== undefined && {
