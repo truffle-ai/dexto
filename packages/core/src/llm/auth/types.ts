@@ -15,6 +15,7 @@ export type LlmRuntimeAuthOverrides = {
                   response: Response;
                   provenance: unknown;
               }>;
+              /** Error response body is limited to 64 KiB for classification. */
               isRetryableResponse: (input: {
                   response: Response;
                   provenance: unknown;

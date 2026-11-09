@@ -130,6 +130,42 @@ function logRuntimeAuthResolution(input: {
 
 const MAX_RETRY_ERROR_BODY_BYTES = 64 * 1024;
 
+/** Give the classifier a bounded view while retaining the original response for the SDK. */
+function boundedClassificationResponse(response: Response): Response {
+    const clone = response.clone();
+    if (!clone.body) return clone;
+    const reader = clone.body.getReader();
+    let remaining = MAX_RETRY_ERROR_BODY_BYTES;
+    const body = new globalThis.ReadableStream<Uint8Array>({
+        async pull(controller) {
+            try {
+                const chunk = await reader.read();
+                if (chunk.done) {
+                    controller.close();
+                    return;
+                }
+                const part = chunk.value.subarray(0, remaining);
+                remaining -= part.byteLength;
+                if (part.byteLength) controller.enqueue(part);
+                if (remaining === 0) {
+                    void reader.cancel().catch(() => {});
+                    controller.close();
+                }
+            } catch (error) {
+                controller.error(error);
+            }
+        },
+        cancel() {
+            void reader.cancel().catch(() => {});
+        },
+    });
+    return new globalThis.Response(body, {
+        status: clone.status,
+        statusText: clone.statusText,
+        headers: clone.headers,
+    });
+}
+
 function rethrowAbort(error: unknown, signal?: AbortSignal | null): void {
     if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
 }
@@ -198,7 +234,7 @@ export async function createVercelModel(
               if (response.ok) return response;
               const signal =
                   init?.signal ?? (input instanceof globalThis.Request ? input.signal : undefined);
-              const classificationResponse = response.clone();
+              const classificationResponse = boundedClassificationResponse(response);
               let retryable: boolean;
               try {
                   retryable = await requestAuth.isRetryableResponse({

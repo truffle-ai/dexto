@@ -173,6 +173,35 @@ describe('retry error handling', () => {
         );
         return generateText({ model, prompt: 'hello', maxRetries: 0 });
     }
+    it('bounds the classifier view and preserves a declined original response', async () => {
+        let classifiedBody = '';
+        const response = new Response('x'.repeat(100_000), { status: 401 });
+        const model = await createVercelModel(
+            LLMConfigSchema.parse({
+                provider: 'openai-compatible',
+                model: 'test',
+                apiKey: 'test',
+                baseURL: 'https://example.test/v1',
+            }),
+            {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        requestAuth: {
+                            fetch: async () => ({ response, provenance: null }),
+                            isRetryableResponse: async ({ response: view }) => {
+                                classifiedBody = await view.text();
+                                return false;
+                            },
+                        },
+                    }),
+                },
+            }
+        );
+        await expect(generateText({ model, prompt: 'hello', maxRetries: 0 })).rejects.toMatchObject(
+            { statusCode: 401, isRetryable: false, responseBody: 'x'.repeat(100_000) }
+        );
+        expect(classifiedBody).toHaveLength(65536);
+    });
     it('keeps the SDK error when classification throws', async () => {
         await expect(
             run(Response.json({ error: { message: 'denied' } }, { status: 401 }), async () => {
