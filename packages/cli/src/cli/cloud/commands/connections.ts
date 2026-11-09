@@ -64,7 +64,7 @@ const connectOptions = {
     attempt: {
         type: 'string',
         valueName: 'ID',
-        description: 'Resume an existing attempt; Claude without --code retries only saving.',
+        description: 'Resume an existing attempt by ID; Claude without --code retries only saving.',
     },
     code: {
         type: 'string',
@@ -268,6 +268,7 @@ const Wait = z.discriminatedUnion('outcome', [
             'failed',
         ]),
         attemptId: z.string(),
+        reason: z.literal('expired').optional(),
         nextAction: z.string(),
     }),
 ]);
@@ -394,6 +395,8 @@ const connector: Command = {
     async run(context, input) {
         const provider = argument(input, 0, 'connector');
         let attempt = stringOption(input, 'attempt');
+        if (attempt !== undefined && !z.string().uuid().safeParse(attempt).success)
+            throw new UsageError('Connector --attempt must be an opaque attempt ID.');
         let startedHere = false;
         if (attempt === undefined) {
             const started = z
@@ -401,7 +404,7 @@ const connector: Command = {
                     z.object({
                         outcome: z.literal('started'),
                         provider: z.string(),
-                        attemptId: z.string(),
+                        attemptId: z.string().uuid(),
                         url: z.string().url(),
                         nextAction: z.string(),
                     }),
@@ -480,7 +483,13 @@ const connector: Command = {
                 return 0;
             }
             if (waited.outcome !== 'timeout') {
-                writeResult(context, waited, `Sign-in ${waited.outcome}.`);
+                writeResult(
+                    context,
+                    waited,
+                    waited.reason === 'expired'
+                        ? 'Sign-in expired. Start again.'
+                        : `Sign-in ${waited.outcome}.`
+                );
                 return EXIT_CODES.failed;
             }
             await context.runtime.sleep(1000);

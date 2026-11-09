@@ -121,12 +121,35 @@ describe('subscription connections over MCP', () => {
         vi.restoreAllMocks();
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
+    it('rejects OAuth state as a connector attempt and prints only the opaque id to resume', async () => {
+        const state = 'secret-oauth-state';
+        const id = '00000000-0000-4000-8000-000000000123';
+        expect(
+            await runCloud(host, ['connect', 'notion', '--attempt', state, '--no-wait'])
+        ).not.toBe(0);
+        expect(calls).toHaveLength(0);
+        stdout = '';
+        stdoutIsTerminal = true;
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'notion',
+                attemptId: id,
+                url: `https://example.test/approve?state=${state}`,
+                nextAction: 'dexto_connection_wait',
+            },
+        ];
+        expect(await runCloud(host, ['connect', 'notion', '--no-browser', '--no-wait'])).toBe(0);
+        const resumeLine = stdout.split('\n').find((line) => line.includes('--attempt'));
+        expect(resumeLine).toContain(`--attempt ${id}`);
+        expect(resumeLine).not.toContain(state);
+    });
     it('starts a catalog connector and reports its completed authorization', async () => {
         replies = [
             {
                 outcome: 'started',
                 provider: 'github',
-                attemptId: 'attempt-1',
+                attemptId: '00000000-0000-4000-8000-000000000001',
                 url: 'https://example.test/approve',
                 nextAction: 'dexto_connection_wait',
             },
@@ -138,7 +161,10 @@ describe('subscription connections over MCP', () => {
             { name: 'dexto_connection_start', arguments: { provider: 'github' } },
             {
                 name: 'dexto_connection_wait',
-                arguments: { provider: 'github', attemptId: 'attempt-1' },
+                arguments: {
+                    provider: 'github',
+                    attemptId: '00000000-0000-4000-8000-000000000001',
+                },
             },
         ]);
         expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'github' });
@@ -178,7 +204,7 @@ describe('subscription connections over MCP', () => {
             {
                 outcome: 'started',
                 provider: 'notion',
-                attemptId: 'attempt-2',
+                attemptId: '00000000-0000-4000-8000-000000000002',
                 url: 'https://example.test/approve',
                 nextAction: 'dexto_connection_wait',
             },
@@ -188,7 +214,7 @@ describe('subscription connections over MCP', () => {
         ).toBe(0);
         expect(lastResult()).toMatchObject({
             outcome: 'started',
-            attemptId: 'attempt-2',
+            attemptId: '00000000-0000-4000-8000-000000000002',
             url: 'https://example.test/approve',
         });
         expect(calls).toHaveLength(1);
@@ -198,7 +224,7 @@ describe('subscription connections over MCP', () => {
             {
                 outcome: 'started',
                 provider: 'github',
-                attemptId: 'attempt-3',
+                attemptId: '00000000-0000-4000-8000-000000000003',
                 url: 'https://example.test/approve',
                 nextAction: 'dexto_connection_wait',
             },
@@ -212,21 +238,30 @@ describe('subscription connections over MCP', () => {
         };
         expect(await runCloud(host, ['connect', 'github', '--no-browser', '--json'])).not.toBe(0);
         expect(calls.filter((call) => call.name === 'dexto_connection_start')).toHaveLength(1);
-        expect(stderr).toContain('dexto connect github --attempt attempt-3');
+        expect(stderr).toContain(
+            'dexto connect github --attempt 00000000-0000-4000-8000-000000000003'
+        );
     });
     it.each(['cancelled', 'failed'])('reports a connector attempt that %s', async (outcome) => {
         replies = [
             {
                 outcome: 'started',
                 provider: 'github',
-                attemptId: 'attempt-4',
+                attemptId: '00000000-0000-4000-8000-000000000004',
                 url: 'https://example.test/approve',
                 nextAction: 'dexto_connection_wait',
             },
-            { outcome, attemptId: 'attempt-4', nextAction: 'dexto_connection_start' },
+            {
+                outcome,
+                attemptId: '00000000-0000-4000-8000-000000000004',
+                nextAction: 'dexto_connection_start',
+            },
         ];
         expect(await runCloud(host, ['connect', 'github', '--no-browser', '--json'])).toBe(1);
-        expect(lastResult()).toMatchObject({ outcome, attemptId: 'attempt-4' });
+        expect(lastResult()).toMatchObject({
+            outcome,
+            attemptId: '00000000-0000-4000-8000-000000000004',
+        });
     });
     it('starts Console sign-in on the requested chat and preserves the method during retries', async () => {
         replies = [
@@ -276,7 +311,7 @@ describe('subscription connections over MCP', () => {
             {
                 outcome: 'started',
                 provider: 'claude',
-                attemptId: 'attempt-1',
+                attemptId: '00000000-0000-4000-8000-000000000001',
                 sessionId: 'session-1',
                 url: 'https://example.test/authorize',
                 expiresAt: null,
@@ -291,7 +326,7 @@ describe('subscription connections over MCP', () => {
         expect(calls.map((c) => c.arguments)).toEqual([
             { provider: 'claude' },
             { provider: 'claude', sessionId: 'session-1' },
-            { attemptId: 'attempt-1', code: 'auth-code' },
+            { attemptId: '00000000-0000-4000-8000-000000000001', code: 'auth-code' },
         ]);
         expect(lastResult()).toEqual({
             outcome: 'connected',
@@ -304,13 +339,19 @@ describe('subscription connections over MCP', () => {
         replies = [
             {
                 outcome: 'expired_retry_sign_in',
-                attemptId: 'attempt-1',
+                attemptId: '00000000-0000-4000-8000-000000000001',
                 nextAction: 'dexto_connection_start',
             },
         ];
         stdoutIsTerminal = true;
         expect(
-            await runCloud(host, ['connect', 'codex', '--attempt', 'attempt-1', '--no-browser'])
+            await runCloud(host, [
+                'connect',
+                'codex',
+                '--attempt',
+                '00000000-0000-4000-8000-000000000001',
+                '--no-browser',
+            ])
         ).toBe(1);
         expect(stdout).toContain("Sign-in didn't finish. Run `dexto connect codex` again.");
     });
