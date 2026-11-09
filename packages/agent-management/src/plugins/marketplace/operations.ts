@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import {
     getMarketplacesDir,
     addMarketplaceEntry,
@@ -154,7 +154,7 @@ export async function addMarketplace(
         const cloneUrl = getCloneUrl(parsedSource);
 
         try {
-            execSync(`git clone "${cloneUrl}" "${installLocation}"`, {
+            execFileSync('git', ['clone', '--', cloneUrl, installLocation], {
                 encoding: 'utf-8',
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -275,7 +275,7 @@ async function updateSingleMarketplace(name: string): Promise<MarketplaceUpdateR
         // Re-clone
         const cloneUrl = getCloneUrl(entry.source);
         try {
-            execSync(`git clone "${cloneUrl}" "${entry.installLocation}"`, {
+            execFileSync('git', ['clone', '--', cloneUrl, entry.installLocation], {
                 encoding: 'utf-8',
                 stdio: ['pipe', 'pipe', 'pipe'],
             });

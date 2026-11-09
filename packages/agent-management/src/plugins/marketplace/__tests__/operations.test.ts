@@ -27,6 +27,7 @@ vi.mock('child_process', async () => {
     return {
         ...actual,
         execSync: vi.fn(),
+        execFileSync: vi.fn(),
     };
 });
 
@@ -74,6 +75,7 @@ describe('Marketplace Operations', () => {
         vi.mocked(fs.readdirSync).mockReset();
         vi.mocked(fs.rmSync).mockReset();
         vi.mocked(childProcess.execSync).mockReset();
+        vi.mocked(childProcess.execFileSync).mockReset();
         vi.mocked(getMarketplaceEntry).mockReset();
         vi.mocked(getAllMarketplaces).mockReset();
         vi.mocked(addMarketplaceEntry).mockReset();
@@ -202,12 +204,32 @@ describe('Marketplace Operations', () => {
 
             const result = await addMarketplace('owner/test-repo');
 
-            expect(childProcess.execSync).toHaveBeenCalledWith(
-                expect.stringContaining('git clone'),
+            expect(childProcess.execFileSync).toHaveBeenCalledWith(
+                'git',
+                ['clone', '--', 'https://github.com/owner/test-repo.git', expect.any(String)],
                 expect.any(Object)
             );
             expect(result.success).toBe(true);
             expect(result.name).toBe('test-repo');
+        });
+
+        it('passes a git URL to git as one argument without a shell', async () => {
+            vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
+            const source = 'https://example.com/repo$(unexpected).git';
+
+            await addMarketplace(source, { name: 'quoted' });
+
+            expect(childProcess.execFileSync).toHaveBeenCalledWith(
+                'git',
+                ['clone', '--', source, expect.any(String)],
+                expect.any(Object)
+            );
+            expect(childProcess.execSync).not.toHaveBeenCalledWith(
+                expect.stringContaining('git clone'),
+                expect.anything()
+            );
         });
 
         it('respects custom name option', async () => {
