@@ -11,6 +11,7 @@ export enum MarketplaceErrorCode {
     ADD_ALREADY_EXISTS = 'marketplace_add_already_exists',
     ADD_CLONE_FAILED = 'marketplace_add_clone_failed',
     ADD_INVALID_SOURCE = 'marketplace_add_invalid_source',
+    ADD_INVALID_NAME = 'marketplace_add_invalid_name',
     ADD_LOCAL_NOT_FOUND = 'marketplace_add_local_not_found',
 
     // Remove marketplace errors

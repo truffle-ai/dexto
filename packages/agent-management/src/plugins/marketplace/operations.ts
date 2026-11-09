@@ -17,6 +17,7 @@ import {
 } from './registry.js';
 import { MarketplaceError } from './errors.js';
 import { MarketplaceManifestSchema } from './schemas.js';
+import { SafePluginNameSchema } from '../schemas.js';
 import { tryLoadManifest } from '../validate-plugin.js';
 import type {
     MarketplaceSource,
@@ -125,6 +126,9 @@ export async function addMarketplace(
 ): Promise<MarketplaceAddResult> {
     const parsedSource = parseMarketplaceSource(source);
     const name = options.name || deriveMarketplaceName(parsedSource);
+    if (!SafePluginNameSchema.safeParse(name).success) {
+        throw MarketplaceError.addInvalidName(name);
+    }
     const warnings: string[] = [];
 
     // Check if already exists
