@@ -1,5 +1,5 @@
 import { exec as execCallback } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { glob } from 'glob';
@@ -45,7 +45,7 @@ class LocalWorkspaceFiles {
 
     readText = async (filePath: string): Promise<string> => {
         try {
-            return await readFile(this.resolveInsideRoot(filePath), 'utf-8');
+            return await readFile(await this.resolveInsideRoot(filePath), 'utf-8');
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 throw WorkspaceError.fileNotFound(filePath);
@@ -71,7 +71,7 @@ class LocalWorkspaceFiles {
     };
 
     writeFile = async (filePath: string, content: string): Promise<void> => {
-        const resolvedPath = this.resolveInsideRoot(filePath);
+        const resolvedPath = await this.resolveInsideRoot(filePath);
         await mkdir(path.dirname(resolvedPath), { recursive: true });
         try {
             await writeFile(resolvedPath, content, 'utf-8');
@@ -84,22 +84,26 @@ class LocalWorkspaceFiles {
     };
 
     listFiles = async (directoryPath = '.'): Promise<string[]> => {
-        const resolvedPath = this.resolveInsideRoot(directoryPath);
+        const resolvedPath = await this.resolveInsideRoot(directoryPath);
         const relativePath = path.relative(this.root, resolvedPath);
         const pattern = relativePath ? `${relativePath.split(path.sep).join('/')}/**/*` : '**/*';
         return this.glob(pattern);
     };
 
-    private resolveInsideRoot(filePath: string): string {
-        const resolvedPath = path.isAbsolute(filePath)
-            ? path.resolve(filePath)
-            : path.resolve(this.root, filePath);
-        const relativePath = path.relative(this.root, resolvedPath);
+    /**
+     * Resolve a path to its real location and require it to be inside the real workspace root,
+     * so a symlink in the workspace cannot lead out of it.
+     */
+    private async resolveInsideRoot(filePath: string): Promise<string> {
+        const resolvedPath = resolveInsideRoot(this.root, filePath);
+        const realRoot = await realpath(this.root);
+        const realPath = await realpathOfPossiblyMissing(resolvedPath, filePath);
+        const relativePath = path.relative(realRoot, realPath);
         if (
             relativePath === '' ||
             (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
         ) {
-            return resolvedPath;
+            return realPath;
         }
         throw WorkspaceError.pathOutsideWorkspace(filePath);
     }
@@ -144,4 +148,28 @@ function resolveInsideRoot(root: string, filePath: string): string {
         return resolvedPath;
     }
     throw WorkspaceError.pathOutsideWorkspace(filePath);
+}
+
+/**
+ * Real path of `target`; a missing tail is joined onto the real path of its nearest existing
+ * ancestor. A dangling symlink is refused, because writing through it would create its target.
+ */
+async function realpathOfPossiblyMissing(target: string, requestedPath: string): Promise<string> {
+    try {
+        return await realpath(target);
+    } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+            throw error;
+        }
+    }
+    const stats = await lstat(target).catch(() => undefined);
+    if (stats?.isSymbolicLink()) {
+        throw WorkspaceError.pathOutsideWorkspace(requestedPath);
+    }
+    const parent = path.dirname(target);
+    if (parent === target) {
+        return target;
+    }
+    return path.join(await realpathOfPossiblyMissing(parent, requestedPath), path.basename(target));
 }
