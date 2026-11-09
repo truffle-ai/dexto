@@ -73,7 +73,9 @@ function isMetadataAddress(address: string): boolean {
 function normalizeHostname(hostname: string): string {
     const bare =
         hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
-    return bare.toLowerCase().replace(/\.+$/, '');
+    let host = bare.toLowerCase();
+    while (host.endsWith('.')) host = host.slice(0, -1);
+    return host;
 }
 
 /**
