@@ -349,7 +349,7 @@ export function listMarketplaces(): MarketplaceEntry[] {
  * symlink on both paths; undefined when it is outside or cannot be resolved (fail closed).
  * Callers use the returned path from then on, so what is copied is what was checked.
  */
-function realPathInside(directory: string, target: string): string | undefined {
+export function realPathInside(directory: string, target: string): string | undefined {
     try {
         const realTarget = realpathSync(target);
         const relative = path.relative(realpathSync(directory), realTarget);

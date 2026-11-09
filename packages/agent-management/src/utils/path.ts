@@ -127,12 +127,17 @@ export async function resolvesInside(root: string, candidate: string): Promise<b
 /**
  * Copy entire directory recursively.
  *
- * Links are never followed out of the source: a link that resolves outside `src` is skipped, a
+ * The source itself must not be a link (it is refused). Links are never followed out of the
+ * source: a link that resolves outside `src` is skipped, a
  * link to a directory is skipped, and a link to a file inside `src` is copied as a regular file.
  * @param src Source directory path
  * @param dest Destination directory path
  */
 export async function copyDirectory(src: string, dest: string): Promise<void> {
+    // The source root is the boundary for every link below it, so it must not be a link itself.
+    if ((await fs.lstat(src)).isSymbolicLink()) {
+        throw new Error(`Refusing to copy ${src}: the source directory is a symbolic link`);
+    }
     await copyDirectoryWithin(src, dest, src);
 }
 

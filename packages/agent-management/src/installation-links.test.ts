@@ -38,4 +38,24 @@ describe.skipIf(process.platform === 'win32')('installCustomAgent with links', (
         expect(entries).not.toContain('stolen.txt');
         expect(entries).not.toContain('linked-dir');
     });
+
+    it('refuses an agent directory that is itself a link and installs nothing', async () => {
+        const realDir = path.join(tempDir, 'real-agent');
+        const linkDir = path.join(tempDir, 'link-agent');
+        const agentsDir = path.join(tempDir, 'agents');
+        await fs.mkdir(realDir);
+        await fs.writeFile(path.join(realDir, 'agent.yml'), 'systemPrompt: hi\n');
+        await fs.symlink(realDir, linkDir);
+
+        await expect(
+            installCustomAgent(
+                'link-agent',
+                linkDir,
+                { name: 'Link', description: 'Linked source', author: 'test', tags: [] },
+                { agentsDir }
+            )
+        ).rejects.toThrow(/symbolic link/);
+        // Nothing is installed.
+        await expect(fs.readdir(path.join(agentsDir, 'link-agent'))).rejects.toThrow();
+    });
 });
