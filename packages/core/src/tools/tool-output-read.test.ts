@@ -103,6 +103,25 @@ describe('tool_output_read', () => {
         expect(assembled).toBe(text);
     });
 
+    it('backs up a model-supplied offset inside a surrogate pair', async () => {
+        const { toolOutputs, read } = await setup();
+        await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: 'a😀b' });
+        expect(await read('s1', { id: 'call-1', charOffset: 2 })).toContain('1: 😀b');
+    });
+
+    it('does not split a surrogate pair in a search match', async () => {
+        const { toolOutputs, read } = await setup();
+        await toolOutputs.save({
+            sessionId: 's1',
+            toolCallId: 'call-1',
+            text: `${'x'.repeat(499)}😀`,
+        });
+        const found = await read('s1', { id: 'call-1', pattern: 'x' });
+        expect(found).not.toMatch(
+            /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u
+        );
+    });
+
     it('pages through a line too long to read at once', async () => {
         const { toolOutputs, read } = await setup();
         const longLine = 'x'.repeat(120_000);

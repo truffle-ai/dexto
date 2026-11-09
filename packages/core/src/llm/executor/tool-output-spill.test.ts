@@ -96,6 +96,51 @@ describe('planToolOutputSpills', () => {
         );
     });
 
+    it('fits parallel results within real step budgets whenever complete markers fit', () => {
+        for (const window of [272_000, 40_000, 2_500]) {
+            const budget = toolOutputBudget(window);
+            for (const length of [30_000, Math.floor(budget.inlineCapChars / 2) - 1]) {
+                for (let count = 1; count <= 300; count++) {
+                    const results = Array.from({ length: count }, (_, i) => ({
+                        toolCallId: `call-${String(i).padStart(16, '0')}`,
+                        textLength: length,
+                    }));
+                    const plan = planToolOutputSpills(results, budget);
+                    const inline = results.reduce(
+                        (sum, item) => sum + (plan.get(item.toolCallId) ?? item.textLength),
+                        0
+                    );
+                    const minimum = results.reduce((sum, item) => {
+                        const text = 'x'.repeat(item.textLength);
+                        const marker = toolResultText(
+                            withToolOutputPreview(
+                                result(item.toolCallId, [{ type: 'text', text }]),
+                                text,
+                                0
+                            )
+                        );
+                        return sum + Math.min(item.textLength, marker.length);
+                    }, 0);
+                    expect(inline).toBeLessThanOrEqual(Math.max(budget.stepBudgetChars, minimum));
+                }
+            }
+        }
+    });
+
+    it('keeps fitting results unchanged and never cuts read instructions at the minimum', () => {
+        const budget = { inlineCapChars: 1_000, stepBudgetChars: 500 };
+        expect(planToolOutputSpills([{ toolCallId: 'fits', textLength: 500 }], budget).size).toBe(
+            0
+        );
+        const id = 'a'.repeat(300);
+        const text = 'x'.repeat(10_000);
+        const plan = planToolOutputSpills([{ toolCallId: id, textLength: text.length }], budget);
+        const preview = toolResultText(
+            withToolOutputPreview(result(id, [{ type: 'text', text }]), text, plan.get(id)!)
+        );
+        expect(preview).toContain('instead of re-running the tool.]');
+    });
+
     it('prefers the largest result, earlier calls first on ties, for the step budget', () => {
         const plan = planToolOutputSpills(
             [
@@ -106,7 +151,12 @@ describe('planToolOutputSpills', () => {
             { inlineCapChars: 80_000, stepBudgetChars: 150_000 }
         );
 
-        expect(plan).toEqual(new Map([['b', 8_000]]));
+        expect(plan).toEqual(
+            new Map([
+                ['b', 40_000],
+                ['c', 40_000],
+            ])
+        );
     });
 });
 
