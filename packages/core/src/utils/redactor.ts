@@ -16,6 +16,13 @@ const SENSITIVE_FIELDS = [
     'refresh_token',
     'password',
     'secret',
+    'client_secret',
+    'private_key',
+    'authorization',
+    'proxy-authorization',
+    'cookie',
+    'set-cookie',
+    'x-api-key',
 ];
 
 // List of file data field names that should be truncated for logging
@@ -213,57 +220,360 @@ function redactText(text: string, awsAccessKeyIdPattern: RegExp, keepTokenValue:
     );
 }
 
-export function redactSensitiveData(input: unknown, seen = new WeakSet()): unknown {
+function redactString(input: string): string {
+    // Each signed URL is set aside first, so the patterns run on the rest with its context
+    // intact, and is put back redacted in the same way except for what makes it a working
+    // link: its own credential key id and its token= value. Any other key id or token in it,
+    // object name included, is redacted. Text that already holds the placeholder's delimiter
+    // gets no exemption at all.
+    const signedUrls: string[] = [];
+    const withPlaceholders = input.includes('\uE000')
+        ? input
+        : input
+              .split(URL_PATTERN)
+              .map((part, index) => {
+                  if (index % 2 === 0 || !isSignedUrl(part)) return part;
+                  signedUrls.push(part);
+                  return `\uE000${signedUrls.length - 1}\uE000`;
+              })
+              .join('');
+    const result = redactText(withPlaceholders, AWS_ACCESS_KEY_ID_PATTERN, false);
+    return signedUrls.length === 0
+        ? result
+        : result.replace(SIGNED_URL_PLACEHOLDER, (_placeholder, index: string) => {
+              const url = signedUrls[Number(index)];
+              return url === undefined
+                  ? REDACTED
+                  : redactText(url, AWS_ACCESS_KEY_ID_OUTSIDE_CREDENTIAL_PATTERN, true);
+          });
+}
+
+/**
+ * How a value is treated while redacting. API responses and logs share one walk, but a log
+ * also masks by broader key names and by "name=value" text, which would corrupt API payloads
+ * (for example a `nextPageToken` or a public `posthogKey`).
+ */
+type Mode = 'response' | 'log';
+
+const MAX_LOG_DEPTH = 20;
+// A log entry is read for at most this many objects, so a densely linked graph (every node
+// pointing at every other) cannot be walked once per path.
+const MAX_LOG_NODES = 5000;
+const TRUNCATED = '[Truncated]';
+
+/** The text a logger writes when it could not redact an entry, never the entry itself. */
+export const UNREDACTABLE_LOG_DATA = '[unredactable log data]';
+
+/** State of one redaction call. */
+interface Walk {
+    /** Objects on the path being read, to mark a real cycle. */
+    ancestors: WeakSet<object>;
+    /** Results already made, so a value reached twice is read once (API responses). */
+    memo: WeakMap<object, unknown> | undefined;
+    /** Objects this call may still read (logs). */
+    remaining: number;
+}
+
+/** Values that hold no keys to look at: how many bytes, not the bytes. */
+function describeBinary(value: ArrayBuffer | ArrayBufferView): string {
+    const name = value instanceof ArrayBuffer ? 'ArrayBuffer' : value.constructor.name;
+    return `[${name} ${value.byteLength} bytes]`;
+}
+
+function redactValue(
+    input: unknown,
+    walk: Walk,
+    mode: Mode,
+    insideSecret: boolean,
+    depth = 0
+): unknown {
     if (typeof input === 'string') {
-        // Each signed URL is set aside first, so the patterns run on the rest with its context
-        // intact, and is put back redacted in the same way except for what makes it a working
-        // link: its own credential key id and its token= value. Any other key id or token in it,
-        // object name included, is redacted. Text that already holds the placeholder's delimiter
-        // gets no exemption at all.
-        const signedUrls: string[] = [];
-        const withPlaceholders = input.includes('\uE000')
-            ? input
-            : input
-                  .split(URL_PATTERN)
-                  .map((part, index) => {
-                      if (index % 2 === 0 || !isSignedUrl(part)) return part;
-                      signedUrls.push(part);
-                      return `\uE000${signedUrls.length - 1}\uE000`;
-                  })
-                  .join('');
-        const result = redactText(withPlaceholders, AWS_ACCESS_KEY_ID_PATTERN, false);
-        return signedUrls.length === 0
-            ? result
-            : result.replace(SIGNED_URL_PLACEHOLDER, (_placeholder, index: string) => {
-                  const url = signedUrls[Number(index)];
-                  return url === undefined
-                      ? REDACTED
-                      : redactText(url, AWS_ACCESS_KEY_ID_OUTSIDE_CREDENTIAL_PATTERN, true);
-              });
+        if (insideSecret) return REDACTED;
+        const redacted = redactString(input);
+        return mode === 'log' ? redactKeyValueText(redacted) : redacted;
     }
-    if (Array.isArray(input)) {
-        if (seen.has(input)) return REDACTED_CIRCULAR;
-        seen.add(input);
-        return input.map((item) => redactSensitiveData(item, seen));
+    if (typeof input !== 'object' || input === null) return input;
+
+    if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) return describeBinary(input);
+    if (input instanceof Date) {
+        return Number.isNaN(input.getTime()) ? 'Invalid Date' : input.toISOString();
     }
-    if (input && typeof input === 'object') {
-        if (seen.has(input)) return REDACTED_CIRCULAR;
-        seen.add(input);
-        const result: any = {};
-        for (const [key, value] of Object.entries(input)) {
-            if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
-                result[key] = REDACTED;
-            } else {
-                // First truncate file data (with parent context), then recursively redact
-                const truncatedValue = truncateFileData(
-                    value,
-                    key,
-                    input as Record<string, unknown>
+    if (input instanceof RegExp) return String(input);
+    if (input instanceof URL) {
+        const withoutCredentials = new URL(input.href);
+        withoutCredentials.username = '';
+        withoutCredentials.password = '';
+        return redactValue(withoutCredentials.href, walk, mode, insideSecret, depth);
+    }
+
+    if (walk.ancestors.has(input)) return REDACTED_CIRCULAR;
+    const memoized = walk.memo?.get(input);
+    if (memoized !== undefined) return memoized;
+    if (mode === 'log' && depth >= MAX_LOG_DEPTH) return TRUNCATED;
+    if (walk.remaining <= 0) return TRUNCATED;
+    walk.remaining -= 1;
+
+    walk.ancestors.add(input);
+    try {
+        const result = redactContainer(input, walk, mode, insideSecret, depth + 1);
+        walk.memo?.set(input, result);
+        return result;
+    } finally {
+        walk.ancestors.delete(input);
+    }
+}
+
+/** An Error as log data: its name, message, stack and cause, its own fields and its toJSON. */
+function errorFields(error: Error): Record<string, unknown> {
+    const toJSON: unknown = Reflect.get(error, 'toJSON');
+    const json: unknown = typeof toJSON === 'function' ? toJSON.call(error) : undefined;
+    return {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        ...(error.cause !== undefined && { cause: error.cause }),
+        ...Object.fromEntries(Object.entries(error)),
+        ...(typeof json === 'object' && json !== null
+            ? Object.fromEntries(Object.entries(json))
+            : {}),
+    };
+}
+
+function redactContainer(
+    input: object,
+    walk: Walk,
+    mode: Mode,
+    insideSecret: boolean,
+    depth: number
+): unknown {
+    if (Array.isArray(input) || input instanceof Set) {
+        return [...input].map((item) => redactValue(item, walk, mode, insideSecret, depth));
+    }
+    if (input instanceof Map) {
+        return [...input].map(([key, value]) => [
+            redactValue(key, walk, mode, insideSecret, depth),
+            redactEntry(String(key), value, walk, mode, insideSecret, depth),
+        ]);
+    }
+    const fields =
+        mode === 'log' && input instanceof Error
+            ? errorFields(input)
+            : Object.fromEntries(Object.entries(input));
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(fields)) {
+        if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
+            result[key] = REDACTED;
+            continue;
+        }
+        // First truncate file data (with parent context), then recursively redact
+        const truncatedValue = truncateFileData(value, key, fields);
+        result[key] = redactEntry(key, truncatedValue, walk, mode, insideSecret, depth);
+    }
+    return result;
+}
+
+/**
+ * One value under its key. In a log, every string under an env or headers map is masked, and a
+ * secret-named key masks its own string value (or the strings in its array); an object under
+ * such a name is read by its own key names.
+ */
+function redactEntry(
+    key: string,
+    value: unknown,
+    walk: Walk,
+    mode: Mode,
+    insideSecret: boolean,
+    depth: number
+): unknown {
+    if (mode === 'log' && !insideSecret) {
+        if (isSecretMapKey(key) && isPlainObject(value)) {
+            return redactValue(value, walk, mode, true, depth);
+        }
+        if (isSensitiveLogKey(key)) {
+            if (typeof value === 'string') return REDACTED;
+            if (Array.isArray(value)) {
+                return value.map((item) =>
+                    typeof item === 'string'
+                        ? REDACTED
+                        : redactValue(item, walk, mode, false, depth)
                 );
-                result[key] = redactSensitiveData(truncatedValue, seen);
             }
         }
-        return result;
     }
-    return input;
+    return redactValue(value, walk, mode, insideSecret, depth);
+}
+
+function isPlainObject(value: unknown): boolean {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()): unknown {
+    return redactValue(
+        input,
+        { ancestors: seen, memo: new WeakMap(), remaining: Infinity },
+        'response',
+        false
+    );
+}
+
+// ---- Logs ----
+//
+// Both loggers (the winston GlobalLogger and the structured DextoLogger) call these two
+// functions, so what a log hides does not depend on which logger wrote it.
+
+// Key names that hold a secret, matched on the name with separators and case removed: it is or
+// ends in one of these (client_secret, X-Api-Key, accessToken, DB_PASSWORD). A name that only
+// mentions one (secretName, cookieName, tokenizer, tokenUsage, credentials: 'include') does not.
+// Only string values under such a key are masked: a number or boolean (maxTokens, hasApiKey) is
+// not a secret and stays readable.
+const SENSITIVE_KEY_SUFFIXES = [
+    'token',
+    'secret',
+    'secrets',
+    'password',
+    'passwd',
+    'passphrase',
+    'bearer',
+    'credential',
+    'authorization',
+    'cookie',
+    'cookies',
+    'apikey',
+    'apikeys',
+    'privatekey',
+    'accesskey',
+    'secretkey',
+    'signingkey',
+    'encryptionkey',
+];
+// A map whose every string value is masked, names kept: env and header maps.
+const SECRET_MAP_KEYS = new Set(['env', 'envvars', 'environment', 'headers']);
+
+function normalizeKey(key: string): string {
+    return key.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isSensitiveLogKey(key: string): boolean {
+    const normalized = normalizeKey(key);
+    return SENSITIVE_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+}
+
+function isSecretMapKey(key: string): boolean {
+    return SECRET_MAP_KEYS.has(normalizeKey(key));
+}
+
+// Authorization, cookie and API key header lines hold spaces ("Bearer abc", "a=1; b=2"), so an unquoted
+// value runs to the end of the line.
+const HEADER_LINE_PATTERN =
+    /(?<![A-Za-z0-9_-])((?:proxy-)?authorization|(?:set-)?cookie|x-api-key|x-auth-token)(\s*[:=]\s*)(?!["'\\])[^\r\n]*/gi;
+
+// name=value or name: value, read in two steps. The name (tried only from a word edge) is found
+// first, and the value is read only after a secret-named key. A name that is not secret is passed
+// over alone, so "url=https://h/p?token=abc" still gets its token= looked at, and no input makes
+// the scan quadratic. A value is quoted (also as JSON escaped inside a string) or unquoted up to a
+// separator; a quote that never closes, or runs past the cap, masks the rest of the line.
+const NAME_PATTERN = /(?<![A-Za-z0-9_.-])([A-Za-z][A-Za-z0-9_.-]*)(\\?["']?)(\s*[:=]\s*)/g;
+const VALUE_PATTERN =
+    /\\"(?:[^"\\]|\\(?!")){0,4096}?\\"|"(?:[^"\\]|\\.){0,4096}"|'(?:[^'\\]|\\.){0,4096}'|[^\s,;&"'}\])\\]+|["'\\][^\r\n]*/y;
+
+// env: { A: "b" } or "headers":{"A":"b"}. These maps are flat, so one level is enough.
+const SECRET_MAP_TEXT_PATTERN =
+    /(?<![A-Za-z0-9_-])(env|envvars|environment|headers)(\\?["']?\s*[:=]\s*)\{([^{}]{0,8192})\}/gi;
+const MAP_ENTRY_PATTERN =
+    /((?:\\?["'])?[A-Za-z0-9_.-]{1,128}(?:\\?["'])?\s*[:=]\s*)(\\"(?:[^"\\]|\\(?!")){0,4096}?\\"|"(?:[^"\\]|\\.){0,4096}"|'(?:[^'\\]|\\.){0,4096}'|[^\s,}]+)/g;
+
+// A number or boolean written without quotes is not a secret (maxTokens: 4096).
+const PLAIN_VALUE_PATTERN = /^(?:\d+(?:\.\d+)?|true|false|null|undefined)$/i;
+
+/** A quoted value, one with a digit or symbol in it, or a long one: not an ordinary word. */
+function looksLikeCredential(value: string): boolean {
+    return /^[\\"']/.test(value) || /[^A-Za-z]/.test(value) || value.length >= 16;
+}
+
+/** The mask, in the same quotes the value had. */
+function maskedLike(value: string): string {
+    for (const quote of ['\\"', '"', "'"]) {
+        if (value.length >= quote.length * 2 && value.startsWith(quote) && value.endsWith(quote)) {
+            return `${quote}${REDACTED}${quote}`;
+        }
+    }
+    return REDACTED;
+}
+
+function redactKeyValueText(text: string): string {
+    const withMaps = text
+        .replace(
+            HEADER_LINE_PATTERN,
+            (_match, name: string, separator: string) => `${name}${separator}${REDACTED}`
+        )
+        .replace(
+            SECRET_MAP_TEXT_PATTERN,
+            (_match, name: string, separator: string, entries: string) =>
+                `${name}${separator}{${entries.replace(
+                    MAP_ENTRY_PATTERN,
+                    (_entry, prefix: string, value: string) => `${prefix}${maskedLike(value)}`
+                )}}`
+        );
+
+    const names = new RegExp(NAME_PATTERN);
+    const values = new RegExp(VALUE_PATTERN);
+    let result = '';
+    let copiedUpTo = 0;
+    for (let found = names.exec(withMaps); found; found = names.exec(withMaps)) {
+        if (!isSensitiveLogKey(found[1] ?? '')) continue;
+        values.lastIndex = names.lastIndex;
+        const value = values.exec(withMaps)?.[0];
+        if (value === undefined) continue;
+        names.lastIndex = values.lastIndex;
+        if (value.startsWith(REDACTED.slice(0, -1)) || PLAIN_VALUE_PATTERN.test(value)) continue;
+        // "name: value" is also how a sentence reads ("Failed to refresh token: network error"),
+        // so after a colon only a value that looks like a credential is masked.
+        if (!found[3]?.includes('=') && !looksLikeCredential(value)) continue;
+        result += withMaps.slice(copiedUpTo, values.lastIndex - value.length) + maskedLike(value);
+        copiedUpTo = values.lastIndex;
+    }
+    return result + withMaps.slice(copiedUpTo);
+}
+
+/** Redacts one log message: known secret shapes, then the value of any secret-named key. */
+export function redactLogText(text: string): string {
+    return redactKeyValueText(redactString(text));
+}
+
+/**
+ * A log message of any type, as redacted text. Never throws: an entry that cannot be read is
+ * replaced by UNREDACTABLE_LOG_DATA, not passed on as it was.
+ */
+export function redactLogMessage(message: unknown): string {
+    try {
+        return redactLogText(typeof message === 'string' ? message : String(message));
+    } catch {
+        return UNREDACTABLE_LOG_DATA;
+    }
+}
+
+/**
+ * A log record (context or metadata) with secrets masked, leaving out `skip`. Never throws: a
+ * record that cannot be read (a throwing getter, a revoked proxy) becomes one key holding
+ * UNREDACTABLE_LOG_DATA, not the record itself.
+ */
+export function redactLogRecord(
+    record: object,
+    skip: readonly string[] = []
+): Record<string, unknown> {
+    try {
+        const entries = Object.entries(record).filter(([key]) => !skip.includes(key));
+        const redacted = redactValue(
+            Object.fromEntries(entries),
+            { ancestors: new WeakSet(), memo: undefined, remaining: MAX_LOG_NODES },
+            'log',
+            false
+        );
+        if (typeof redacted !== 'object' || redacted === null || Array.isArray(redacted)) {
+            return { redacted: UNREDACTABLE_LOG_DATA };
+        }
+        return Object.fromEntries(Object.entries(redacted));
+    } catch {
+        return { redacted: UNREDACTABLE_LOG_DATA };
+    }
 }
