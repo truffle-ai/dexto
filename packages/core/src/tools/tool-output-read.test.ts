@@ -85,6 +85,24 @@ describe('tool_output_read', () => {
         expect(literal).toBe('[No lines contain "(a+)+$" in 3000 lines.]');
     });
 
+    it('reassembles a long line with an emoji across the page boundary', async () => {
+        const { toolOutputs, read } = await setup();
+        const text = `${'x'.repeat(15_996)}😀${'y'.repeat(20_000)}`;
+        await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text });
+        let charOffset = 0;
+        let assembled = '';
+        for (;;) {
+            const page = await read('s1', { id: 'call-1', offset: 1, charOffset });
+            const [body] = page.split('\n\n[');
+            assembled += body?.slice(3) ?? '';
+            const match = /charOffset=(\d+)/.exec(page);
+            if (!match) break;
+            charOffset = Number(match[1]);
+            expect(charOffset).not.toBe(15_997);
+        }
+        expect(assembled).toBe(text);
+    });
+
     it('pages through a line too long to read at once', async () => {
         const { toolOutputs, read } = await setup();
         const longLine = 'x'.repeat(120_000);
