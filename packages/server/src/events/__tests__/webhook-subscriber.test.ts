@@ -164,6 +164,7 @@ describe('WebhookEventSubscriber', () => {
                 'https://example.com/webhook',
                 expect.objectContaining({
                     method: 'POST',
+                    redirect: 'error',
                     headers: expect.objectContaining({
                         'Content-Type': 'application/json',
                         'User-Agent': 'DextoAgent/1.0',

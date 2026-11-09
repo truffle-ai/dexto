@@ -307,6 +307,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
                 method: 'POST',
                 headers,
                 body: payload,
+                redirect: 'error',
                 signal: AbortSignal.timeout(this.deliveryOptions.timeout),
             });
 

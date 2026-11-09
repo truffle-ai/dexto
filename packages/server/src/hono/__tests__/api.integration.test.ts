@@ -1073,6 +1073,16 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBeGreaterThanOrEqual(400);
         });
 
+        it.each([
+            'ftp://example.com/hook',
+            'https://user:pass@example.com/hook',
+            'http://169.254.169.254/latest',
+        ])('POST /api/webhooks rejects %s', async (url) => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/webhooks', { url });
+            expect(res.status).toBe(400);
+        });
+
         it('POST /api/webhooks creates webhook', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'POST', '/api/webhooks', {
