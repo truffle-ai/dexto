@@ -103,11 +103,13 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
         });
 
         const toolCreators: Record<FileSystemToolName, () => Tool> = {
-            read_file: () => createReadFileTool(getFileSystemService, blockedPathCheck),
+            read_file: () =>
+                createReadFileTool(getFileSystemService, blockedPathCheck, config.maxFileSize),
             read_media_file: () => createReadMediaFileTool(getFileSystemService),
             write_file: () => createWriteFileTool(getFileSystemService, blockedPathCheck),
-            edit_file: () => createEditFileTool(getFileSystemService, blockedPathCheck),
-            glob_files: () => createGlobFilesTool(getFileSystemService),
+            edit_file: () =>
+                createEditFileTool(getFileSystemService, blockedPathCheck, config.maxFileSize),
+            glob_files: () => createGlobFilesTool(getFileSystemService, blockedPathCheck),
             grep_content: () => createGrepContentTool(getFileSystemService, blockedPathCheck),
         };
 

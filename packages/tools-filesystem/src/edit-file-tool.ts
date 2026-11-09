@@ -19,7 +19,7 @@ import {
 import { DextoRuntimeError } from '@dexto/core/errors';
 import type { DiffDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
-import { FileSystemErrorCode } from './error-codes.js';
+import { assertWithinMaxFileSize } from './file-size.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
 import { toWorkspaceRelativePath } from './workspace-paths.js';
 
@@ -53,6 +53,21 @@ const EditFileInputSchema = z
     .strict();
 
 /**
+ * Replace `oldString` with `newString` literally. A replacement function is used so `$&`, `$1`
+ * and other `$` sequences in `newString` are kept as written instead of being expanded.
+ */
+function replaceText(
+    content: string,
+    oldString: string,
+    newString: string,
+    replaceAll: boolean
+): string {
+    return replaceAll
+        ? content.split(oldString).join(newString)
+        : content.replace(oldString, () => newString);
+}
+
+/**
  * Generate diff preview without modifying the file
  */
 function generateDiffPreview(
@@ -81,7 +96,8 @@ function generateDiffPreview(
  */
 export function createEditFileTool(
     getFileSystemService: FileSystemServiceGetter,
-    blockedPathCheck: BlockedPathCheck
+    blockedPathCheck: BlockedPathCheck,
+    maxFileSize: number
 ): Tool<typeof EditFileInputSchema> {
     return defineTool({
         id: 'edit_file',
@@ -115,32 +131,23 @@ export function createEditFileTool(
             preview: async (input, context: ToolExecutionContext) => {
                 const { file_path, old_string, new_string, replace_all } = input;
 
-                const resolvedFileSystemService = await getFileSystemService(context);
-                const { path: resolvedPath } = resolveFilePath(
-                    resolvedFileSystemService.getWorkingDirectory(),
+                // Preview reads only what execute could edit: inside the workspace and not blocked.
+                const handle = await openWorkspace(context, 'edit_file');
+                const workspacePath = toWorkspaceRelativePath(
+                    'edit_file',
+                    handle.context.path,
                     file_path
                 );
 
                 try {
-                    // Read current file content
-                    let originalContent: string;
-                    try {
-                        const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
-                        originalContent = originalFile.content;
-                    } catch (error) {
-                        if (
-                            error instanceof DextoRuntimeError &&
-                            error.code === FileSystemErrorCode.INVALID_PATH
-                        ) {
-                            const originalFile =
-                                await resolvedFileSystemService.readFileForToolPreview(
-                                    resolvedPath
-                                );
-                            originalContent = originalFile.content;
-                        } else {
-                            throw error;
-                        }
-                    }
+                    await assertPathNotBlocked(
+                        blockedPathCheck,
+                        handle.context.path,
+                        workspacePath,
+                        context.logger
+                    );
+                    const originalContent = await handle.files.readText(workspacePath);
+                    assertWithinMaxFileSize(workspacePath, originalContent, maxFileSize);
 
                     // Store content hash for change detection in execute phase
                     if (context.toolCallId) {
@@ -157,15 +164,18 @@ export function createEditFileTool(
                             throw ToolError.validationFailed(
                                 'edit_file',
                                 `String found ${occurrences} times in file. Set replace_all=true to replace all, or provide more context to make old_string unique.`,
-                                { file_path: resolvedPath, occurrences }
+                                { file_path, occurrences }
                             );
                         }
                     }
 
                     // Compute what the new content would be
-                    const newContent = replace_all
-                        ? originalContent.split(old_string).join(new_string)
-                        : originalContent.replace(old_string, new_string);
+                    const newContent = replaceText(
+                        originalContent,
+                        old_string,
+                        new_string,
+                        replace_all
+                    );
 
                     // If no change, old_string was not found - throw validation error
                     if (originalContent === newContent) {
@@ -173,13 +183,13 @@ export function createEditFileTool(
                             'edit_file',
                             `String not found in file: "${old_string.slice(0, 50)}${old_string.length > 50 ? '...' : ''}"`,
                             {
-                                file_path: resolvedPath,
+                                file_path,
                                 old_string_preview: old_string.slice(0, 100),
                             }
                         );
                     }
 
-                    return generateDiffPreview(resolvedPath, originalContent, newContent);
+                    return generateDiffPreview(file_path, originalContent, newContent);
                 } catch (error) {
                     // Re-throw validation errors as-is
                     if (
@@ -191,7 +201,7 @@ export function createEditFileTool(
                     // Convert filesystem errors (file not found, etc.) to validation errors
                     if (error instanceof DextoRuntimeError) {
                         throw ToolError.validationFailed('edit_file', error.message, {
-                            file_path: resolvedPath,
+                            file_path,
                             originalErrorCode: error.code,
                         });
                     }
@@ -219,6 +229,7 @@ export function createEditFileTool(
             // Check if file was modified since preview (safety check)
             // This prevents corrupting user edits made between preview approval and execution
             let currentContent = await handle.files.readText(workspacePath);
+            assertWithinMaxFileSize(workspacePath, currentContent, maxFileSize);
             const toolCallId = context.toolCallId;
             if (toolCallId) {
                 const expectedHash = previewContentHashCache.get(toolCallId);
@@ -262,9 +273,7 @@ export function createEditFileTool(
                 );
             }
 
-            const newContent = replace_all
-                ? currentContent.split(old_string).join(new_string)
-                : currentContent.replace(old_string, new_string);
+            const newContent = replaceText(currentContent, old_string, new_string, replace_all);
             await handle.files.writeFile(workspacePath, newContent);
 
             const _display = generateDiffPreview(file_path, currentContent, newContent);

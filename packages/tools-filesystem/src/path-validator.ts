@@ -253,6 +253,24 @@ export class PathValidator {
             }
         }
 
+        // A relative entry such as `.env` or `node_modules/.bin` also blocks the same
+        // segments at any depth below a root, so `sub/.env` is as blocked as `.env`.
+        const roots =
+            this.normalizedAllowedPaths.length > 0
+                ? [...this.normalizedAllowedPaths, ...this.canonicalAllowedPaths]
+                : [resolveUserPath(process.cwd(), this.config.workingDirectory || process.cwd())];
+        for (const root of roots) {
+            if (!isWithinRoot(root, normalizedPath)) continue;
+            const pathSegments = path.relative(root, normalizedPath).split(path.sep);
+            for (const blocked of this.normalizedBlockedPaths) {
+                if (path.isAbsolute(blocked)) continue;
+                const blockedSegments = blocked.split(path.sep).filter((s) => s !== '');
+                if (containsSegments(pathSegments, blockedSegments)) {
+                    return `Within blocked directory: ${blocked}`;
+                }
+            }
+        }
+
         return null;
     }
 
@@ -415,6 +433,17 @@ export class PathValidator {
     getBlockedPaths(): string[] {
         return [...this.normalizedBlockedPaths];
     }
+}
+
+/** True when `needle` appears as consecutive segments anywhere in `segments`. */
+function containsSegments(segments: string[], needle: string[]): boolean {
+    if (needle.length === 0) return false;
+    for (let start = 0; start + needle.length <= segments.length; start += 1) {
+        if (needle.every((segment, offset) => segments[start + offset] === segment)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function isWithinRoot(root: string, candidate: string): boolean {

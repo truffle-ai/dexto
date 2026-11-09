@@ -709,6 +709,9 @@ importers:
       glob:
         specifier: ^14.0.3
         version: 14.0.3
+      minimatch:
+        specifier: ^10.2.4
+        version: 10.2.4
       safe-regex:
         specifier: ^2.1.1
         version: 2.1.1

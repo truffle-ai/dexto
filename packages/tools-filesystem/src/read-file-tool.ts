@@ -13,6 +13,7 @@ import {
 } from '@dexto/core/tools';
 import type { FileDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
+import { assertWithinMaxFileSize } from './file-size.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
 import type { ReadFileOptions } from './types.js';
 import { assertPathNotBlocked, type BlockedPathCheck } from './blocked-path-check.js';
@@ -41,7 +42,8 @@ const ReadFileInputSchema = z
  */
 export function createReadFileTool(
     getFileSystemService: FileSystemServiceGetter,
-    blockedPathCheck: BlockedPathCheck
+    blockedPathCheck: BlockedPathCheck,
+    maxFileSize: number
 ): Tool<typeof ReadFileInputSchema> {
     return defineTool({
         id: 'read_file',
@@ -89,6 +91,7 @@ export function createReadFileTool(
                 context.logger
             );
             const content = await handle.files.readText(workspacePath);
+            assertWithinMaxFileSize(workspacePath, content, maxFileSize);
             const result = applyLineWindow(content, {
                 limit: input.limit,
                 offset: input.offset,

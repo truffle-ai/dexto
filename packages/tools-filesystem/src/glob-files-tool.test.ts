@@ -2,7 +2,18 @@ import { describe, it, expect, vi } from 'vitest';
 import { ToolErrorCode } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
 import type { ToolServices } from '@dexto/core/tools';
+import { createBlockedPathCheck } from './blocked-path-check.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
+import { allowAllPaths } from './test-helpers.js';
+
+const blockedPathCheck = createBlockedPathCheck({
+    allowedPaths: ['.'],
+    blockedPaths: ['.git', '.env'],
+    blockedExtensions: [],
+    maxFileSize: 1024,
+    enableBackups: false,
+    backupRetentionDays: 7,
+});
 
 const createMockLogger = (): Logger => {
     const logger: Logger = {
@@ -67,7 +78,7 @@ describe('glob_files tool', () => {
             throw new Error('glob_files execute must not use FileSystemService');
         });
         const glob = vi.fn(async () => ['src/a.ts', 'src/b.ts', 'src/c.ts']);
-        const tool = createGlobFilesTool(getFileSystemService);
+        const tool = createGlobFilesTool(getFileSystemService, allowAllPaths);
         const parsedInput = tool.inputSchema.parse({
             pattern: '**/*.ts',
             path: 'src',
@@ -92,7 +103,7 @@ describe('glob_files tool', () => {
     it('normalizes workspace-contained absolute search paths before globbing', async () => {
         const mockLogger = createMockLogger();
         const glob = vi.fn(async () => ['src/a.ts']);
-        const tool = createGlobFilesTool(vi.fn());
+        const tool = createGlobFilesTool(vi.fn(), allowAllPaths);
 
         await tool.execute(
             tool.inputSchema.parse({
@@ -108,7 +119,7 @@ describe('glob_files tool', () => {
     it('rejects external absolute search paths before file provider calls', async () => {
         const mockLogger = createMockLogger();
         const glob = vi.fn(async () => ['src/a.ts']);
-        const tool = createGlobFilesTool(vi.fn());
+        const tool = createGlobFilesTool(vi.fn(), allowAllPaths);
 
         await expect(
             tool.execute(
@@ -126,7 +137,7 @@ describe('glob_files tool', () => {
     it('rejects absolute and escaping glob patterns before file provider calls', async () => {
         const mockLogger = createMockLogger();
         const glob = vi.fn(async () => ['src/a.ts']);
-        const tool = createGlobFilesTool(vi.fn());
+        const tool = createGlobFilesTool(vi.fn(), allowAllPaths);
 
         await expect(
             tool.execute(
@@ -146,5 +157,49 @@ describe('glob_files tool', () => {
         ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
 
         expect(glob).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        '{..,src}/**/*.ts',
+        '{.,.}{.,.}/secret.txt',
+        '{/outside,src}/**/*.ts',
+        'src/{a,../b}',
+    ])('rejects brace pattern %s that expands to an escaping glob', async (pattern) => {
+        const glob = vi.fn(async () => ['src/a.ts']);
+        const tool = createGlobFilesTool(vi.fn(), allowAllPaths);
+
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({ pattern }),
+                createToolContext(createMockLogger(), glob)
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+
+        expect(glob).not.toHaveBeenCalled();
+    });
+
+    it('still accepts brace patterns that stay inside the workspace', async () => {
+        const glob = vi.fn(async () => ['src/a.ts', 'src/b.tsx']);
+        const tool = createGlobFilesTool(vi.fn(), allowAllPaths);
+
+        await tool.execute(
+            tool.inputSchema.parse({ pattern: 'src/**/*.{ts,tsx}' }),
+            createToolContext(createMockLogger(), glob)
+        );
+
+        expect(glob).toHaveBeenCalledWith('src/**/*.{ts,tsx}');
+    });
+
+    it('leaves blocked files out of the results', async () => {
+        const glob = vi.fn(async () => ['.env', 'sub/.env', 'sub/.git/config', 'src/a.ts']);
+        const tool = createGlobFilesTool(vi.fn(), blockedPathCheck);
+
+        const result = (await tool.execute(
+            tool.inputSchema.parse({ pattern: '**/*' }),
+            createToolContext(createMockLogger(), glob)
+        )) as { files: Array<{ path: string }>; total_found: number };
+
+        expect(result.files).toEqual([{ path: 'src/a.ts' }]);
+        expect(result.total_found).toBe(1);
     });
 });
