@@ -89,6 +89,14 @@ mcpServers:
 
 Execute local programs that communicate via stdin/stdout.
 
+:::info Upgrading to 1.17
+Local stdio servers no longer inherit Dexto's whole environment, and neither do shell commands. A
+server that read an API key (or any other variable) from the environment must now be given it with
+`passEnvironment` or `env`; see [What a stdio server can see](#what-a-stdio-server-can-see). For
+commands run by `process-tools`, see [Command environment](./tools.md#command-environment). Remote
+`http` and `sse` servers are not affected.
+:::
+
 **Use when:**
 - Running local tools (filesystem, git, database)
 - Development and testing
