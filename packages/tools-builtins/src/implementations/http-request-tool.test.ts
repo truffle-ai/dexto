@@ -292,3 +292,72 @@ describe('http_request tool', () => {
         }
     });
 });
+
+describe('http_request cloud metadata hosts', () => {
+    const METADATA_HOSTS = [
+        'metadata.google.internal',
+        'METADATA.GOOG',
+        'instance-data.',
+        'instance-data.ec2.internal',
+        '169.254.169.254',
+        '[fd00:ec2::254]',
+        '100.100.100.200',
+    ];
+
+    it.each(METADATA_HOSTS)('refuses %s before fetching', async (host) => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        try {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: `http://${host}/latest/meta-data/`, method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            expect(fetchSpy).not.toHaveBeenCalled();
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it('refuses a redirect to a metadata host name', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(null, {
+                status: 302,
+                headers: { location: 'http://metadata.google.internal/computeMetadata/v1/' },
+            })
+        );
+        try {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: 'https://example.com/', method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({
+                code: 'HTTP_REQUEST_UNSAFE_TARGET',
+                message: expect.stringContaining('cloud metadata host'),
+            });
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it.each(['metadata.google.internal', 'metadata.goog', 'instance-data'])(
+        'the connection lookup refuses %s without resolving it',
+        async (host) => {
+            const dnsLookup = vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+            const safeLookup = createSafeLookup({ dnsLookup });
+
+            const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
+                safeLookup(
+                    host,
+                    { all: true } as LookupOptions,
+                    ((err: NodeJS.ErrnoException | null) => resolve(err)) as never
+                );
+            });
+
+            expect(error).toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            expect(dnsLookup).not.toHaveBeenCalled();
+        }
+    );
+});

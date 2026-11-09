@@ -6,8 +6,8 @@ import { isIP } from 'node:net';
  * address (mapped, compatible, 6to4, NAT64).
  *
  * This is the one place that decides what "private" means. Cloud metadata services are a subset
- * of it (link-local, 169.254.0.0/16 and fe80::/10); a metadata-host check can be layered on top
- * for host names that this address check cannot see.
+ * of it (link-local, 169.254.0.0/16 and fe80::/10); callers also refuse metadata host names with
+ * isMetadataHost, which this address check cannot see.
  */
 
 function isPrivateIpv4Octets(a: number, b: number, c: number): boolean {
