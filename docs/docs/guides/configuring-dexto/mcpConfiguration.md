@@ -214,6 +214,25 @@ mcpServers:
 
 **Security best practice:** Always use environment variables for secrets, never hardcode them.
 
+### What a stdio server can see
+
+A stdio server does not inherit Dexto's environment. It starts with a small allowlist of host variables (`PATH`, `HOME`, `USER`, locale, `TERM`, `TZ`, `XDG_*`, CA bundle and proxy variables, and the Windows system variables), plus its own `env`. Model provider keys and other host secrets are not passed on.
+
+To give a server a host variable it needs, either set it in `env`, or name it in `passEnvironment`:
+
+```yaml
+mcpServers:
+  github:
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: $GITHUB_TOKEN   # set under a different name
+    passEnvironment: [GITHUB_TOKEN]                 # or forward under its own name
+```
+
+`env` values win over forwarded variables. Forward only what the server should be able to use.
+
 ## Common Use Cases
 
 ### Development vs Production
