@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { URL } from 'node:url';
-import { ensurePortAvailable } from './oauth-utils.js';
+import { ensurePortAvailable, LOOPBACK_HOST } from './oauth-utils.js';
 
 function escapeHtml(value: string): string {
     return value
@@ -78,7 +78,7 @@ export async function createMcpCallbackServer(redirectUrl: string): Promise<stri
             server.close();
         });
 
-        server.listen(port, () => {
+        server.listen(port, LOOPBACK_HOST, () => {
             console.log(`🔐 Awaiting MCP OAuth callback on ${redirectUrl}`);
         });
     });

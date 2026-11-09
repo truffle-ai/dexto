@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { getDextoPath } from '@dexto/core';
@@ -12,29 +13,75 @@ export type McpAuthStore = {
     codeVerifier?: string | undefined;
 };
 
-export async function loadMcpAuthStore(serverId: string): Promise<McpAuthStore> {
-    const filePath = getMcpAuthStorePath(serverId);
+/**
+ * Credentials belong to a server URL, not to the name a config gives it. The name is only used
+ * to find entries saved before credentials were keyed by URL.
+ */
+export type McpAuthServer = {
+    name: string;
+    url: string;
+};
+
+export async function loadMcpAuthStore(server: McpAuthServer): Promise<McpAuthStore> {
+    const filePath = getMcpAuthStorePath(server.url);
+    const store = await readStoreFile(filePath);
+    if (store) {
+        await fs.chmod(filePath, 0o600);
+        return store;
+    }
+    return await migrateNameKeyedStore(server, filePath);
+}
+
+export async function saveMcpAuthStore(server: McpAuthServer, store: McpAuthStore): Promise<void> {
+    const filePath = getMcpAuthStorePath(server.url);
+    await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+    await fs.writeFile(filePath, JSON.stringify(store, null, 2), { mode: 0o600 });
+    await fs.chmod(filePath, 0o600);
+}
+
+export function getMcpAuthStorePath(serverUrl: string): string {
+    return getDextoPath('mcp-auth', `${hashServerUrl(serverUrl)}.json`);
+}
+
+function hashServerUrl(serverUrl: string): string {
+    const { origin, pathname } = new URL(serverUrl);
+    const normalizedPath = pathname.replace(/\/+$/, '');
+    return createHash('sha256').update(`${origin}${normalizedPath}`).digest('hex').slice(0, 32);
+}
+
+async function readStoreFile(filePath: string): Promise<McpAuthStore | undefined> {
     try {
-        const data = await fs.readFile(filePath, 'utf8');
-        return JSON.parse(data) as McpAuthStore;
+        return JSON.parse(await fs.readFile(filePath, 'utf8')) as McpAuthStore;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-            return {};
+            return undefined;
         }
         throw error;
     }
 }
 
-export async function saveMcpAuthStore(serverId: string, store: McpAuthStore): Promise<void> {
-    const filePath = getMcpAuthStorePath(serverId);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, JSON.stringify(store, null, 2));
+/**
+ * Entries saved before credentials were keyed by URL are named files. The first server URL to
+ * read one takes it; moving the file keeps any later server with the same name from reading it.
+ */
+async function migrateNameKeyedStore(
+    server: McpAuthServer,
+    filePath: string
+): Promise<McpAuthStore> {
+    const legacyPath = getDextoPath('mcp-auth', `${sanitizeServerName(server.name)}.json`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+    try {
+        await fs.rename(legacyPath, filePath);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return (await readStoreFile(filePath)) ?? {};
+        }
+        throw error;
+    }
+    await fs.chmod(filePath, 0o600);
+    return (await readStoreFile(filePath)) ?? {};
 }
 
-export function getMcpAuthStorePath(serverId: string): string {
-    return getDextoPath('mcp-auth', `${sanitizeServerId(serverId)}.json`);
-}
-
-function sanitizeServerId(serverId: string): string {
-    return serverId.replace(/[^a-zA-Z0-9._-]/g, '_');
+function sanitizeServerName(serverName: string): string {
+    return serverName.replace(/[^a-zA-Z0-9._-]/g, '_');
 }

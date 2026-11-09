@@ -4,12 +4,12 @@ import type {
     OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { McpAuthProvider } from '@dexto/core';
-import { loadMcpAuthStore, saveMcpAuthStore } from './oauth-store.js';
+import { loadMcpAuthStore, saveMcpAuthStore, type McpAuthServer } from './oauth-store.js';
 import { createMcpCallbackServer } from './oauth-server.js';
 import { openAuthUrl } from './oauth-ui.js';
 
 export type McpOAuthClientConfig = {
-    serverId: string;
+    server: McpAuthServer;
     redirectUrl: string;
     clientMetadata: OAuthClientMetadata;
     clientMetadataUrl?: string | undefined;
@@ -27,23 +27,23 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             return config.clientMetadata;
         },
         async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.server);
             return store.clientInformation;
         },
         async saveClientInformation(clientInformation: OAuthClientInformationMixed) {
-            const store = await loadMcpAuthStore(config.serverId);
-            await saveMcpAuthStore(config.serverId, {
+            const store = await loadMcpAuthStore(config.server);
+            await saveMcpAuthStore(config.server, {
                 ...store,
                 clientInformation,
             });
         },
         async tokens(): Promise<OAuthTokens | undefined> {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.server);
             return store.tokens;
         },
         async saveTokens(tokens: OAuthTokens) {
-            const store = await loadMcpAuthStore(config.serverId);
-            await saveMcpAuthStore(config.serverId, {
+            const store = await loadMcpAuthStore(config.server);
+            await saveMcpAuthStore(config.server, {
                 ...store,
                 tokens,
             });
@@ -52,14 +52,14 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             await openAuthUrl(authorizationUrl.toString());
         },
         async saveCodeVerifier(codeVerifier: string) {
-            const store = await loadMcpAuthStore(config.serverId);
-            await saveMcpAuthStore(config.serverId, {
+            const store = await loadMcpAuthStore(config.server);
+            await saveMcpAuthStore(config.server, {
                 ...store,
                 codeVerifier,
             });
         },
         async codeVerifier(): Promise<string> {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.server);
             if (!store.codeVerifier) {
                 throw new Error('No code verifier saved');
             }
@@ -74,7 +74,7 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
             return result;
         },
         async invalidateCredentials(scope) {
-            const store = await loadMcpAuthStore(config.serverId);
+            const store = await loadMcpAuthStore(config.server);
             const updated = { ...store };
 
             authorizationCode = undefined;
@@ -89,7 +89,7 @@ export function createMcpOAuthProvider(config: McpOAuthClientConfig): McpAuthPro
                 updated.codeVerifier = undefined;
             }
 
-            await saveMcpAuthStore(config.serverId, updated);
+            await saveMcpAuthStore(config.server, updated);
         },
     } satisfies McpAuthProvider;
 }

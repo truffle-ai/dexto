@@ -21,7 +21,7 @@ export function createMcpAuthProviderFactory(_options: {
 
         const redirectUrl = getMcpRedirectUrl();
         return createMcpOAuthProvider({
-            serverId: serverName,
+            server: { name: serverName, url: config.url },
             redirectUrl,
             clientMetadata: {
                 ...DEFAULT_CLIENT_METADATA,
