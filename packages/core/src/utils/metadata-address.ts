@@ -1,4 +1,4 @@
-import { promises as dns } from 'node:dns';
+import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dns';
 import { isIP } from 'node:net';
 
 /**
@@ -106,4 +106,54 @@ export async function isMetadataTarget(
         return false;
     }
     return addresses.some(isMetadataAddress);
+}
+
+type LookupCallback = (
+    error: NodeJS.ErrnoException | null,
+    address: string | LookupAddress[],
+    family?: number
+) => void;
+
+/**
+ * A `lookup` for a connection (for example an undici `connect.lookup`) that resolves the host
+ * itself, refuses metadata answers and hands the connection the addresses it checked. A name
+ * that answers differently to a later lookup (DNS rebinding) therefore cannot redirect the
+ * connection, because there is no later lookup. IP literals never reach a lookup, so check those
+ * with {@link isMetadataHost} first.
+ */
+export function createMetadataCheckedLookup(
+    resolve: Resolve = resolveAllAddresses
+): (hostname: string, options: LookupOptions, callback: LookupCallback) => void {
+    return (hostname, options, callback) => {
+        const fail = (error: Error) => {
+            const errno: NodeJS.ErrnoException = Object.assign(error, { code: 'EMETADATA' });
+            if (options.all) callback(errno, []);
+            else callback(errno, '', 0);
+        };
+        if (isMetadataHost(hostname)) {
+            fail(new Error(`Blocked request to metadata host: ${hostname}`));
+            return;
+        }
+        resolve(hostname).then(
+            (addresses) => {
+                const blocked = addresses.find(isMetadataAddress);
+                if (blocked !== undefined) {
+                    fail(new Error(`${hostname} resolves to metadata address ${blocked}`));
+                    return;
+                }
+                const records = addresses.map((address) => ({
+                    address,
+                    family: isIP(address) === 6 ? 6 : 4,
+                }));
+                const [first] = records;
+                if (first === undefined) {
+                    fail(new Error(`Failed to resolve ${hostname}`));
+                    return;
+                }
+                if (options.all) callback(null, records);
+                else callback(null, first.address, first.family);
+            },
+            (error: unknown) => fail(error instanceof Error ? error : new Error(String(error)))
+        );
+    };
 }
