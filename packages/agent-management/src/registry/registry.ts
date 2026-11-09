@@ -30,6 +30,14 @@ let cachedRegistry: LocalAgentRegistry | null = null;
  * Hosts (CLI, server, apps) use this to resolve an agent ID to a concrete YAML path, then
  * load/validate that YAML and instantiate a `DextoAgent` from the resolved config.
  */
+/**
+ * True when a path relative to the agents directory is not a directory strictly inside it.
+ * An empty relative path is the agents directory itself, which an agent id must never name.
+ */
+function isOutsideAgentsDir(relativePath: string): boolean {
+    return relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath);
+}
+
 export class LocalAgentRegistry implements AgentRegistry {
     private _registry: Registry | null = null;
 
@@ -203,7 +211,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         const globalAgentsDir = getDextoGlobalPath('agents');
         const targetDir = path.resolve(globalAgentsDir, agentId);
         const relTarget = path.relative(globalAgentsDir, targetDir);
-        if (relTarget.startsWith('..') || path.isAbsolute(relTarget)) {
+        if (isOutsideAgentsDir(relTarget)) {
             throw RegistryError.installationFailed(
                 agentId,
                 'invalid agentId: path traversal detected'
@@ -301,7 +309,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         const globalAgentsDir = getDextoGlobalPath('agents');
         const targetDir = path.resolve(globalAgentsDir, agentId);
         const relTarget = path.relative(globalAgentsDir, targetDir);
-        if (relTarget.startsWith('..') || path.isAbsolute(relTarget)) {
+        if (isOutsideAgentsDir(relTarget)) {
             throw RegistryError.installationFailed(
                 agentId,
                 'invalid agentId: path traversal detected'
@@ -532,7 +540,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         const globalAgentsDir = getDextoGlobalPath('agents');
         const agentDir = path.resolve(globalAgentsDir, agentId);
         const relAgent = path.relative(globalAgentsDir, agentDir);
-        if (relAgent.startsWith('..') || path.isAbsolute(relAgent)) {
+        if (isOutsideAgentsDir(relAgent)) {
             throw RegistryError.uninstallationFailed(
                 agentId,
                 'invalid agentId: path traversal detected'
