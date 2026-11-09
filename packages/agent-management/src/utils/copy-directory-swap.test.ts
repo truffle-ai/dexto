@@ -3,6 +3,7 @@
  * source. Real directories throughout; a spy runs the swap at one exact point of the copy.
  */
 
+import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -60,6 +61,26 @@ describe.skipIf(process.platform === 'win32')('copyDirectory with a path swapped
             const result = await original.call(fs, target, ...rest);
             if (fire && when === 'after') await action();
             return result;
+        }) as never);
+    }
+
+    /** Makes `swap` true only while the first matching `open` call runs, undone before it returns. */
+    function swappedOnlyDuringOpen(
+        matches: (target: string) => boolean,
+        swap: () => Promise<void>,
+        restore: () => Promise<void>
+    ) {
+        const original = fs.open.bind(fs) as (...args: unknown[]) => Promise<unknown>;
+        let done = false;
+        vi.spyOn(fs, 'open').mockImplementation((async (target: string, ...rest: unknown[]) => {
+            if (done || !matches(String(target))) return original(target, ...rest);
+            done = true;
+            await swap();
+            try {
+                return await original(target, ...rest);
+            } finally {
+                await restore();
+            }
         }) as never);
     }
 
@@ -157,6 +178,55 @@ describe.skipIf(process.platform === 'win32')('copyDirectory with a path swapped
         );
 
         await expect(copyDirectory(source, dest)).rejects.toThrow();
+        expect(await copiedContents()).not.toContain(MARKER);
+    });
+
+    it('aborts when a parent directory points outside only while the file is being opened', async () => {
+        const sub = path.join(source, 'sub');
+        swappedOnlyDuringOpen(
+            (target) => target === path.join(sub, 'nested.txt'),
+            () => swapForOutsideLink(sub, path.join(outside, 'sub')),
+            async () => {
+                await fs.unlink(sub);
+                await fs.rename(`${sub}.real`, sub);
+            }
+        );
+
+        await expect(copyDirectory(source, dest)).rejects.toThrow(/changed while/);
+        expect(await copiedContents()).not.toContain(MARKER);
+    });
+
+    it('aborts when a file is another file only while it is being opened', async () => {
+        const file = path.join(source, 'top.txt');
+        swappedOnlyDuringOpen(
+            (target) => target === file,
+            async () => {
+                await fs.rename(file, `${file}.real`);
+                await fs.copyFile(path.join(outside, 'top.txt'), file);
+            },
+            async () => {
+                await fs.unlink(file);
+                await fs.rename(`${file}.real`, file);
+            }
+        );
+
+        await expect(copyDirectory(source, dest)).rejects.toThrow(/changed while/);
+        expect(await copiedContents()).not.toContain(MARKER);
+    });
+
+    it('refuses a file that became a named pipe without blocking on it', async () => {
+        const file = path.join(source, 'top.txt');
+        atCall(
+            'open',
+            'before',
+            (target) => target === file,
+            async () => {
+                await fs.unlink(file);
+                execFileSync('mkfifo', [file]);
+            }
+        );
+
+        await expect(copyDirectory(source, dest)).rejects.toThrow(/regular file/);
         expect(await copiedContents()).not.toContain(MARKER);
     });
 

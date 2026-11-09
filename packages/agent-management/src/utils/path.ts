@@ -149,7 +149,7 @@ export async function copyDirectory(src: string, dest: string): Promise<void> {
     await copyDirectoryWithin(src, dest, rootReal);
 }
 
-const { O_RDONLY, O_DIRECTORY = 0, O_NOFOLLOW = 0 } = fsConstants;
+const { O_RDONLY, O_DIRECTORY = 0, O_NOFOLLOW = 0, O_NONBLOCK = 0 } = fsConstants;
 
 /**
  * Throws unless `opened` (the stat of the handle we hold) is the same file or directory that
@@ -214,7 +214,7 @@ async function copyDirectoryWithin(src: string, dest: string, rootReal: string):
 
 /** Reads the file through a handle that was checked to be the in-root file, not by path. */
 async function copyFileWithin(src: string, dest: string, rootReal: string): Promise<void> {
-    const handle = await fs.open(src, O_RDONLY | O_NOFOLLOW);
+    const handle = await fs.open(src, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
     try {
         const opened = await handle.stat({ bigint: true });
         if (!opened.isFile()) {

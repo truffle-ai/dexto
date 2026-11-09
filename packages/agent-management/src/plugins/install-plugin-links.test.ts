@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installPluginFromPath } from './install-plugin.js';
 
 describe.skipIf(process.platform === 'win32')('installPluginFromPath with links', () => {
@@ -22,6 +22,7 @@ describe.skipIf(process.platform === 'win32')('installPluginFromPath with links'
     });
 
     afterEach(async () => {
+        vi.restoreAllMocks();
         if (previousHome === undefined) delete process.env.HOME;
         else process.env.HOME = previousHome;
         if (previousUserProfile === undefined) delete process.env.USERPROFILE;
@@ -78,5 +79,30 @@ describe.skipIf(process.platform === 'win32')('installPluginFromPath with links'
         expect(installed).toContain('commands');
         expect(installed).not.toContain('linked-outside');
         expect(installed).not.toContain('linked-inside');
+    });
+
+    it('removes the partly copied plugin when a directory is swapped for a link mid-copy', async () => {
+        const pluginDir = await createPlugin();
+        const outsideDir = path.join(tempDir, 'outside-dir');
+        await fs.mkdir(outsideDir);
+        await fs.writeFile(path.join(outsideDir, 'hello.md'), 'private contents');
+        const commandsDir = path.join(pluginDir, 'commands');
+        const projectPath = path.join(tempDir, 'project');
+        const listDirectory = fs.readdir.bind(fs) as (target: string) => Promise<string[]>;
+        vi.spyOn(fs, 'readdir').mockImplementation((async (target: string) => {
+            if (target === commandsDir) {
+                await fs.rename(commandsDir, `${commandsDir}.real`);
+                await fs.symlink(outsideDir, commandsDir);
+            }
+            return listDirectory(target);
+        }) as never);
+
+        await expect(
+            installPluginFromPath(pluginDir, { scope: 'project', projectPath })
+        ).rejects.toThrow(/changed while/);
+
+        await expect(
+            fs.lstat(path.join(projectPath, '.dexto', 'plugins', 'linky'))
+        ).rejects.toMatchObject({ code: 'ENOENT' });
     });
 });
