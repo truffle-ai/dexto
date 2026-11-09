@@ -123,6 +123,15 @@ export function createRequiredBearerAuthorization(
     };
 }
 
+/** True when the environment makes the server require (or fail closed on) bearer auth. */
+export function isHttpAuthRequired(): boolean {
+    return (
+        configuredApiKey() !== undefined ||
+        process.env.NODE_ENV === 'production' ||
+        process.env.DEXTO_SERVER_REQUIRE_AUTH === 'true'
+    );
+}
+
 export function createHttpAuthorization(): HttpAuthorization {
     const apiKey = configuredApiKey();
     const isProduction = process.env.NODE_ENV === 'production';

@@ -1629,6 +1629,7 @@ describe('Hono API Integration Tests', () => {
 
                 const res = await app.request('/api/queue/session-1/missing-message', {
                     method: 'DELETE',
+                    headers: { host: 'localhost', 'X-Dexto-Request': '1' },
                 });
 
                 expect(res.status).toBe(404);
