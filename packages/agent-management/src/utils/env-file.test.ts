@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { ErrorType } from '@dexto/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { updateEnvFile } from './env-file.js';
 
@@ -32,6 +33,19 @@ describe('updateEnvFile', () => {
             /single line/
         );
         expect(await readFile(envPath, 'utf8')).toBe('A=1\n');
+    });
+
+    it('trims surrounding whitespace, including the newline of a pasted key', async () => {
+        await updateEnvFile(envPath, { KEY: '  secret-value\r\n' });
+        await updateEnvFile(envPath, { OTHER: '\nother-value\n\n' });
+        const lines = (await readFile(envPath, 'utf8')).split('\n');
+        expect(lines).toEqual(expect.arrayContaining(['KEY=secret-value', 'OTHER=other-value']));
+    });
+
+    it('reports an inner line break as a user error', async () => {
+        await expect(updateEnvFile(envPath, { KEY: 'one\ntwo\n' })).rejects.toMatchObject({
+            type: ErrorType.USER,
+        });
     });
 
     it('rejects a key that is not a plain variable name', async () => {

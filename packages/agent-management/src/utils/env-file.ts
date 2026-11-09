@@ -1,24 +1,42 @@
 import * as path from 'node:path';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 import { promises as fs } from 'node:fs';
 
 /**
- * Update a .env file with the provided key-value pairs.
- * Existing keys are updated in place, new keys are appended.
- * Keys must be plain variable names and values must be single-line, so one update can never add
- * another variable. The file holds secrets, so it is kept readable by its owner only.
+ * Keys must be plain variable names and values must be single-line once surrounding whitespace
+ * is trimmed (a pasted key often ends with a newline). A value with an inner line break is
+ * refused as a user error, so one update can never add another variable.
  */
-export async function updateEnvFile(
-    envFilePath: string,
-    updates: Record<string, string>
-): Promise<void> {
-    for (const [key, value] of Object.entries(updates)) {
+function validateUpdates(requested: Record<string, string>): Record<string, string> {
+    const updates: Record<string, string> = {};
+    for (const [key, rawValue] of Object.entries(requested)) {
         if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
             throw new Error(`Invalid environment variable name: ${key}`);
         }
+        const value = rawValue.trim();
         if (/[\r\n]/.test(value)) {
-            throw new Error(`Environment variable ${key} must be a single line`);
+            throw new DextoRuntimeError(
+                'env_value_multiline',
+                ErrorScope.CONFIG,
+                ErrorType.USER,
+                `Environment variable ${key} must be a single line`
+            );
         }
+        updates[key] = value;
     }
+    return updates;
+}
+
+/**
+ * Update a .env file with the provided key-value pairs.
+ * Existing keys are updated in place, new keys are appended. Values are trimmed and must be
+ * single-line. The file holds secrets, so it is kept readable by its owner only.
+ */
+export async function updateEnvFile(
+    envFilePath: string,
+    requested: Record<string, string>
+): Promise<void> {
+    const updates = validateUpdates(requested);
 
     await fs.mkdir(path.dirname(envFilePath), { recursive: true });
 
