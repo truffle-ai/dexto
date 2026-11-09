@@ -69,10 +69,23 @@ async function removeNameKeyedStores(): Promise<void> {
     const nameKeyed = files.filter(
         (file) => file.endsWith(STORE_FILE_EXTENSION) && !URL_KEYED_FILE.test(file)
     );
-    await Promise.all(nameKeyed.map((file) => fs.rm(path.join(directory, file), { force: true })));
-    if (nameKeyed.length > 0) {
+    const removed = await Promise.all(
+        nameKeyed.map(async (file) => {
+            try {
+                await fs.rm(path.join(directory, file), { force: true });
+                return true;
+            } catch (error) {
+                logger.warn(
+                    `Could not remove saved MCP OAuth credential file '${file}' stored by server name (${(error as NodeJS.ErrnoException).code ?? 'unknown error'}); remove it by hand.`
+                );
+                return false;
+            }
+        })
+    );
+    const removedCount = removed.filter(Boolean).length;
+    if (removedCount > 0) {
         logger.info(
-            `Removed ${nameKeyed.length} saved MCP OAuth credential file(s) stored by server name; sign in to those servers again.`
+            `Removed ${removedCount} saved MCP OAuth credential file(s) stored by server name; sign in to those servers again.`
         );
     }
 }

@@ -6,7 +6,11 @@ import { getDextoPath } from '@dexto/core';
 import { loadMcpAuthStore, saveMcpAuthStore, type McpAuthStore } from './oauth-store.js';
 
 const infoMock = vi.hoisted(() => vi.fn());
-vi.mock('@dexto/core', () => ({ getDextoPath: vi.fn(), logger: { info: infoMock } }));
+const warnMock = vi.hoisted(() => vi.fn());
+vi.mock('@dexto/core', () => ({
+    getDextoPath: vi.fn(),
+    logger: { info: infoMock, warn: warnMock },
+}));
 
 const serverUrl = 'https://good.example/mcp';
 const oldStore: McpAuthStore = {
@@ -80,6 +84,20 @@ describe('MCP OAuth entries saved by server name', () => {
 
         await expect(loadMcpAuthStore(serverUrl)).resolves.toEqual(oldStore);
         expect(await readdir(storeDirectory())).toHaveLength(1);
+    });
+
+    it('keeps working when an old entry cannot be removed', async () => {
+        await saveMcpAuthStore(serverUrl, oldStore);
+        await mkdir(path.join(storeDirectory(), 'subdir.json'));
+        await writeNameKeyedEntry('fixture');
+
+        await expect(loadMcpAuthStore(serverUrl)).resolves.toEqual(oldStore);
+        await saveMcpAuthStore(serverUrl, {});
+        await expect(loadMcpAuthStore(serverUrl)).resolves.toEqual({});
+
+        expect(await readdir(storeDirectory())).not.toContain('fixture.json');
+        expect(warnMock).toHaveBeenCalledWith(expect.stringContaining("'subdir.json'"));
+        expect(infoMock).toHaveBeenCalledTimes(1);
     });
 
     it('logs nothing when there are no old entries', async () => {

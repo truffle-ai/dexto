@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { getDextoPath, type ValidatedMcpServerConfig } from '@dexto/core';
 import { createMcpAuthProviderFactory } from './oauth-factory.js';
 
-vi.mock('@dexto/core', () => ({ getDextoPath: vi.fn(), logger: { info: vi.fn() } }));
+vi.mock('@dexto/core', () => ({ getDextoPath: vi.fn(), logger: { info: vi.fn(), warn: vi.fn() } }));
 
 const openMock = vi.hoisted(() => vi.fn());
 vi.mock('open', () => ({ default: openMock }));
