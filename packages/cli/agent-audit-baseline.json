@@ -721,6 +721,13 @@
     "examples": false
   },
   {
+    "command": "review",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "run",
     "json": true,
     "dryRun": false,

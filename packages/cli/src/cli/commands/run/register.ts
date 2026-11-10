@@ -1,17 +1,6 @@
-import { handleHeadlessApproval } from '../../approval/headless-approval-handler.js';
-import {
-    chooseHeadlessOutput,
-    describeHeadlessFailure,
-    headlessExitCode,
-    writeHeadlessResult,
-    type HeadlessFailure,
-} from './output.js';
-import { printFault } from '../../screens/fault.js';
-import type { HeadlessRunResult } from './headless.js';
-import { resolveAgentPath } from '@dexto/agent-management';
-import type { DextoAgent } from '@dexto/core';
-import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
+import { withAnalytics } from '../../../analytics/wrapper.js';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
+import { runHeadlessPrompt } from './headless-command.js';
 
 export function registerRunCommand({
     program,
@@ -51,102 +40,20 @@ Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs co
                         text?: boolean;
                     }
                 ) => {
-                    const format = chooseHeadlessOutput(runOptions, process.stdout.isTTY === true);
-                    if (format === null) {
-                        process.stderr.write('Pass --json, --stream-json or --text, only one.\n');
-                        safeExit('run', 2, 'usage');
-                        return;
-                    }
-                    const human = format === 'text';
-                    let agent: DextoAgent | undefined;
-                    let sessionId: string | undefined;
-                    let result: HeadlessRunResult = {};
-                    let failure: HeadlessFailure | null = null;
-                    let exitReason = 'ok';
-
-                    try {
-                        const {
-                            executeHeadlessRun,
-                            printHeadlessAssistantResponse,
-                            printHeadlessMcpStartup,
-                            printHeadlessRunSummary,
-                            resolveHeadlessPrompt,
-                            writeFinalMessageToStdout,
-                        } = await import('./headless.js');
-                        const prompt = await resolveHeadlessPrompt(promptArg);
-                        if (prompt.trim().length === 0) {
-                            failure = {
-                                code: 'usage',
-                                message: 'Prompt cannot be empty.',
-                                fix: null,
-                            };
-                            exitReason = 'empty-prompt';
-                        } else {
-                            const bootstrapOptions = runOptions.model
-                                ? { mode: 'headless-run' as const, modelOverride: runOptions.model }
-                                : { mode: 'headless-run' as const };
-                            agent = await bootstrapAgentFromGlobalOpts(bootstrapOptions);
-                            const session = await agent.createSession();
-                            sessionId = session.id;
-                            const approvalAgent = agent;
-                            approvalAgent.setApprovalHandler((request) =>
-                                handleHeadlessApproval(request, approvalAgent, session.id)
-                            );
-
-                            if (human) {
-                                const globalOpts = program.opts();
-                                printHeadlessRunSummary({
-                                    agent,
-                                    sessionId: session.id,
-                                    prompt,
-                                    agentPath: await resolveAgentPath(globalOpts.agent),
-                                    cliVersion,
-                                });
-                                printHeadlessMcpStartup(agent);
-                            }
-
-                            result = await executeHeadlessRun(agent, session.id, prompt, format);
-
-                            if (result.fatalError) {
-                                failure = describeHeadlessFailure(result.fatalError);
-                                exitReason = 'fatal-error';
-                            } else if (result.finalMessage === undefined) {
-                                failure = {
-                                    code: 'failed',
-                                    message: 'No final response was produced.',
-                                    fix: null,
-                                };
-                                exitReason = 'no-final-response';
-                            }
-                            if (human && result.finalMessage !== undefined) {
-                                printHeadlessAssistantResponse(result.totalTokens);
-                                writeFinalMessageToStdout(result.finalMessage);
-                            }
+                    await runHeadlessPrompt(
+                        { program, cliVersion, bootstrapAgentFromGlobalOpts },
+                        {
+                            command: 'run',
+                            options: runOptions,
+                            preparePrompt: async () => {
+                                const { resolveHeadlessPrompt } = await import('./headless.js');
+                                const prompt = await resolveHeadlessPrompt(promptArg);
+                                return prompt.trim().length === 0
+                                    ? { kind: 'empty' }
+                                    : { kind: 'prompt', prompt };
+                            },
                         }
-                    } catch (err) {
-                        if (err instanceof ExitSignal) throw err;
-                        failure = describeHeadlessFailure(
-                            err instanceof Error ? err : new Error(String(err))
-                        );
-                        exitReason = 'error';
-                    } finally {
-                        if (agent) {
-                            try {
-                                await agent.stop();
-                            } catch {
-                                // Ignore shutdown errors in headless mode cleanup
-                            }
-                        }
-                    }
-
-                    if (format !== 'text')
-                        await writeHeadlessResult(format, result, sessionId, failure);
-                    else if (failure !== null)
-                        printFault({ ...failure, details: null }, [
-                            `Error: ${failure.message}`,
-                            ...(failure.fix === null ? [] : [`Run: ${failure.fix}`]),
-                        ]);
-                    safeExit('run', headlessExitCode(failure), exitReason);
+                    );
                 }
             )
         );
