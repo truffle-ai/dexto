@@ -543,7 +543,7 @@ async function generateAgentSystemPromptFromDescription(
                 blob: { type: 'in-memory' },
             },
             permissions: {
-                mode: 'auto-approve',
+                mode: 'full-access',
                 allowedToolsStorage: 'memory',
             },
             elicitation: {
@@ -1082,7 +1082,7 @@ async function buildAgentConfig(
         llm,
         ...(options.tools ? { tools: options.tools } : {}),
         permissions: {
-            mode: 'manual',
+            mode: 'asks-you',
             allowedToolsStorage: 'storage',
         },
         ...(usesAskUser

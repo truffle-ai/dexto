@@ -27,7 +27,7 @@ function streamingAgent(events: StreamingEvent[]): DextoAgent {
         stop: vi.fn(async () => {}),
         getMcpServersWithStatus: () => [],
         getCurrentLLMConfig: () => ({ model: 'test-model', provider: 'test-provider' }),
-        config: { permissions: { mode: 'auto-approve' } },
+        config: { permissions: { mode: 'full-access' } },
     } as unknown as DextoAgent;
 }
 

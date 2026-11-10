@@ -119,7 +119,7 @@ llm:
   maxInputTokens: 32768
   baseURL: http://host.docker.internal:${address.port}/v1
 permissions:
-  mode: auto-approve
+  mode: full-access
 elicitation:
   enabled: false
 storage:

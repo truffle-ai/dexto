@@ -36,7 +36,9 @@ export function validateCliOptions(opts: any): void {
                     { message: 'Port must be a number between 1 and 65535' }
                 )
                 .optional(),
-            permissionsMode: z.enum(['manual', 'auto-approve']).optional(),
+            permissionsMode: z
+                .enum(['full-access', 'asks-you', 'manual', 'auto-approve'])
+                .optional(),
             autoApprove: z
                 .boolean()
                 .optional()
@@ -46,7 +48,7 @@ export function validateCliOptions(opts: any): void {
                 .boolean()
                 .optional()
                 .default(false)
-                .describe('Select auto-approve permissions'),
+                .describe('Select Full access permissions'),
             elicitation: z
                 .boolean()
                 .optional()

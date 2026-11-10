@@ -70,7 +70,7 @@ llm:
   maxInputTokens: 32768
   baseURL: http://127.0.0.1:1/v1
 permissions:
-  mode: auto-approve
+  mode: full-access
 storage:
   cache:
     type: in-memory

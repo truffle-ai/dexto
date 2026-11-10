@@ -139,7 +139,7 @@ llm:
   apiKey: $OPENAI_API_KEY
 
 permissions:
-  mode: manual
+  mode: asks-you
   allowedToolsStorage: memory
 
 prompts:

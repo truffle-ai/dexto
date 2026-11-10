@@ -8,7 +8,7 @@ function createAgent(stores: InMemoryDextoStores) {
         agentId: 'permissions-test',
         systemPrompt: 'Test agent',
         llm: { provider: 'openai', model: 'gpt-5', apiKey: 'test-key' },
-        permissions: { mode: 'auto-approve' },
+        permissions: { mode: 'full-access' },
         elicitation: { enabled: false },
         stores,
         logger: createMockLogger(),

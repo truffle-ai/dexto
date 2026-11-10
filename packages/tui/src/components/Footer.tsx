@@ -8,6 +8,7 @@ import path from 'node:path';
 import { Box, Text } from 'ink';
 import { getModelDisplayName, getReasoningProfile } from '@dexto/llm';
 import { parseCodexBaseURL, type CodexRateLimitSnapshot } from '@dexto/core';
+import { formatPermissionsMode } from '../utils/permissions-mode-display.js';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import {
     getChatGPTRateLimitHint,
@@ -187,7 +188,10 @@ export function Footer({
 
             <Box>
                 <Text color="gray">
-                    approvals: {agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode}
+                    permissions:{' '}
+                    {formatPermissionsMode(
+                        agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode
+                    )}
                 </Text>
             </Box>
 
@@ -215,7 +219,7 @@ export function Footer({
             )}
             {bypassPermissions && !planModeActive && !autoApproveEdits && !isShellMode && (
                 <Box>
-                    <Text color="gray">auto-approve (session)</Text>
+                    <Text color="gray">full access (session)</Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
                 </Box>
             )}

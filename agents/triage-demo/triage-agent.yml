@@ -100,7 +100,7 @@ systemPrompt:
 # Auto-approve tool executions so the triage agent can seamlessly delegate tasks
 
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 mcpServers:

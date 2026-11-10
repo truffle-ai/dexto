@@ -43,7 +43,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -68,7 +68,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -110,7 +110,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -153,7 +153,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 60000,
                     },
                     elicitation: {
@@ -176,7 +176,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -238,7 +238,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -289,7 +289,7 @@ describe('ApprovalManager', () => {
         it('treats equivalent approval response data as an idempotent replay', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -341,7 +341,7 @@ describe('ApprovalManager', () => {
         it('rejects request replays that reuse an approval identity with different details', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -388,7 +388,7 @@ describe('ApprovalManager', () => {
         it('normalizes allowed replay policy and rejects a mandatory-policy conflict', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -424,7 +424,7 @@ describe('ApprovalManager', () => {
         it('rejects invalid auto-approval policy at the manager boundary', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'auto-approve',
+                    mode: 'full-access',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -448,7 +448,7 @@ describe('ApprovalManager', () => {
         it('rejects invalid auto-approval policy on an existing request', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'auto-approve',
+                    mode: 'full-access',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -474,7 +474,7 @@ describe('ApprovalManager', () => {
         it('rejects response recording when the expected request does not match persisted state', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -526,7 +526,7 @@ describe('ApprovalManager', () => {
         it('stamps recorded responses with request-owned session and host runtime', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -583,7 +583,7 @@ describe('ApprovalManager', () => {
         it('does not let runtime caller fields override request-owned response scope', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -626,7 +626,7 @@ describe('ApprovalManager', () => {
         it('strips caller scope fields when the recorded request has no scope', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -665,7 +665,7 @@ describe('ApprovalManager', () => {
         it('validates response data against the recorded request type', async () => {
             const manager = createApprovalManager({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -711,7 +711,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -735,7 +735,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -759,7 +759,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -793,7 +793,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -813,7 +813,7 @@ describe('ApprovalManager', () => {
 
         it('never lets a remembered approval settle a pending request that asked afresh', () => {
             const manager = createApprovalManager({
-                permissions: { mode: 'manual', timeout: 120000 },
+                permissions: { mode: 'asks-you', timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             });
             const pending = [
@@ -848,7 +848,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -870,7 +870,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -899,7 +899,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -933,7 +933,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -965,7 +965,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -1017,7 +1017,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         // No timeout specified - should wait indefinitely
                     },
                     elicitation: {
@@ -1036,7 +1036,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 60000,
                     },
                     elicitation: {
@@ -1055,7 +1055,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         // No timeout
                     },
                     elicitation: {
@@ -1075,7 +1075,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve', // Auto-approve so we can test immediately
+                        mode: 'full-access', // Auto-approve so we can test immediately
                         timeout: 60000,
                     },
                     elicitation: {
@@ -1102,7 +1102,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         // No timeout - should not cause any issues with auto-approve
                     },
                     elicitation: {
@@ -1127,7 +1127,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -1140,7 +1140,7 @@ describe('ApprovalManager', () => {
 
             expect(manager.getConfig()).toEqual({
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -1154,7 +1154,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -1174,7 +1174,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -1215,7 +1215,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -1256,7 +1256,7 @@ describe('ApprovalManager', () => {
             const _manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 1, // Quick timeout for test
                     },
                     elicitation: {
@@ -1316,7 +1316,7 @@ describe('ApprovalManager', () => {
         it('revokes one remembered action without revoking another session or action', async () => {
             const store = createInMemorySessionApprovalStore(mockLogger);
             const config = {
-                permissions: { mode: 'manual' as const, timeout: 120000 },
+                permissions: { mode: 'asks-you' as const, timeout: 120000 },
                 elicitation: { enabled: false },
             };
             const manager = createApprovalManager(config, mockLogger, store);
@@ -1338,7 +1338,7 @@ describe('ApprovalManager', () => {
             manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'manual',
+                        mode: 'asks-you',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -1415,7 +1415,7 @@ describe('ApprovalManager', () => {
             const manager = new ApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {

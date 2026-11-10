@@ -168,7 +168,7 @@ memories:
 
 # Permissions Configuration
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 # Optional greeting message

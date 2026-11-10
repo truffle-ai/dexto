@@ -408,7 +408,7 @@ describe('TurnExecutor Integration Tests', () => {
         // Create real approval manager
         approvalManager = new ApprovalManager(
             {
-                permissions: { mode: 'auto-approve', timeout: 120000 },
+                permissions: { mode: 'full-access', timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             },
             logger,
@@ -426,7 +426,7 @@ describe('TurnExecutor Integration Tests', () => {
             mcpManager,
             approvalManager,
             mockAllowedToolsProvider,
-            'auto-approve',
+            'full-access',
             agentEventBus,
             { alwaysAllow: [] },
             [],
@@ -1971,7 +1971,7 @@ describe('TurnExecutor Integration Tests', () => {
             const manualApprovalStore = createInMemorySessionApprovalStore(logger);
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -1997,7 +1997,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -2099,7 +2099,7 @@ describe('TurnExecutor Integration Tests', () => {
         it('appends an error tool result when approval handling throws', async () => {
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2114,7 +2114,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2197,7 +2197,7 @@ describe('TurnExecutor Integration Tests', () => {
             });
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2222,7 +2222,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2351,7 +2351,7 @@ describe('TurnExecutor Integration Tests', () => {
                 handler: ApprovalHandler,
                 tools: ReturnType<typeof siblingTools>['tools'],
                 approvals: ReturnType<typeof approvalStore>,
-                mode: 'manual' | 'auto-approve' = 'manual'
+                mode: 'asks-you' | 'full-access' = 'asks-you'
             ) => {
                 const processApprovals = new ApprovalManager(
                     {
@@ -2491,7 +2491,7 @@ describe('TurnExecutor Integration Tests', () => {
                     throw new ApprovalDeferredError(request.approvalId);
                 });
                 const firstDriver = await (
-                    await startSiblingProcess(deferringHandler, tools, approvals, 'auto-approve')
+                    await startSiblingProcess(deferringHandler, tools, approvals, 'full-access')
                 ).createDriver({ mcpManager }, { streaming: true });
                 await firstDriver.runNextModelStep();
                 const deferred = await firstDriver.executeToolCalls();
@@ -2518,7 +2518,7 @@ describe('TurnExecutor Integration Tests', () => {
                     status: ApprovalStatus.APPROVED,
                 }));
                 const resumedDriver = await (
-                    await startSiblingProcess(answeringHandler, tools, approvals, 'auto-approve')
+                    await startSiblingProcess(answeringHandler, tools, approvals, 'full-access')
                 ).createDriver({ mcpManager }, { streaming: true, state: savedState });
                 try {
                     expect(await resumedDriver.executeToolCalls()).toEqual({ kind: 'executed' });
@@ -2594,7 +2594,7 @@ describe('TurnExecutor Integration Tests', () => {
         it('fails a turn that cannot pause when its approval is deferred', async () => {
             const deferringApprovals = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2612,7 +2612,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2662,7 +2662,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalHandler = createPendingApprovalHandler();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2686,7 +2686,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2771,7 +2771,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalHandler = createPendingApprovalHandler();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2795,7 +2795,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2883,7 +2883,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalHandler = createPendingApprovalHandler();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2902,7 +2902,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -5383,7 +5383,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalStarted = createDeferred<void>();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -5404,7 +5404,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [

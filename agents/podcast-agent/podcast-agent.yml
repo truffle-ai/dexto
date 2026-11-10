@@ -169,7 +169,7 @@ storage:
     cleanupAfterDays: 30
 
 permissions:
-  mode: auto-approve
+  mode: full-access
   # timeout: omitted = infinite wait
   allowedToolsStorage: memory
 

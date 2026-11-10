@@ -48,9 +48,9 @@ mcpServers:
     url: https://mcp.exa.ai/mcp
 
 # Permissions Configuration
-# Discord bots auto-approve tool calls, so we disable approvals
+# Discord bots run with Full access, so we disable approvals
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 # Storage Configuration

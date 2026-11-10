@@ -13,6 +13,7 @@
  * - /sounds - Configure sound notifications (interactive)
  */
 import type { LogLevel } from '@dexto/core';
+import { formatPermissionsMode } from '../../utils/permissions-mode-display.js';
 import {
     overlayOnlyHandler,
     type CommandDefinition,
@@ -122,7 +123,7 @@ export const systemCommands: CommandDefinition[] = [
                     model: config.llm.model,
                     maxTokens: config.llm.maxOutputTokens ?? null,
                     temperature: config.llm.temperature ?? null,
-                    permissionsMode: config.permissions.mode,
+                    permissionsMode: formatPermissionsMode(config.permissions.mode),
                     maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
                     sessionTTL: config.sessions?.sessionTTL
                         ? `${config.sessions.sessionTTL / 1000}s`

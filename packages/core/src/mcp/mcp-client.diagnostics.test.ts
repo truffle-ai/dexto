@@ -195,7 +195,7 @@ describe('MCP client diagnostics', () => {
         Reflect.set(client, 'serverAlias', 'fixture');
         Reflect.set(client, 'transport', { close: vi.fn().mockRejectedValue(new Error(sentinel)) });
         const approval = new ApprovalManager(
-            { permissions: { mode: 'manual' }, elicitation: { enabled: true } },
+            { permissions: { mode: 'asks-you' }, elicitation: { enabled: true } },
             logger,
             createInMemorySessionApprovalStore(logger)
         );

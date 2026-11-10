@@ -185,7 +185,7 @@ describe('skill bundle integration', () => {
                 },
                 systemPrompt: 'You are a helpful assistant.',
                 permissions: {
-                    mode: 'auto-approve',
+                    mode: 'full-access',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -326,7 +326,7 @@ describe('skill bundle integration', () => {
                 },
                 systemPrompt: 'You are a helpful assistant.',
                 permissions: {
-                    mode: 'auto-approve',
+                    mode: 'full-access',
                     timeout: 120000,
                 },
                 elicitation: {

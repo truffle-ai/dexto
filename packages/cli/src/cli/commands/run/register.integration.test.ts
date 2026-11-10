@@ -202,14 +202,14 @@ tools:
         await writeFile(
             ordinaryConfigPath,
             `permissions:
-  mode: manual
+  mode: asks-you
 ${ordinaryConfig}`
         );
         await writeFile(automaticConfigPath, ordinaryConfig);
         await writeFile(
             allowedConfigPath,
             `permissions:
-  mode: manual
+  mode: asks-you
   toolPolicies:
     alwaysAllow: [ordinary_operation]
 ${ordinaryConfig}`
@@ -217,7 +217,7 @@ ${ordinaryConfig}`
         await writeFile(
             noApprovalConfigPath,
             `permissions:
-  mode: manual
+  mode: asks-you
 ${ordinaryConfig}    requiresApproval: false
 `
         );
@@ -305,12 +305,12 @@ ${ordinaryConfig}    requiresApproval: false
         30000
     );
 
-    it('selects manual permissions through the shared global option', async () => {
+    it('selects asks-you permissions through the shared global option', async () => {
         await run([
             '--agent',
             automaticConfigPath,
             '--permissions-mode',
-            'manual',
+            'asks-you',
             'run',
             'attempt ordinary operation',
             '--format',
@@ -320,7 +320,38 @@ ${ordinaryConfig}    requiresApproval: false
         expect(denialFeedback[0]).toContain('requires interactive approval');
     }, 30000);
 
-    it.each([['--permissions-mode', 'auto-approve'], ['--auto-approve'], ['--bypass-permissions']])(
+    it.each([
+        ['manual', 'asks-you'],
+        ['auto-approve', 'full-access'],
+    ] as const)(
+        'maps the deprecated --permissions-mode %s to %s with a warning on stderr',
+        async (legacy, replacement) => {
+            const { stdout, stderr } = await run([
+                '--agent',
+                automaticConfigPath,
+                '--permissions-mode',
+                legacy,
+                'run',
+                'attempt ordinary operation',
+                '--format',
+                'json',
+            ]);
+            expect(stderr).toContain(
+                `Permissions mode "${legacy}" is deprecated; use "${replacement}"`
+            );
+            expect(JSON.parse(stdout)).toMatchObject({ status: 'completed' });
+            if (replacement === 'asks-you') {
+                await expect(access(ordinaryEffectPath)).rejects.toMatchObject({
+                    code: 'ENOENT',
+                });
+            } else {
+                expect(await readFile(ordinaryEffectPath, 'utf8')).toBe('ordinary effect');
+            }
+        },
+        30000
+    );
+
+    it.each([['--permissions-mode', 'full-access'], ['--auto-approve'], ['--bypass-permissions']])(
         'permits ordinary tools with the shared global %j selection',
         async (...flags) => {
             const { stdout } = await run([
@@ -355,7 +386,7 @@ ${ordinaryConfig}    requiresApproval: false
     }, 30000);
 
     it.each(['static allow list', 'authored no-approval'] as const)(
-        'runs an allowed ordinary tool in manual mode through %s',
+        'runs an allowed ordinary tool in asks-you mode through %s',
         async (policy) => {
             const agent = policy === 'static allow list' ? allowedConfigPath : noApprovalConfigPath;
             const { stdout } = await run([
@@ -378,7 +409,7 @@ ${ordinaryConfig}    requiresApproval: false
                 '--agent',
                 ordinaryConfigPath,
                 '--permissions-mode',
-                'manual',
+                'asks-you',
                 '--auto-approve',
                 'run',
                 'attempt ordinary operation',

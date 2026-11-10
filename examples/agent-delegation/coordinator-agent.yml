@@ -110,7 +110,7 @@ storage:
 
 # Permissions (tool approvals)
 permissions:
-  mode: auto-approve
+  mode: full-access
   timeout: 120000
 
 # Logging

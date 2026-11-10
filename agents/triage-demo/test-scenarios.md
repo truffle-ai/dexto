@@ -201,7 +201,7 @@ The triage system should demonstrate:
 ## 🚫 Common Issues to Watch For
 
 - **Routing without execution**: Agent identifies correct specialist but doesn't call `chat_with_agent`
-- **Tool confirmation prompts**: Should auto-approve due to configuration
+- **Tool confirmation prompts**: Should run without asking (Full access)
 - **Incomplete responses**: Missing specialist answers or generic routing messages
 - **Wrong specialist**: Incorrect routing based on request analysis
 - **Multiple tool calls**: Unnecessary repeated calls to specialists

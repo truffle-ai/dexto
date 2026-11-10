@@ -30,6 +30,9 @@ import {
 import {
     EnvExpandedString,
     resolveApiKeyForProvider,
+    getDeprecatedPermissionsModeWarning,
+    resolvePermissionsMode,
+    type LegacyPermissionsMode,
     type LLMConfig,
     type PermissionsMode,
 } from '@dexto/core';
@@ -43,7 +46,8 @@ export interface CLIConfigOverrides
     extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'apiKey'>> {
     autoApprove?: boolean;
     bypassPermissions?: boolean;
-    permissionsMode?: PermissionsMode;
+    /** Deprecated values are passed through so validation maps them after the warning prints. */
+    permissionsMode?: PermissionsMode | LegacyPermissionsMode;
     /** When false (via --no-elicitation), disables elicitation */
     elicitation?: boolean;
 }
@@ -74,11 +78,12 @@ export function applyCLIOverrides(
     }
 
     if (
-        cliOverrides.permissionsMode === 'manual' &&
+        cliOverrides.permissionsMode !== undefined &&
+        resolvePermissionsMode(cliOverrides.permissionsMode) === 'asks-you' &&
         (cliOverrides.autoApprove || cliOverrides.bypassPermissions)
     ) {
         throw new Error(
-            '--permissions-mode manual conflicts with --auto-approve and --bypass-permissions.'
+            `--permissions-mode ${cliOverrides.permissionsMode} conflicts with --auto-approve and --bypass-permissions.`
         );
     }
 
@@ -104,7 +109,7 @@ export function applyCLIOverrides(
         // Ensure permissions section exists before overriding
         mergedConfig.permissions = {
             ...(mergedConfig.permissions ?? {}),
-            mode: cliOverrides.permissionsMode ?? 'auto-approve',
+            mode: cliOverrides.permissionsMode ?? 'full-access',
         };
     }
 
@@ -119,6 +124,15 @@ export function applyCLIOverrides(
 
     // Return merged config without validation - validation happens later
     return mergedConfig;
+}
+
+/**
+ * Returns the deprecation warning for an old permissions mode in a merged (unvalidated) config,
+ * whether it came from the agent file or from `--permissions-mode`. Call before validation, which
+ * maps the old value to the new one.
+ */
+export function getPermissionsModeDeprecationWarning(config: AgentConfig): string | null {
+    return getDeprecatedPermissionsModeWarning(config.permissions?.mode);
 }
 
 /**

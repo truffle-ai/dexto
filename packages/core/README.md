@@ -200,7 +200,7 @@ const agent = new DextoAgent({
   logger,   // provide a per-agent logger instance
   storage,  // provide cache/database/blob implementations
   tools,
-  permissions: { mode: 'auto-approve' }
+  permissions: { mode: 'full-access' }
 });
 await agent.start();
 

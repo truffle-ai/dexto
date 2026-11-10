@@ -90,7 +90,7 @@ systemPrompt: |
 
 # Auto-approve tools for seamless delegation
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 mcpServers:
@@ -276,7 +276,7 @@ Essential for smooth delegation:
 
 ```yaml
 permissions:
-  mode: auto-approve        # No manual confirmation
+  mode: full-access         # No confirmation prompts
   allowedToolsStorage: memory  # Session-only approvals
 ```
 

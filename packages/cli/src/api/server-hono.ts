@@ -312,9 +312,9 @@ export async function initializeHonoApi(
                     newAgent.registerSubscriber(bridge.webhookSubscriber);
                 }
 
-                // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
+                // Set approval handler if Asks you OR elicitation enabled (before start() for validation)
                 const needsHandler =
-                    newAgent.config.permissions.mode === 'manual' ||
+                    newAgent.config.permissions.mode === 'asks-you' ||
                     newAgent.config.elicitation.enabled;
 
                 if (needsHandler) {
@@ -558,9 +558,9 @@ export async function initializeHonoApi(
             overrides
         );
 
-        // Set approval handler for initial agent if manual mode OR elicitation enabled (before start() for validation)
+        // Set approval handler for initial agent if Asks you OR elicitation enabled (before start() for validation)
         const needsHandler =
-            activeAgent.config.permissions.mode === 'manual' ||
+            activeAgent.config.permissions.mode === 'asks-you' ||
             activeAgent.config.elicitation.enabled;
 
         if (needsHandler) {

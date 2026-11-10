@@ -106,12 +106,12 @@ export interface ApprovalManagerConfig {
  * - Route approvals to appropriate providers
  * - Provide convenience methods for specific approval types
  * - Handle approval responses and errors
- * - Support multiple approval modes (manual, auto-approve)
+ * - Support both permission modes (full-access, asks-you)
  *
  * @example
  * ```typescript
  * const manager = new ApprovalManager(
- *   { permissions: { mode: 'manual', timeout: 60000 }, elicitation: { enabled: true, timeout: 60000 } },
+ *   { permissions: { mode: 'asks-you', timeout: 60000 }, elicitation: { enabled: true, timeout: 60000 } },
  *   logger
  * );
  *
@@ -601,7 +601,7 @@ export class ApprovalManager {
                 ? 'allowed'
                 : ApprovalAutoApprovalPolicySchema.parse(request.autoApproval);
 
-        // Elicitation always uses manual mode (requires handler)
+        // Elicitation always needs a handler, whatever the permissions mode
         if (request.type === ApprovalType.ELICITATION) {
             const handler = this.ensureHandler();
             this.logger.info(
@@ -613,20 +613,20 @@ export class ApprovalManager {
         // Tool/command/directory-access/custom approvals respect the configured mode
         const mode = this.config.permissions.mode;
 
-        // Auto-approve mode
-        if (mode === 'auto-approve' && autoApproval === 'allowed') {
+        // Full access
+        if (mode === 'full-access' && autoApproval === 'allowed') {
             this.logger.info(
-                `Auto-approve approval '${request.type}', approvalId: ${request.approvalId}`
+                `Full access approved '${request.type}', approvalId: ${request.approvalId}`
             );
             return this.createResponse(request, {
                 status: ApprovalStatus.APPROVED,
             });
         }
 
-        // Manual mode - delegate to handler
+        // Asks you - delegate to handler
         const handler = this.ensureHandler();
         this.logger.info(
-            `Manual approval '${request.type}' requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
+            `Approval '${request.type}' requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
         );
         return context === undefined ? handler(request) : handler(request, context);
     }
@@ -847,14 +847,14 @@ export class ApprovalManager {
     }
 
     /**
-     * Set the approval handler for manual approval mode.
+     * Set the approval handler for the Asks you permissions mode.
      *
      * The handler will be called for:
-     * - Tool approval requests when permissions.mode is 'manual'
+     * - Tool approval requests when permissions.mode is 'asks-you'
      * - All elicitation requests (when elicitation is enabled, regardless of permissions.mode)
      *
      * A handler must be set before processing requests if:
-     * - permissions.mode is 'manual', or
+     * - permissions.mode is 'asks-you', or
      * - elicitation is enabled (elicitation.enabled is true)
      *
      * @param handler The approval handler function, or null to clear
@@ -893,10 +893,10 @@ export class ApprovalManager {
             throw ApprovalError.invalidConfig(
                 'An approval handler is required but not configured.\n' +
                     'Handlers are required for:\n' +
-                    '  • manual tool approval mode\n' +
+                    '  • the asks-you (Asks you) permissions mode\n' +
                     '  • all elicitation requests (when elicitation is enabled)\n' +
                     'Either:\n' +
-                    '  • set permissions.mode to "auto-approve", or\n' +
+                    '  • set permissions.mode to "full-access", or\n' +
                     '  • disable elicitation (set elicitation.enabled: false), or\n' +
                     '  • call agent.setApprovalHandler(...) before processing requests.'
             );

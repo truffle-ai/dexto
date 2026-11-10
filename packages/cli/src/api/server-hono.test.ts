@@ -98,7 +98,7 @@ function fakeAgent() {
     // This boundary fixture replaces agent/provider execution, while sockets remain real.
     const agent = {
         config: {
-            permissions: { mode: 'auto-approve' },
+            permissions: { mode: 'full-access' },
             elicitation: { enabled: false },
             agentCard: {},
             agentId: 'replacement',
@@ -385,9 +385,9 @@ describe('CLI HTTP host lifecycle', () => {
         async (source) => {
             const initial = fakeAgent();
             initial.agent.config.agentId = 'initial';
-            initial.agent.config.permissions.mode = 'manual';
+            initial.agent.config.permissions.mode = 'asks-you';
             const replacement = fakeAgent();
-            replacement.agent.config.permissions.mode = 'manual';
+            replacement.agent.config.permissions.mode = 'asks-you';
             const failure = new Error('replacement startup failed');
             replacement.start.mockRejectedValueOnce(failure);
             owned.createAgent.mockResolvedValueOnce(replacement.agent);
@@ -428,9 +428,9 @@ describe('CLI HTTP host lifecycle', () => {
     it('restores previous routing and subscriptions after workspace setup fails, even if replacement cleanup fails', async () => {
         const initial = fakeAgent();
         initial.agent.config.agentId = 'initial';
-        initial.agent.config.permissions.mode = 'manual';
+        initial.agent.config.permissions.mode = 'asks-you';
         const replacement = fakeAgent();
-        replacement.agent.config.permissions.mode = 'manual';
+        replacement.agent.config.permissions.mode = 'asks-you';
         const failure = new Error('replacement workspace setup failed');
         vi.mocked(replacement.agent.getWorkspace).mockResolvedValueOnce({
             id: 'replacement-workspace',

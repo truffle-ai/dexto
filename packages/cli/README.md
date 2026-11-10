@@ -186,8 +186,8 @@ Fine-grained control over what your agent can do:
 
 ```yaml
 permissions:
-  mode: manual           # Require approval for each tool
-  # mode: auto-approve   # Trust mode for local development
+  mode: asks-you         # Asks you: approve file edits, shell commands and other changes
+  # mode: full-access    # Full access: run tools without asking
   toolPolicies:
     alwaysAllow:
       - mcp--filesystem--read_file
@@ -480,7 +480,7 @@ storage:
     connectionString: $POSTGRES_CONNECTION_STRING
 
 permissions:
-  mode: manual
+  mode: asks-you
 ```
 
 ### LLM Providers

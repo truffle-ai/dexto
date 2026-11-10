@@ -244,7 +244,7 @@ npx dexto --agent agents/triage-demo/triage-agent.yml --mode server --port 3000
 - Natural language analysis to determine issue category
 - **Automatic execution** of specialist agents via MCP
 - **Complete customer responses** combining routing + expert answers
-- Seamless tool confirmation with auto-approve mode
+- Seamless tool confirmation with the Full access mode
 
 ### 2. **Specialized Expertise Integration**
 - Each agent has domain-specific knowledge and tools

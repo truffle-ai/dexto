@@ -62,6 +62,7 @@ import {
     loadImage,
     resolveServicesFromConfig,
     toDextoAgentOptions,
+    type AgentConfig,
     type DextoImage,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
@@ -84,6 +85,7 @@ import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.j
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import {
     applyCLIOverrides,
+    getPermissionsModeDeprecationWarning,
     applyStartupLLMFallback,
     applyUserPreferences,
 } from './config/cli-overrides.js';
@@ -166,12 +168,15 @@ program
         new Option(
             '--permissions-mode <mode>',
             "Override the local agent's configured approval mode"
-        ).choices(['manual', 'auto-approve'])
+        ).choices(['full-access', 'asks-you', 'manual', 'auto-approve'])
     )
-    .option('--auto-approve', 'Select auto-approve permissions (mandatory approvals still apply)')
+    .option(
+        '--auto-approve',
+        'Select Full access permissions (alias for --permissions-mode full-access; mandatory approvals still apply)'
+    )
     .option(
         '--bypass-permissions',
-        'Select auto-approve permissions (alias for --permissions-mode auto-approve)'
+        'Select Full access permissions (alias for --permissions-mode full-access)'
     )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (CLI mode)')
@@ -392,6 +397,14 @@ program
 
 registerPluginCommand({ program });
 
+// Printed to stderr so headless JSON output and MCP stdio stay clean.
+function printPermissionsModeDeprecation(config: AgentConfig): void {
+    const warning = getPermissionsModeDeprecationWarning(config);
+    if (warning !== null) {
+        console.warn(chalk.yellow(`⚠️  ${warning}`));
+    }
+}
+
 // Helper to bootstrap a minimal agent for non-interactive commands
 async function bootstrapAgentFromGlobalOpts(options: {
     mode: BootstrapAgentMode;
@@ -434,6 +447,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         ...globalOpts,
         ...(modelOverride ? { model: modelOverride } : {}),
     });
+    printPermissionsModeDeprecation(mergedConfig);
     if (effectiveModel) {
         mergedConfig.llm.model = effectiveModel;
     }
@@ -558,10 +572,11 @@ program
             '  dexto --agent coding-agent       Use installed agent by name\n' +
             '  dexto --agent ./my-agent.yml     Use agent from file path\n' +
             '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
-            'Tool Confirmation:\n' +
-            '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
-            'Ink CLI Modes:\n' +
-            '  dexto --bypass-permissions  Start in bypass permissions mode (skip approval prompts)\n\n' +
+            'Permissions:\n' +
+            '  dexto --permissions-mode asks-you     Asks you before file edits and shell commands\n' +
+            '  dexto --permissions-mode full-access  Full access: run tools without asking\n' +
+            '  dexto --auto-approve                  Alias for --permissions-mode full-access\n' +
+            '  dexto --bypass-permissions            Alias for --permissions-mode full-access\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
@@ -834,6 +849,7 @@ program
                     // Load raw config and apply CLI overrides
                     const rawConfig = await loadAgentConfig(resolvedPath);
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+                    printPermissionsModeDeprecation(mergedConfig);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
                     // User's LLM preferences from preferences.yml apply to ALL agents
@@ -1064,9 +1080,9 @@ program
                 }
 
                 // ——— VALIDATE APPROVAL MODE COMPATIBILITY ———
-                // Check if approval handler is needed (manual mode OR elicitation enabled)
+                // Check if approval handler is needed (Asks you OR elicitation enabled)
                 const needsHandler =
-                    validatedConfig.permissions.mode === 'manual' ||
+                    validatedConfig.permissions.mode === 'asks-you' ||
                     validatedConfig.elicitation.enabled;
 
                 if (needsHandler) {
@@ -1078,7 +1094,7 @@ program
                     const supportedModes = ['web', 'server', 'cli'];
                     if (!supportedModes.includes(opts.mode)) {
                         console.error(
-                            `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`
+                            `❌ The Asks you permissions mode and elicitation are not supported in "${opts.mode}" mode.`
                         );
                         console.error(
                             `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
@@ -1086,9 +1102,9 @@ program
                             )}`
                         );
                         console.error(
-                            '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.'
+                            '💡 Run `dexto --permissions-mode full-access` or configure your agent to skip approvals when running non-interactively.'
                         );
-                        console.error('   permissions.mode: auto-approve');
+                        console.error('   permissions.mode: full-access');
                         console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
                     }
