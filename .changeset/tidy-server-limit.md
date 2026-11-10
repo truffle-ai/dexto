@@ -2,4 +2,4 @@
 '@dexto/server': patch
 ---
 
-Limit HTTP request bodies to 10 MiB.
+Limit HTTP request bodies to 64 MiB

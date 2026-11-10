@@ -6,7 +6,10 @@ import { createNodeServer } from './index.js';
 vi.mock('@dexto/core', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 describe('request body limit', () => {
-    it('rejects an oversized POST with a typed 413 error', async () => {
+    it.each([
+        { size: 34 * 1024 * 1024, status: 200 },
+        { size: 64 * 1024 * 1024 + 1, status: 413 },
+    ])('handles a $size byte POST', async ({ size, status }) => {
         const app = new OpenAPIHono();
         app.post('/upload', async (ctx) => ctx.text(await ctx.req.text()));
         const { server } = createNodeServer(app, {
@@ -21,10 +24,14 @@ describe('request body limit', () => {
         try {
             const response = await fetch(`http://127.0.0.1:${address.port}/upload`, {
                 method: 'POST',
-                body: 'x'.repeat(10 * 1024 * 1024 + 1),
+                body: 'x'.repeat(size),
             });
-            expect(response.status).toBe(413);
-            expect(await response.json()).toMatchObject({ error: 'Payload Too Large' });
+            expect(response.status).toBe(status);
+            if (status === 413)
+                expect(await response.json()).toMatchObject({
+                    error: 'Payload Too Large',
+                    message: 'Request body exceeds 64 MiB.',
+                });
         } finally {
             server.closeAllConnections();
             await new Promise<void>((resolve, reject) =>

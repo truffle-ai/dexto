@@ -54,7 +54,8 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
         assertNetworkBindAllowed(listenHostname, { authDisabled: app.authDisabled === true });
     }
 
-    const maxBodySize = 10 * 1024 * 1024;
+    // Match core's MAX_FILE_SIZE limit for base64 attachment data.
+    const maxBodySize = 64 * 1024 * 1024;
     const limitedApp = new Hono();
     limitedApp.use(
         '*',
@@ -62,7 +63,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
             maxSize: maxBodySize,
             onError: (ctx) =>
                 ctx.json(
-                    { error: 'Payload Too Large', message: 'Request body exceeds 10 MiB.' },
+                    { error: 'Payload Too Large', message: 'Request body exceeds 64 MiB.' },
                     413
                 ),
         })
@@ -117,7 +118,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                             res.end(
                                 JSON.stringify({
                                     error: 'Payload Too Large',
-                                    message: 'Request body exceeds 10 MiB.',
+                                    message: 'Request body exceeds 64 MiB.',
                                 })
                             );
                             return;
