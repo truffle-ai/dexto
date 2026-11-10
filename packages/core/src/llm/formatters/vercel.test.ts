@@ -768,6 +768,45 @@ describe('VercelMessageFormatter', () => {
             expect(toolCallPart!.providerOptions).toEqual(toolProviderOptions);
         });
 
+        test('does not send gateway Claude thinking blocks to a non-Anthropic gateway model', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    assistantOutput: { status: 'complete' },
+                    content: [],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'search', arguments: '{}' },
+                            providerOptions: {
+                                openrouter: {
+                                    reasoning_details: [
+                                        { type: 'reasoning.text', text: '', signature: 'sig' },
+                                    ],
+                                },
+                            },
+                        },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'dexto-nova', model: 'openai/gpt-5' },
+                null
+            );
+
+            const assistantMessage = result.find((m) => m.role === 'assistant');
+            expect(assistantMessage?.providerOptions).toBeUndefined();
+            const content = assistantMessage!.content as Array<{
+                type: string;
+                providerOptions?: Record<string, unknown>;
+            }>;
+            expect(content.find((p) => p.type === 'tool-call')?.providerOptions).toBeUndefined();
+        });
+
         test('should preserve mixed text and media tool results as content parts', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const messages: InternalMessage[] = [

@@ -1,5 +1,10 @@
-import type { ModelMessage, AssistantContent, ToolResultPart } from 'ai';
-import { DEFAULT_MODEL_REGISTRY, type LLMContext, type ModelRegistry } from '@dexto/llm';
+import type { ModelMessage, AssistantContent, AssistantModelMessage, ToolResultPart } from 'ai';
+import {
+    DEFAULT_MODEL_REGISTRY,
+    isOpenRouterAnthropicModel,
+    type LLMContext,
+    type ModelRegistry,
+} from '@dexto/llm';
 import type {
     InternalMessage,
     AssistantMessage,
@@ -15,6 +20,44 @@ import {
 } from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
+
+type ToolCallProviderOptions = NonNullable<
+    AssistantMessage['toolCalls']
+>[number]['providerOptions'];
+type GatewayReasoningDetails = NonNullable<
+    NonNullable<AssistantModelMessage['providerOptions']>[string]
+>[string];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Signed Anthropic thinking blocks a gateway (`dexto-nova`, `openrouter`) returned for a
+ * tool-calling turn, as stored on the turn's tool calls. Undefined when there are none.
+ */
+function findGatewayReasoningDetails(
+    toolCalls: NonNullable<AssistantMessage['toolCalls']>
+): GatewayReasoningDetails | undefined {
+    for (const toolCall of toolCalls) {
+        const openrouter = toolCall.providerOptions?.['openrouter'];
+        if (!isRecord(openrouter)) continue;
+        const details = openrouter['reasoning_details'];
+        if (Array.isArray(details) && details.length > 0) {
+            return details as GatewayReasoningDetails;
+        }
+    }
+    return undefined;
+}
+
+/** Drops gateway thinking blocks, which only Claude models on a gateway accept. */
+function withoutGatewayReasoning(
+    providerOptions: ToolCallProviderOptions
+): ToolCallProviderOptions {
+    if (!providerOptions || !('openrouter' in providerOptions)) return providerOptions;
+    const { openrouter: _openrouter, ...rest } = providerOptions;
+    return Object.keys(rest).length > 0 ? rest : undefined;
+}
 
 type RemoteToolMedia =
     | { type: 'image'; image: URL; mediaType: string }
@@ -374,6 +417,10 @@ export class VercelMessageFormatter {
                             // Keep those providers on "no reasoning replay" to avoid invalid_request errors.
                             // For other providers we continue to round-trip reasoning where available.
                             includeReasoning: this.shouldRoundTripReasoning(context),
+                            replayGatewayThinking: isOpenRouterAnthropicModel(
+                                context.provider,
+                                context.model
+                            ),
                         }),
                     });
                     // Track tool call IDs and names as pending
@@ -435,13 +482,14 @@ export class VercelMessageFormatter {
     // Helper to format Assistant messages (with optional tool calls and reasoning)
     private formatAssistantMessage(
         msg: AssistantMessage,
-        config?: { includeReasoning?: boolean }
+        config: { includeReasoning: boolean; replayGatewayThinking: boolean }
     ): {
         content: AssistantContent;
         function_call?: { name: string; arguments: string };
+        providerOptions?: NonNullable<AssistantModelMessage['providerOptions']>;
     } {
         const contentParts: AssistantContent = [];
-        const includeReasoning = config?.includeReasoning ?? false;
+        const { includeReasoning, replayGatewayThinking } = config;
 
         // Add reasoning part if present (for round-tripping extended thinking)
         //
@@ -499,12 +547,22 @@ export class VercelMessageFormatter {
                     input: parsed,
                 };
                 // Pass through providerOptions for round-tripping (thought signatures, etc.)
-                if (toolCall.providerOptions) {
+                const toolCallProviderOptions = replayGatewayThinking
+                    ? toolCall.providerOptions
+                    : withoutGatewayReasoning(toolCall.providerOptions);
+                if (toolCallProviderOptions) {
                     (toolCallPart as { providerOptions?: unknown }).providerOptions =
-                        toolCall.providerOptions;
+                        toolCallProviderOptions;
                 }
                 contentParts.push(toolCallPart);
             }
+
+            // Every tool call in a step carries the step's full `reasoning_details`, and the
+            // OpenRouter client concatenates per-part details. Message-level details take
+            // precedence there, so set them once to send each thinking block exactly once.
+            const gatewayReasoningDetails = replayGatewayThinking
+                ? findGatewayReasoningDetails(msg.toolCalls)
+                : undefined;
 
             const firstToolCall = msg.toolCalls[0]!;
             // Ensure function_call.arguments is always a valid JSON string
@@ -523,6 +581,11 @@ export class VercelMessageFormatter {
                     name: firstToolCall.function.name,
                     arguments: argString,
                 },
+                ...(gatewayReasoningDetails && {
+                    providerOptions: {
+                        openrouter: { reasoning_details: gatewayReasoningDetails },
+                    },
+                }),
             };
         }
 
