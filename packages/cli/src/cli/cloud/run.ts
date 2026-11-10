@@ -38,6 +38,8 @@ export interface Group {
 
 /** What the commands run against: injected so tests use a fake server and sign-in. */
 export interface CloudHost {
+    readonly openLocalAgent?: () => Promise<import('@dexto/core').DextoAgent>;
+    readonly syncLocalChat?: (id: string) => Promise<void>;
     readonly commands: readonly Command[];
     /** Help's areas by the words before them, such as `cloud`. */
     readonly groups: Readonly<Record<string, readonly Group[]>>;
@@ -305,6 +307,8 @@ function contextFor(
         output,
         overrides,
         runtime: host.runtime,
+        ...(host.openLocalAgent === undefined ? {} : { openLocalAgent: host.openLocalAgent }),
+        ...(host.syncLocalChat === undefined ? {} : { syncLocalChat: host.syncLocalChat }),
     };
 }
 

@@ -232,6 +232,7 @@ export function StaticCLI({
             inputService={inputService}
             useStreaming={useStreaming}
             configFilePath={configFilePath}
+            refreshStatic={refreshStatic}
         />
     );
 

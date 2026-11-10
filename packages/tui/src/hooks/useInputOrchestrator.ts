@@ -16,6 +16,7 @@
 import type React from 'react';
 import { useEffect, useRef, useCallback } from 'react';
 import { useApp } from 'ink';
+import { getTuiRuntimeServices } from '../host/index.js';
 import type { UIState, InputState, SessionState, OverlayType, Message } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { QueuedMessage } from '@dexto/core';
@@ -230,6 +231,7 @@ export function useInputOrchestrator({
     // Priority: 1) Clear input if has text, 2) Exit warning/exit
     // Note: Ctrl+C does NOT cancel processing - use Escape for that
     const handleCtrlC = useCallback(() => {
+        if (getTuiRuntimeServices().abortChatMove?.() === true) return;
         const currentUi = uiRef.current;
         const currentBuffer = bufferRef.current;
 

@@ -127,12 +127,9 @@ export function redactSecrets(text: string): string {
 
 /** File names whose contents never leave the machine, matched on the path's last segment. */
 const SECRET_FILE_NAME =
-    /^(?:\.env(?:\..*)?|\.dev\.vars|.*\.(?:pem|key|p12|pfx|jks|keystore|tfstate|tfstate\.backup|tfvars)|id_(?:rsa|dsa|ecdsa|ed25519).*|\.npmrc|\.netrc|\.pgpass|\.pypirc|\.htpasswd|\.git-credentials|\.dockercfg|kubeconfig|credentials.*|service-account.*\.json|secrets?\.(?:json|ya?ml|toml)|token\.txt)$/iu;
-// Stricter than the server's, which matches only a path inside one of these folders: the client
-// also counts the folder itself (`cd ~/.kube`), where a command's later words name no secret file.
-const SECRET_DIRECTORY = /(?:^|[\\/])\.(?:ssh|aws|gnupg|kube|docker)(?:[\\/]|$)/iu;
-/** Also client-only: direnv's `.envrc`, which holds the same values as `.env`. */
-const CLIENT_SECRET_FILE_NAME = /^\.envrc$/iu;
+    /^(?:(?!.*\.(?:example|sample|template|dist)$)(?:\.env(?:[.-].*)?|\.dev\.vars.*|(?:prod|production|staging|stage|dev|development|local|test|secret|secrets|private)\.env(?:[.-].*)?)|\.envrc|.*\.(?:pem|key|p8|ppk|p12|pfx|jks|keystore|tfstate.*)|id_(?:rsa|dsa|ecdsa|ed25519).*|\.npmrc|\.yarnrc\.yml|[._]netrc|\.pgpass|\.pypirc|\.htpasswd|\.git-credentials|\.dockercfg|\.vault-token|\.terraformrc|\.boto|\.s3cfg|kubeconfig|credentials(?!.*\.(?:ts|tsx|js|mjs|cjs|py|go|rs|sql|md|mdx|swift|kt|kts|java|scala|rb|cs|php|c|h|cc|cpp|m|mm)$).*|application_default_credentials\.json|client_secret.*\.json|.*firebase-adminsdk.*\.json|service-account.*\.json|secrets?\.(?:json|ya?ml|toml)|token\.txt)$/i;
+const SECRET_DIRECTORY =
+    /(?:^|[\\/])(?:\.(?:ssh|aws|azure|gnupg|kube|docker)(?:[\\/]|$)|\.claude[\\/]settings\.local\.json$|\.config[\\/](?:gcloud(?:[\\/]|$)|gh[\\/]hosts\.yml$))/i;
 /** Names a glob such as `.env*` or `.e?v` is tested against: a glob that could match one is secret. */
 const SECRET_NAME_SAMPLES = [
     '.env',
@@ -158,9 +155,11 @@ const SECRET_NAME_SAMPLES = [
  * or a secret directory, itself or on the way to it.
  */
 export function isSecretPath(path: string): boolean {
+    if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(path)) return true;
     const name = path.split(/[\\/]/u).at(-1) ?? path;
-    if (SECRET_FILE_NAME.test(name) || CLIENT_SECRET_FILE_NAME.test(name)) return true;
+    if (SECRET_FILE_NAME.test(name)) return true;
     if (SECRET_DIRECTORY.test(path)) return true;
+    if (/\[\^?\]/u.test(name)) return true;
     // A glob of wildcards alone (`*`, `.*`) names no file in particular.
     const literal = name.replaceAll(/[*?]|\[[^\]]*\]?/gu, '');
     return (
@@ -175,8 +174,8 @@ export function isSecretPath(path: string): boolean {
  * (`.ssh/id_ed25519`), else its name (`.env`). The rest, such as the URL around it, stays here.
  */
 export function secretPathTail(path: string): string {
-    const folder = /(?:^|[\\/])(\.(?:ssh|aws|gnupg|kube|docker)(?:[\\/].*)?)$/iu.exec(path);
-    if (folder?.[1] !== undefined) return folder[1];
+    const folder = SECRET_DIRECTORY.exec(path);
+    if (folder !== null) return path.slice(folder.index).replace(/^[\\/]/u, '');
     return path.split(/[\\/]/u).at(-1) ?? path;
 }
 
@@ -186,7 +185,7 @@ function globMatches(glob: string, name: string): boolean {
         .replaceAll('*', '.*')
         .replaceAll('?', '.');
     try {
-        return new RegExp(`^${pattern}$`, 'iu').test(name);
+        return new RegExp(`^${pattern}$`, 'i').test(name);
     } catch {
         // An unclosed `[`: count it as able to match.
         return true;

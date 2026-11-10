@@ -1,5 +1,9 @@
 import { paint } from '../signal/index.js';
-import type { StyledOutput, SendMessageMarker } from '../services/CommandService.js';
+import type {
+    StyledOutput,
+    SendMessageMarker,
+    HistoryReloadMarker,
+} from '../services/CommandService.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
 
 export interface CommandResult {
@@ -16,7 +20,12 @@ export interface CommandResult {
  * - StyledOutput: Styled output with structured data for rich rendering
  * - SendMessageMarker: Send text through normal streaming flow (for prompt commands)
  */
-export type CommandHandlerResult = boolean | string | StyledOutput | SendMessageMarker;
+export type CommandHandlerResult =
+    | boolean
+    | string
+    | StyledOutput
+    | SendMessageMarker
+    | HistoryReloadMarker;
 
 /**
  * Context passed to command handlers
