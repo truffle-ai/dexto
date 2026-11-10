@@ -1,3 +1,5 @@
+import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
@@ -52,6 +54,22 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
         assertNetworkBindAllowed(listenHostname, { authDisabled: app.authDisabled === true });
     }
 
+    // Match core's MAX_FILE_SIZE limit for base64 attachment data.
+    const maxBodySize = 64 * 1024 * 1024;
+    const limitedApp = new Hono();
+    limitedApp.use(
+        '*',
+        bodyLimit({
+            maxSize: maxBodySize,
+            onError: (ctx) =>
+                ctx.json(
+                    { error: 'Payload Too Large', message: 'Request body exceeds 64 MiB.' },
+                    413
+                ),
+        })
+    );
+    limitedApp.all('*', (ctx) => app.fetch(ctx.req.raw));
+
     const server = createServer(async (req, res) => {
         const disconnectController = new AbortController();
         const abortOnDisconnect = () => {
@@ -92,14 +110,20 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                 if (req.method === 'POST') {
                     req.setEncoding('utf8');
                     let body = '';
-                    const MAX_BODY_SIZE = 10 * 1024 * 1024;
+                    let bodySize = 0;
                     for await (const chunk of req) {
-                        body += chunk;
-                        if (body.length > MAX_BODY_SIZE) {
-                            res.statusCode = 413;
-                            res.end('Payload too large');
+                        bodySize += Buffer.byteLength(chunk);
+                        if (bodySize > maxBodySize) {
+                            res.writeHead(413, { 'Content-Type': 'application/json' });
+                            res.end(
+                                JSON.stringify({
+                                    error: 'Payload Too Large',
+                                    message: 'Request body exceeds 64 MiB.',
+                                })
+                            );
                             return;
                         }
+                        body += chunk;
                     }
                     let parsed: unknown;
                     try {
@@ -125,7 +149,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
             }
 
             const request = await toRequest(req, disconnectController.signal);
-            const response = await app.fetch(request);
+            const response = await limitedApp.fetch(request);
             await sendNodeResponse(res, response, disconnectController.signal);
         } catch {
             logger.error('Unhandled request error in Node bridge');
