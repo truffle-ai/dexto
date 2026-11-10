@@ -87,7 +87,7 @@
     "command": "chat move",
     "json": true,
     "dryRun": true,
-    "nonInteractiveFlag": false,
+    "nonInteractiveFlag": true,
     "examples": false
   },
   {
