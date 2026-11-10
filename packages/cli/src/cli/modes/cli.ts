@@ -269,6 +269,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                             const lines: string[] = [];
                             const runtime = {
                                 ...host.runtime,
+                                // Ink owns stdin; the slash command is the person's consent.
+                                prompt: null,
                                 stdoutIsTerminal: true,
                                 writeOutput: (text: string) => {
                                     lines.push(text);
@@ -284,7 +286,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                                     openLocalAgent: async () => agent,
                                     syncLocalChat: (chatId) => chatSync.engine.sync(chatId),
                                 },
-                                ['chat', 'move', id, '--to', to, '--detach', '--table']
+                                ['chat', 'move', id, '--to', to, '--detach', '--yes', '--table']
                             );
                             if (code !== 0) throw new Error(lines.join('\n'));
                             return lines.join('\n');

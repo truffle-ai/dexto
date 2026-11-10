@@ -10,12 +10,19 @@ import {
     choiceOption,
     flag,
     UsageError,
+    YES_OPTION,
     type Command,
     type CommandContext,
     type CommandInput,
 } from '../command.js';
 import { nodeChatSyncStore, startNodeChatSync } from '../../chat-sync/node.js';
-import { buildWorkingTree, readLocalTreeCheckpoint } from '../../chat-sync/working-tree.js';
+import {
+    buildWorkingTree,
+    readLocalTreeCheckpoint,
+    type WorkingTree,
+} from '../../chat-sync/working-tree.js';
+import { requireConsent } from '../../interaction.js';
+import { formatBytes } from './files.js';
 import {
     applyReturnedTree,
     assertLocalTreeMatches,
@@ -103,6 +110,42 @@ async function localChat(context: CommandContext, id: string) {
     };
 }
 
+function describeHandOff(tree: WorkingTree) {
+    return {
+        repository: tree.repository,
+        branch: tree.branch,
+        changedFiles: tree.changedFiles,
+        totalBytes: tree.bundle.byteLength + (tree.patch?.byteLength ?? 0),
+    };
+}
+
+function handOffSummary(tree: WorkingTree): string {
+    const plan = describeHandOff(tree);
+    const files = plan.changedFiles === 1 ? 'file' : 'files';
+    return `Upload ${plan.repository} (branch ${plan.branch}, ${plan.changedFiles} changed or untracked ${files}, ${formatBytes(plan.totalBytes)}) to the cloud computer.`;
+}
+
+/**
+ * Uploading a working tree needs consent. JSON and non-interactive runs never prompt, so they need
+ * --yes; a terminal run prints the summary and asks y/N.
+ */
+async function confirmUpload(
+    context: CommandContext,
+    input: CommandInput,
+    tree: WorkingTree
+): Promise<void> {
+    const summary = handOffSummary(tree);
+    if (flag(input, 'yes')) {
+        if (!context.output.json) context.runtime.writeError(`${summary}\n`);
+        return;
+    }
+    await requireConsent(
+        context.output.json ? { ...context, runtime: { prompt: null } } : context,
+        false,
+        summary
+    );
+}
+
 async function readReturnCheckpoint(file: string, id: string) {
     try {
         return ReturnCheckpointSchema.parse(JSON.parse(await readFile(file, 'utf8')));
@@ -133,6 +176,7 @@ const move: Command = {
             type: 'boolean',
             description: 'Return after moving to cloud instead of watching.',
         },
+        ...YES_OPTION,
     },
     async run(context, input) {
         const id = argument(input, 0, 'local chat id');
@@ -161,7 +205,7 @@ const move: Command = {
                     dryRun: true,
                     id,
                     to,
-                    branch: tree.branch,
+                    ...describeHandOff(tree),
                     headCommit: tree.head_commit,
                     bundle: describeObject(tree.bundle),
                     patch: tree.patch === null ? null : describeObject(tree.patch),
@@ -231,6 +275,7 @@ async function toCloud(
     }
     const tree = await buildWorkingTree(chat.cwd);
     try {
+        await confirmUpload(context, input, tree);
         await chat.save({
             branch: tree.branch,
             head: tree.head_commit,
@@ -279,7 +324,12 @@ async function toCloud(
         await tree.cleanup();
     }
     context.output.result(
-        { id, location: 'cloud', attached: !flag(input, 'detach') && !context.output.json },
+        {
+            id,
+            location: 'cloud',
+            attached: !flag(input, 'detach') && !context.output.json,
+            handOff: describeHandOff(tree),
+        },
         chatMoveScreen(id, 'cloud')
     );
     if (!flag(input, 'detach') && !context.output.json) await watchChat(context, cloudId);

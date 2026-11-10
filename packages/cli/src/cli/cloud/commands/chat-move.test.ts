@@ -4,12 +4,18 @@ import { createOutput } from '../output.js';
 import { nodeCloudRuntime } from '../runtime.js';
 import { chatMoveCommands } from './chat-move.js';
 
-const { readChat, writeChat, queryWorkspaceTool, readCheckpoint } = vi.hoisted(() => ({
+const { readChat, writeChat, queryWorkspaceTool, readCheckpoint, moveToCloud } = vi.hoisted(() => ({
     readChat: vi.fn(),
     writeChat: vi.fn(),
     queryWorkspaceTool: vi.fn(),
     readCheckpoint: vi.fn(),
+    moveToCloud: vi.fn(),
 }));
+vi.mock('../../chat-sync/move.js', async (original) => {
+    const actual = await original<typeof import('../../chat-sync/move.js')>();
+    moveToCloud.mockImplementation(actual.moveToCloud);
+    return { ...actual, moveToCloud };
+});
 vi.mock('./workspace.js', () => ({ queryWorkspaceTool }));
 
 beforeEach(() => {
@@ -26,6 +32,7 @@ beforeEach(() => {
     });
     writeChat.mockReset();
     queryWorkspaceTool.mockReset();
+    moveToCloud.mockClear();
 });
 
 vi.mock('../../chat-sync/node.js', () => ({
@@ -52,10 +59,12 @@ vi.mock('../../chat-sync/return-tree.js', async (original) => ({
 vi.mock('../../chat-sync/working-tree.js', async (original) => ({
     ...(await original<typeof import('../../chat-sync/working-tree.js')>()),
     buildWorkingTree: async () => ({
+        repository: '/fake/working/tree',
         branch: 'main',
         head_commit: 'a'.repeat(40),
-        bundle: Buffer.from('fake bundle'),
-        patch: null,
+        bundle: Buffer.alloc(2048),
+        patch: Buffer.alloc(512),
+        changedFiles: 3,
         cleanup: async () => undefined,
     }),
 }));
@@ -156,7 +165,7 @@ it('pauses local execution before a start request whose response is lost', async
     const command = chatMoveCommands.find((item) => item.path[1] === 'move');
     if (command === undefined) throw new Error('Missing move command');
     await expect(
-        command.run(h.context, { positionals: ['local-chat'], values: { to: 'cloud' } })
+        command.run(h.context, { positionals: ['local-chat'], values: { to: 'cloud', yes: true } })
     ).rejects.toMatchObject({ kind: 'failed', fix: 'dexto chat move local-chat --to local' });
     expect(writeChat).toHaveBeenCalledTimes(1);
     expect(writeChat.mock.calls[0]?.[2]).toMatchObject({
@@ -194,7 +203,7 @@ it('restores local execution after a confirmed start refusal', async () => {
     const command = chatMoveCommands.find((item) => item.path[1] === 'move');
     if (command === undefined) throw new Error('Missing move command');
     await expect(
-        command.run(context, { positionals: ['local-chat'], values: { to: 'cloud' } })
+        command.run(context, { positionals: ['local-chat'], values: { to: 'cloud', yes: true } })
     ).rejects.toMatchObject({ status: 429 });
     expect(writeChat).toHaveBeenCalledTimes(2);
     expect(writeChat.mock.calls[1]?.[2]).toEqual({
@@ -298,7 +307,7 @@ for (const status of [429, 403]) {
                 await expect(
                     command.run(
                         { ...h.context, runtime: { ...h.context.runtime, fetch } },
-                        { positionals: ['local-chat'], values: { to: 'cloud' } }
+                        { positionals: ['local-chat'], values: { to: 'cloud', yes: true } }
                     )
                 ).rejects.toMatchObject({ status });
                 expect(calls).toBe(
@@ -364,3 +373,155 @@ it.each([
         });
     }
 );
+
+const SUMMARY =
+    'Upload /fake/working/tree (branch main, 3 changed or untracked files, 2.5 KiB) to the cloud computer.';
+
+function syncingChat(): void {
+    readChat.mockResolvedValue({
+        status: 'syncing',
+        cloudChatId: 'cloud-chat',
+        nextIndex: 5,
+        sentCount: 5,
+    });
+}
+
+function terminalHarness(answer: string | null) {
+    const h = harness(false);
+    let errors = '';
+    const questions: string[] = [];
+    const runtime = {
+        ...h.context.runtime,
+        stdoutIsTerminal: true,
+        writeError: (text: string) => {
+            errors += text;
+        },
+        prompt:
+            answer === null
+                ? null
+                : async (question: string) => {
+                      questions.push(question);
+                      return answer;
+                  },
+    };
+    const context: CommandContext = {
+        ...h.context,
+        runtime,
+        output: createOutput(runtime, 'table'),
+        invocation: ['chat', 'move', 'local-chat', '--to', 'cloud'],
+    };
+    return { context, errors: () => errors, questions };
+}
+
+function moveCommand() {
+    const command = chatMoveCommands.find((item) => item.path[1] === 'move');
+    if (command === undefined) throw new Error('Missing move command');
+    return command;
+}
+
+it('asks with a one-line summary and leaves the chat local when the person declines', async () => {
+    syncingChat();
+    const t = terminalHarness('n');
+    await expect(
+        moveCommand().run(t.context, { positionals: ['local-chat'], values: { to: 'cloud' } })
+    ).rejects.toMatchObject({ kind: 'needs_confirmation', message: 'Not done.' });
+    expect(t.questions).toEqual([`${SUMMARY} Go ahead? [y/N] `]);
+    expect(writeChat).not.toHaveBeenCalled();
+    expect(moveToCloud).not.toHaveBeenCalled();
+});
+
+it('uploads after the person answers y', async () => {
+    syncingChat();
+    moveToCloud.mockResolvedValueOnce(undefined);
+    const t = terminalHarness('y');
+    await moveCommand().run(t.context, {
+        positionals: ['local-chat'],
+        values: { to: 'cloud', detach: true },
+    });
+    expect(t.questions).toHaveLength(1);
+    expect(moveToCloud).toHaveBeenCalledTimes(1);
+});
+
+it('prints the summary and skips the prompt with --yes', async () => {
+    syncingChat();
+    moveToCloud.mockResolvedValueOnce(undefined);
+    const t = terminalHarness('n');
+    await moveCommand().run(t.context, {
+        positionals: ['local-chat'],
+        values: { to: 'cloud', detach: true, yes: true },
+    });
+    expect(t.questions).toEqual([]);
+    expect(t.errors()).toBe(`${SUMMARY}\n`);
+    expect(moveToCloud).toHaveBeenCalledTimes(1);
+});
+
+it('fails without prompting in a non-interactive terminal run that lacks --yes', async () => {
+    syncingChat();
+    const t = terminalHarness(null);
+    await expect(
+        moveCommand().run(t.context, { positionals: ['local-chat'], values: { to: 'cloud' } })
+    ).rejects.toMatchObject({
+        kind: 'needs_confirmation',
+        message: `${SUMMARY} Run it again with --yes once your person has agreed.`,
+        fix: 'dexto chat move local-chat --to cloud --yes',
+    });
+    expect(writeChat).not.toHaveBeenCalled();
+    expect(moveToCloud).not.toHaveBeenCalled();
+});
+
+it('never prompts in JSON mode: without --yes it fails before pausing or uploading', async () => {
+    syncingChat();
+    const h = harness(false);
+    const prompt = vi.fn(async () => 'y');
+    const context = {
+        ...h.context,
+        runtime: { ...h.context.runtime, prompt },
+        invocation: ['chat', 'move', 'local-chat', '--to', 'cloud', '--json'],
+    };
+    await expect(
+        moveCommand().run(context, { positionals: ['local-chat'], values: { to: 'cloud' } })
+    ).rejects.toMatchObject({
+        kind: 'needs_confirmation',
+        message: `${SUMMARY} Run it again with --yes once your person has agreed.`,
+    });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(writeChat).not.toHaveBeenCalled();
+    expect(moveToCloud).not.toHaveBeenCalled();
+});
+
+it('moves in JSON mode with --yes and reports the hand-off in the result', async () => {
+    syncingChat();
+    moveToCloud.mockResolvedValueOnce(undefined);
+    const h = harness(false);
+    await moveCommand().run(h.context, {
+        positionals: ['local-chat'],
+        values: { to: 'cloud', yes: true },
+    });
+    expect(h.output()).toEqual({
+        id: 'local-chat',
+        location: 'cloud',
+        attached: false,
+        handOff: {
+            repository: '/fake/working/tree',
+            branch: 'main',
+            changedFiles: 3,
+            totalBytes: 2560,
+        },
+    });
+    expect(writeChat.mock.calls.map((call) => call[2].reason)).toEqual([
+        'move_in_progress',
+        'chat_in_cloud',
+    ]);
+});
+
+it('reports the hand-off plan on a dry run without asking', async () => {
+    syncingChat();
+    expect(await run({ to: 'cloud', 'dry-run': true })).toMatchObject({
+        dryRun: true,
+        repository: '/fake/working/tree',
+        branch: 'main',
+        changedFiles: 3,
+        totalBytes: 2560,
+    });
+    expect(moveToCloud).not.toHaveBeenCalled();
+});

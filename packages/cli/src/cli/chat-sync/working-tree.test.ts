@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { buildWorkingTree, readLocalTreeCheckpoint } from './working-tree.js';
 import { applyReturnedTree, recoverAbandonedReturn } from './return-tree.js';
 import { describeObject } from './move.js';
@@ -11,6 +11,7 @@ import { describeObject } from './move.js';
 const run = promisify(execFile);
 const folders: string[] = [];
 afterEach(async () => {
+    vi.unstubAllEnvs();
     for (const folder of folders) await rm(folder, { recursive: true, force: true });
 });
 
@@ -36,6 +37,9 @@ it('bundles the branch and patches untracked changes without secrets, ignored fi
     const tree = await buildWorkingTree(cwd);
     try {
         expect(tree.branch).toBe('main');
+        expect(tree.repository).toBe(await realpath(cwd));
+        // new.txt, .gitignore and code.txt; secrets and ignored files are not counted.
+        expect(tree.changedFiles).toBe(3);
         expect(tree.patch?.toString()).toContain('diff --git a/new.txt b/new.txt');
         expect(tree.patch?.toString()).toContain('+after');
         expect(tree.patch?.toString()).not.toMatch(
@@ -45,6 +49,49 @@ it('bundles the branch and patches untracked changes without secrets, ignored fi
     } finally {
         await tree.cleanup();
     }
+});
+
+it.each([
+    { name: 'is the home directory', home: '' },
+    { name: 'is an ancestor of the home directory', home: 'users/someone' },
+])('refuses a repository that $name', async ({ home }) => {
+    const cwd = await repository();
+    await mkdir(path.join(cwd, home), { recursive: true });
+    vi.stubEnv('HOME', path.join(cwd, home));
+    vi.stubEnv('USERPROFILE', path.join(cwd, home));
+    await writeFile(path.join(cwd, 'notes.txt'), 'would be uploaded\n');
+    await expect(buildWorkingTree(path.join(cwd, home))).rejects.toMatchObject({
+        kind: 'invalid_input',
+        message: expect.stringContaining('move a project folder, not your home directory'),
+    });
+});
+
+it('moves a project repository inside the home directory', async () => {
+    const cwd = await repository();
+    vi.stubEnv('HOME', path.dirname(cwd));
+    vi.stubEnv('USERPROFILE', path.dirname(cwd));
+    const tree = await buildWorkingTree(cwd);
+    await tree.cleanup();
+    expect(tree.branch).toBe('main');
+    expect(tree.changedFiles).toBe(0);
+});
+
+it('explains when the working folder is not in a Git repository', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'chat-move-plain-'));
+    folders.push(cwd);
+    vi.stubEnv('GIT_CEILING_DIRECTORIES', path.dirname(cwd));
+    await expect(buildWorkingTree(cwd)).rejects.toMatchObject({
+        kind: 'invalid_input',
+        message: `${cwd} is not inside a Git repository. Chat move hands off a Git project, so open the chat in a project folder that uses Git.`,
+    });
+});
+
+it('refuses a missing working folder before running Git', async () => {
+    const cwd = path.join(tmpdir(), `chat-move-missing-${process.pid}-${Date.now()}`);
+    await expect(buildWorkingTree(cwd)).rejects.toMatchObject({
+        kind: 'invalid_input',
+        message: `The chat's working folder ${cwd} no longer exists.`,
+    });
 });
 
 it('refuses a secret-shaped file in history even after it was deleted', async () => {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdtemp, readFile, realpath, rm, writeFile, stat } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { isSecretPath } from './redaction.js';
 import { handOffGit, handOffDiffOptions } from './git.js';
@@ -10,10 +10,13 @@ const MAX_BUNDLE = 256 * 1024 * 1024;
 const MAX_PATCH = 32 * 1024 * 1024;
 
 export interface WorkingTree {
+    readonly repository: string;
     readonly branch: string;
     readonly head_commit: string;
     readonly bundle: Buffer;
     readonly patch: Buffer | null;
+    /** Changed, staged-new and untracked files carried by the patch. */
+    readonly changedFiles: number;
     readonly cleanup: () => Promise<void>;
 }
 
@@ -23,10 +26,39 @@ export interface LocalTreeCheckpoint {
     readonly patchHash: string;
 }
 
+/**
+ * The Git repository a hand-off moves. Only a project repository qualifies: a repository rooted at
+ * the home directory (or above it) would carry every untracked file under home.
+ */
 export async function gitRepositoryRoot(cwd: string): Promise<string> {
-    return (await handOffGit(cwd, ['rev-parse', '--show-toplevel']))
-        .toString()
-        .replace(/\r?\n$/u, '');
+    const folder = await realpath(cwd).catch(() => {
+        throw new CommandFailure(
+            'invalid_input',
+            `The chat's working folder ${cwd} no longer exists.`,
+            null
+        );
+    });
+    const root = await handOffGit(folder, ['rev-parse', '--show-toplevel']).then(
+        (output) => output.toString().replace(/\r?\n$/u, ''),
+        () => {
+            throw new CommandFailure(
+                'invalid_input',
+                `${cwd} is not inside a Git repository. Chat move hands off a Git project, so open the chat in a project folder that uses Git.`,
+                null
+            );
+        }
+    );
+    const home = await realpath(homedir()).catch(() => homedir());
+    const fromRoot = path.relative(await realpath(root), home);
+    const outside =
+        fromRoot === '..' || fromRoot.startsWith(`..${path.sep}`) || path.isAbsolute(fromRoot);
+    if (!outside)
+        throw new CommandFailure(
+            'invalid_input',
+            `The Git repository at ${root} contains your home directory; move a project folder, not your home directory.`,
+            null
+        );
+    return root;
 }
 
 async function refuseSecretTree(repository: string, commit: string): Promise<void> {
@@ -66,9 +98,13 @@ export async function refuseSecretHistory(repository: string, revision: string):
 }
 
 /** Inspect the complete repository using a private index, without changing the user's staging. */
-async function workingTreeFiles(
-    cwd: string
-): Promise<{ repository: string; branch: string; head_commit: string; patch: Buffer | null }> {
+async function workingTreeFiles(cwd: string): Promise<{
+    repository: string;
+    branch: string;
+    head_commit: string;
+    patch: Buffer | null;
+    changedFiles: number;
+}> {
     const repository = await gitRepositoryRoot(cwd);
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-index-'));
     try {
@@ -134,7 +170,34 @@ async function workingTreeFiles(
             env
         );
         if (patch.length > MAX_PATCH) throw new Error('The working-tree patch exceeds 32 MiB.');
-        return { repository, branch, head_commit, patch: patch.length === 0 ? null : patch };
+        const changedFiles =
+            patch.length === 0
+                ? 0
+                : (
+                      await handOffGit(
+                          repository,
+                          [
+                              '--literal-pathspecs',
+                              'diff',
+                              ...handOffDiffOptions,
+                              '--name-only',
+                              '-z',
+                              head_commit,
+                              '--',
+                          ],
+                          env
+                      )
+                  )
+                      .toString()
+                      .split('\0')
+                      .filter(Boolean).length;
+        return {
+            repository,
+            branch,
+            head_commit,
+            patch: patch.length === 0 ? null : patch,
+            changedFiles,
+        };
     } finally {
         await rm(folder, { recursive: true, force: true });
     }
@@ -155,7 +218,7 @@ export async function readLocalTreeCheckpoint(cwd: string): Promise<LocalTreeChe
 /** Build a pinned branch bundle plus the non-ignored, non-secret working-tree patch. */
 export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
     const tree = await workingTreeFiles(cwd);
-    const { repository, branch, head_commit, patch } = tree;
+    const { repository, branch, head_commit, patch, changedFiles } = tree;
     // A full bundle carries deleted history too, so every reachable tree is checked.
     await refuseSecretHistory(repository, head_commit);
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-bundle-'));
@@ -193,7 +256,15 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
         ]);
         if ((await stat(bundlePath)).size > MAX_BUNDLE)
             throw new Error('The branch bundle exceeds 256 MiB.');
-        return { branch, head_commit, patch, bundle: await readFile(bundlePath), cleanup };
+        return {
+            repository,
+            branch,
+            head_commit,
+            patch,
+            changedFiles,
+            bundle: await readFile(bundlePath),
+            cleanup,
+        };
     } catch (error) {
         await cleanup();
         throw error;

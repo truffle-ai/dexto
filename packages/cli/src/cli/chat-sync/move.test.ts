@@ -48,10 +48,12 @@ it('uploads declared bytes with signed headers before confirming and polling com
         { client, fetch, signal: new AbortController().signal, sleep: async () => undefined },
         'chat',
         {
+            repository: '/fake/repository',
             branch: 'main',
             head_commit: 'a'.repeat(40),
             bundle: Buffer.from('bundle'),
             patch: null,
+            changedFiles: 0,
             cleanup: async () => undefined,
         }
     );
@@ -180,10 +182,12 @@ it('cancels the accepted cloud start whose response was lost and restarts its up
         sleep: async () => undefined,
     };
     const tree = {
+        repository: '/fake/repository',
         branch: 'main',
         head_commit: 'a'.repeat(40),
         bundle: Buffer.from('fake bundle'),
         patch: null,
+        changedFiles: 0,
         cleanup: async () => undefined,
     };
     await expect(moveToCloud(transport, 'chat', tree)).rejects.toThrow('accepted response lost');
@@ -234,10 +238,12 @@ it('keeps cloud ownership when cancellation discovers that an interrupted import
             { client, fetch, signal: new AbortController().signal, sleep: async () => undefined },
             'chat',
             {
+                repository: '/fake/repository',
                 branch: 'main',
                 head_commit: 'a'.repeat(40),
                 bundle: Buffer.from('bundle'),
                 patch: null,
+                changedFiles: 0,
                 cleanup: async () => undefined,
             }
         )
@@ -275,10 +281,12 @@ it('reports unresolved ownership when both polling and cancellation lose the con
             { client, fetch, signal: new AbortController().signal, sleep: async () => undefined },
             'chat',
             {
+                repository: '/fake/repository',
                 branch: 'main',
                 head_commit: 'a'.repeat(40),
                 bundle: Buffer.from('bundle'),
                 patch: null,
+                changedFiles: 0,
                 cleanup: async () => undefined,
             }
         )
@@ -390,10 +398,12 @@ it.each(['upload', 'polling'] as const)(
                 },
                 'chat',
                 {
+                    repository: '/fake/repository',
                     branch: 'main',
                     head_commit: 'a'.repeat(40),
                     bundle: Buffer.from('bundle'),
                     patch: null,
+                    changedFiles: 0,
                     cleanup: async () => undefined,
                 }
             )
