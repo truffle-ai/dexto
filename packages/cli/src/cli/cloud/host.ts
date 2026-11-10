@@ -10,6 +10,7 @@ import { artifactCommands } from './commands/artifacts.js';
 import { connectionCommands } from './commands/connections.js';
 import { chatCommands } from './commands/chats.js';
 import { chatOutputsCommand } from './commands/chat-outputs.js';
+import { chatProjectCommands } from './commands/chat-projects.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
@@ -77,6 +78,7 @@ export function cloudCommands(dir: string, signIn: SignInFor): readonly Command[
         ...traceCommands,
         ...chatCommands,
         chatOutputsCommand,
+        ...chatProjectCommands,
         ...connectionCommands,
     ];
 }
