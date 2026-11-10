@@ -826,6 +826,27 @@
     "examples": false
   },
   {
+    "command": "workspace computers keys create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys revoke",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "workspace describe",
     "json": true,
     "dryRun": false,
