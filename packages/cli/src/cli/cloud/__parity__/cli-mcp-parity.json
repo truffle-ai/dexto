@@ -6,7 +6,12 @@
     "commands": {
         "chat outputs": ["dexto_chat_outputs_list"],
         "import": ["dexto_chat_import", "dexto_upload_prepare", "dexto_skill_bundle_import"],
-        "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
+        "chat import": [
+            "dexto_chat_import_prepare",
+            "dexto_chat_import",
+            "dexto_project_import",
+            "dexto_drive"
+        ],
         "connect claude": ["dexto_connection_start", "dexto_connection_finish"],
         "connect codex": ["dexto_connection_start", "dexto_connection_wait"],
         "connections list": ["dexto_connections_list"],
@@ -514,7 +519,6 @@
         "dexto_notifications_list",
         "dexto_notifications_mark_read",
         "dexto_open",
-        "dexto_project_import",
         "dexto_share",
         "dexto_share_access",
         "dexto_share_received",

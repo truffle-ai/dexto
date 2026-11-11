@@ -388,6 +388,26 @@ export async function putAppFile(
     return { id: item.id, mimeType: contentTypeFor(localPath), name: path.basename(localPath) };
 }
 
+/** Adds a file to an owned folder, reusing unchanged bytes and versioning only that name. */
+export async function putFolderFile(
+    context: CommandContext,
+    localPath: string,
+    parentId: string
+): Promise<Record<string, unknown>> {
+    const info = await stat(localPath);
+    const sha256 = await hashFile(localPath);
+    const existing = await findItem(context, new Map(), parentId, 'file', path.basename(localPath));
+    if (existing?.sha256 === sha256 && existing.size === info.size) return existing;
+    return putFile(
+        context,
+        { folder: null, localPath, size: info.size },
+        parentId,
+        existing,
+        sha256,
+        null
+    );
+}
+
 /**
  * Sends a large file in the exact parts Drive asked for, a few at once, then completes it. A part
  * or completion the network drops is sent again; one that still fails, or is refused, gives the
