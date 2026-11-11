@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.14.4",
+    "version": "latest",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -25249,6 +25249,15 @@
                             "default": {},
                             "description": "Optional environment variables for the server process"
                           },
+                          "passEnvironment": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[^=\\s]+$"
+                            },
+                            "default": [],
+                            "description": "Names of host environment variables to forward to the server, such as GITHUB_TOKEN. The server otherwise receives only a small allowlist of host variables plus its configured env."
+                          },
                           "timeout": {
                             "type": "integer",
                             "minimum": 0,
@@ -25995,6 +26004,15 @@
                               "default": {},
                               "description": "Optional environment variables for the server process"
                             },
+                            "passEnvironment": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[^=\\s]+$"
+                              },
+                              "default": [],
+                              "description": "Names of host environment variables to forward to the server, such as GITHUB_TOKEN. The server otherwise receives only a small allowlist of host variables plus its configured env."
+                            },
                             "timeout": {
                               "type": "integer",
                               "minimum": 0,
@@ -26337,6 +26355,15 @@
                             },
                             "default": {},
                             "description": "Optional environment variables for the server process"
+                          },
+                          "passEnvironment": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[^=\\s]+$"
+                            },
+                            "default": [],
+                            "description": "Names of host environment variables to forward to the server, such as GITHUB_TOKEN. The server otherwise receives only a small allowlist of host variables plus its configured env."
                           },
                           "timeout": {
                             "type": "integer",

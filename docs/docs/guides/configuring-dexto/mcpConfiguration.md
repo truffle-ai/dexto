@@ -89,6 +89,18 @@ mcpServers:
 
 Execute local programs that communicate via stdin/stdout.
 
+:::info Upgrading to 1.17
+Local stdio servers no longer inherit Dexto's whole environment, and neither do shell commands. A
+server that read an API key (or any other variable) from the environment must now be given it with
+`passEnvironment` or `env`; see [What a stdio server can see](#what-a-stdio-server-can-see). For
+commands run by `process-tools`, see [Command environment](./tools.md#command-environment). Remote
+`http` and `sse` servers are not affected.
+
+Server and web modes also bind to loopback by default; see the [deployment guide](../deployment.md)
+to allow network access with an API key. Server Origin and Host checks may also require
+[configuration](../deployment.md#origin-and-host-checks).
+:::
+
 **Use when:**
 - Running local tools (filesystem, git, database)
 - Development and testing
@@ -213,6 +225,25 @@ mcpServers:
 ```
 
 **Security best practice:** Always use environment variables for secrets, never hardcode them.
+
+### What a stdio server can see
+
+A stdio server does not inherit Dexto's environment. It starts with a small allowlist of host variables (`PATH`, `HOME`, `USER`, locale, `TERM`, `TZ`, `XDG_*`, CA bundle and proxy variables, and the Windows system variables), plus its own `env`. Model provider keys and other host secrets are not passed on.
+
+To give a server a host variable it needs, either set it in `env`, or name it in `passEnvironment`:
+
+```yaml
+mcpServers:
+  github:
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: $GITHUB_TOKEN   # set under a different name
+    passEnvironment: [GITHUB_TOKEN]                 # or forward under its own name
+```
+
+`env` values win over forwarded variables. Forward only what the server should be able to use.
 
 ## Common Use Cases
 

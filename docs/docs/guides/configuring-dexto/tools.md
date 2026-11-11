@@ -43,6 +43,57 @@ tools:
       - memory_list
 ```
 
+## Command environment
+
+:::info Upgrading to 1.17
+Shell commands used to inherit Dexto's whole environment. They no longer do. A command that read an
+API key (or any other variable) from the environment must now be given it, as shown below. Local MCP
+stdio servers changed the same way; see
+[MCP configuration](./mcpConfiguration.md#what-a-stdio-server-can-see).
+
+Server and web modes also bind to loopback by default; see the [deployment guide](../deployment.md)
+to allow network access with an API key. Server Origin and Host checks may also require
+[configuration](../deployment.md#origin-and-host-checks).
+:::
+
+Commands run by `process-tools` (`bash_exec` and the other process tools, including commands run
+through a workspace, which is the CLI default) do not inherit Dexto's environment. A command starts
+with a small allowlist of host variables:
+
+- `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`
+- `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TZ`
+- `TMPDIR`, `XDG_*`
+- CA bundle variables: `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`,
+  `NODE_EXTRA_CA_CERTS`
+- proxy variables: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` (upper or lower case)
+- on Windows, the system variables commands need to start (`SYSTEMROOT`, `COMSPEC`, `PATHEXT`,
+  `USERPROFILE`, `APPDATA`, `TEMP` and similar)
+
+Model provider keys, the server key and every other host variable are not visible to commands. To
+add variables, set them on the `process-tools` entry:
+
+```yaml
+tools:
+  - type: process-tools
+    passEnvironment: [GH_TOKEN, SSH_AUTH_SOCK]   # forward the host's value under the same name
+    environment:
+      MY_FLAG: "1"                               # a literal value
+```
+
+| Key | What it does |
+| --- | --- |
+| `passEnvironment` | Names of host variables to forward to commands. A name that is not set on the host is skipped. |
+| `environment` | Variables to set to a literal value. They are not expanded from the host, so `$VAR` is passed as written. |
+
+`environment` wins over a forwarded variable of the same name, and an `env` given on a single command
+wins over both.
+
+:::warning
+Anything in `passEnvironment` or `environment` reaches **every** command the agent runs, including
+ones the model writes. List only what the agent should be able to use, and prefer a narrowly scoped
+token over a broad one.
+:::
+
 ## Notes
 
 - Use `enabled: false` on any entry to disable that tool factory.

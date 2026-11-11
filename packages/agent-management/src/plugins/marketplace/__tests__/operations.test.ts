@@ -18,6 +18,7 @@ vi.mock('fs', async () => {
         readdirSync: vi.fn(),
         rmSync: vi.fn(),
         statSync: vi.fn(),
+        realpathSync: vi.fn((target: string) => target),
     };
 });
 
@@ -27,6 +28,7 @@ vi.mock('child_process', async () => {
     return {
         ...actual,
         execSync: vi.fn(),
+        execFileSync: vi.fn(),
     };
 });
 
@@ -74,6 +76,7 @@ describe('Marketplace Operations', () => {
         vi.mocked(fs.readdirSync).mockReset();
         vi.mocked(fs.rmSync).mockReset();
         vi.mocked(childProcess.execSync).mockReset();
+        vi.mocked(childProcess.execFileSync).mockReset();
         vi.mocked(getMarketplaceEntry).mockReset();
         vi.mocked(getAllMarketplaces).mockReset();
         vi.mocked(addMarketplaceEntry).mockReset();
@@ -184,6 +187,37 @@ describe('Marketplace Operations', () => {
             );
         });
 
+        it.each(['../escape', '..', '.', 'a/b', '/abs', '.hidden', 'name\\other'])(
+            'rejects the unsafe custom name %j without cloning or registering',
+            async (name) => {
+                vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+
+                await expect(addMarketplace('owner/repo', { name })).rejects.toThrow(
+                    /invalid marketplace name/i
+                );
+
+                expect(childProcess.execFileSync).not.toHaveBeenCalled();
+                expect(addMarketplaceEntry).not.toHaveBeenCalled();
+            }
+        );
+
+        it('rejects a name derived from a source that is not a safe name', async () => {
+            vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+
+            await expect(addMarketplace('..')).rejects.toThrow(/invalid marketplace name/i);
+            expect(childProcess.execFileSync).not.toHaveBeenCalled();
+        });
+
+        it('accepts a custom name made of safe characters', async () => {
+            vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
+
+            const result = await addMarketplace('owner/repo', { name: 'My Market_1.2-x' });
+
+            expect(result.name).toBe('My Market_1.2-x');
+        });
+
         it('throws error when local path does not exist', async () => {
             vi.mocked(getMarketplaceEntry).mockReturnValue(null);
             vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -202,12 +236,32 @@ describe('Marketplace Operations', () => {
 
             const result = await addMarketplace('owner/test-repo');
 
-            expect(childProcess.execSync).toHaveBeenCalledWith(
-                expect.stringContaining('git clone'),
+            expect(childProcess.execFileSync).toHaveBeenCalledWith(
+                'git',
+                ['clone', '--', 'https://github.com/owner/test-repo.git', expect.any(String)],
                 expect.any(Object)
             );
             expect(result.success).toBe(true);
             expect(result.name).toBe('test-repo');
+        });
+
+        it('passes a git URL to git as one argument without a shell', async () => {
+            vi.mocked(getMarketplaceEntry).mockReturnValue(null);
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
+            const source = 'https://example.com/repo$(unexpected).git';
+
+            await addMarketplace(source, { name: 'quoted' });
+
+            expect(childProcess.execFileSync).toHaveBeenCalledWith(
+                'git',
+                ['clone', '--', source, expect.any(String)],
+                expect.any(Object)
+            );
+            expect(childProcess.execSync).not.toHaveBeenCalledWith(
+                expect.stringContaining('git clone'),
+                expect.anything()
+            );
         });
 
         it('respects custom name option', async () => {
@@ -411,6 +465,72 @@ describe('Marketplace Operations', () => {
             expect(result[0]!.name).toBe('plugin1');
             expect(result[1]!.name).toBe('plugin2');
         });
+
+        it('ignores manifest sources that point outside the marketplace directory', () => {
+            const manifest = {
+                name: 'Test Marketplace',
+                plugins: [
+                    { name: 'inside', source: './plugins/inside' },
+                    { name: 'root', source: './' },
+                    { name: 'parent', source: '..' },
+                    { name: 'grandparent', source: '../..' },
+                    { name: 'sneaky', source: 'plugins/../../elsewhere' },
+                    { name: 'absolute', source: '/etc' },
+                ],
+            };
+
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(manifest));
+
+            const result = scanMarketplacePlugins('/marketplace', 'test-market');
+
+            expect(result.map((plugin) => plugin.name)).toEqual(['inside', 'root']);
+        });
+
+        it.each(['EACCES', 'ELOOP', 'EIO'])(
+            'skips a plugin when resolving its real path fails with %s (fails closed)',
+            (code) => {
+                const manifest = {
+                    name: 'Test Marketplace',
+                    plugins: [{ name: 'plugin1', source: 'plugins/plugin1' }],
+                };
+                vi.mocked(fs.existsSync).mockReturnValue(true);
+                vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(manifest));
+                vi.mocked(fs.realpathSync).mockImplementation(() => {
+                    throw Object.assign(new Error(code), { code });
+                });
+
+                try {
+                    expect(scanMarketplacePlugins('/marketplace', 'test-market')).toEqual([]);
+                } finally {
+                    vi.mocked(fs.realpathSync).mockImplementation((target) => String(target));
+                }
+            }
+        );
+
+        it.each(['EACCES', 'ELOOP'])(
+            'skips directory-scan plugins when resolving their real path fails with %s',
+            (code) => {
+                vi.mocked(fs.existsSync).mockImplementation((p) => {
+                    const pathStr = typeof p === 'string' ? p : p.toString();
+                    return !pathStr.endsWith('marketplace.json');
+                });
+                vi.mocked(fs.readdirSync).mockImplementation(((p: unknown) =>
+                    String(p).endsWith('plugins')
+                        ? [createDirent('my-plugin', true)]
+                        : []) as never);
+                vi.mocked(tryLoadManifest).mockReturnValue({ name: 'my-plugin' } as PluginManifest);
+                vi.mocked(fs.realpathSync).mockImplementation(() => {
+                    throw Object.assign(new Error(code), { code });
+                });
+
+                try {
+                    expect(scanMarketplacePlugins('/marketplace', 'test-market')).toEqual([]);
+                } finally {
+                    vi.mocked(fs.realpathSync).mockImplementation((target) => String(target));
+                }
+            }
+        );
 
         it('scans plugins/ directory when no manifest', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {

@@ -5,12 +5,13 @@
  */
 
 import * as path from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
 import { copyDirectory } from '../../utils/path.js';
 import { getMarketplaceCacheDir, getMarketplaceEntry } from './registry.js';
 import {
     findPluginInMarketplaces,
+    realPathInside,
     scanMarketplacePlugins,
     listAllMarketplacePlugins,
 } from './operations.js';
@@ -129,7 +130,17 @@ export async function installPluginFromMarketplace(
         try {
             mkdirSync(cachePath, { recursive: true });
             await copyDirectory(plugin.sourcePath, cachePath);
+            // The scan checked this path some time ago. If it was swapped for a link since, the
+            // copy may have followed it, so discard the copy.
+            const unchanged =
+                marketplaceEntry !== null &&
+                realPathInside(marketplaceEntry.installLocation, plugin.sourcePath) ===
+                    plugin.sourcePath;
+            if (!unchanged) {
+                throw new Error('the plugin directory changed while it was being copied');
+            }
         } catch (error) {
+            rmSync(cachePath, { recursive: true, force: true });
             throw MarketplaceError.installCopyFailed(
                 pluginName,
                 error instanceof Error ? error.message : String(error)

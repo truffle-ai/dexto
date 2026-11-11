@@ -1,5 +1,96 @@
 # @dexto/agent-management
 
+## 1.17.0
+
+### Patch Changes
+
+- da25d8c: Reject agent ids that resolve to the agents directory itself when installing or uninstalling agents.
+- 960e656: Accept only well-formed blob ids (16 hex characters, with or without the `blob:` prefix) in the local and in-memory blob stores. A2A JSON-RPC no longer returns internal error messages to callers: unexpected failures answer with a generic "Internal error", while missing or unknown parameters keep their message and now use the JSON-RPC invalid-params code. `dexto plugin marketplace add` now rejects a `--name` (or a name derived from the source) that is not a safe single path segment.
+- 503c31d: Copy plugin and agent folders without following links that are swapped in while the copy runs. Every directory and file is now opened and checked before it is read, and the copy stops with an error if anything it was reading is replaced by a link to somewhere else.
+- cc28d92: Trim surrounding whitespace from values saved to a `.env` file, refuse values with an inner line break as a user error (a 400 from the server), reject invalid names, and keep that file readable by its owner only.
+- e361868: Run `git clone` for plugin marketplaces without a shell, so a marketplace source is passed to git as plain text.
+- 4df6177: Check the real path of every marketplace plugin directory (manifest entries, `plugins/`, `external_plugins/` and root-level directories), fail closed when a path cannot be resolved, and install from the checked real path. `copyDirectory` now refuses a source directory that is itself a symbolic link, and a marketplace install discards its copy and fails if the plugin directory was replaced while it was being copied.
+- f38dc1f: Ignore marketplace plugin entries whose `source` points outside the marketplace directory, by path or through a symlink.
+- 65d848a: Require plugin names to be a single safe path segment so installing a plugin cannot write outside the plugins directory.
+- 005da68: Keep skills and plugin copies from following links out of their directory. A `SKILL.md` that links outside its skill directory is no longer listed or loaded. `skill_create` and `skill_update` refuse to write through a linked `SKILL.md` or a skill directory that resolves outside the skills root. Directory copies, including plugin installs, skip links that point outside the source.
+- Updated dependencies [2827371]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+    - @dexto/core@1.17.0
+    - @dexto/tools-builtins@1.17.0
+    - @dexto/agent-config@1.17.0
+    - @dexto/orchestration@1.17.0
+    - @dexto/llm@1.17.0
+
+## 1.16.6
+
+### Patch Changes
+
+- Updated dependencies [489e1a7]
+- Updated dependencies [70960ab]
+- Updated dependencies [c0a33d0]
+    - @dexto/core@1.16.6
+    - @dexto/agent-config@1.16.6
+    - @dexto/orchestration@1.16.6
+    - @dexto/tools-builtins@1.16.6
+    - @dexto/llm@1.16.6
+
+## 1.16.5
+
+### Patch Changes
+
+- Updated dependencies [3058397]
+    - @dexto/core@1.16.5
+    - @dexto/agent-config@1.16.5
+    - @dexto/orchestration@1.16.5
+    - @dexto/tools-builtins@1.16.5
+    - @dexto/llm@1.16.5
+
+## 1.16.4
+
+### Patch Changes
+
+- Updated dependencies [e18778a]
+    - @dexto/core@1.16.4
+    - @dexto/agent-config@1.16.4
+    - @dexto/orchestration@1.16.4
+    - @dexto/tools-builtins@1.16.4
+    - @dexto/llm@1.16.4
+
+## 1.16.3
+
+### Patch Changes
+
+- Updated dependencies [bfe6300]
+    - @dexto/core@1.16.3
+    - @dexto/agent-config@1.16.3
+    - @dexto/orchestration@1.16.3
+    - @dexto/tools-builtins@1.16.3
+    - @dexto/llm@1.16.3
+
+## 1.16.2
+
+### Patch Changes
+
+- Updated dependencies [f80f6e7]
+    - @dexto/core@1.16.2
+    - @dexto/agent-config@1.16.2
+    - @dexto/orchestration@1.16.2
+    - @dexto/tools-builtins@1.16.2
+    - @dexto/llm@1.16.2
+
 ## 1.16.1
 
 ### Patch Changes

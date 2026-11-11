@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
+import { isMetadataHost } from '@dexto/core';
+import { isPrivateAddress } from '@dexto/core/llm';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
 import {
     TOOL_ACTIVITY,
@@ -74,62 +76,17 @@ type LookupCallback =
     | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
     | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
 
-function isPrivateIpv4(ip: string): boolean {
-    const parts = ip.split('.').map((part) => Number(part));
-    if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
-        return false;
-    }
-
-    const a = parts[0];
-    const b = parts[1];
-    const c = parts[2];
-    const d = parts[3];
-    if (a === undefined || b === undefined || c === undefined || d === undefined) {
-        return false;
-    }
-    if (a === 0) return true;
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    if (a === 192 && b === 0 && c === 0) return true;
-    if (a === 192 && b === 0 && c === 2) return true;
-    if (a === 198 && b === 51 && c === 100) return true;
-    if (a === 203 && b === 0 && c === 113) return true;
-    if (a === 198 && (b === 18 || b === 19)) return true;
-    if (a >= 224 && a <= 239) return true;
-    if (a >= 240) return true;
-
-    return false;
-}
-
-/** Reject local IPv6 and mapped IPv4 addresses that are not safe request targets. */
-function isPrivateIpv6(ip: string): boolean {
-    const normalized = new URL(`http://[${ip.split('%')[0]}]/`).hostname.slice(1, -1);
-    if (normalized === '::' || normalized === '::1') return true;
-    if (normalized.startsWith('64:ff9b:1:')) return true;
-    if (/^fe[89ab][0-9a-f]:/.test(normalized)) return true;
-    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
-    if (normalized.startsWith('::ffff:')) {
-        const parts = normalized.slice('::ffff:'.length).split(':');
-        if (parts.length === 2) {
-            const high = Number.parseInt(parts[0] ?? '', 16);
-            const low = Number.parseInt(parts[1] ?? '', 16);
-            return isPrivateIpv4(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`);
-        }
-    }
-    return false;
-}
-
-/** Check IP literals and DNS results, accepting URL-bracketed IPv6 literals. */
-function isPrivateAddress(ip: string): boolean {
-    const address = ip.startsWith('[') && ip.endsWith(']') ? ip.slice(1, -1) : ip;
-    const version = isIP(address);
-    if (version === 4) return isPrivateIpv4(address);
-    if (version === 6) return isPrivateIpv6(address);
-    return false;
+/**
+ * Every refused target reads the same: the host that was asked for, never the address it
+ * resolved to or which rule refused it, so a caller cannot map the network from the errors.
+ */
+function blockedTargetError(hostname: string): DextoRuntimeError {
+    return new DextoRuntimeError(
+        'HTTP_REQUEST_UNSAFE_TARGET',
+        ErrorScope.TOOLS,
+        ErrorType.FORBIDDEN,
+        `Request to ${hostname} is blocked`
+    );
 }
 
 export function createSafeLookup(config?: {
@@ -168,16 +125,12 @@ export function createSafeLookup(config?: {
 
             try {
                 if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
-                    emitError(
-                        toErrnoException(
-                            new DextoRuntimeError(
-                                'HTTP_REQUEST_UNSAFE_TARGET',
-                                ErrorScope.TOOLS,
-                                ErrorType.FORBIDDEN,
-                                `Blocked request to local hostname: ${hostname}`
-                            )
-                        )
-                    );
+                    emitError(toErrnoException(blockedTargetError(hostname)));
+                    return;
+                }
+
+                if (isMetadataHost(hostname)) {
+                    emitError(toErrnoException(blockedTargetError(hostname)));
                     return;
                 }
 
@@ -204,17 +157,8 @@ export function createSafeLookup(config?: {
                 }
 
                 for (const record of records) {
-                    if (isPrivateAddress(record.address)) {
-                        emitError(
-                            toErrnoException(
-                                new DextoRuntimeError(
-                                    'HTTP_REQUEST_UNSAFE_TARGET',
-                                    ErrorScope.TOOLS,
-                                    ErrorType.FORBIDDEN,
-                                    `Blocked request to private address: ${record.address}`
-                                )
-                            )
-                        );
+                    if (isMetadataHost(record.address) || isPrivateAddress(record.address)) {
+                        emitError(toErrnoException(blockedTargetError(hostname)));
                         return;
                     }
                 }
@@ -300,21 +244,11 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
     }
 
     if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
-        throw new DextoRuntimeError(
-            'HTTP_REQUEST_UNSAFE_TARGET',
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
-            `Blocked request to local hostname: ${hostname}`
-        );
+        throw blockedTargetError(hostname);
     }
 
-    if (isPrivateAddress(hostname)) {
-        throw new DextoRuntimeError(
-            'HTTP_REQUEST_UNSAFE_TARGET',
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
-            `Blocked request to private address: ${hostname}`
-        );
+    if (isMetadataHost(hostname) || isPrivateAddress(hostname)) {
+        throw blockedTargetError(hostname);
     }
 }
 
@@ -440,11 +374,6 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                         );
                     }
                     const nextUrl = new URL(location, currentUrl);
-                    if (nextUrl.origin !== currentUrl.origin) {
-                        for (const key of Object.keys(requestHeaders)) {
-                            delete requestHeaders[key];
-                        }
-                    }
                     if (
                         response.status === 303 ||
                         ((response.status === 301 || response.status === 302) &&
@@ -455,6 +384,20 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                         for (const key of Object.keys(requestHeaders)) {
                             if (['content-type', 'content-length'].includes(key.toLowerCase()))
                                 delete requestHeaders[key];
+                        }
+                    }
+                    if (nextUrl.origin !== currentUrl.origin) {
+                        // Whatever redirect it was, a body that is still there would be sent on.
+                        if (requestInit.body !== undefined) {
+                            throw new DextoRuntimeError(
+                                'HTTP_REQUEST_REDIRECT_BLOCKED',
+                                ErrorScope.TOOLS,
+                                ErrorType.FORBIDDEN,
+                                `Blocked a ${response.status} redirect to ${nextUrl.origin}: the request body is not sent to another origin`
+                            );
+                        }
+                        for (const key of Object.keys(requestHeaders)) {
+                            delete requestHeaders[key];
                         }
                     }
                     currentUrl = nextUrl;

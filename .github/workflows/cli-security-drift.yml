@@ -1,0 +1,27 @@
+# Fails when a merged main PR labelled `security` has not reached cli-2.0 (DEXTO-2681).
+#
+# cli-2.0 is a long-lived branch that main is not merged into, so a fix that lands only on main
+# never reaches the 2.0 betas. Label security fixes `security`; this check compares them with
+# cli-2.0 every Monday and on demand. See scripts/check-cli-security-drift.sh. A scheduled
+# workflow runs from the default branch, so this file lives on main.
+name: CLI security drift
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: scripts/check-cli-security-drift.sh
+        env:
+          GH_TOKEN: ${{ github.token }}

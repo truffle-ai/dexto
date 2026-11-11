@@ -6,7 +6,7 @@ import {
     InMemorySpanExporter,
     SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { InstrumentClass } from './decorators.js';
+import { InstrumentClass, withSpan } from './decorators.js';
 
 describe('InstrumentClass', () => {
     let contextManager: AsyncHooksContextManager | undefined;
@@ -33,6 +33,43 @@ describe('InstrumentClass', () => {
         contextManager = undefined;
         Reflect.deleteProperty(globalThis, '__TELEMETRY__');
         trace.disable();
+    });
+
+    it('withSpan does not record arguments by default', () => {
+        const descriptor = withSpan({ spanName: 'direct' })(
+            {},
+            'run',
+            Object.getOwnPropertyDescriptor({ run(_value: string) {} }, 'run')
+        );
+
+        descriptor.value('private-argument');
+
+        const [span] = exporter.getFinishedSpans();
+        expect(JSON.stringify(span?.attributes)).not.toContain('private-argument');
+    });
+
+    it('does not record method arguments unless a class asks for them', () => {
+        const secret = { env: { API_TOKEN: 'secret-token' } };
+
+        @InstrumentClass({ prefix: 'default' })
+        class DefaultService {
+            connect(_config: unknown): void {}
+        }
+
+        @InstrumentClass({ prefix: 'opted_in', captureArguments: true })
+        class OptedInService {
+            connect(_config: unknown): void {}
+        }
+
+        new DefaultService().connect(secret);
+        new OptedInService().connect(secret);
+
+        const spans = exporter.getFinishedSpans();
+        const defaultSpan = spans.find((span) => span.name === 'default.connect');
+        const optedInSpan = spans.find((span) => span.name === 'opted_in.connect');
+        expect(JSON.stringify(defaultSpan?.attributes)).not.toContain('secret-token');
+        expect(defaultSpan?.attributes['default.connect.argument.0']).toBeUndefined();
+        expect(JSON.stringify(optedInSpan?.attributes)).toContain('secret-token');
     });
 
     it('can trace method timing without copying private values into telemetry', async () => {

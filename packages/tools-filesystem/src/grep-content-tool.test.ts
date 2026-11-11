@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { allowAllPaths } from './test-helpers.js';
 import { ToolErrorCode } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
 import type { ToolServices } from '@dexto/core/tools';
@@ -77,7 +78,7 @@ describe('grep_content tool', () => {
             throw new Error('grep_content execute must not use FileSystemService');
         });
         const glob = vi.fn(async () => ['src/notes.txt']);
-        const tool = createGrepContentTool(getFileSystemService);
+        const tool = createGrepContentTool(getFileSystemService, allowAllPaths);
         const parsedInput = tool.inputSchema.parse({
             pattern: 'needle',
             path: 'src',
@@ -117,7 +118,7 @@ describe('grep_content tool', () => {
     it('normalizes workspace-contained absolute search paths before globbing', async () => {
         const mockLogger = createMockLogger();
         const glob = vi.fn(async () => ['src/notes.txt']);
-        const tool = createGrepContentTool(vi.fn());
+        const tool = createGrepContentTool(vi.fn(), allowAllPaths);
 
         await tool.execute(
             tool.inputSchema.parse({
@@ -134,7 +135,7 @@ describe('grep_content tool', () => {
     it('rejects external absolute search paths before file provider calls', async () => {
         const mockLogger = createMockLogger();
         const glob = vi.fn(async () => ['src/notes.txt']);
-        const tool = createGrepContentTool(vi.fn());
+        const tool = createGrepContentTool(vi.fn(), allowAllPaths);
 
         await expect(
             tool.execute(
@@ -153,7 +154,7 @@ describe('grep_content tool', () => {
     it('rejects absolute and escaping glob filters before file provider calls', async () => {
         const mockLogger = createMockLogger();
         const glob = vi.fn(async () => ['src/notes.txt']);
-        const tool = createGrepContentTool(vi.fn());
+        const tool = createGrepContentTool(vi.fn(), allowAllPaths);
 
         await expect(
             tool.execute(

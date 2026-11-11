@@ -38,6 +38,7 @@ function createMocks() {
         updateAssistantMessage: vi.fn().mockResolvedValue(undefined),
         addToolCall: vi.fn().mockResolvedValue(undefined),
         addToolResult: vi.fn().mockResolvedValue(undefined),
+        releaseAssistantMessage: vi.fn(),
         getHistory: vi.fn().mockResolvedValue([{ id: 'msg-1', role: 'assistant', content: '' }]),
     } as unknown as ContextManager;
 
@@ -818,6 +819,46 @@ describe('StreamProcessor', () => {
                     assistantOutput: { status: 'stopped', reason: 'cancelled' },
                 })
             );
+        });
+
+        test('releases the held assistant message when the step ends, finished or failed', async () => {
+            for (const events of [
+                [
+                    { type: 'text-delta', text: 'Hello' },
+                    {
+                        type: 'finish',
+                        finishReason: 'stop',
+                        totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                    },
+                ],
+                [
+                    { type: 'text-delta', text: 'Partial' },
+                    { type: 'error', error: new Error('provider failed') },
+                ],
+            ]) {
+                const mocks = createMocks();
+                const processor = new StreamProcessor(
+                    mocks.contextManager,
+                    mocks.eventBus,
+                    mocks.abortController.signal,
+                    mocks.config,
+                    mocks.logger,
+                    true
+                );
+
+                await processor.process(() => createMockStream(events) as never).catch(() => {});
+
+                expect(mocks.contextManager.releaseAssistantMessage).toHaveBeenCalledTimes(1);
+                // The release comes after the last write of the reply.
+                const lastWrite = Math.max(
+                    ...vi.mocked(mocks.contextManager.updateAssistantMessage).mock
+                        .invocationCallOrder
+                );
+                expect(
+                    vi.mocked(mocks.contextManager.releaseAssistantMessage).mock
+                        .invocationCallOrder[0]
+                ).toBeGreaterThan(lastWrite);
+            }
         });
 
         test('marks assistant output stopped when stream fails after partial text', async () => {

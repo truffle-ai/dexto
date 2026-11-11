@@ -1,5 +1,127 @@
 # @dexto/webui
 
+## 1.17.0
+
+### Patch Changes
+
+- 27c0032: **Upgrade note: the local API server now checks Origin and Host.** Frontends on another port, scripts sending simple POST requests, and unauthenticated clients using a non-loopback Host may need configuration after upgrading.
+
+    For a frontend at another origin, allow its exact origin when starting the server:
+
+    ```bash
+    DEXTO_ALLOWED_ORIGINS=http://localhost:5173 dexto --mode server
+    ```
+
+    For a POST with no body or `text/plain`, add the request header:
+
+    ```bash
+    curl -X POST -H 'X-Dexto-Request: 1' http://localhost:3001/api/message
+    ```
+
+    For an unauthenticated server accessed using a non-loopback Host name, allow that name:
+
+    ```bash
+    DEXTO_ALLOWED_HOSTS=myhost dexto --mode server
+    ```
+
+    Validate Origin and Host on the local API server and require a non-simple header on state-changing requests.
+
+    Behavior changes:
+    - Browser origins are trusted per origin, not per host: only the server's own origin (the `Origin` host and port match the request `Host`) and origins listed in `DEXTO_ALLOWED_ORIGINS` are accepted. Pages on other `localhost`/`127.0.0.1`/`[::1]` ports are no longer trusted, and CORS headers are sent only for `DEXTO_ALLOWED_ORIGINS`. A frontend on another port must be added to `DEXTO_ALLOWED_ORIGINS`.
+    - Any request with an untrusted `Origin` (or `Origin: null`) is rejected with `403`. `POST`/`PUT`/`PATCH`/`DELETE` requests are also rejected when `Sec-Fetch-Site` is `same-site` or `cross-site` from an origin not in `DEXTO_ALLOWED_ORIGINS`, or when they send none of `Authorization`, `X-Dexto-Request`, or a non-simple `Content-Type` (for example `application/json`). `@dexto/client-sdk` now sends `X-Dexto-Request: 1`; scripts that POST without a body or with `text/plain` need to add that header.
+    - When the server runs without auth (no API key, not production, no `DEXTO_SERVER_REQUIRE_AUTH`), requests must use a loopback `Host` header (`localhost`, `127.x.x.x`, `0.0.0.0`, `[::1]`). Other names can be allowed with `DEXTO_ALLOWED_HOSTS`.
+
+- Updated dependencies [2827371]
+- Updated dependencies [960e656]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [27c0032]
+- Updated dependencies [2132ed2]
+    - @dexto/core@1.17.0
+    - @dexto/storage@1.17.0
+    - @dexto/client-sdk@1.17.0
+    - @dexto/analytics@1.17.0
+    - @dexto/agent-config@1.17.0
+    - @dexto/llm@1.17.0
+    - @dexto/registry@1.17.0
+
+## 1.16.6
+
+### Patch Changes
+
+- Updated dependencies [489e1a7]
+- Updated dependencies [70960ab]
+- Updated dependencies [c0a33d0]
+    - @dexto/core@1.16.6
+    - @dexto/agent-config@1.16.6
+    - @dexto/analytics@1.16.6
+    - @dexto/client-sdk@1.16.6
+    - @dexto/storage@1.16.6
+    - @dexto/llm@1.16.6
+    - @dexto/registry@1.16.6
+
+## 1.16.5
+
+### Patch Changes
+
+- Updated dependencies [3058397]
+    - @dexto/core@1.16.5
+    - @dexto/agent-config@1.16.5
+    - @dexto/analytics@1.16.5
+    - @dexto/client-sdk@1.16.5
+    - @dexto/storage@1.16.5
+    - @dexto/llm@1.16.5
+    - @dexto/registry@1.16.5
+
+## 1.16.4
+
+### Patch Changes
+
+- Updated dependencies [e18778a]
+    - @dexto/core@1.16.4
+    - @dexto/agent-config@1.16.4
+    - @dexto/analytics@1.16.4
+    - @dexto/client-sdk@1.16.4
+    - @dexto/storage@1.16.4
+    - @dexto/llm@1.16.4
+    - @dexto/registry@1.16.4
+
+## 1.16.3
+
+### Patch Changes
+
+- Updated dependencies [bfe6300]
+    - @dexto/core@1.16.3
+    - @dexto/agent-config@1.16.3
+    - @dexto/analytics@1.16.3
+    - @dexto/client-sdk@1.16.3
+    - @dexto/storage@1.16.3
+    - @dexto/llm@1.16.3
+    - @dexto/registry@1.16.3
+
+## 1.16.2
+
+### Patch Changes
+
+- Updated dependencies [f80f6e7]
+    - @dexto/core@1.16.2
+    - @dexto/agent-config@1.16.2
+    - @dexto/analytics@1.16.2
+    - @dexto/client-sdk@1.16.2
+    - @dexto/storage@1.16.2
+    - @dexto/llm@1.16.2
+    - @dexto/registry@1.16.2
+
 ## 1.16.1
 
 ### Patch Changes

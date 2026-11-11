@@ -1,7 +1,15 @@
+import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
-import { createHttpAuthorization } from '../middleware/auth.js';
+import {
+    assertNetworkBindAllowed,
+    createHttpAuthorization,
+    isHttpAuthRequired,
+    resolveServerHostname,
+} from '../middleware/auth.js';
+import { createRequestGuard } from '../middleware/request-guard.js';
 import type { DextoApp } from '../types.js';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
@@ -13,6 +21,7 @@ type FetchBodyInit = globalThis.BodyInit;
 export type NodeBridgeOptions = {
     getAgent: () => DextoAgent;
     port?: number;
+    /** Bind address when `port` is set. Defaults to DEXTO_SERVER_HOST, else 127.0.0.1. */
     hostname?: string;
     mcpHandlers?: {
         handlePost: (
@@ -34,6 +43,32 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     const { getAgent: _getAgent } = options;
     const webhookSubscriber = app.webhookSubscriber;
     const authorize = app.httpAuthorization ?? createHttpAuthorization();
+    const requestGuard =
+        app.requestGuard ??
+        createRequestGuard({
+            enforceLoopbackHost: app.authDisabled !== true && !isHttpAuthRequired(),
+        });
+    const listenHostname =
+        typeof options.port === 'number' ? resolveServerHostname(options.hostname) : undefined;
+    if (listenHostname !== undefined) {
+        assertNetworkBindAllowed(listenHostname, { authDisabled: app.authDisabled === true });
+    }
+
+    // Match core's MAX_FILE_SIZE limit for base64 attachment data.
+    const maxBodySize = 64 * 1024 * 1024;
+    const limitedApp = new Hono();
+    limitedApp.use(
+        '*',
+        bodyLimit({
+            maxSize: maxBodySize,
+            onError: (ctx) =>
+                ctx.json(
+                    { error: 'Payload Too Large', message: 'Request body exceeds 64 MiB.' },
+                    413
+                ),
+        })
+    );
+    limitedApp.all('*', (ctx) => app.fetch(ctx.req.raw));
 
     const server = createServer(async (req, res) => {
         const disconnectController = new AbortController();
@@ -56,6 +91,18 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                     res.end(JSON.stringify(authorization.body));
                     return;
                 }
+                const guard = requestGuard({
+                    method: req.method ?? 'GET',
+                    header: (name) => {
+                        const value = req.headers[name.toLowerCase()];
+                        return Array.isArray(value) ? value.join(', ') : value;
+                    },
+                });
+                if (!guard.allowed) {
+                    res.writeHead(403, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Forbidden', message: guard.reason }));
+                    return;
+                }
                 if (req.method === 'GET') {
                     await options.mcpHandlers.handleGet(req, res);
                     return;
@@ -63,14 +110,20 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                 if (req.method === 'POST') {
                     req.setEncoding('utf8');
                     let body = '';
-                    const MAX_BODY_SIZE = 10 * 1024 * 1024;
+                    let bodySize = 0;
                     for await (const chunk of req) {
-                        body += chunk;
-                        if (body.length > MAX_BODY_SIZE) {
-                            res.statusCode = 413;
-                            res.end('Payload too large');
+                        bodySize += Buffer.byteLength(chunk);
+                        if (bodySize > maxBodySize) {
+                            res.writeHead(413, { 'Content-Type': 'application/json' });
+                            res.end(
+                                JSON.stringify({
+                                    error: 'Payload Too Large',
+                                    message: 'Request body exceeds 64 MiB.',
+                                })
+                            );
                             return;
                         }
+                        body += chunk;
                     }
                     let parsed: unknown;
                     try {
@@ -96,7 +149,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
             }
 
             const request = await toRequest(req, disconnectController.signal);
-            const response = await app.fetch(request);
+            const response = await limitedApp.fetch(request);
             await sendNodeResponse(res, response, disconnectController.signal);
         } catch {
             logger.error('Unhandled request error in Node bridge');
@@ -112,10 +165,9 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
         webhookSubscriber?.cleanup?.();
     });
 
-    if (typeof options.port === 'number') {
-        const hostname = options.hostname ?? '0.0.0.0';
-        server.listen(options.port, hostname, () => {
-            logger.info(`Hono Node bridge listening on http://${hostname}:${options.port}`);
+    if (typeof options.port === 'number' && listenHostname !== undefined) {
+        server.listen(options.port, listenHostname, () => {
+            logger.info(`Hono Node bridge listening on http://${listenHostname}:${options.port}`);
         });
     }
 

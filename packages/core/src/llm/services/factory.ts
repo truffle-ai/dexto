@@ -3,7 +3,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { VercelLLMService } from './vercel.js';
-import type { LanguageModel } from 'ai';
+import { APICallError, type LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
@@ -120,12 +120,112 @@ function logRuntimeAuthResolution(input: {
         model,
         auth,
         runtime: {
-            hasRuntimeFetch: Boolean(runtimeAuth?.fetch),
+            hasRuntimeFetch: Boolean(runtimeAuth?.fetch || runtimeAuth?.requestAuth),
             hasRuntimeHeaders: Boolean(runtimeAuth?.headers),
             hasRuntimeBaseURL: Boolean(runtimeAuth?.baseURL),
             hasEffectiveBaseURL: Boolean(effectiveBaseURL),
         },
     });
+}
+
+const MAX_RETRY_ERROR_BODY_BYTES = 64 * 1024;
+
+/** Give the classifier a bounded view while retaining the original response for the SDK. */
+function boundedClassificationResponse(response: Response): { view: Response; cancel: () => void } {
+    const clone = response.clone();
+    if (!clone.body) return { view: clone, cancel: () => {} };
+    const reader = clone.body.getReader();
+    let remaining = MAX_RETRY_ERROR_BODY_BYTES;
+    const body = new globalThis.ReadableStream<Uint8Array>({
+        async pull(controller) {
+            try {
+                const chunk = await reader.read();
+                if (chunk.done) {
+                    controller.close();
+                    return;
+                }
+                const part = chunk.value.subarray(0, remaining);
+                remaining -= part.byteLength;
+                if (part.byteLength) controller.enqueue(part);
+                if (remaining === 0) {
+                    void reader.cancel().catch(() => {});
+                    controller.close();
+                }
+            } catch (error) {
+                controller.error(error);
+            }
+        },
+        cancel() {
+            void reader.cancel().catch(() => {});
+        },
+    });
+    const view = new globalThis.Response(body, {
+        status: clone.status,
+        statusText: clone.statusText,
+        headers: clone.headers,
+    });
+    Object.defineProperties(view, {
+        url: { value: response.url },
+        redirected: { value: response.redirected },
+    });
+    return {
+        view,
+        cancel: () => {
+            void reader.cancel().catch(() => {});
+        },
+    };
+}
+
+function rethrowAbort(error: unknown, signal?: AbortSignal | null): void {
+    if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
+}
+
+async function readRetryErrorBody(
+    response: Response,
+    signal?: AbortSignal | null
+): Promise<string> {
+    if (signal?.aborted) {
+        void response.body?.cancel().catch(() => {});
+        throw new globalThis.DOMException('Request aborted', 'AbortError');
+    }
+    if (!response.body) return '';
+    const reader = response.body.getReader();
+    const decoder = new globalThis.TextDecoder();
+    let body = '';
+    let bytes = 0;
+    let onAbort: (() => void) | undefined;
+    const aborted = signal
+        ? new Promise<never>((_, reject) => {
+              onAbort = () => {
+                  reject(new globalThis.DOMException('Request aborted', 'AbortError'));
+                  void reader.cancel().catch(() => {});
+              };
+              if (signal.aborted) onAbort();
+              else signal.addEventListener('abort', onAbort, { once: true });
+          })
+        : undefined;
+    void aborted?.catch(() => {});
+    try {
+        for (;;) {
+            if (signal?.aborted) throw new globalThis.DOMException('Request aborted', 'AbortError');
+            const read = reader.read();
+            const chunk = aborted ? await Promise.race([read, aborted]) : await read;
+            if (chunk.done) break;
+            const remaining = MAX_RETRY_ERROR_BODY_BYTES - bytes;
+            body += decoder.decode(chunk.value.subarray(0, remaining), { stream: true });
+            bytes += chunk.value.byteLength;
+            if (bytes >= MAX_RETRY_ERROR_BODY_BYTES) {
+                void reader.cancel().catch(() => {});
+                break;
+            }
+        }
+        body += decoder.decode();
+    } catch (error) {
+        rethrowAbort(error, signal);
+    } finally {
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+    }
+    return body;
 }
 
 /**
@@ -154,9 +254,88 @@ export async function createVercelModel(
     const apiKey = runtimeAuth?.apiKey || llmConfig.apiKey || resolvedProviderApiKey;
     const runtimeBaseURL = runtimeAuth?.baseURL;
     const runtimeHeaders = runtimeAuth?.headers;
-    const runtimeFetch = runtimeAuth?.fetch;
-    const effectiveBaseURL = runtimeBaseURL?.replace(/\/$/, '') || baseURL?.replace(/\/$/, '');
+    if (runtimeBaseURL !== undefined && !runtimeBaseURL.trim()) {
+        throw LLMError.invalidRuntimeBaseURL(provider);
+    }
+    const requestAuth = runtimeAuth?.requestAuth;
+    if (requestAuth && runtimeAuth?.fetch) {
+        throw LLMError.runtimeAuthConflict(provider);
+    }
+    const runtimeFetch: typeof fetch | undefined = requestAuth
+        ? async (input, init) => {
+              const { response, provenance } = await requestAuth.fetch(input, init);
+              if (response.ok) return response;
+              const signal =
+                  init?.signal ?? (input instanceof globalThis.Request ? input.signal : undefined);
+              const classification = boundedClassificationResponse(response);
+              let retryable: boolean;
+              let onAbort: (() => void) | undefined;
+              try {
+                  const decision = requestAuth.isRetryableResponse({
+                      response: classification.view,
+                      provenance,
+                      ...(signal ? { signal } : {}),
+                  });
+                  if (signal) {
+                      const aborted = new Promise<never>((_, reject) => {
+                          onAbort = () =>
+                              reject(new globalThis.DOMException('Request aborted', 'AbortError'));
+                          if (signal.aborted) onAbort();
+                          else signal.addEventListener('abort', onAbort, { once: true });
+                      });
+                      retryable = await Promise.race([decision, aborted]);
+                  } else retryable = await decision;
+              } catch (error) {
+                  if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+                      void response.body?.cancel().catch(() => {});
+                  }
+                  rethrowAbort(error, signal);
+                  return response;
+              } finally {
+                  if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+                  classification.cancel();
+              }
+              if (!retryable) return response;
+              const responseHeaders: Record<string, string> = {};
+              response.headers.forEach((value, key) => {
+                  responseHeaders[key] = value;
+              });
+              throw new APICallError({
+                  message: 'Host classified model request failure as retryable',
+                  url:
+                      typeof input === 'string'
+                          ? input
+                          : input instanceof URL
+                            ? input.toString()
+                            : input.url,
+                  requestBodyValues: {},
+                  statusCode: response.status,
+                  responseHeaders,
+                  responseBody: await readRetryErrorBody(response, signal),
+                  isRetryable: true,
+              });
+          }
+        : runtimeAuth?.fetch;
+    const effectiveBaseURL =
+        runtimeBaseURL?.trim().replace(/\/$/, '') || baseURL?.trim().replace(/\/$/, '');
     const usesCodexRuntimeAuth = runtimeBaseURL ? isCodexBaseURL(runtimeBaseURL) : false;
+
+    // Codex's own URL selects its app-server transport; other gateway overrides cannot reach it.
+    if (
+        (provider === 'bedrock' || provider === 'local') &&
+        (runtimeBaseURL !== undefined ||
+            runtimeHeaders !== undefined ||
+            runtimeAuth?.fetch ||
+            requestAuth)
+    ) {
+        throw LLMError.runtimeAuthUnsupported(provider);
+    }
+    if (
+        usesCodexRuntimeAuth &&
+        (runtimeHeaders !== undefined || runtimeAuth?.fetch || requestAuth)
+    ) {
+        throw LLMError.runtimeAuthUnsupported(provider);
+    }
 
     logRuntimeAuthResolution({
         context,
@@ -169,7 +348,7 @@ export async function createVercelModel(
     });
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
-    if (requiresApiKey(provider) && !usesCodexRuntimeAuth && !apiKey?.trim()) {
+    if (requiresApiKey(provider) && !usesCodexRuntimeAuth && !apiKey?.trim() && !requestAuth) {
         const envVar = getPrimaryApiKeyEnvVar(provider);
         throw LLMError.apiKeyMissing(provider, envVar);
     }
@@ -177,6 +356,7 @@ export async function createVercelModel(
     switch (provider.toLowerCase()) {
         case 'openai': {
             if (usesCodexRuntimeAuth && runtimeBaseURL) {
+                // Codex uses an app-server process, not a fetch-based client.
                 const { createCodexLanguageModel } = await import(
                     '../providers/codex-app-server.js'
                 );
@@ -222,12 +402,14 @@ export async function createVercelModel(
         case 'openrouter': {
             // OpenRouter - unified API gateway for 100+ models (BYOK)
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
-            const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
+            const orBaseURL = effectiveBaseURL || 'https://openrouter.ai/api/v1';
             const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
             const provider = createOpenRouter({
                 apiKey: apiKey ?? '',
                 baseURL: orBaseURL,
                 compatibility: 'strict',
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             });
             const chatModel = provider.chat(model);
             if (!isLanguageModel(chatModel)) {
@@ -296,7 +478,9 @@ export async function createVercelModel(
             // Users explicitly choose `provider: dexto-nova` in their config
             //
             // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
-            const dextoBaseURL = resolveDextoGatewayBaseURL(baseURL);
+            const dextoBaseURL = resolveDextoGatewayBaseURL(
+                runtimeBaseURL?.trim() ? runtimeBaseURL : baseURL
+            );
 
             // Build headers for usage tracking
             const headers: Record<string, string> = {
@@ -317,7 +501,7 @@ export async function createVercelModel(
                 baseURL: dextoBaseURL,
                 compatibility: 'strict',
                 headers,
-                ...(apiKey?.trim() ? { apiKey } : {}),
+                ...(apiKey?.trim() ? { apiKey } : requestAuth ? { apiKey: '' } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             });
             const chatModel = provider.chat(model);
@@ -356,13 +540,18 @@ export async function createVercelModel(
             if (model.includes('claude')) {
                 // Claude models on Vertex use the /anthropic subpath export
                 // Default to us-east5 for Claude (limited region availability)
-                const headers = supportsAnthropicInterleavedThinking(model)
-                    ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
-                    : undefined;
+                const headers = mergeHeaders(
+                    supportsAnthropicInterleavedThinking(model)
+                        ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
+                        : undefined,
+                    runtimeHeaders
+                );
                 const { createVertexAnthropic } = await import('@ai-sdk/google-vertex/anthropic');
                 return createVertexAnthropic({
                     project: projectId,
                     location: location || 'us-east5',
+                    ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                    ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
                     ...(headers ? { headers } : {}),
                 })(model);
             }
@@ -373,6 +562,9 @@ export async function createVercelModel(
             return createVertex({
                 project: projectId,
                 location: location || 'us-central1',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
         case 'bedrock': {
@@ -409,6 +601,7 @@ export async function createVercelModel(
             }
 
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+            // Bedrock uses the AWS SDK transport rather than a custom fetch.
             const { createAmazonBedrock } = await import('@ai-sdk/amazon-bedrock');
             return createAmazonBedrock({ region })(modelId);
         }
@@ -429,19 +622,39 @@ export async function createVercelModel(
         }
         case 'google': {
             const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-            return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
+            return createGoogleGenerativeAI({
+                apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'groq': {
             const { createGroq } = await import('@ai-sdk/groq');
-            return createGroq({ apiKey: apiKey ?? '' })(model);
+            return createGroq({
+                apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'xai': {
             const { createXai } = await import('@ai-sdk/xai');
-            return createXai({ apiKey: apiKey ?? '' })(model);
+            return createXai({
+                apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'cohere': {
             const { createCohere } = await import('@ai-sdk/cohere');
-            return createCohere({ apiKey: apiKey ?? '' })(model);
+            return createCohere({
+                apiKey: apiKey ?? '',
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
+                ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'ollama': {
             // Ollama - local model server with OpenAI-compatible API

@@ -14,6 +14,7 @@ import type {
     StoredBlobMetadata,
 } from './types.js';
 import type { LocalBlobStoreConfig } from './schemas.js';
+import { parseBlobReference } from './reference.js';
 
 type PlainObject = Record<string, unknown>;
 
@@ -234,7 +235,7 @@ export class LocalBlobStore implements BlobStore {
             throw StorageError.blobBackendNotConnected('local');
         }
 
-        const id = this.parseReference(reference);
+        const id = parseBlobReference(reference);
         const blobPath = path.join(this.storePath, `${id}.dat`);
         const metaPath = path.join(this.storePath, `${id}.meta.json`);
 
@@ -288,7 +289,7 @@ export class LocalBlobStore implements BlobStore {
             throw StorageError.blobBackendNotConnected('local');
         }
 
-        const id = this.parseReference(reference);
+        const id = parseBlobReference(reference);
         const blobPath = path.join(this.storePath, `${id}.dat`);
         const metaPath = path.join(this.storePath, `${id}.meta.json`);
 
@@ -305,7 +306,7 @@ export class LocalBlobStore implements BlobStore {
             throw StorageError.blobBackendNotConnected('local');
         }
 
-        const id = this.parseReference(reference);
+        const id = parseBlobReference(reference);
         const blobPath = path.join(this.storePath, `${id}.dat`);
         const metaPath = path.join(this.storePath, `${id}.meta.json`);
 
@@ -542,25 +543,6 @@ export class LocalBlobStore implements BlobStore {
         }
 
         throw StorageError.blobInvalidInput(input, `Unsupported input type: ${typeof input}`);
-    }
-
-    /**
-     * Parse blob reference to extract ID
-     */
-    private parseReference(reference: string): string {
-        if (!reference) {
-            throw StorageError.blobInvalidReference(reference, 'Empty reference');
-        }
-
-        if (reference.startsWith('blob:')) {
-            const id = reference.substring(5);
-            if (!id) {
-                throw StorageError.blobInvalidReference(reference, 'Empty blob ID after prefix');
-            }
-            return id;
-        }
-
-        return reference;
     }
 
     /**

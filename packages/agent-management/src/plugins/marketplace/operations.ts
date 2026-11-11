@@ -5,8 +5,8 @@
  */
 
 import * as path from 'path';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'fs';
-import { execSync } from 'child_process';
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync } from 'fs';
+import { execFileSync, execSync } from 'child_process';
 import {
     getMarketplacesDir,
     addMarketplaceEntry,
@@ -17,6 +17,7 @@ import {
 } from './registry.js';
 import { MarketplaceError } from './errors.js';
 import { MarketplaceManifestSchema } from './schemas.js';
+import { SafePluginNameSchema } from '../schemas.js';
 import { tryLoadManifest } from '../validate-plugin.js';
 import type {
     MarketplaceSource,
@@ -125,6 +126,9 @@ export async function addMarketplace(
 ): Promise<MarketplaceAddResult> {
     const parsedSource = parseMarketplaceSource(source);
     const name = options.name || deriveMarketplaceName(parsedSource);
+    if (!SafePluginNameSchema.safeParse(name).success) {
+        throw MarketplaceError.addInvalidName(name);
+    }
     const warnings: string[] = [];
 
     // Check if already exists
@@ -154,7 +158,7 @@ export async function addMarketplace(
         const cloneUrl = getCloneUrl(parsedSource);
 
         try {
-            execSync(`git clone "${cloneUrl}" "${installLocation}"`, {
+            execFileSync('git', ['clone', '--', cloneUrl, installLocation], {
                 encoding: 'utf-8',
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -275,7 +279,7 @@ async function updateSingleMarketplace(name: string): Promise<MarketplaceUpdateR
         // Re-clone
         const cloneUrl = getCloneUrl(entry.source);
         try {
-            execSync(`git clone "${cloneUrl}" "${entry.installLocation}"`, {
+            execFileSync('git', ['clone', '--', cloneUrl, entry.installLocation], {
                 encoding: 'utf-8',
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -341,6 +345,23 @@ export function listMarketplaces(): MarketplaceEntry[] {
 }
 
 /**
+ * The real path of `target` when it really lives inside `directory`, after following every
+ * symlink on both paths; undefined when it is outside or cannot be resolved (fail closed).
+ * Callers use the returned path from then on, so what is copied is what was checked.
+ */
+export function realPathInside(directory: string, target: string): string | undefined {
+    try {
+        const realTarget = realpathSync(target);
+        const relative = path.relative(realpathSync(directory), realTarget);
+        const inside =
+            relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+        return inside ? realTarget : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * Scan a marketplace directory for plugins
  */
 export function scanMarketplacePlugins(
@@ -361,8 +382,13 @@ export function scanMarketplacePlugins(
                 const manifest = result.data as MarketplaceManifest;
                 if (manifest.plugins && manifest.plugins.length > 0) {
                     for (const plugin of manifest.plugins) {
-                        const pluginPath = path.join(marketplacePath, plugin.source);
-                        if (existsSync(pluginPath)) {
+                        // A manifest cannot point a plugin at files outside its own repo, by path
+                        // or through a symlink.
+                        const pluginPath = realPathInside(
+                            marketplacePath,
+                            path.resolve(marketplacePath, plugin.source)
+                        );
+                        if (pluginPath !== undefined) {
                             plugins.push({
                                 name: plugin.name,
                                 ...(plugin.description !== undefined && {
@@ -396,7 +422,8 @@ export function scanMarketplacePlugins(
             for (const entry of entries) {
                 if (!entry.isDirectory()) continue;
 
-                const pluginPath = path.join(dirPath, entry.name);
+                const pluginPath = realPathInside(marketplacePath, path.join(dirPath, entry.name));
+                if (pluginPath === undefined) continue;
 
                 // Try to load plugin manifest
                 const manifest = tryLoadManifest(pluginPath);
@@ -427,7 +454,11 @@ export function scanMarketplacePlugins(
             if (['plugins', 'external_plugins', '.git', 'node_modules'].includes(entry.name))
                 continue;
 
-            const pluginPath = path.join(marketplacePath, entry.name);
+            const pluginPath = realPathInside(
+                marketplacePath,
+                path.join(marketplacePath, entry.name)
+            );
+            if (pluginPath === undefined) continue;
 
             // Try to load plugin manifest
             const manifest = tryLoadManifest(pluginPath);

@@ -24,7 +24,7 @@ export function withSpan(options: {
     spanKind?: SpanKind;
     tracerName?: string;
 }): any {
-    const captureArguments = options.captureArguments ?? true;
+    const captureArguments = options.captureArguments ?? false;
     const captureErrors = options.captureErrors ?? true;
     const captureResult = options.captureResult ?? true;
 
@@ -300,7 +300,7 @@ export function InstrumentClass(options?: {
                     target.prototype,
                     method,
                     withSpan({
-                        captureArguments: options?.captureArguments ?? true,
+                        captureArguments: options?.captureArguments ?? false,
                         captureErrors: options?.captureErrors ?? true,
                         captureResult: options?.captureResult ?? true,
                         spanName: options?.prefix ? `${options.prefix}.${method}` : method,

@@ -54,6 +54,7 @@ describe('loadMcpConfigFromDirectory', () => {
                     command: 'node',
                     args: [path.join(tempDir, 'root.js')],
                     env: {},
+                    passEnvironment: [],
                     timeout: 30000,
                     connectionMode: 'lenient',
                 },

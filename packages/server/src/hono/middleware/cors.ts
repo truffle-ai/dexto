@@ -1,11 +1,12 @@
 import { cors } from 'hono/cors';
 import type { MiddlewareHandler } from 'hono';
+import { DEXTO_REQUEST_HEADER, isAllowedRequestOrigin } from './request-guard.js';
 
 /**
- * CORS middleware that allows:
- * 1. All localhost/127.0.0.1 origins on any port (for local development)
- * 2. Custom origins specified in DEXTO_ALLOWED_ORIGINS environment variable
- * 3. Server-to-server requests with no origin header
+ * CORS middleware. Only origins listed in DEXTO_ALLOWED_ORIGINS are reflected; the bundled
+ * Web UI is served from the server's own origin and needs no CORS. Other pages, including
+ * pages on other ports of localhost, get no CORS headers, so their preflights fail and they
+ * cannot read responses. Requests without an Origin (non-browser clients) get no CORS headers.
  */
 export function createCorsMiddleware(): MiddlewareHandler {
     return cors({
@@ -17,33 +18,10 @@ export function createCorsMiddleware(): MiddlewareHandler {
                 return null;
             }
 
-            try {
-                const originUrl = new URL(origin);
-                const hostname = originUrl.hostname;
-
-                // Always allow localhost/127.0.0.1 on any port for local development
-                if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-                    return origin;
-                }
-
-                // Check custom allowed origins from environment variable
-                const customOrigins = process.env.DEXTO_ALLOWED_ORIGINS;
-                if (customOrigins) {
-                    const allowedList = customOrigins.split(',').map((o) => o.trim());
-                    if (allowedList.includes(origin)) {
-                        return origin;
-                    }
-                }
-
-                // Origin not allowed
-                return null;
-            } catch {
-                // Invalid URL format, reject
-                return null;
-            }
+            return isAllowedRequestOrigin(origin) ? origin : null;
         },
         allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
-        allowHeaders: ['Content-Type', 'Authorization'],
+        allowHeaders: ['Content-Type', 'Authorization', DEXTO_REQUEST_HEADER],
         credentials: true,
     });
 }

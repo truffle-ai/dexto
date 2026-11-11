@@ -27,7 +27,10 @@ describe('WebhookEventSubscriber', () => {
         } as any);
 
         // Create webhook subscriber with mocked fetch
-        webhookSubscriber = new WebhookEventSubscriber({ fetchFn: mockFetch as any });
+        webhookSubscriber = new WebhookEventSubscriber({
+            fetchFn: mockFetch as any,
+            resolveHost: async () => ['93.184.216.34'],
+        });
         agentEventBus = new AgentEventBus();
     });
 
@@ -164,6 +167,7 @@ describe('WebhookEventSubscriber', () => {
                 'https://example.com/webhook',
                 expect.objectContaining({
                     method: 'POST',
+                    redirect: 'error',
                     headers: expect.objectContaining({
                         'Content-Type': 'application/json',
                         'User-Agent': 'DextoAgent/1.0',

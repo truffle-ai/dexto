@@ -730,6 +730,28 @@ describe('TurnExecutor Integration Tests', () => {
             }
         });
 
+        it('downloads media URLs with the downloader that refuses private addresses', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                await driver.runNextModelStep();
+
+                const download = vi.mocked(streamText).mock.calls[0]?.[0].experimental_download;
+                expect(download).toBeTypeOf('function');
+                await expect(
+                    download?.([
+                        {
+                            url: new URL('http://127.0.0.1:9/image.png'),
+                            isUrlSupportedByModel: false,
+                        },
+                    ])
+                ).rejects.toMatchObject({ message: 'Download from 127.0.0.1 is blocked' });
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('keeps MCP annotation extensions in a prepared step checkpoint', async () => {
             toolManager.addTools([
                 defineTool({
@@ -917,6 +939,95 @@ describe('TurnExecutor Integration Tests', () => {
             expect(chunkHandler.mock.calls.some((call) => call[0].chunkType === 'text')).toBe(true);
         });
 
+        it('stores the same messages, emits the same events, and reads no history per delta for a streamed reply with a tool call', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'stream_tool',
+                    description: 'Returns a string',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: async () => 'tool done',
+                }),
+            ]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Checking.',
+                            reasoning: 'Hm.',
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-stream',
+                                    toolName: 'stream_tool',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Done.',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use the tool' }]);
+            const emit = vi.spyOn(sessionEventBus, 'emit');
+            const listMessages = vi.spyOn(conversationStore, 'listMessages');
+
+            await executor.execute({ mcpManager }, true);
+
+            // Ids, timestamps and timings differ between runs; the rest must not.
+            const oneLinePerItem = (items: unknown[]) =>
+                items.map((item) =>
+                    JSON.stringify(item)
+                        .replace(
+                            /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+                            '<id>'
+                        )
+                        .replace(/"(timestamp|compactedAt|durationMs|latencyMs)":\d+/g, '"$1":0')
+                );
+            expect(oneLinePerItem(await conversationStore.listMessages({ sessionId })))
+                .toMatchInlineSnapshot(`
+              [
+                "{"role":"user","id":"<id>","timestamp":0,"content":[{"type":"text","text":"Use the tool"}]}",
+                "{"role":"assistant","assistantOutput":{"status":"complete"},"provider":"openai","model":"gpt-4","id":"<id>","timestamp":0,"toolCalls":[{"id":"call-stream","type":"function","function":{"name":"stream_tool","arguments":"{\\"value\\":\\"one\\"}"}}],"tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"estimatedCost":0.006,"pricingStatus":"estimated","reasoning":"Hm.","content":[{"type":"text","text":"Checking."}]}",
+                "{"role":"tool","toolCallId":"call-stream","name":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"success":true,"id":"<id>","timestamp":0,"content":[{"type":"text","text":"tool done"}]}",
+                "{"role":"assistant","assistantOutput":{"status":"complete"},"provider":"openai","model":"gpt-4","id":"<id>","timestamp":0,"tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"estimatedCost":0.006,"pricingStatus":"estimated","content":[{"type":"text","text":"Done."}]}",
+              ]
+            `);
+            expect(oneLinePerItem(emit.mock.calls)).toMatchInlineSnapshot(`
+              [
+                "["llm:thinking",{}]",
+                "["llm:chunk",{"chunkType":"reasoning","content":"H"}]",
+                "["llm:chunk",{"chunkType":"reasoning","content":"m"}]",
+                "["llm:chunk",{"chunkType":"reasoning","content":"."}]",
+                "["llm:chunk",{"chunkType":"text","content":"C"}]",
+                "["llm:chunk",{"chunkType":"text","content":"h"}]",
+                "["llm:chunk",{"chunkType":"text","content":"e"}]",
+                "["llm:chunk",{"chunkType":"text","content":"c"}]",
+                "["llm:chunk",{"chunkType":"text","content":"k"}]",
+                "["llm:chunk",{"chunkType":"text","content":"i"}]",
+                "["llm:chunk",{"chunkType":"text","content":"n"}]",
+                "["llm:chunk",{"chunkType":"text","content":"g"}]",
+                "["llm:chunk",{"chunkType":"text","content":"."}]",
+                "["llm:response",{"content":"Checking.","reasoning":"Hm.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":251,"finishReason":"tool-calls"}]",
+                "["llm:tool-call",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"args":{"value":"one"},"callId":"call-stream"}]",
+                "["llm:tool-result",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"callId":"call-stream","success":true,"sanitized":{"content":[{"type":"text","text":"tool done"}],"meta":{"toolName":"stream_tool","toolCallId":"call-stream","success":true}},"rawResult":"tool done"}]",
+                "["llm:chunk",{"chunkType":"text","content":"D"}]",
+                "["llm:chunk",{"chunkType":"text","content":"o"}]",
+                "["llm:chunk",{"chunkType":"text","content":"n"}]",
+                "["llm:chunk",{"chunkType":"text","content":"e"}]",
+                "["llm:chunk",{"chunkType":"text","content":"."}]",
+                "["llm:response",{"content":"Done.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":152,"finishReason":"stop"}]",
+                "["run:complete",{"finishReason":"stop","stepCount":1,"durationMs":0}]",
+              ]
+            `);
+            // 20 full reads before: one per streamed delta, tool call and usage update. Now a
+            // few per turn, none per delta.
+            expect(listMessages.mock.calls.length).toBeLessThanOrEqual(3);
+        });
+
         it('should not emit chunk events when not streaming', async () => {
             const chunkHandler = vi.fn();
             sessionEventBus.on('llm:chunk', chunkHandler);
@@ -929,6 +1040,79 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Multi-Step Tool Execution', () => {
+        it.each([
+            { label: 'null error', result: { error: null, value: 'ok' }, success: true },
+            { label: 'undefined error', result: { error: undefined, value: 'ok' }, success: true },
+            { label: 'missing error', result: { value: 'ok' }, success: true },
+            {
+                label: 'empty error',
+                result: { error: '', value: 'ok' },
+                success: false,
+                errorText: '',
+            },
+            { label: 'false error', result: { error: false }, success: false, errorText: 'false' },
+            { label: 'numeric error', result: { error: 42 }, success: false, errorText: '42' },
+            { label: 'true error', result: { error: true }, success: false, errorText: 'true' },
+            {
+                label: 'string error',
+                result: { error: 'failed' },
+                success: false,
+                errorText: 'failed',
+            },
+            {
+                label: 'object error',
+                result: { error: { message: 'failed' } },
+                success: false,
+                errorText: 'failed',
+            },
+            {
+                label: 'object without message',
+                result: { error: { code: 'bad' } },
+                success: false,
+                errorText: '{"code":"bad"}',
+            },
+        ])('reports $label with success=$success', async ({ result, success, errorText }) => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'nullable_error',
+                    description: 'Returns a result',
+                    inputSchema: z.object({}).strict(),
+                    execute: async () => result,
+                }),
+            ]);
+            const onResult = vi.fn();
+            sessionEventBus.on('llm:tool-result', onResult);
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                { toolCallId: 'call-result', toolName: 'nullable_error', args: {} },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use the tool' }]);
+            await executor.execute({ mcpManager }, true);
+            expect(onResult).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    callId: 'call-result',
+                    success,
+                    ...(success ? {} : { error: errorText }),
+                    sanitized: expect.objectContaining({
+                        meta: expect.objectContaining({ success }),
+                    }),
+                })
+            );
+        });
+
         it('executes every sibling tool result before the next model step', async () => {
             toolManager.addTools([
                 defineTool({
@@ -5031,10 +5215,10 @@ describe('TurnExecutor Integration Tests', () => {
         it('finalizes a held empty reply as cancelled when the step is aborted during the history check', async () => {
             const abortController = new AbortController();
             vi.mocked(streamText).mockImplementation(() => emptyReply('Thinking'));
-            const getModelHistory = contextManager.getModelHistory.bind(contextManager);
-            vi.spyOn(contextManager, 'getModelHistory').mockImplementation(async () => {
+            const countModelMessages = contextManager.countModelMessages.bind(contextManager);
+            vi.spyOn(contextManager, 'countModelMessages').mockImplementation(async () => {
                 if (vi.mocked(streamText).mock.calls.length > 0) abortController.abort();
-                return getModelHistory();
+                return countModelMessages();
             });
 
             const retryingHandler = vi.fn();
@@ -5574,12 +5758,12 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('does not loop re-reading parallel tool results that were pruned before the model saw them', async () => {
-            const chatIds = Array.from({ length: 24 }, (_, index) => `chat-${index}`);
-            // ~5.98k estimated tokens each on a 400k window: together (~143k) they exceed the 120k
+            const chatIds = Array.from({ length: 36 }, (_, index) => `chat-${index}`);
+            // ~3.98k estimated tokens each on a 400k window: together (~143k) they exceed the 120k
             // protect budget by more than the 20k pruning minimum, while each stays under the
-            // 24,000 character inline cap and the step stays under its budget, so the model sees
+            // 16,000 character inline cap and the step stays under its budget, so the model sees
             // them whole.
-            const chatText = (chatId: string) => `${chatId}:`.padEnd(23_900, 'x');
+            const chatText = (chatId: string) => `${chatId}:`.padEnd(15_900, 'x');
             const windowContextManager = createContextManagerFromPersistedStore(400_000);
             toolManager.addTools([
                 defineTool({
@@ -5884,13 +6068,125 @@ describe('TurnExecutor Integration Tests', () => {
             const rawHistorySpy = vi
                 .spyOn(contextManager, 'getHistory')
                 .mockRejectedValue(new Error('Compaction should use model history'));
-            const modelHistorySpy = vi.spyOn(contextManager, 'getModelHistory');
+            const modelHistorySpy = vi.spyOn(contextManager, 'loadModelHistory');
 
             await compactingExecutor.execute({ mcpManager }, true);
 
             expect(rawHistorySpy).not.toHaveBeenCalled();
             expect(modelHistorySpy).toHaveBeenCalled();
             expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+        });
+
+        describe('history reads per step', () => {
+            function countStoreReads() {
+                return {
+                    loads: vi.spyOn(conversationStore, 'loadModelHistory'),
+                    counts: vi.spyOn(conversationStore, 'countModelMessages'),
+                    full: vi.spyOn(conversationStore, 'listMessages'),
+                };
+            }
+
+            function replyWithUsage() {
+                vi.mocked(streamText).mockImplementation(
+                    () =>
+                        createMockStream({
+                            text: 'Response',
+                            finishReason: 'stop',
+                            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            }
+
+            it('loads the history once for a step and counts messages without loading them', async () => {
+                replyWithUsage();
+                await seedCompactionEligibleHistory();
+                const reads = countStoreReads();
+                reads.full.mockClear();
+
+                await executor.execute({ mcpManager }, true);
+
+                // One load for the whole step. The two length checks (before the model call and
+                // when recording the call) read a count.
+                expect(reads.loads).toHaveBeenCalledTimes(1);
+                expect(reads.counts).toHaveBeenCalledTimes(2);
+                expect(contextManager.getLastCallMessageCount()).toBe(
+                    (await contextManager.loadModelHistory()).messages.length
+                );
+            });
+
+            it('derives the count from one load when the store has no count', async () => {
+                replyWithUsage();
+                await seedCompactionEligibleHistory();
+                Object.defineProperty(conversationStore, 'countModelMessages', {
+                    value: undefined,
+                    configurable: true,
+                });
+                const loads = vi.spyOn(conversationStore, 'loadModelHistory');
+
+                await executor.execute({ mcpManager }, true);
+
+                // The step's load, plus one derived count before the model call and one after.
+                expect(loads).toHaveBeenCalledTimes(3);
+                expect(contextManager.getLastCallMessageCount()).toBe(
+                    (await contextManager.loadModelHistory()).messages.length
+                );
+            });
+
+            it('loads once for each step of a turn, including the estimate that follows a tool call', async () => {
+                toolManager.addTools([
+                    defineTool({
+                        id: 'read_rows',
+                        description: 'Reads rows',
+                        inputSchema: z.object({}).strict(),
+                        execute: async () => ({ rows: 1 }),
+                    }),
+                ]);
+                const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+                vi.mocked(streamText)
+                    .mockImplementationOnce(
+                        () =>
+                            createMockStream({
+                                finishReason: 'tool-calls',
+                                toolCalls: [
+                                    { toolCallId: 'call-rows', toolName: 'read_rows', args: {} },
+                                ],
+                                usage,
+                            }) as unknown as ReturnType<typeof streamText>
+                    )
+                    .mockImplementationOnce(
+                        () =>
+                            createMockStream({
+                                text: 'done',
+                                finishReason: 'stop',
+                                usage,
+                            }) as unknown as ReturnType<typeof streamText>
+                    );
+                await contextManager.addUserMessage([{ type: 'text', text: 'Read the rows' }]);
+                const reads = countStoreReads();
+
+                await executor.execute({ mcpManager }, true);
+
+                // The second step has actuals from the first, so its estimate reads the messages
+                // added since the last call. It takes the step's own load instead of loading again.
+                expect(streamText).toHaveBeenCalledTimes(2);
+                expect(reads.loads).toHaveBeenCalledTimes(2);
+                expect(reads.counts).toHaveBeenCalledTimes(4);
+            });
+
+            it('loads again only after compaction changes the stored history', async () => {
+                const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
+                replyWithUsage();
+                const compactingExecutor = createExecutorWithCompaction(compactionStrategy);
+                await seedCompactionEligibleHistory();
+                const reads = countStoreReads();
+
+                await compactingExecutor.execute({ mcpManager }, true);
+
+                expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+                // Before compaction, and once after it for the estimate and the request.
+                expect(reads.loads).toHaveBeenCalledTimes(2);
+                expect(reads.counts).toHaveBeenCalledTimes(2);
+            });
         });
 
         it('queues steer submitted during compaction for the next model step', async () => {
