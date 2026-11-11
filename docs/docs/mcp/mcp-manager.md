@@ -47,7 +47,7 @@ try {
 
 An explicit event bus keeps manager events separate from other Dexto runtimes in the same process. Omitting it uses the shared default event bus.
 
-For a local stdio server, parse a config with `type: 'stdio'`, `command`, `args`, and an optional `env` object. The manager starts that command as a child process. Give it only the environment variables it needs. HTTP and SSE configurations use `url` and optional `headers`; prefer HTTP for new remote servers.
+For a local stdio server, parse a config with `type: 'stdio'`, `command`, `args`, and an optional `env` object. The manager starts that command as a child process. The process does not inherit the host environment: it receives a small allowlist (`PATH`, `HOME`, `USER`, locale, `TERM`, `TZ`, `XDG_*`, CA bundle and proxy variables, and the Windows system variables), the configured `env`, and any host variables named in an optional `passEnvironment` array, such as `passEnvironment: ['GITHUB_TOKEN']`. Provider keys and other host secrets stay out unless named. Give a server only the variables it needs. HTTP and SSE configurations use `url` and optional `headers`; prefer HTTP for new remote servers.
 
 ## Discovery and calls
 

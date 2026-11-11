@@ -6,8 +6,11 @@ export * from './validation.js';
 export * from './usage-metadata.js';
 export * from './usage-scope.js';
 export * from './usage-summary.js';
+export { isPrivateAddress } from './private-address.js';
+export { createSafeDownload, type SafeDownloadOptions } from './safe-download.js';
 export type {
     LlmAuthResolver,
+    LlmRequestAuth,
     LlmRuntimeAuthOverrides,
     ResolveLlmRuntimeAuthInput,
 } from './auth/index.js';

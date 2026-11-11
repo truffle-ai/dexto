@@ -2,7 +2,8 @@
 // This will become the primary location once core services accept paths via initialization
 
 import * as path from 'path';
-import { existsSync } from 'fs';
+import { existsSync, type BigIntStats } from 'fs';
+import { constants as fsConstants } from 'fs/promises';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
@@ -105,25 +106,125 @@ export function getDextoGlobalPath(type: string, filename?: string): string {
     return filename ? path.join(basePath, filename) : basePath;
 }
 
+function isInside(root: string, candidate: string): boolean {
+    const relative = path.relative(root, candidate);
+    return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
 /**
- * Copy entire directory recursively
+ * True when `candidate` resolves, after following every link, to `root` or something inside it.
+ * A missing path or any resolution error counts as outside.
+ */
+export async function resolvesInside(root: string, candidate: string): Promise<boolean> {
+    try {
+        const [physicalRoot, physicalCandidate] = await Promise.all([
+            fs.realpath(root),
+            fs.realpath(candidate),
+        ]);
+        return isInside(physicalRoot, physicalCandidate);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Copy entire directory recursively.
+ *
+ * Links are never followed out of the source, even if someone swaps one in while the copy runs:
+ * - The source itself must not be a link (it is refused).
+ * - A link that resolves outside `src` is skipped, a link to a directory is skipped, and a link
+ *   to a file inside `src` is copied as a regular file.
+ * - Every directory is opened and checked before and after it is listed, and every file is opened
+ *   and checked before it is read, so what is copied is what was checked. Any mismatch (a path
+ *   that now points somewhere else or outside `src`) aborts the whole copy with an error.
  * @param src Source directory path
  * @param dest Destination directory path
  */
 export async function copyDirectory(src: string, dest: string): Promise<void> {
-    await fs.mkdir(dest, { recursive: true });
+    // The source root is the boundary for every link below it, so it must not be a link itself.
+    if ((await fs.lstat(src)).isSymbolicLink()) {
+        throw new Error(`Refusing to copy ${src}: the source directory is a symbolic link`);
+    }
+    const rootReal = await fs.realpath(src);
+    await copyDirectoryWithin(src, dest, rootReal);
+}
 
-    const entries = await fs.readdir(src, { withFileTypes: true });
+const { O_RDONLY, O_DIRECTORY = 0, O_NOFOLLOW = 0, O_NONBLOCK = 0 } = fsConstants;
 
-    for (const entry of entries) {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
+/**
+ * Throws unless `opened` (the stat of the handle we hold) is the same file or directory that
+ * `target` names right now, and that path resolves inside `root`. Opening happens before this check, so whatever was opened is what gets verified.
+ */
+async function assertOpenedIsInside(
+    opened: BigIntStats,
+    target: string,
+    root: string
+): Promise<void> {
+    const sameAsOpened = (named: BigIntStats) =>
+        named.isDirectory() === opened.isDirectory() &&
+        named.isFile() === opened.isFile() &&
+        named.dev === opened.dev &&
+        named.ino === opened.ino;
 
-        if (entry.isDirectory()) {
-            await copyDirectory(srcPath, destPath);
-        } else {
-            await fs.copyFile(srcPath, destPath);
+    const before = await fs.lstat(target, { bigint: true });
+    const resolved = await fs.realpath(target);
+    const after = await fs.lstat(target, { bigint: true });
+    if (!sameAsOpened(before) || !sameAsOpened(after) || !isInside(root, resolved)) {
+        throw new Error(`Refusing to copy ${target}: it changed while it was being copied`);
+    }
+}
+
+async function copyDirectoryWithin(src: string, dest: string, rootReal: string): Promise<void> {
+    // Windows cannot open a directory; there the checks below compare the path with itself.
+    const handle =
+        process.platform === 'win32'
+            ? undefined
+            : await fs.open(src, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    try {
+        const opened = handle
+            ? await handle.stat({ bigint: true })
+            : await fs.lstat(src, { bigint: true });
+        await assertOpenedIsInside(opened, src, rootReal);
+
+        await fs.mkdir(dest, { recursive: true });
+        const names = await fs.readdir(src);
+        await assertOpenedIsInside(opened, src, rootReal);
+
+        for (const name of names) {
+            const srcPath = path.join(src, name);
+            const destPath = path.join(dest, name);
+            const entry = await fs.lstat(srcPath);
+
+            if (entry.isSymbolicLink()) {
+                const target = await fs.realpath(srcPath).catch(() => undefined);
+                if (target === undefined || !isInside(rootReal, target)) continue;
+                if (!(await fs.stat(target)).isFile()) continue;
+                await copyFileWithin(target, destPath, rootReal);
+            } else if (entry.isDirectory()) {
+                await copyDirectoryWithin(srcPath, destPath, rootReal);
+            } else if (entry.isFile()) {
+                await copyFileWithin(srcPath, destPath, rootReal);
+            }
         }
+        await assertOpenedIsInside(opened, src, rootReal);
+    } finally {
+        await handle?.close();
+    }
+}
+
+/** Reads the file through a handle that was checked to be the in-root file, not by path. */
+async function copyFileWithin(src: string, dest: string, rootReal: string): Promise<void> {
+    const handle = await fs.open(src, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    try {
+        const opened = await handle.stat({ bigint: true });
+        if (!opened.isFile()) {
+            throw new Error(`Refusing to copy ${src}: it is no longer a regular file`);
+        }
+        await assertOpenedIsInside(opened, src, rootReal);
+        await fs.writeFile(dest, handle.createReadStream({ autoClose: false }));
+        await fs.chmod(dest, Number(opened.mode & 0o777n));
+    } finally {
+        await handle.close();
     }
 }
 

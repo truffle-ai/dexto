@@ -12,7 +12,7 @@ import type {
     JsonRpcBatchResponse,
     JsonRpcError,
 } from './types.js';
-import { JsonRpcErrorCode } from './types.js';
+import { JsonRpcErrorCode, JsonRpcInvalidParamsError } from './types.js';
 
 /**
  * Method handler function type
@@ -177,25 +177,32 @@ export class JsonRpcServer {
                     return undefined;
                 }
 
-                // Method execution error - return error response
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                // Don't leak stack traces to clients (already logged via onError)
-                const errorData = error instanceof Error ? { name: error.name } : undefined;
+                // Only errors a handler marks as the caller's fault carry their message to the
+                // client; anything else is logged via onError and answered generically.
+                if (error instanceof JsonRpcInvalidParamsError) {
+                    return this.createErrorResponse(
+                        request.id ?? null,
+                        JsonRpcErrorCode.INVALID_PARAMS,
+                        error.message
+                    );
+                }
 
                 return this.createErrorResponse(
                     request.id ?? null,
                     JsonRpcErrorCode.INTERNAL_ERROR,
-                    errorMessage,
-                    errorData
+                    'Internal error'
                 );
             }
-        } catch (error) {
+        } catch {
             // Request parsing/validation error - if notification, still no response
             if (request.id === undefined) {
                 return undefined;
             }
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            return this.createErrorResponse(null, JsonRpcErrorCode.INVALID_REQUEST, errorMessage);
+            return this.createErrorResponse(
+                null,
+                JsonRpcErrorCode.INVALID_REQUEST,
+                'Invalid request'
+            );
         }
     }
 

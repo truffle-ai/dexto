@@ -139,7 +139,6 @@ export function createA2AJsonRpcRouter(getAgent: GetAgentFn, sseSubscriber: A2AS
                 error: {
                     code: -32700,
                     message: 'Parse error',
-                    data: error instanceof Error ? error.message : String(error),
                 },
                 id: null,
             });

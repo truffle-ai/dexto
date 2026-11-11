@@ -67,6 +67,11 @@ describe('http_request tool', () => {
         '[::ffff:127.0.0.1]',
         '[::ffff:10.0.0.1]',
         '[64:ff9b:1::a00:1]',
+        '[64:ff9b::7f00:1]',
+        '[fec0::1]',
+        '[feff::1]',
+        '[ff02::1]',
+        '[ff00::1]',
     ])('blocks private IPv6 literal %s before fetching', async (host) => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
         try {
@@ -81,6 +86,35 @@ describe('http_request tool', () => {
             fetchSpy.mockRestore();
         }
     });
+
+    it('refuses a name that answers a private address without echoing the answer', async () => {
+        const dnsLookup = vi.fn().mockResolvedValue([
+            { address: '93.184.216.34', family: 4 },
+            { address: '10.20.30.40', family: 4 },
+        ]);
+        const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
+            createSafeLookup({ dnsLookup })(
+                'files.example.com',
+                { all: true } as LookupOptions,
+                ((err: NodeJS.ErrnoException | null) => resolve(err)) as never
+            );
+        });
+
+        expect(error).toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+        expect(error?.message).toBe('Request to files.example.com is blocked');
+    });
+
+    it.each(['localhost', '10.0.0.1', '[::1]'])(
+        'refuses %s with a message that only names the host',
+        async (host) => {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: `http://${host}/`, method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({ message: `Request to ${host} is blocked` });
+        }
+    );
 
     it('blocks a redirect to a private literal before the next request', async () => {
         const fetchSpy = vi
@@ -148,4 +182,249 @@ describe('http_request tool', () => {
             fetchSpy.mockRestore();
         }
     });
+
+    it.each([307, 308])(
+        'refuses a %i redirect that would send the body to another origin',
+        async (status) => {
+            const fetchSpy = vi
+                .spyOn(globalThis, 'fetch')
+                .mockResolvedValueOnce(
+                    new Response(null, {
+                        status,
+                        headers: { location: 'https://other.example/collect' },
+                    })
+                )
+                .mockResolvedValueOnce(new Response('ok'));
+            try {
+                await expect(
+                    createHttpRequestTool().execute(
+                        {
+                            url: 'https://example.com/submit',
+                            method: 'POST',
+                            body: { note: 'private text' },
+                            timeoutMs: 1000,
+                        },
+                        {} as never
+                    )
+                ).rejects.toMatchObject({ code: 'HTTP_REQUEST_REDIRECT_BLOCKED' });
+                expect(fetchSpy).toHaveBeenCalledTimes(1);
+            } finally {
+                fetchSpy.mockRestore();
+            }
+        }
+    );
+
+    it.each([
+        ['PUT', 301],
+        ['PATCH', 301],
+        ['PUT', 302],
+        ['DELETE', 302],
+        ['PATCH', 302],
+    ] as const)(
+        'refuses a %s %i redirect that would send the body to another origin',
+        async (method, status) => {
+            const fetchSpy = vi
+                .spyOn(globalThis, 'fetch')
+                .mockResolvedValueOnce(
+                    new Response(null, {
+                        status,
+                        headers: { location: 'https://other.example/collect' },
+                    })
+                )
+                .mockResolvedValueOnce(new Response('ok'));
+            try {
+                await expect(
+                    createHttpRequestTool().execute(
+                        {
+                            url: 'https://example.com/item',
+                            method,
+                            body: 'private text',
+                            timeoutMs: 1000,
+                        },
+                        {} as never
+                    )
+                ).rejects.toMatchObject({ code: 'HTTP_REQUEST_REDIRECT_BLOCKED' });
+                expect(fetchSpy).toHaveBeenCalledTimes(1);
+            } finally {
+                fetchSpy.mockRestore();
+            }
+        }
+    );
+
+    it.each([301, 302])(
+        'still turns a cross-origin %i redirect of a POST into a body-less GET',
+        async (status) => {
+            const fetchSpy = vi
+                .spyOn(globalThis, 'fetch')
+                .mockResolvedValueOnce(
+                    new Response(null, { status, headers: { location: 'https://other.example/' } })
+                )
+                .mockResolvedValueOnce(new Response('ok'));
+            try {
+                await createHttpRequestTool().execute(
+                    {
+                        url: 'https://example.com/',
+                        method: 'POST',
+                        body: 'payload',
+                        timeoutMs: 1000,
+                    },
+                    {} as never
+                );
+                expect(fetchSpy.mock.calls[1]?.[1]).toMatchObject({ method: 'GET' });
+                expect(fetchSpy.mock.calls[1]?.[1]).not.toHaveProperty('body');
+            } finally {
+                fetchSpy.mockRestore();
+            }
+        }
+    );
+
+    it.each([307, 308])('keeps the body on a same-origin %i redirect', async (status) => {
+        const fetchSpy = vi
+            .spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(null, { status, headers: { location: '/moved' } }))
+            .mockResolvedValueOnce(new Response('ok'));
+        try {
+            await createHttpRequestTool().execute(
+                {
+                    url: 'https://example.com/submit',
+                    method: 'POST',
+                    body: 'payload',
+                    timeoutMs: 1000,
+                },
+                {} as never
+            );
+            expect(fetchSpy.mock.calls[1]?.[0]).toBe('https://example.com/moved');
+            expect(fetchSpy.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', body: 'payload' });
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it('still follows a cross-origin 307 when there is no body', async () => {
+        const fetchSpy = vi
+            .spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(
+                new Response(null, {
+                    status: 307,
+                    headers: { location: 'https://other.example/' },
+                })
+            )
+            .mockResolvedValueOnce(new Response('ok'));
+        try {
+            const result = await createHttpRequestTool().execute(
+                { url: 'https://example.com/', method: 'GET', timeoutMs: 1000 },
+                {} as never
+            );
+            expect(result).toMatchObject({ ok: true, body: 'ok' });
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+});
+
+describe('http_request cloud metadata hosts', () => {
+    const METADATA_HOSTS = [
+        'metadata.google.internal',
+        'METADATA.GOOG',
+        'instance-data.',
+        'instance-data.ec2.internal',
+        '169.254.169.254',
+        '[fd00:ec2::254]',
+        '100.100.100.200',
+        // Not private ranges, so only the metadata check refuses them.
+        '168.63.129.16',
+        '[::ffff:a83f:8110]',
+    ];
+
+    it.each(METADATA_HOSTS)('refuses %s before fetching', async (host) => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        try {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: `http://${host}/latest/meta-data/`, method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({
+                code: 'HTTP_REQUEST_UNSAFE_TARGET',
+                message: `Request to ${new URL(`http://${host}`).hostname} is blocked`,
+            });
+            expect(fetchSpy).not.toHaveBeenCalled();
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it('refuses a redirect to a metadata host name', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(null, {
+                status: 302,
+                headers: { location: 'http://metadata.google.internal/computeMetadata/v1/' },
+            })
+        );
+        try {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: 'https://example.com/', method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({
+                code: 'HTTP_REQUEST_UNSAFE_TARGET',
+                message: 'Request to metadata.google.internal is blocked',
+            });
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it.each([
+        // Not private ranges, so only the metadata check refuses them.
+        '168.63.129.16',
+        '::ffff:168.63.129.16',
+        // Also private ranges.
+        '169.254.169.254',
+        'fd00:ec2::254',
+        '192.0.0.192',
+        '100.100.100.200',
+    ])(
+        'the connection lookup refuses a public name that answers the metadata address %s',
+        async (address) => {
+            const dnsLookup = vi.fn().mockResolvedValue([
+                { address: '93.184.216.34', family: 4 },
+                { address, family: 4 },
+            ]);
+            const safeLookup = createSafeLookup({ dnsLookup });
+
+            const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
+                safeLookup(
+                    'files.example.com',
+                    { all: true } as LookupOptions,
+                    ((err: NodeJS.ErrnoException | null) => resolve(err)) as never
+                );
+            });
+
+            expect(dnsLookup).toHaveBeenCalledOnce();
+            expect(error).toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            expect(error?.message).toBe('Request to files.example.com is blocked');
+        }
+    );
+
+    it.each(['metadata.google.internal', 'metadata.goog', 'instance-data'])(
+        'the connection lookup refuses %s without resolving it',
+        async (host) => {
+            const dnsLookup = vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+            const safeLookup = createSafeLookup({ dnsLookup });
+
+            const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
+                safeLookup(
+                    host,
+                    { all: true } as LookupOptions,
+                    ((err: NodeJS.ErrnoException | null) => resolve(err)) as never
+                );
+            });
+
+            expect(error).toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            expect(dnsLookup).not.toHaveBeenCalled();
+        }
+    );
 });

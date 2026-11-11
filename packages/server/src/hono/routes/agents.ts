@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { AgentConfigSchema, assertSafeConfigKeys } from '@dexto/agent-config';
-import { AgentError, logger, safeStringify, zodToIssues } from '@dexto/core';
+import { AgentError, logger, zodToIssues } from '@dexto/core';
 import type { LLMProvider } from '@dexto/llm';
 import {
     getPrimaryApiKeyEnvVar,
@@ -24,6 +24,7 @@ import {
     NotFoundErrorResponse,
 } from '../schemas/responses.js';
 import type { Context } from 'hono';
+import { maskMcpServerConfig } from '../mask-mcp-server-config.js';
 import type { GetAgentConfigPathFn, GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 /**
@@ -758,9 +759,8 @@ export function createAgentsRouter(
             }
 
             const yamlContent = yamlStringify(agentConfig);
-            logger.info(
-                `Creating agent config for ${id}: agentConfig=${safeStringify(agentConfig)}, yamlContent=${yamlContent}`
-            );
+            // The config holds MCP headers and env, so log only its id and size.
+            logger.info(`Creating agent config for ${id} (${yamlContent.length} characters)`);
 
             // Create temporary file
             const tmpDir = os.tmpdir();
@@ -1053,17 +1053,7 @@ export function createAgentsRouter(
                     ? Object.fromEntries(
                           Object.entries(config.mcpServers).map(([name, serverConfig]) => [
                               name,
-                              serverConfig.type === 'stdio' && serverConfig.env
-                                  ? {
-                                        ...serverConfig,
-                                        env: Object.fromEntries(
-                                            Object.keys(serverConfig.env).map((key) => [
-                                                key,
-                                                '[REDACTED]',
-                                            ])
-                                        ),
-                                    }
-                                  : serverConfig,
+                              maskMcpServerConfig(serverConfig),
                           ])
                       )
                     : undefined,

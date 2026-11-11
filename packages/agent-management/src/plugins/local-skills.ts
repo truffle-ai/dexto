@@ -3,6 +3,7 @@ import path from 'node:path';
 import { isSafeRelativeSkillPath, isValidPromptName } from '@dexto/core';
 import type { LoadedSkill, SkillSummary, Skills } from '@dexto/core';
 import type { PromptsConfig } from '@dexto/core/config';
+import { resolvesInside } from '../utils/path.js';
 import { discoverClaudeCodePlugins } from './discover-plugins.js';
 import { discoverStandaloneSkills } from './discover-skills.js';
 import { loadClaudeCodePlugin } from './load-plugin.js';
@@ -160,6 +161,8 @@ export class LocalSkills implements Skills {
     }
 
     private async readSkillFile(root: LocalSkillRoot): Promise<SkillFile | null> {
+        // A SKILL.md that links outside its own directory would put that file in the prompt.
+        if (!(await resolvesInside(path.dirname(root.skillFile), root.skillFile))) return null;
         let instructions: string;
         try {
             instructions = await fs.readFile(root.skillFile, 'utf8');

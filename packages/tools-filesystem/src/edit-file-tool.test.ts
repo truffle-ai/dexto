@@ -5,10 +5,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { allowAllPaths } from './test-helpers.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
+import { createBlockedPathCheck } from './blocked-path-check.js';
 import { createEditFileTool } from './edit-file-tool.js';
+import { FileSystemErrorCode } from './error-codes.js';
 import { FileSystemService } from './filesystem-service.js';
 import { ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
@@ -133,7 +136,7 @@ describe('edit_file tool', () => {
         const getFileSystemService = vi.fn(async () => {
             throw new Error('edit_file execute must not use FileSystemService');
         });
-        const tool = createEditFileTool(getFileSystemService);
+        const tool = createEditFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
         const parsedInput = tool.inputSchema.parse({
             file_path: 'workspace.txt',
             old_string: 'world',
@@ -178,7 +181,7 @@ describe('edit_file tool', () => {
                 },
             })),
         };
-        const tool = createEditFileTool(vi.fn());
+        const tool = createEditFileTool(vi.fn(), allowAllPaths, 10 * 1024 * 1024);
 
         await tool.execute(
             tool.inputSchema.parse({
@@ -220,7 +223,7 @@ describe('edit_file tool', () => {
                 },
             })),
         };
-        const tool = createEditFileTool(vi.fn());
+        const tool = createEditFileTool(vi.fn(), allowAllPaths, 10 * 1024 * 1024);
 
         await expect(
             tool.execute(
@@ -244,7 +247,11 @@ describe('edit_file tool', () => {
     });
 
     it('should describe edit calls with an Edit header', () => {
-        const tool = createEditFileTool(async () => fileSystemService);
+        const tool = createEditFileTool(
+            async () => fileSystemService,
+            allowAllPaths,
+            10 * 1024 * 1024
+        );
         const header = tool.presentation?.describeHeader?.(
             tool.inputSchema.parse({
                 file_path: 'snake.py',
@@ -261,8 +268,12 @@ describe('edit_file tool', () => {
     });
 
     describe('File Modification Detection', () => {
-        it('should generate preview for files outside config-allowed roots (preview read only)', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+        it('refuses to preview a file outside the workspace', async () => {
+            const tool = createEditFileTool(
+                async () => fileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
@@ -275,33 +286,141 @@ describe('edit_file tool', () => {
             try {
                 await fs.writeFile(externalFile, 'hello world');
 
-                const toolCallId = 'preview-outside-roots';
-                const parsedInput = tool.inputSchema.parse({
-                    file_path: externalFile,
-                    old_string: 'world',
-                    new_string: 'universe',
-                });
-
-                const preview = await previewFn!(
-                    parsedInput,
-                    createToolContext(mockLogger, { toolCallId })
-                );
-
-                expect(preview).toBeDefined();
-                expect(preview?.type).toBe('diff');
-                if (preview?.type === 'diff') {
-                    expect(preview.title).toBe('Update file');
-                    expect(preview.filename).toBe(externalFile);
-                } else {
-                    expect.fail('Expected diff preview');
-                }
+                await expect(
+                    previewFn!(
+                        tool.inputSchema.parse({
+                            file_path: externalFile,
+                            old_string: 'world',
+                            new_string: 'universe',
+                        }),
+                        createToolContext(mockLogger, { toolCallId: 'preview-outside-roots' })
+                    )
+                ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
             } finally {
                 await fs.rm(externalDir, { recursive: true, force: true });
             }
         });
 
+        it('refuses to preview a blocked file', async () => {
+            const blockedCheck = createBlockedPathCheck({
+                allowedPaths: ['.'],
+                blockedPaths: ['.env'],
+                blockedExtensions: [],
+                maxFileSize: 1024,
+                enableBackups: false,
+                backupRetentionDays: 7,
+            });
+            await fs.mkdir(path.join(tempDir, 'sub'));
+            await fs.writeFile(path.join(tempDir, 'sub', '.env'), 'SECRET=1');
+            const tool = createEditFileTool(vi.fn(), blockedCheck, 1024);
+
+            await expect(
+                tool.presentation!.preview!(
+                    tool.inputSchema.parse({
+                        file_path: 'sub/.env',
+                        old_string: 'SECRET=1',
+                        new_string: 'SECRET=2',
+                    }),
+                    createToolContext(mockLogger)
+                )
+            ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+        });
+
+        it('refuses to preview or edit a file larger than maxFileSize', async () => {
+            await fs.writeFile(path.join(tempDir, 'big.txt'), 'x'.repeat(11));
+            const tool = createEditFileTool(vi.fn(), allowAllPaths, 10);
+            const input = tool.inputSchema.parse({
+                file_path: 'big.txt',
+                old_string: 'x',
+                new_string: 'y',
+                replace_all: true,
+            });
+
+            await expect(
+                tool.presentation!.preview!(input, createToolContext(mockLogger))
+            ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+            await expect(tool.execute(input, createToolContext(mockLogger))).rejects.toMatchObject({
+                code: FileSystemErrorCode.FILE_TOO_LARGE,
+            });
+            await expect(fs.readFile(path.join(tempDir, 'big.txt'), 'utf-8')).resolves.toBe(
+                'x'.repeat(11)
+            );
+        });
+
+        it('checks the size before reading when previewing and editing', async () => {
+            const readText = vi.fn(async () => 'x'.repeat(11));
+            const readFileSize = vi.fn(async () => 11);
+            const writeFile = vi.fn(async () => undefined);
+            const services = {
+                ...createWorkspaceServices(tempDir),
+                workspaceManager: {
+                    open: async () => ({
+                        context: { id: 'w', path: tempDir, createdAt: 1, lastActiveAt: 1 },
+                        capabilities: ['files' as const],
+                        files: {
+                            readFile: readText,
+                            readText,
+                            readFileSize,
+                            glob: vi.fn(async () => []),
+                            writeFile,
+                            listFiles: vi.fn(async () => []),
+                        },
+                    }),
+                } as unknown as ToolServices['workspaceManager'],
+            };
+            const tool = createEditFileTool(vi.fn(), allowAllPaths, 10);
+            const input = tool.inputSchema.parse({
+                file_path: 'big.txt',
+                old_string: 'x',
+                new_string: 'y',
+                replace_all: true,
+            });
+
+            await expect(
+                tool.presentation!.preview!(input, createToolContext(mockLogger, { services }))
+            ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+            await expect(
+                tool.execute(input, createToolContext(mockLogger, { services }))
+            ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
+
+            expect(readFileSize).toHaveBeenCalledTimes(2);
+            expect(readText).not.toHaveBeenCalled();
+            expect(writeFile).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['$&', 'cost $& now'],
+            ['$1', 'cost $1 now'],
+            ['$$', 'cost $$ now'],
+            ["$'", "cost $' now"],
+            ['$`', 'cost $` now'],
+        ])('writes %s from new_string as literal text', async (token, expected) => {
+            await fs.writeFile(path.join(tempDir, 'price.txt'), 'cost PRICE now');
+            const tool = createEditFileTool(vi.fn(), allowAllPaths, 10 * 1024 * 1024);
+            const input = tool.inputSchema.parse({
+                file_path: 'price.txt',
+                old_string: 'PRICE',
+                new_string: token,
+            });
+
+            const preview = await tool.presentation!.preview!(input, createToolContext(mockLogger));
+            expect(preview).toMatchObject({ type: 'diff' });
+            if (preview?.type === 'diff') {
+                expect(preview.unified).toContain(`+${expected}`);
+            }
+
+            await tool.execute(input, createToolContext(mockLogger));
+            await expect(fs.readFile(path.join(tempDir, 'price.txt'), 'utf-8')).resolves.toBe(
+                expected
+            );
+        });
+
         it('should succeed when file is not modified between preview and execute', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(
+                async () => fileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -340,7 +459,11 @@ describe('edit_file tool', () => {
         });
 
         it('should fail when file is modified between preview and execute', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(
+                async () => fileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -381,7 +504,11 @@ describe('edit_file tool', () => {
         });
 
         it('should detect file modification with correct error code', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(
+                async () => fileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -418,7 +545,11 @@ describe('edit_file tool', () => {
         });
 
         it('should work without toolCallId (no modification check)', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(
+                async () => fileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -453,7 +584,11 @@ describe('edit_file tool', () => {
         });
 
         it('should clean up hash cache after successful execution', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(
+                async () => fileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
@@ -495,7 +630,11 @@ describe('edit_file tool', () => {
         });
 
         it('should clean up hash cache after failed execution', async () => {
-            const tool = createEditFileTool(async () => fileSystemService);
+            const tool = createEditFileTool(
+                async () => fileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
             const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');

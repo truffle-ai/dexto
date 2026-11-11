@@ -15,6 +15,7 @@ import {
     getStandaloneSkillPaths,
 } from '../../plugins/discover-skills.js';
 import { getSkillFrontmatter } from '../../plugins/skill-markdown.js';
+import { resolvesInside } from '../../utils/path.js';
 import {
     CREATOR_TOOL_NAMES,
     CreatorToolsConfigSchema,
@@ -260,6 +261,28 @@ async function resolveExistingSkillLocation(
     };
 }
 
+/**
+ * Refuses to write a skill through a link: an existing skill directory must resolve inside the
+ * skills root, and an existing SKILL.md must not itself be a link.
+ */
+async function assertSkillWritesStayInside(
+    baseDir: string,
+    skillDir: string,
+    skillFile: string,
+    toolId: string
+): Promise<void> {
+    if ((await pathExists(skillDir)) && !(await resolvesInside(baseDir, skillDir))) {
+        throw ToolError.validationFailed(
+            toolId,
+            'skill directory resolves outside the skills root'
+        );
+    }
+    const fileStat = await fs.lstat(skillFile).catch(() => undefined);
+    if (fileStat?.isSymbolicLink()) {
+        throw ToolError.validationFailed(toolId, 'SKILL.md is a link and cannot be written');
+    }
+}
+
 function ensurePathWithinBase(baseDir: string, targetDir: string, toolId: string): void {
     const resolvedBase = path.resolve(baseDir);
     const resolvedTarget = path.resolve(targetDir);
@@ -395,6 +418,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                 ensurePathWithinBase(baseDir, skillDir, 'skill_create');
 
                 const skillFile = path.join(skillDir, 'SKILL.md');
+                await assertSkillWritesStayInside(baseDir, skillDir, skillFile, 'skill_create');
                 const exists = await pathExists(skillFile);
                 if (exists && !resolvedInput.overwrite) {
                     throw ToolError.validationFailed(
@@ -443,11 +467,12 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     hint: 'Use kebab-case skill ids (e.g., release-notes)',
                 });
 
-                const { scope, skillFile } = await resolveExistingSkillLocation(
+                const { baseDir, scope, skillDir, skillFile } = await resolveExistingSkillLocation(
                     input,
                     context,
                     'skill_update'
                 );
+                await assertSkillWritesStayInside(baseDir, skillDir, skillFile, 'skill_update');
                 const exists = await pathExists(skillFile);
                 if (!exists) {
                     throw ToolError.validationFailed(

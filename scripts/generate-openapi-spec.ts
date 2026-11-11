@@ -25,6 +25,10 @@ const SERVER_DIST_PATH = path.join(__dirname, '../packages/server/dist/hono/inde
 const JSON_VALUE_DESCRIPTION = 'Any JSON-serializable value';
 const JSON_OBJECT_DESCRIPTION = 'JSON object with arbitrary serializable values';
 
+// The live server reports its package version at /openapi.json. The committed docs pin it so a
+// release version bump never makes them stale.
+const COMMITTED_DOCS_VERSION = 'latest';
+
 type JsonScalar = string | number | boolean | null;
 type JsonValue = JsonScalar | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
@@ -92,6 +96,10 @@ function applyJsonOpenApiComponents(spec: JsonValue): JsonValue {
     const rewrittenSpec = rewriteJsonSchemaPlaceholders(spec);
     if (!isRecord(rewrittenSpec)) {
         return rewrittenSpec;
+    }
+
+    if (isRecord(rewrittenSpec.info)) {
+        rewrittenSpec.info.version = COMMITTED_DOCS_VERSION;
     }
 
     const components = isRecord(rewrittenSpec.components) ? rewrittenSpec.components : {};

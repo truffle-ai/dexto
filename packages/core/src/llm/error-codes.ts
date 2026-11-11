@@ -9,6 +9,8 @@ export enum LLMErrorCode {
     API_KEY_CANDIDATE_MISSING = 'llm_api_key_candidate_missing',
     BASE_URL_MISSING = 'llm_base_url_missing',
     BASE_URL_INVALID = 'llm_base_url_invalid',
+    RUNTIME_AUTH_UNSUPPORTED = 'llm_runtime_auth_unsupported',
+    RUNTIME_AUTH_CONFLICT = 'llm_runtime_auth_conflict',
     CONFIG_MISSING = 'llm_config_missing', // Required config (e.g., GOOGLE_VERTEX_PROJECT)
 
     // Model/Provider compatibility

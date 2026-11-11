@@ -6,6 +6,19 @@ import {
     InstalledPluginsFileSchema,
 } from './schemas.js';
 
+describe('plugin names', () => {
+    it.each(['../..', '..', 'a/b', 'a\\b', '/etc', '.hidden', ''])(
+        'rejects %j in a manifest',
+        (name) => {
+            expect(PluginManifestSchema.safeParse({ name }).success).toBe(false);
+        }
+    );
+
+    it.each(['my-plugin', 'My_Plugin.2', 'code review'])('accepts %j in a manifest', (name) => {
+        expect(PluginManifestSchema.safeParse({ name }).success).toBe(true);
+    });
+});
+
 describe('PluginManifestSchema', () => {
     it('should validate a minimal manifest with only name', () => {
         const manifest = { name: 'my-plugin' };

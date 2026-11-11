@@ -19,6 +19,7 @@ const DEFAULT_MAX_OUTPUT_BUFFER = 1 * 1024 * 1024; // 1MB
 const DEFAULT_ALLOWED_COMMANDS: string[] = [];
 const DEFAULT_BLOCKED_COMMANDS: string[] = [];
 const DEFAULT_ENVIRONMENT: Record<string, string> = {};
+const DEFAULT_PASS_ENVIRONMENT: string[] = [];
 
 /**
  * Configuration schema for Process tools factory.
@@ -71,9 +72,7 @@ export const ProcessToolsConfigSchema = z
         allowedCommands: z
             .array(z.string())
             .default(DEFAULT_ALLOWED_COMMANDS)
-            .describe(
-                'Explicitly allowed commands (empty = all allowed with approval, strict mode only)'
-            ),
+            .describe('Exact shell commands allowed (empty = all allowed with approval)'),
         blockedCommands: z
             .array(z.string())
             .default(DEFAULT_BLOCKED_COMMANDS)
@@ -82,6 +81,12 @@ export const ProcessToolsConfigSchema = z
             .record(z.string(), z.string())
             .default(DEFAULT_ENVIRONMENT)
             .describe('Custom environment variables to set for command execution'),
+        passEnvironment: z
+            .array(z.string().regex(/^[^=\s]+$/, 'Variable names cannot contain "=" or spaces'))
+            .default(DEFAULT_PASS_ENVIRONMENT)
+            .describe(
+                'Names of host environment variables to forward to commands, such as GH_TOKEN or SSH_AUTH_SOCK. Commands otherwise receive only a small allowlist of host variables.'
+            ),
     })
     .strict();
 

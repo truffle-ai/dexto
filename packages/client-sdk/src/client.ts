@@ -47,15 +47,15 @@ import type { ClientConfig } from './types.js';
  * ```
  */
 export function createDextoClient(config: ClientConfig) {
-    const options: { headers?: Record<string, string> } = {};
+    // The server rejects state-changing requests that a cross-site page could send; this
+    // header marks requests from Dexto clients (it cannot be sent cross-origin without CORS).
+    const headers: Record<string, string> = { 'X-Dexto-Request': '1' };
 
     if (config.apiKey) {
-        options.headers = {
-            Authorization: `Bearer ${config.apiKey}`,
-        };
+        headers.Authorization = `Bearer ${config.apiKey}`;
     }
 
-    return hc<AppType>(config.baseUrl, options);
+    return hc<AppType>(config.baseUrl, { headers });
 }
 
 export * from './streaming.js';

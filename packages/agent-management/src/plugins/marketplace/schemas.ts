@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { SafePluginNameSchema } from '../schemas.js';
 
 /**
  * Marketplace source specification
@@ -44,7 +45,7 @@ export const KnownMarketplacesFileSchema = z
  */
 export const MarketplacePluginEntrySchema = z
     .object({
-        name: z.string().min(1).describe('Plugin name'),
+        name: SafePluginNameSchema.describe('Plugin name'),
         description: z.string().optional().describe('Plugin description'),
         source: z.string().describe('Path to plugin within marketplace'),
         category: z.string().optional().describe('Plugin category'),

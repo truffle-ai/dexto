@@ -9,6 +9,8 @@ const sdkMocks = vi.hoisted(() => {
         createOpenAI: vi.fn(),
         createOpenAICompatible: vi.fn(),
         createCodexLanguageModel: vi.fn(),
+        createVertex: vi.fn(),
+        createVertexAnthropic: vi.fn(),
         openAIResponsesModel: vi.fn(),
         openAICompatibleChatModel: vi.fn(),
     };
@@ -24,6 +26,11 @@ vi.mock('@ai-sdk/openai', () => ({
 
 vi.mock('@ai-sdk/openai-compatible', () => ({
     createOpenAICompatible: sdkMocks.createOpenAICompatible,
+}));
+
+vi.mock('@ai-sdk/google-vertex', () => ({ createVertex: sdkMocks.createVertex }));
+vi.mock('@ai-sdk/google-vertex/anthropic', () => ({
+    createVertexAnthropic: sdkMocks.createVertexAnthropic,
 }));
 
 vi.mock('../providers/codex-app-server.js', () => ({
@@ -85,6 +92,56 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
 
     afterEach(() => {
         delete process.env.DEXTO_API_URL;
+    });
+
+    it.each([
+        ['gemini-2.5-pro', 'google'],
+        ['claude-sonnet-4-5@20250929', 'anthropic'],
+    ] as const)('passes runtime gateway URL and headers to Vertex %s', async (modelId, kind) => {
+        const config = LLMConfigSchema.parse({ provider: 'vertex', model: modelId });
+        const provider = kind === 'google' ? sdkMocks.createVertex : sdkMocks.createVertexAnthropic;
+        provider.mockReturnValue(() => createLanguageModelStub(modelId));
+        vi.stubGlobal('process', { env: { GOOGLE_VERTEX_PROJECT: 'test-project' } });
+        try {
+            await createVercelModel(config, {
+                authResolver: {
+                    resolveRuntimeAuth: () => ({
+                        baseURL: 'https://gateway.example/v1',
+                        headers: { 'x-runtime': 'ok' },
+                    }),
+                },
+            });
+            expect(provider).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    baseURL: 'https://gateway.example/v1',
+                    headers: expect.objectContaining({ 'x-runtime': 'ok' }),
+                })
+            );
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it('trims a runtime gateway URL before passing it to the provider', async () => {
+        const config = LLMConfigSchema.parse({
+            provider: 'openrouter',
+            model: 'openai/gpt-4o',
+            apiKey: 'test',
+        });
+        await createVercelModel(config, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({ baseURL: '  https://gateway.example/v1/  ' }),
+            },
+        });
+        expect(getLastDextoNovaBaseUrl()).toBe('https://gateway.example/v1');
+    });
+
+    it('rejects a blank runtime gateway URL even when a configured gateway exists', async () => {
+        await expect(
+            createVercelModel(buildDextoConfig({ baseURL: 'https://configured.example/v1' }), {
+                authResolver: { resolveRuntimeAuth: () => ({ baseURL: ' ' }) },
+            })
+        ).rejects.toMatchObject({ code: 'llm_base_url_invalid' });
     });
 
     it('uses the production gateway by default', async () => {
@@ -159,6 +216,49 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
                 'X-Dexto-Source': 'web',
             },
         });
+    });
+
+    it.each([
+        ['bedrock', 'amazon.nova-pro-v1:0'],
+        ['local', 'test'],
+    ] as const)('rejects ignored runtime gateway configuration for %s', async (provider, model) => {
+        const config = LLMConfigSchema.parse({ provider, model });
+        const hook = async () => new Response(null);
+        for (const runtime of [
+            { baseURL: 'https://gateway.example/v1' },
+            { headers: { authorization: 'test' } },
+            { fetch: hook },
+            {
+                requestAuth: {
+                    fetch: async () => ({ response: new Response(null), provenance: null }),
+                    isRetryableResponse: async () => false,
+                },
+            },
+        ]) {
+            await expect(
+                createVercelModel(config, { authResolver: { resolveRuntimeAuth: () => runtime } })
+            ).rejects.toMatchObject({ code: 'llm_runtime_auth_unsupported' });
+        }
+    });
+
+    it('rejects ignored runtime hooks for the Codex app server', async () => {
+        const config = LLMConfigSchema.parse({ provider: 'openai', model: 'gpt-5.4' });
+        const hook = async () => new Response(null);
+        for (const runtime of [
+            { baseURL: 'codex://chatgpt', headers: { authorization: 'test' } },
+            { baseURL: 'codex://chatgpt', fetch: hook },
+            {
+                baseURL: 'codex://chatgpt',
+                requestAuth: {
+                    fetch: async () => ({ response: new Response(null), provenance: null }),
+                    isRetryableResponse: async () => false,
+                },
+            },
+        ]) {
+            await expect(
+                createVercelModel(config, { authResolver: { resolveRuntimeAuth: () => runtime } })
+            ).rejects.toMatchObject({ code: 'llm_runtime_auth_unsupported' });
+        }
     });
 
     it('projects OpenAI ChatGPT Login through runtime auth instead of config baseURL', async () => {

@@ -226,9 +226,11 @@ export async function installPluginFromPath(
         }
 
         // Copy plugin directory
+        const installPathExisted = existsSync(installPath);
         try {
             await copyDirectory(absoluteSourcePath, installPath);
         } catch (error) {
+            if (!installPathExisted) rmSync(installPath, { recursive: true, force: true });
             throw PluginError.installCopyFailed(
                 absoluteSourcePath,
                 installPath,
