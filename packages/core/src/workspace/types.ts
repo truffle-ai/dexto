@@ -30,11 +30,19 @@ export interface WorkspaceFiles {
 }
 
 export interface WorkspaceProcesses {
+    /**
+     * Run a shell command to completion. A non-zero exit is returned as `exitCode`, not thrown.
+     * When `timeout` (milliseconds) elapses the command and everything it started are stopped and
+     * `timedOut` is true. When `signal` aborts they are stopped and the output so far is returned.
+     */
     exec(input: {
         command: string;
         cwd?: string;
         timeout?: number;
-    }): Promise<{ exitCode?: number; stdout: string; stderr: string }>;
+        signal?: AbortSignal;
+        /** Variables added to the handle's default environment for this command. */
+        env?: Record<string, string>;
+    }): Promise<{ exitCode?: number; stdout: string; stderr: string; timedOut?: boolean }>;
 }
 
 export interface WorkspacePreview {

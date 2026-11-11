@@ -23,9 +23,42 @@ DEXTO_SERVER_REQUIRE_AUTH=true
 
 | Mode | Environment | Auth Required | Notes |
 |------|-------------|---------------|-------|
-| **Development (default)** | No env vars | ❌ No | Default mode - safe for local dev |
-| **Production** | `NODE_ENV=production` + `DEXTO_SERVER_API_KEY` | ✅ Yes | Requires API key authentication |
-| **Explicit Auth** | `DEXTO_SERVER_REQUIRE_AUTH=true` + `DEXTO_SERVER_API_KEY` | ✅ Yes | Force auth in any environment |
+| **Development (default)** | No env vars | ❌ No | Binds to `127.0.0.1` only |
+| **API key configured** | `DEXTO_SERVER_API_KEY` | ✅ Yes | Enforced whenever a key is set, in any environment |
+| **Production / explicit auth without a key** | `NODE_ENV=production` or `DEXTO_SERVER_REQUIRE_AUTH=true` | ✅ Fails closed | Protected requests return a configuration error |
+
+### Bind address
+
+The server binds to `127.0.0.1` unless a host is given (`--host`, `DEXTO_SERVER_HOST`, or the
+`hostname` option of `startDextoServer`/`createNodeServer`). Binding to any other host
+(including `0.0.0.0` and `localhost`) requires `DEXTO_SERVER_API_KEY`; without it the server
+refuses to start. Apps created with `disableAuth: true` are exempt and must enforce auth in
+their own layer.
+
+### Browser request checks
+
+CORS only controls whether a browser can read a response, so the server also checks requests.
+Browser trust is per origin (scheme, host and port), not per host: a page on another port of
+`localhost` is a different origin and is not trusted.
+
+- **Trusted origins** are the server's own origin (the `Origin` host and port equal the
+  request's `Host`, as for the bundled Web UI) and the origins listed in
+  `DEXTO_ALLOWED_ORIGINS` (comma-separated, for example `https://app.example.com`). CORS
+  headers are sent only for `DEXTO_ALLOWED_ORIGINS`.
+- **Any request** (except `OPTIONS`) with an `Origin` that is not trusted is rejected with
+  `403`; `Origin: null` is rejected. Navigations carry no `Origin`, so links to the Web UI work.
+- **State-changing requests** (`POST`, `PUT`, `PATCH`, `DELETE`) are also rejected when
+  `Sec-Fetch-Site` is `same-site` or `cross-site` and the `Origin` is not in
+  `DEXTO_ALLOWED_ORIGINS`, or when they carry none of `Authorization`, `X-Dexto-Request`, or a
+  non-simple `Content-Type` such as `application/json`. `@dexto/client-sdk` sends
+  `X-Dexto-Request: 1` on every request.
+- **Without auth** (no `DEXTO_SERVER_API_KEY`, not `NODE_ENV=production`, no
+  `DEXTO_SERVER_REQUIRE_AUTH`, built-in auth not disabled), every request must use a loopback
+  `Host` (`localhost`, `127.x.x.x`, `0.0.0.0`, `[::1]`, any port), which blocks DNS rebinding.
+  Add other names with `DEXTO_ALLOWED_HOSTS` (comma-separated).
+- A frontend served from another origin (for example a separate dev server) must be listed in
+  `DEXTO_ALLOWED_ORIGINS`, or proxy API calls through its own origin. A proxy that rewrites
+  `Host` must rewrite `Origin` to match, as the Web UI's Vite dev proxy does.
 
 ## Usage
 
@@ -111,10 +144,10 @@ These routes are always accessible:
 ### Local Development (No Auth)
 
 ```bash
-# Start server in development mode
-NODE_ENV=development npm start
+# Leave DEXTO_SERVER_API_KEY unset; the server listens on 127.0.0.1 only
+dexto --mode server --port 3000
 
-# Access from browser without auth
+# Access locally without auth
 curl http://localhost:3000/api/llm/current
 ```
 
@@ -124,8 +157,8 @@ curl http://localhost:3000/api/llm/current
 # Generate secure API key
 export DEXTO_SERVER_API_KEY=$(openssl rand -base64 32)
 
-# Start server in production mode
-NODE_ENV=production npm start
+# Listen on all interfaces (requires the key above)
+NODE_ENV=production dexto --mode server --host 0.0.0.0
 
 # All requests now require authentication
 curl -H "Authorization: Bearer $DEXTO_SERVER_API_KEY" \

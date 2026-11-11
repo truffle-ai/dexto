@@ -52,6 +52,11 @@ export class DatabaseConversationStore implements ConversationStore {
         };
     }
 
+    async countModelMessages(input: { sessionId: string }): Promise<number> {
+        const state = await this.loadState(input.sessionId);
+        return filterCompacted(state.cache ?? []).length;
+    }
+
     async saveMessage(input: { sessionId: string; message: InternalMessage }): Promise<void> {
         const state = await this.loadState(input.sessionId);
         const cache = state.cache ?? [];

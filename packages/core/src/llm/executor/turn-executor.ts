@@ -22,6 +22,7 @@ import type {
     SanitizedToolResult,
 } from '../../context/types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
+import { safeStringify } from '../../utils/safe-stringify.js';
 import {
     ToolManager,
     type ExecutableToolCall,
@@ -31,6 +32,7 @@ import {
 import type { ToolSet } from '../../tools/types.js';
 import type { ToolExecutionResult, ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import type { ModelHistoryLoad } from '../../storage/conversation/types.js';
 import type { ToolExecutionIdentity } from '../../storage/tool-executions/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import {
@@ -69,6 +71,7 @@ import {
 import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
+import { createSafeDownload } from '../safe-download.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
@@ -89,6 +92,9 @@ import {
     describeInternalMessageTailForAudit,
 } from '../../context/content-audit.js';
 import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.js';
+
+// Downloads image and file URLs for the model, refusing private addresses.
+const safeDownload = createSafeDownload();
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
@@ -1467,11 +1473,18 @@ export class TurnExecutor {
 
         // Report repeats against the pruning the model already saw, then prune old tool outputs
         // before compaction, so pruning can avoid unnecessary compaction.
-        const modelHistory = await this.contextManager.getModelHistory();
-        this.reportRepeatedPrunedToolCalls(modelHistory);
+        //
+        // The step loads its history once. Everything below prepares from that load, and it is
+        // loaded again only after something changes stored messages (pruning, compaction).
+        let modelHistory = await this.contextManager.loadModelHistory();
+        this.reportRepeatedPrunedToolCalls(modelHistory.messages);
         // Prune over what the model actually sees: stopped outputs and their results are excluded.
-        const { preparedHistory: visibleHistory } = await this.contextManager.prepareModelHistory();
-        await this.pruneOldToolOutputs(visibleHistory);
+        const { preparedHistory: visibleHistory } =
+            this.contextManager.prepareLoadedModelHistory(modelHistory);
+        const { prunedCount } = await this.pruneOldToolOutputs(visibleHistory);
+        if (prunedCount > 0) {
+            modelHistory = await this.contextManager.loadModelHistory();
+        }
 
         let systemPrompt = await recordOperationSpan(
             {
@@ -1497,7 +1510,8 @@ export class TurnExecutor {
                     },
                 },
                 async () => {
-                    const preparedHistoryResult = await this.contextManager.prepareModelHistory();
+                    const preparedHistoryResult =
+                        this.contextManager.prepareLoadedModelHistory(modelHistory);
                     const preparedHistory = preparedHistoryResult.preparedHistory;
                     const formattedMessages = await this.contextManager.getFormattedMessages(
                         input.contributorContext,
@@ -1542,7 +1556,8 @@ export class TurnExecutor {
                 this.contextManager.getEstimatedNextInputTokens(
                     systemPrompt,
                     preparedHistory,
-                    toolDefinitions
+                    toolDefinitions,
+                    modelHistory
                 ),
             this.logger
         );
@@ -1552,7 +1567,7 @@ export class TurnExecutor {
             this.logger.debug(
                 `Pre-check: estimated ${estimatedInputTokens} tokens exceeds threshold, compacting`
             );
-            const didCompact = await recordOperationSpan(
+            const compactedHistory = await recordOperationSpan(
                 {
                     name: 'context.compact',
                     componentName: 'TurnExecutor',
@@ -1562,13 +1577,15 @@ export class TurnExecutor {
                     this.compactContext(
                         estimatedInputTokens,
                         input.contributorContext,
-                        toolDefinitions
+                        toolDefinitions,
+                        modelHistory
                     ),
                 this.logger
             );
 
-            if (didCompact) {
+            if (compactedHistory) {
                 compacted = true;
+                modelHistory = compactedHistory;
                 systemPrompt = await recordOperationSpan(
                     {
                         name: 'system_prompt.build',
@@ -1595,7 +1612,7 @@ export class TurnExecutor {
                         },
                         async () => {
                             const preparedHistoryResult =
-                                await this.contextManager.prepareModelHistory();
+                                this.contextManager.prepareLoadedModelHistory(modelHistory);
                             const preparedHistory = preparedHistoryResult.preparedHistory;
                             const formattedMessages =
                                 await this.contextManager.getFormattedMessages(
@@ -1628,7 +1645,8 @@ export class TurnExecutor {
                         this.contextManager.getEstimatedNextInputTokens(
                             systemPrompt,
                             preparedHistory,
-                            toolDefinitions
+                            toolDefinitions,
+                            modelHistory
                         ),
                     this.logger
                 );
@@ -1797,6 +1815,7 @@ export class TurnExecutor {
                         tools: request.tools,
                         abortSignal,
                         messages: request.messages,
+                        experimental_download: safeDownload,
                         ...(this.config.maxOutputTokens !== undefined && {
                             maxOutputTokens: this.config.maxOutputTokens,
                         }),
@@ -1821,13 +1840,13 @@ export class TurnExecutor {
         let failedAttempts = 0;
         let emptyResponseRetries = 0;
         for (;;) {
-            const historyLengthBefore = (await this.contextManager.getModelHistory()).length;
+            const historyLengthBefore = await this.contextManager.countModelMessages();
 
             let result: StreamProcessorResult;
             try {
                 result = await this.runModelStep(request);
             } catch (error) {
-                const historyLengthAfter = (await this.contextManager.getModelHistory()).length;
+                const historyLengthAfter = await this.contextManager.countModelMessages();
                 const historyLengthChanged = historyLengthAfter !== historyLengthBefore;
 
                 if (
@@ -1863,7 +1882,7 @@ export class TurnExecutor {
 
             // The step streamed at most reasoning, which was neither stored nor finalized, so
             // history must be unchanged before running it again.
-            const historyLengthAfter = (await this.contextManager.getModelHistory()).length;
+            const historyLengthAfter = await this.contextManager.countModelMessages();
             if (this.stepAbortController.signal.aborted) {
                 return this.cancelHeldEmptyResponse(result);
             }
@@ -1971,7 +1990,8 @@ export class TurnExecutor {
             await this.compactContext(
                 contextInputTokens,
                 contributorContext,
-                request.toolDefinitions
+                request.toolDefinitions,
+                await this.contextManager.loadModelHistory()
             );
         }
     }
@@ -2491,13 +2511,24 @@ export class TurnExecutor {
     }
 
     private isToolExecutionSuccessful(executionResult: ToolExecutionResult): boolean {
-        return !this.getToolExecutionErrorMessage(executionResult.result);
+        return this.getToolExecutionErrorMessage(executionResult.result) === null;
     }
 
     private getToolExecutionErrorMessage(result: unknown): string | null {
         if (result && typeof result === 'object' && 'error' in result) {
-            const error = (result as { error?: unknown }).error;
-            return typeof error === 'string' ? error : String(error);
+            const error = result.error;
+            if (error == null) return null;
+            if (typeof error === 'object') {
+                if (
+                    'message' in error &&
+                    typeof error.message === 'string' &&
+                    error.message.length > 0
+                ) {
+                    return error.message;
+                }
+                return safeStringify(error, 2000);
+            }
+            return String(error);
         }
         return null;
     }
@@ -2704,22 +2735,24 @@ export class TurnExecutor {
      * @param originalTokens The estimated input token count that triggered overflow
      * @param contributorContext Context for system prompt contributors (needed for accurate token estimation)
      * @param tools Tool definitions (needed for accurate token estimation)
-     * @returns true if compaction occurred, false if skipped
+     * @param modelHistory The model history as just loaded; compaction summarizes this load
+     * @returns the model history as loaded after compaction, or null if compaction was skipped
      */
     private async compactContext(
         originalTokens: number,
         contributorContext: DynamicContributorContext,
-        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
-    ): Promise<boolean> {
+        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>,
+        modelHistory: ModelHistoryLoad
+    ): Promise<ModelHistoryLoad | null> {
         if (!this.compactionStrategy) {
-            return false;
+            return null;
         }
 
         this.logger.info(
             `Context overflow detected (${originalTokens} tokens), checking if compression is possible`
         );
 
-        const history = await this.contextManager.getModelHistory();
+        const history = modelHistory.messages;
         const { filterCompacted } = await import('../../context/utils.js');
         const originalFiltered = filterCompacted(history);
         const originalMessages = originalFiltered.length;
@@ -2727,7 +2760,7 @@ export class TurnExecutor {
         // Pre-check if history is long enough for compaction (need at least 4 messages for meaningful summary)
         if (history.length < 4) {
             this.logger.debug('Compaction skipped: history too short to summarize');
-            return false;
+            return null;
         }
 
         // Emit event BEFORE the LLM summarization call so UI shows indicator during compaction
@@ -2756,7 +2789,7 @@ export class TurnExecutor {
                 strategy: this.compactionStrategy.name,
                 reason: 'overflow',
             });
-            return false;
+            return null;
         }
 
         // Add summary to history - filterCompacted() will exclude pre-summary messages at read-time
@@ -2770,9 +2803,11 @@ export class TurnExecutor {
 
         // Get accurate token estimate after compaction using the same method as /context command
         // This ensures consistency between what we report and what /context shows
+        const compactedHistory = await this.contextManager.loadModelHistory();
         const afterEstimate = await this.contextManager.getContextTokenEstimate(
             contributorContext,
-            tools
+            tools,
+            compactedHistory
         );
         const compactedTokens = afterEstimate.estimated;
         const compactedMessages = afterEstimate.stats.filteredMessageCount;
@@ -2791,7 +2826,7 @@ export class TurnExecutor {
                 `(${originalMessages} → ${compactedMessages} messages after filtering)`
         );
 
-        return true;
+        return compactedHistory;
     }
 
     /**

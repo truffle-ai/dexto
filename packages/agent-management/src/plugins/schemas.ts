@@ -19,12 +19,23 @@ const AuthorSchema = z.union([
 ]);
 
 /**
+ * A plugin or marketplace name is used as a directory name, so it must be a single safe path
+ * segment: no separators and no leading dot.
+ */
+export const SafePluginNameSchema = z
+    .string()
+    .regex(
+        /^[A-Za-z0-9][A-Za-z0-9._ -]*$/,
+        'Name may only contain letters, digits, ".", "_", "-" and spaces, and must start with a letter or digit'
+    );
+
+/**
  * Schema for Claude Code plugin.json manifest
  * Uses passthrough to allow unknown fields from Claude Code plugins
  */
 export const PluginManifestSchema = z
     .object({
-        name: z.string().min(1).describe('Unique plugin name (used for namespacing commands)'),
+        name: SafePluginNameSchema.describe('Unique plugin name (used for namespacing commands)'),
         description: z.string().optional().describe('Human-readable plugin description'),
         version: z.string().optional().describe('Semantic version (e.g., 1.0.0)'),
         author: AuthorSchema.optional().describe('Plugin author - string or {name, email} object'),

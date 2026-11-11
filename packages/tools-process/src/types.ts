@@ -91,12 +91,14 @@ export interface ProcessConfig {
     maxConcurrentProcesses: number;
     /** Maximum output buffer size in bytes */
     maxOutputBuffer: number;
-    /** Explicitly allowed commands (empty = all allowed with approval) */
+    /** Exact shell commands allowed (empty = all allowed with approval) */
     allowedCommands: string[];
     /** Blocked command patterns */
     blockedCommands: string[];
     /** Custom environment variables */
     environment: Record<string, string>;
+    /** Names of host environment variables to forward to commands */
+    passEnvironment: string[];
     /** Working directory (defaults to process.cwd()) */
     workingDirectory?: string | undefined;
 }

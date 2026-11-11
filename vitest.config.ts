@@ -40,6 +40,7 @@ export default defineConfig({
         ],
     },
     test: {
+        server: { deps: { inline: [/google-vertex/] } },
         globals: true,
         environment: 'node',
         include: ['**/*.test.ts', '**/*.spec.ts', '**/*.integration.test.ts'],

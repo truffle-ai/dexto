@@ -1,0 +1,165 @@
+# Publishes the 1.x `dexto` CLI to npm under `latest`, by hand only (DEXTO-2681).
+#
+# packages/cli is `"private": true` on main on purpose (DEXTO-2031), so changesets never publishes
+# it and a stable @dexto/* release leaves `dexto` on its old version. This workflow publishes only
+# that package, from main, for a security release of the 1.x line. The repo file stays private: the
+# flag is removed only inside the packed tarball, because npm refuses a package that carries it.
+#
+# It refuses unless every @dexto/* dependency of the packed CLI is exactly the release version and
+# already on npm, so publish the packages first (changesets-publish.yml does). It only ever moves
+# `latest` forward within major version 1: the version must be 1.Y.Z and strictly higher than the
+# current `latest`, read from the registry (any registry error refuses). The check runs again right
+# before `npm publish`. A release workflow that moves `latest` between that read and the publish
+# call (a few seconds) is not detected; npm has no compare-and-set for dist-tags.
+#
+# Not covered: standalone binaries and the GitHub release. The changesets path builds those.
+name: Publish dexto 1.x (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The dexto version to publish, such as 1.16.1. It must equal packages/cli/package.json.'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-cli-1x
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      # The one version comparison, used before the build and again right before publishing.
+      # node -e "$VERSION_VS_LATEST" <version> <npm latest> prints `same` or `newer`, and exits
+      # non-zero for anything else: an input that is not 1.Y.Z, a latest that is not X.Y.Z (no
+      # prerelease, no empty value), a leading zero in any part, or a version below latest.
+      VERSION_VS_LATEST: |
+        const [version, latest] = process.argv.slice(1);
+        const part = "(0|[1-9][0-9]*)";
+        if (!new RegExp(`^1\\.${part}\\.${part}$`).test(version)) {
+          throw new Error(`version "${version}" must be 1.Y.Z without leading zeros`);
+        }
+        if (!new RegExp(`^${part}\\.${part}\\.${part}$`).test(latest)) {
+          throw new Error(`npm latest "${latest}" is not X.Y.Z without leading zeros`);
+        }
+        const a = version.split(".").map(BigInt);
+        const b = latest.split(".").map(BigInt);
+        const i = a.findIndex((n, k) => n !== b[k]);
+        if (i === -1) console.log("same");
+        else if (a[i] > b[i]) console.log("newer");
+        else throw new Error(`${version} is not higher than npm latest ${latest}`);
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Check the version
+        id: version
+        run: |
+          set -euo pipefail
+          repo_version="$(node -p 'require("./packages/cli/package.json").version')"
+          [[ "$VERSION" == "$repo_version" ]] || { echo "version $VERSION does not match packages/cli/package.json ($repo_version)" >&2; exit 1; }
+          # Never move `latest` backwards. A registry error refuses, it does not pass.
+          latest="$(NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags.latest)" || { echo "cannot read dexto latest from npm" >&2; exit 1; }
+          relation="$(node -e "$VERSION_VS_LATEST" "$VERSION" "$latest")"
+          if [[ "$relation" == same ]]; then
+            echo "dexto@$VERSION is already npm latest; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Only a confirmed 404 means the version is absent; any other registry error refuses.
+          view_error="$RUNNER_TEMP/npm-view-error.txt"
+          if NPM_CONFIG_USERCONFIG=/dev/null npm view "dexto@$VERSION" version >/dev/null 2>"$view_error"; then
+            echo "dexto@$VERSION is already on npm; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif ! grep -q 'code E404' "$view_error"; then
+            cat "$view_error" >&2
+            echo "cannot tell whether dexto@$VERSION is on npm" >&2
+            exit 1
+          fi
+
+      # Install and build never see the npm token.
+      - if: steps.version.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.version.outputs.skip != 'true'
+        run: pnpm run build
+
+      - name: Pack without the private flag
+        if: steps.version.outputs.skip != 'true'
+        id: pack
+        run: |
+          set -euo pipefail
+          pnpm --dir packages/cli pack --pack-destination "$RUNNER_TEMP"
+          packed="$RUNNER_TEMP/dexto-$VERSION.tgz"
+          unpacked="$RUNNER_TEMP/dexto-unpacked"
+          mkdir "$unpacked"
+          tar -xzf "$packed" -C "$unpacked"
+          # Only the extracted manifest changes. The repo copy stays private.
+          node -e '
+            const fs = require("fs");
+            const path = process.argv[1];
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            delete pkg.private;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          ' "$unpacked/package/package.json"
+          test -f "$unpacked/package/dist/index.js"
+
+          # Every @dexto/* dependency (also optional and peer ones) must be this version, and
+          # already published. No workspace: specifier may remain anywhere.
+          node -e '
+            const pkg = require(process.argv[1]);
+            if (pkg.name !== "dexto" || pkg.version !== process.env.VERSION || pkg.private !== undefined) {
+              throw new Error(`unexpected manifest ${pkg.name}@${pkg.version}`);
+            }
+            for (const section of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+              for (const [name, version] of Object.entries(pkg[section] ?? {})) {
+                if (version.startsWith("workspace:")) throw new Error(`${section}: ${name} is still ${version}`);
+                if (name.startsWith("@dexto/")) console.log(`${name}@${version}`);
+              }
+            }
+          ' "$unpacked/package/package.json" > "$RUNNER_TEMP/dexto-deps.txt"
+          [[ -s "$RUNNER_TEMP/dexto-deps.txt" ]] || { echo "no @dexto/* dependencies found" >&2; exit 1; }
+          # Registry reads skip setup-node's token placeholder.
+          export NPM_CONFIG_USERCONFIG=/dev/null
+          while read -r spec; do
+            [[ "$spec" == *"@$VERSION" ]] || { echo "$spec is not $VERSION" >&2; exit 1; }
+            # Only a confirmed 404 means the dependency is missing; any other registry error is reported as such.
+            if ! found="$(npm view "$spec" version 2>"$RUNNER_TEMP/npm-dep-error.txt" </dev/null)"; then
+              if grep -q 'code E404' "$RUNNER_TEMP/npm-dep-error.txt"; then
+                echo "$spec is not on npm; publish it first" >&2
+              else
+                cat "$RUNNER_TEMP/npm-dep-error.txt" >&2
+                echo "cannot check $spec on npm (registry error, not a missing package)" >&2
+              fi
+              exit 1
+            fi
+            [[ "$found" == "${spec##*@}" ]] || { echo "$spec is not on npm (registry returned \"$found\"); publish it first" >&2; exit 1; }
+            echo "ok $spec"
+          done < "$RUNNER_TEMP/dexto-deps.txt"
+
+          tar -czf "$RUNNER_TEMP/dexto-publish.tgz" -C "$unpacked" package
+          echo "tarball=$RUNNER_TEMP/dexto-publish.tgz" >> "$GITHUB_OUTPUT"
+
+      # The token is only in this step.
+      - name: Publish under latest
+        if: steps.version.outputs.skip != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          # Check again right before publishing, in case another release moved latest meanwhile.
+          latest="$(NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags.latest)" || { echo "cannot read dexto latest from npm" >&2; exit 1; }
+          [[ "$(node -e "$VERSION_VS_LATEST" "$VERSION" "$latest")" == newer ]] || { echo "npm latest is now $latest; refusing to publish $VERSION" >&2; exit 1; }
+          npm publish "$TARBALL" --tag latest --access public
+          NPM_CONFIG_USERCONFIG=/dev/null npm view dexto dist-tags || echo "::warning::Published, but could not read dexto dist-tags; verify them on npm."

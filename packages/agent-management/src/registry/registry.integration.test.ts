@@ -312,6 +312,16 @@ describe('LocalAgentRegistry - Integration Tests', () => {
             await expect(registry.uninstallAgent('default-agent', true)).resolves.not.toThrow();
         });
 
+        it('should reject an agent id that names the agents directory itself', async () => {
+            await registry.installAgent('default-agent');
+
+            await expect(registry.uninstallAgent('.', true)).rejects.toThrow(/invalid agentId/);
+            await expect(registry.uninstallAgent('default-agent/..', true)).rejects.toThrow(
+                /invalid agentId/
+            );
+            expect(registry.hasAgent('default-agent')).toBe(true);
+        });
+
         it('should throw error if agent not installed', async () => {
             await expect(registry.uninstallAgent('nonexistent')).rejects.toThrow(/not installed/);
         });

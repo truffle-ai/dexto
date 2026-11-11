@@ -25,3 +25,4 @@ export * from './env.js';
 // - saveProviderApiKey
 // - getProviderKeyStatus
 // - listProviderKeyStatus
+export * from './metadata-address.js';

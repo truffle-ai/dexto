@@ -1,5 +1,6 @@
 /** Core `tool_output_read`: pages through or searches a tool result stored for this session. */
 import { z } from 'zod';
+import { safeTextBoundary } from '../utils/text-boundary.js';
 import type { ConversationStore } from '../storage/conversation/types.js';
 import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { TOOL_OUTPUT_READ_TOOL_NAME } from '../llm/executor/tool-output-spill.js';
@@ -14,7 +15,7 @@ const MAX_READ_LINES = 2000;
  * One call returns about this many characters, the same as one tool result keeps inline: a
  * read-back is stored in the conversation like any other result. The agent pages for more.
  */
-const MAX_READ_CHARS = 24_000;
+const MAX_READ_CHARS = 16_000;
 const DEFAULT_MAX_MATCHES = 100;
 const MAX_MATCHES = 500;
 const MAX_MATCH_LINE_CHARS = 500;
@@ -135,8 +136,11 @@ function readLines(text: string, input: ToolOutputReadInput): string {
         const room = MAX_READ_CHARS - chars - prefix.length;
         if (room <= 0) break;
         const full = lines[line - 1] ?? '';
-        const from = line === start ? Math.min(input.charOffset ?? 0, full.length) : 0;
-        const piece = full.slice(from, from + room);
+        const from =
+            line === start
+                ? safeTextBoundary(full, Math.min(input.charOffset ?? 0, full.length))
+                : 0;
+        const piece = full.slice(from, safeTextBoundary(full, Math.min(from + room, full.length)));
         selected.push(`${prefix}${piece}`);
         chars += prefix.length + piece.length + 1;
         if (from + piece.length < full.length) {
@@ -164,7 +168,7 @@ function searchLines(text: string, pattern: string, maxMatches: number): string 
         if (!line.toLowerCase().includes(needle)) return;
         total += 1;
         if (outOfRoom || found.length >= maxMatches) return;
-        const match = `${index + 1}: ${line.slice(0, MAX_MATCH_LINE_CHARS)}`;
+        const match = `${index + 1}: ${line.slice(0, safeTextBoundary(line, MAX_MATCH_LINE_CHARS))}`;
         if (chars + match.length > MAX_READ_CHARS) {
             outOfRoom = true;
             return;

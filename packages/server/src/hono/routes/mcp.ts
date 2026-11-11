@@ -16,6 +16,7 @@ import {
     JsonValueSchema,
     ToolInputSchema,
 } from '../schemas/responses.js';
+import { maskMcpServerConfig } from '../mask-mcp-server-config.js';
 import type { GetAgentConfigPathFn, GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 const McpServerRequestSchema = z
@@ -472,7 +473,13 @@ export function createMcpRouter(
             if (!config) {
                 throw MCPError.serverNotFound(serverId);
             }
-            return ctx.json({ name: serverId, config: McpServerConfigSchema.parse(config) }, 200);
+            return ctx.json(
+                {
+                    name: serverId,
+                    config: maskMcpServerConfig(McpServerConfigSchema.parse(config)),
+                },
+                200
+            );
         });
 
     const serverUpdateRouter = new OpenAPIHono().openapi(updateServerRoute, async (ctx) => {

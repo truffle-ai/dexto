@@ -21,6 +21,7 @@ import type { ToolExecutionContextBase, ToolSet } from '../tools/types.js';
 import type { McpClient, MCPResourceSummary, McpAuthProviderFactory } from './types.js';
 import { MCPError } from './errors.js';
 import { MCPErrorCode } from './error-codes.js';
+import { buildShellEnvironment, pickHostVariables } from '../workspace/shell-environment.js';
 import type {
     GetPromptResult,
     ReadResourceResult,
@@ -121,7 +122,13 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                 command = 'C:\\Program Files\\nodejs\\npx.cmd';
             }
 
-            return this.connectViaStdio(command, stdioConfig.args, stdioConfig.env, serverName);
+            return this.connectViaStdio(
+                command,
+                stdioConfig.args,
+                stdioConfig.env,
+                serverName,
+                stdioConfig.passEnvironment
+            );
         } else if (config.type === 'sse') {
             const sseConfig: ValidatedSseServerConfig = config;
             return this.connectViaSSE(sseConfig.url, sseConfig.headers, serverName);
@@ -144,14 +151,17 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
      * Connect to an MCP server via stdio
      * @param command Command to run
      * @param args Arguments for the command
-     * @param env Environment variables
+     * @param env Environment variables set for the server, applied over everything else
      * @param serverAlias Optional server alias/name to show in logs
+     * @param passEnvironment Names of host environment variables to forward to the server.
+     *   The server otherwise gets only the allowlisted host variables plus `env`.
      */
     async connectViaStdio(
         command: string,
         args: string[] = [],
         env?: Record<string, string>,
-        serverAlias?: string
+        serverAlias?: string,
+        passEnvironment: readonly string[] = []
     ): Promise<Client> {
         // Store server details
         this.serverCommand = command;
@@ -163,17 +173,16 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         const serverName = this.serverAlias ?? 'stdio';
         this.logger.info(`Connecting to MCP server: ${serverName}`);
 
-        // Create a properly expanded environment by combining process.env with the provided env
-        const expandedEnv = {
-            ...process.env,
-            ...(env || {}),
-        };
-
-        // Create transport for stdio connection with expanded environment
+        // The server never inherits the full host environment: provider keys and other host
+        // secrets stay out unless forwarded by name or configured explicitly.
         this.transport = new StdioClientTransport({
             command: command,
             args: this.resolvedArgs,
-            env: expandedEnv as Record<string, string>,
+            env: buildShellEnvironment(
+                process.env,
+                pickHostVariables(process.env, passEnvironment),
+                env
+            ),
         });
 
         this.client = new Client(

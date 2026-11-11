@@ -50,8 +50,10 @@ import { createCorsMiddleware } from './middleware/cors.js';
 import {
     createAuthMiddleware,
     createHttpAuthorization,
+    isHttpAuthRequired,
     type HttpAuthorization,
 } from './middleware/auth.js';
+import { createRequestGuard, createRequestGuardMiddleware } from './middleware/request-guard.js';
 import { ApprovalCoordinator } from '../approval/approval-coordinator.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -233,6 +235,13 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     if (!disableAuth) {
         app.use('*', createAuthMiddleware(httpAuthorization));
     }
+
+    // Reject cross-site state-changing requests and, when the server runs without auth,
+    // requests whose Host is not loopback (DNS rebinding).
+    const requestGuard = createRequestGuard({
+        enforceLoopbackHost: !disableAuth && !isHttpAuthRequired(),
+    });
+    app.use('*', createRequestGuardMiddleware(requestGuard));
 
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
@@ -434,7 +443,12 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     // This ensures proper initialization order and validation
     // We attach webhookSubscriber as a property but don't include it in the return type
     // to preserve Hono's route type inference
-    Object.assign(fullApp, { webhookSubscriber, httpAuthorization });
+    Object.assign(fullApp, {
+        webhookSubscriber,
+        httpAuthorization,
+        requestGuard,
+        authDisabled: disableAuth,
+    });
 
     return fullApp;
 }

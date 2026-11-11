@@ -90,6 +90,17 @@ export enum JsonRpcErrorCode {
 }
 
 /**
+ * Error a method handler throws when the caller's request is at fault. Its message is safe to
+ * return to the caller; the message of any other error is not.
+ */
+export class JsonRpcInvalidParamsError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'JsonRpcInvalidParamsError';
+    }
+}
+
+/**
  * Type guard to check if response is an error
  */
 export function isJsonRpcError(response: JsonRpcResponse): response is JsonRpcErrorResponse {
