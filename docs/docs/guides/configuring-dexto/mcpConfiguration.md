@@ -96,7 +96,7 @@ server that read an API key (or any other variable) from the environment must no
 commands run by `process-tools`, see [Command environment](./tools.md#command-environment). Remote
 `http` and `sse` servers are not affected.
 
-Server and web modes also bind to loopback by default; see the [deployment guide](../deployment.md)
+SDK-hosted servers also bind to loopback by default; see the [hosting guide](../deployment.md)
 to allow network access with an API key. Server Origin and Host checks may also require
 [configuration](../deployment.md#origin-and-host-checks).
 :::
