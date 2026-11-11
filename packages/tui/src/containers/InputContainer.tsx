@@ -7,6 +7,7 @@
  */
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { assertLocalChat } from '../host/index.js';
 import type { ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { getReasoningProfile } from '@dexto/llm';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
@@ -21,7 +22,7 @@ import type {
     PastedBlock,
     TodoItem,
 } from '../state/types.js';
-import { createUserMessage } from '../utils/messageFormatting.js';
+import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { restoreQueuedContentForComposer } from '../utils/queuedComposerContent.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -92,6 +93,8 @@ interface InputContainerProps {
     inputService: InputService;
     /** Source agent config file path (if available) */
     configFilePath: string | null;
+    /** Static renderer's existing terminal refresh; alternate-buffer mode redraws directly. */
+    refreshStatic?: () => void;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
     onKeyboardScroll?: (direction: 'up' | 'down') => void;
     /** Whether to stream chunks or wait for complete response (default: true) */
@@ -128,6 +131,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             agent,
             inputService,
             configFilePath,
+            refreshStatic,
             onKeyboardScroll,
             useStreaming = true,
         },
@@ -136,6 +140,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
         const queuedEditPendingRef = useRef(false);
+        const currentSessionIdRef = useRef(session.id);
+        useEffect(() => {
+            currentSessionIdRef.current = session.id;
+        }, [session.id]);
         const [isQueuedEditPending, setIsQueuedEditPending] = React.useState(false);
 
         const didAutoSubmitInitialPromptRef = useRef(false);
@@ -729,6 +737,38 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             configFilePath
                         );
 
+                        if (result.type === 'reloadHistory') {
+                            const history = await agent.getSessionHistory(result.sessionId);
+                            if (currentSessionIdRef.current !== result.sessionId) return;
+                            setMessages(convertHistoryToUIMessages(history, result.sessionId));
+                            const userHistory = history
+                                .flatMap((message) =>
+                                    message.role === 'user'
+                                        ? [
+                                              message.content
+                                                  .filter((part) => part.type === 'text')
+                                                  .map((part) => part.text)
+                                                  .join('\n'),
+                                          ]
+                                        : []
+                                )
+                                .filter(Boolean);
+                            setInput((previous) => ({
+                                ...previous,
+                                history: userHistory,
+                                historyIndex: -1,
+                            }));
+                            refreshStatic?.();
+                            setUi((previous) => ({
+                                ...previous,
+                                activeOverlay: 'command-output',
+                                commandOutput: {
+                                    title: `/${parsed.command}`,
+                                    content: result.output,
+                                },
+                            }));
+                        }
+
                         if (result.type === 'output' && result.output) {
                             const output = result.output;
                             setUi((prev) => ({
@@ -787,6 +827,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             }
 
                             // Send through normal streaming flow (matches WebUI pattern)
+                            await assertLocalChat(currentSessionId);
                             const iterator = await agent.stream(
                                 result.messageToSend,
                                 currentSessionId
@@ -940,6 +981,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         });
 
                         // Use streaming API and process events directly
+                        await assertLocalChat(currentSessionId);
                         const iterator = await agent.stream(content, currentSessionId);
                         await processStream(
                             iterator,
@@ -1011,6 +1053,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 session.id,
                 useStreaming,
                 soundService,
+                refreshStatic,
             ]
         );
 

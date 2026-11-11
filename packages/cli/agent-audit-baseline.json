@@ -84,6 +84,13 @@
     "examples": false
   },
   {
+    "command": "chat move",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "chat outputs",
     "json": true,
     "dryRun": false,
@@ -95,6 +102,13 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "chat watch",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
     "examples": false
   },
   {
@@ -665,11 +679,74 @@
     "examples": false
   },
   {
+    "command": "projects create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects move",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects start",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "publish",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
     "examples": false
+  },
+  {
+    "command": "review",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "run",
@@ -771,6 +848,27 @@
   },
   {
     "command": "workspace call",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys revoke",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,

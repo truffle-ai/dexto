@@ -27,6 +27,9 @@
         "workspace artifacts replace": ["dexto_artifacts_replace"],
         "workspace artifacts share": ["dexto_artifacts_share"],
         "workspace call": [],
+        "workspace computers keys create": ["dexto_computer_enrollment_key_create"],
+        "workspace computers keys list": ["dexto_computer_enrollment_keys_list"],
+        "workspace computers keys revoke": ["dexto_computer_enrollment_key_revoke"],
         "workspace describe": [],
         "workspace drive put": ["dexto_upload_prepare", "dexto_drive"],
         "workspace tools": [],
@@ -84,9 +87,27 @@
         "cloud sandboxes cat": ["dexto_cloud_sandboxes_cat"],
         "cloud sites list": ["dexto_cloud_sites_list"],
         "cloud secrets list": ["dexto_cloud_secrets_list"],
-        "cloud secrets get": ["dexto_cloud_secrets_get"]
+        "cloud secrets get": ["dexto_cloud_secrets_get"],
+        "projects list": ["dexto_projects_list"],
+        "projects get": ["dexto_project_get"],
+        "projects create": ["dexto_project_create"],
+        "projects update": ["dexto_project_update"],
+        "projects delete": ["dexto_project_delete"],
+        "projects move": ["dexto_project_chat_move"],
+        "projects start": ["dexto_project_chat_start"],
+        "projects run": ["dexto_chat_send"]
     },
     "localOnly": [
+        {
+            "command": "chat move",
+            "reason": "Moves this machine's synced session and git working tree; requires local bundle building, patch apply and session resume (DEXTO-2519).",
+            "registry": "cloud"
+        },
+        {
+            "command": "chat watch",
+            "reason": "Attaches this local terminal to the hosted chat through its saved local session mapping; owns the local detach lifecycle (DEXTO-2519).",
+            "registry": "cloud"
+        },
         {
             "command": "accounts list",
             "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
@@ -433,7 +454,6 @@
         "dexto_chat_get",
         "dexto_chat_list",
         "dexto_chat_models",
-        "dexto_chat_send",
         "dexto_contacts_block",
         "dexto_contacts_connect",
         "dexto_contacts_invite_link",
@@ -489,14 +509,7 @@
         "dexto_notifications_list",
         "dexto_notifications_mark_read",
         "dexto_open",
-        "dexto_project_chat_move",
-        "dexto_project_chat_start",
-        "dexto_project_create",
-        "dexto_project_delete",
-        "dexto_project_get",
         "dexto_project_import",
-        "dexto_project_update",
-        "dexto_projects_list",
         "dexto_share",
         "dexto_share_access",
         "dexto_share_received",
@@ -520,18 +533,5 @@
         "dexto_skill_validate",
         "dexto_skill_versions"
     ],
-    "pendingCli": [
-        {
-            "tool": "dexto_computer_enrollment_key_create",
-            "reason": "Cloud slice lands first; a workspace computers command follows in dexto."
-        },
-        {
-            "tool": "dexto_computer_enrollment_key_revoke",
-            "reason": "Cloud slice lands first; a workspace computers command follows in dexto."
-        },
-        {
-            "tool": "dexto_computer_enrollment_keys_list",
-            "reason": "Cloud slice lands first; a workspace computers command follows in dexto."
-        }
-    ]
+    "pendingCli": []
 }

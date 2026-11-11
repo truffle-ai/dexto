@@ -450,6 +450,11 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
         sync: (chatId) => serialized(chatId, () => syncNow(chatId)),
         deleteLocalChat: (chatId) => serialized(chatId, () => forgetEverywhere(chatId)),
         makePrivate: async (chatId) => {
+            for (const account of await deps.store.listAccounts()) {
+                const state = await deps.store.readChat(account, chatId);
+                if (state?.status === 'paused')
+                    throw new Error('Bring this chat back with /local before making it private.');
+            }
             // At once, not after a sync that is running: its next batch sees it and stops.
             await deps.store.updateSettings((settings) => ({
                 ...settings,

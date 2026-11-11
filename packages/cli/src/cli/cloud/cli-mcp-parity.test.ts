@@ -104,7 +104,6 @@ dexto_chat_continue
 dexto_chat_get
 dexto_chat_list
 dexto_chat_models
-dexto_chat_send
 dexto_contacts_block
 dexto_contacts_connect
 dexto_contacts_invite_link
@@ -160,14 +159,7 @@ dexto_notification_get
 dexto_notifications_list
 dexto_notifications_mark_read
 dexto_open
-dexto_project_chat_move
-dexto_project_chat_start
-dexto_project_create
-dexto_project_delete
-dexto_project_get
 dexto_project_import
-dexto_project_update
-dexto_projects_list
 dexto_share
 dexto_share_access
 dexto_share_received
@@ -196,6 +188,8 @@ const approvedLocalOnly = [
     'accounts remove',
     'accounts use',
     'chat local',
+    'chat move',
+    'chat watch',
     'cloud projects use',
     'login',
     'logout',

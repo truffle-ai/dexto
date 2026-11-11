@@ -2,6 +2,7 @@
 
 import { requireConsent } from '../../interaction.js';
 import { CommandFailure, EXIT_CODES, type FailureKind } from '../../failure.js';
+import { chatMoveCommands } from './chat-move.js';
 
 import { z } from 'zod';
 import { CloudApiError } from '@dexto/cloud-client';
@@ -775,4 +776,5 @@ export const chatCommands: readonly Command[] = [
     follow,
     computers,
     browserProfiles,
+    ...chatMoveCommands,
 ];

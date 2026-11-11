@@ -12,6 +12,8 @@ const ENGINE_WORDS = {
     models: 'Models Dexto serves on your sign-in',
     billing: "Show the organization's credit balance and recent spending",
     cloud: 'Build in Dexto Cloud: projects, agents, files, sandboxes and more',
+    projects:
+        'Your Dexto Projects: list and change them, message their coordinators, start their chats',
     workspace: 'Use your Dexto workspace as yourself: its apps and tools, over the Dexto MCP',
     find: 'Find the command for something you want to do in Dexto',
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',
