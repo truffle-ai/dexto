@@ -342,6 +342,82 @@ manifest also has no `engines` field; settle and test the supported Node version
 - [ ] Record the exact cloud release commit accepted by the release owner. A Git branch named
       production is source evidence, not proof of which binary is serving requests.
 
+## November call additions: imports, connections and headless onboarding
+
+- [ ] Land the Claude-export extension of CLI #1048 and its paired cloud contract before
+      advertising `dexto chat import --from claude-export export.zip`. Published beta.4 reads
+      local Claude Code/Codex sessions only. Export import must create private chats, stable
+      Projects and ordinary Project knowledge files; preview redacted text before upload.
+- [ ] Run the synthetic end-to-end fixtures through the actual CLI runner: the
+      `~/.claude/projects/<encoded-path>/<session>.jsonl` layout and a Claude ZIP containing
+      `conversations.json` and `projects.json` with `docs`. Verify dry-run sends no requests,
+      legacy/structured text is not duplicated, retries reuse IDs/files, malformed or ambiguous
+      metadata is refused, and explicit Project membership is preserved. Exports without
+      membership leave chats unassigned; do not infer it from names. Binary attachments remain
+      outside this text import. Native attachment staging remains a separate release gate.
+- [ ] Publish and exercise `docs/docs/guides/cli/import-claude.md`: install `@next`, person-owned
+      device sign-in, list, dry-run, consent, import and partial-failure retry. Update its beta.4
+      caveat once the supported release is actually available.
+- [ ] DEXTO-2923: exercise an already connected fake X account through `connections list`,
+      capability search, describe and call. The CLI must not start another connector sign-in to
+      use an existing connection. #1191 carries this regression; local fake-provider evidence
+      does not certify a real production X grant.
+
+### Recommendation for memories and CLAUDE.md (Rahul decision required)
+
+Recommend retaining imported Claude memories, `CLAUDE.md`, `AGENTS.md`, `MEMORY.md` and Project
+instructions as **ordinary text files in the Project**, under an import-specific folder whose
+names do not activate Dexto instructions. Do not automatically create Dexto memories or skills.
+These texts may contain stale policy, prompt injection, private details or machine-specific
+paths. A memory is recalled automatically; a skill needs a deliberate trigger, scope and usable
+procedure. Neither is a safe one-to-one translation of arbitrary export text.
+
+After review, a person can select individual facts for Dexto memory and reusable procedures for
+skills. Keep provenance and a preview of each proposed conversion. **This recommendation is not
+implemented:** the new export path defers these categories, and the server refuses instructions
+or memories when `sourceAgent=claude_export`. Existing coding-agent Project import behavior is
+unchanged. Rahul must choose retention/conversion behavior before anyone builds it.
+
+### Headless sign-up and top-up (DEXTO-2492)
+
+- [ ] Test from an empty home and signed-out noninteractive shell. Distinguish **new-account
+      sign-up** from device login to an existing account. The CLI must return a structured next
+      action and let the person complete required identity verification; it must not approve
+      its own grant. Current `login --device` alone is not evidence of headless new-account
+      sign-up. Establish the supported signup/verification contract and documentation before
+      calling that flow complete.
+- [ ] Test `credits balance`, `credits topup` and `credits topup status` from a headless shell:
+      explicit billing scope, person consent, machine-readable checkout URL/ID and resume
+      command, no browser requirement, bounded reads, expiry/cancel/failure outcomes and retry
+      without creating another checkout. Settlement must credit once, and `--yes` must not
+      manufacture payment approval. Use an authorized payment test mode; no real purchase is
+      part of this lane. CLI #1154 and cloud #3798 remain paired, with the billing hold visible.
+
+## Published CLI security and chat-computer permission audit
+
+`npm pack --dry-run --json --ignore-scripts` inspected the published `dexto@1.17.0` and
+`dexto@2.0.0-beta.4` packages. Downloaded tarballs matched their registry SHA-512 integrity and
+dry-run file inventories: 427 regular files / 3,662,662 unpacked bytes and 391 / 1,196,377 bytes.
+Every file was checked against all 29 admin MCP names and admin endpoints/scopes: no hits.
+An ordinary-account local MCP fixture lists no admin tools and refuses their names; the separate
+admin MCP enforces its own resource, admin scopes and operator identity. Existing admin/OAuth
+tests passed 61/61 against disposable loopback Postgres. No package leak was found. This is
+artifact and current-source/local-test evidence, not production verification.
+
+The reported full-scope Claude Code CLI bypass is absent in the inspected source: chat computers
+receive a short-lived, owner/org/computer/run/session-bound capability token for
+`capabilities:sources/search/describe/call` and `nova:models/chat`, held by the root broker, not a
+personal CLI OAuth login. Membership and live run are rechecked. Claude Code computer tokens
+are refused at `/api/capabilities`; its Worker relay applies `resolveTurnPhasePermissions` and
+the run's `platformToolIds`. DEXTO-2925's regression is already in cloud #4099. The defensive gap
+where a generic run token does not itself encode narrowed tool IDs is addressed by cloud #4107
+(DEXTO-2936); review that existing fix rather than create a competing credential path.
+
+- [ ] Recheck the exact release cloud head and runtime bootstrap, including no account login
+      installed by the host, ordinary versus staff listings, operator/resource gates, narrowed
+      run tokens, expired/revoked membership and mandatory approvals. A manual person sign-in
+      inside a computer is a separate credential grant and must not be confused with bootstrap.
+
 ## Concrete beta.5 cut plan (not executed)
 
 1. Review/merge the chosen CLI PRs and #1204 through normal human review. Leave the consent pick,
