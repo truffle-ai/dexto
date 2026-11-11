@@ -6,6 +6,7 @@
     "commands": {
         "chat outputs": ["dexto_chat_outputs_list"],
         "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
+        "connect": ["dexto_connection_start", "dexto_connection_wait"],
         "connect claude": ["dexto_connection_start", "dexto_connection_finish"],
         "connect codex": ["dexto_connection_start", "dexto_connection_wait"],
         "connections list": ["dexto_connections_list"],
