@@ -5,6 +5,7 @@
     "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
         "chat outputs": ["dexto_chat_outputs_list"],
+        "import": ["dexto_chat_import", "dexto_upload_prepare", "dexto_skill_bundle_import"],
         "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
         "connect claude": ["dexto_connection_start", "dexto_connection_finish"],
         "connect codex": ["dexto_connection_start", "dexto_connection_wait"],
@@ -97,6 +98,11 @@
         "projects run": ["dexto_chat_send"]
     },
     "localOnly": [
+        {
+            "command": "import list",
+            "reason": "Discovers local source sessions and personal skills without a hosted operation (DEXTO-1813).",
+            "registry": "cloud"
+        },
         {
             "command": "chat move",
             "reason": "Moves this machine's synced session and git working tree; requires local bundle building, patch apply and session resume (DEXTO-2519).",

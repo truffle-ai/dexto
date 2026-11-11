@@ -191,6 +191,7 @@ const approvedLocalOnly = [
     'chat move',
     'chat watch',
     'cloud projects use',
+    'import list',
     'login',
     'logout',
     'whoami',
