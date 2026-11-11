@@ -95,3 +95,18 @@ it('redacts knowledge filenames before making them safe on every supported platf
     expect(preview.projects[0]?.files[0]?.name).not.toContain('synthetic-file-secret');
     expect(preview.projects[0]?.files[0]?.name).not.toMatch(/[<>:"/\\|?*]/u);
 });
+
+it('retains a knowledge document larger than a chat message within the bounded export metadata', async () => {
+    const projects = JSON.parse(
+        await readFile(new URL('./fixtures/claude-export/projects.json', import.meta.url), 'utf8')
+    );
+    const text = 'Synthetic knowledge.\n'.repeat(60_000);
+    projects[0].docs[0].content = text;
+    const preview = await readClaudeExport(
+        await archive([
+            { path: 'conversations.json', bytes: Buffer.from('[]') },
+            { path: 'projects.json', bytes: Buffer.from(JSON.stringify(projects)) },
+        ])
+    );
+    expect(preview.projects[0]?.files[0]?.text).toBe(text);
+});

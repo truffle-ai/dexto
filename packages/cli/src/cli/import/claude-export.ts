@@ -216,8 +216,6 @@ export async function readClaudeExport(archive: string) {
                         )
                 )
                 .map((doc) => {
-                    if (Buffer.byteLength(doc.content, 'utf8') > 1024 * 1024)
-                        throw new UsageError('A Claude Project knowledge document exceeds 1 MiB.');
                     const name = redactSecrets(
                         path.posix.basename(doc.filename.replaceAll('\\', '/'))
                     )
