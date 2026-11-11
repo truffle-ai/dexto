@@ -10,7 +10,8 @@ const api: Command = {
     arguments: '<method> <path>',
     options: BODY_OPTIONS,
     path: ['cloud', 'api'],
-    summary: 'Call a /v1 path, such as: dexto cloud api GET /v1/agents. Prints the response body.',
+    summary:
+        'Call only /v1/ paths, such as: dexto cloud api GET /v1/agents. Prints the response body.',
     async run(context, input) {
         const method = argument(input, 0, 'method').toUpperCase();
         if (!METHODS.has(method)) throw new UsageError(`Unknown method ${method}.`);

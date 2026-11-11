@@ -588,7 +588,7 @@ const start: Command = {
     path: ['chat', 'start'],
     arguments: '<message>',
     summary:
-        'Start a cloud chat, optionally attaching your connected computer and choosing a browser profile.',
+        'Start a cloud chat, optionally attaching your connected computer and choosing a browser profile. Requires sessions:write.',
     options: {
         ...FOLLOW_OPTIONS,
         wait: {
