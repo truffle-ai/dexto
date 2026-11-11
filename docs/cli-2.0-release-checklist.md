@@ -12,14 +12,14 @@ GitHub and Linear snapshots are dated 11 November; recheck them at the release d
 ## Release gates
 
 - [x] Merge main in a separate branch and submit [PR #1204](https://github.com/truffle-ai/dexto/pull/1204).
-      Head `2933c670348ca6ac4d52dfd3324ea5e427d431d5`, main parent
+      Head `5dbab99e33242ced0ca008ff57bb335a9f808983`, main parent
       `0d955d50fb1b4b52bc18b13dc2d4dad67138e92e`, CLI parent
       `1cf2a4c0f5e08fd1d9ab7809f17e7aee7ab4ddaa`.
       Frozen pnpm install, build, generated OpenAPI, 5,799 tests (5,774 passed, 25 skipped), lint,
       typecheck and Hono inference passed locally. Review and merge remain human actions.
 - [ ] Require final-head CI, standalone smoke on all five OS/architecture targets, and review
       resolution for every included PR. No unresolved inline review threads were returned for the
-      six feature PRs in this audit; recheck after new reviews arrive.
+      six feature PRs at discovery. A later connector review found browser-organization, Linear account-selection and Slack revocation issues; regression fixes and final thread resolution are required before release.
 - [ ] Decide the inclusion of connector sign-in, credit status/top-up, local import and LFS handoff.
       Do not present an unfinished import slice as complete Projects/native transcript migration.
 - [ ] Resolve the consent design hold (DEXTO-2486 / screen 9); this lane intentionally did not edit it.
@@ -29,7 +29,7 @@ GitHub and Linear snapshots are dated 11 November; recheck them at the release d
 ## Open PRs targeting cli-2.0
 
 Every open PR returned by `gh pr list --state open --base cli-2.0 --limit 100` is listed here.
-The checklist PR itself will join this list after creation. PRs are never merged by this lane.
+The checklist itself is [PR #1205](https://github.com/truffle-ai/dexto/pull/1205). PRs are never merged by this lane.
 
 | PR                                                     | Scope                                                                     | Release action                                                                                                                      |
 | ------------------------------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -38,7 +38,7 @@ The checklist PR itself will join this list after creation. PRs are never merged
 | [#1154](https://github.com/truffle-ai/dexto/pull/1154) | Add CLI credit top-up and status commands (DEXTO-2492)                    | Credits CLI: require cloud #3798 and billing approval; final CI and review.                                                         |
 | [#1126](https://github.com/truffle-ai/dexto/pull/1126) | Preserve LFS objects when moving a chat (DEXTO-2541)                      | LFS handoff: inspect final review/CI and include before claiming complete working-tree moves.                                       |
 | [#1078](https://github.com/truffle-ai/dexto/pull/1078) | Request Project/chat permissions and disclose step-up scopes (DEXTO-2486) | Consent screen: HOLD for Rahul's design pick; explicitly skipped.                                                                   |
-| [#1048](https://github.com/truffle-ai/dexto/pull/1048) | Import local chats and Projects from the CLI                              | Local import: text-only discovery/consent slice; native transcript, Projects, attachments and skill provenance remain release gaps. |
+| [#1048](https://github.com/truffle-ai/dexto/pull/1048) | Add text-only local chat import discovery and consent (DEXTO-1813)        | Local import: text-only discovery/consent slice; native transcript, Projects, attachments and skill provenance remain release gaps. |
 
 Cloud companion inventory:
 
