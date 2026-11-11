@@ -77,7 +77,10 @@ describe('subscription connections over MCP', () => {
                 return Response.json({
                     jsonrpc: '2.0',
                     id: message.id,
-                    result: { content: [], structuredContent: value },
+                    result:
+                        message.method === 'tools/list'
+                            ? value
+                            : { content: [], structuredContent: value },
                 });
             },
             get prompt() {
@@ -198,6 +201,99 @@ describe('subscription connections over MCP', () => {
             name: 'dexto_connection_disconnect',
             arguments: { name: 'github' },
         });
+    });
+    it('uses an already connected fake X account through capability discovery and execution without signing in again (DEXTO-2923)', async () => {
+        const path = 'dexto.x.fixture-account.search_recent_posts';
+        const tools = [
+            {
+                name: 'dexto_capabilities_search',
+                inputSchema: { type: 'object' },
+                _meta: { 'dexto/level': 'read' },
+            },
+            {
+                name: 'dexto_capability_describe',
+                inputSchema: { type: 'object' },
+                _meta: { 'dexto/level': 'read' },
+            },
+            {
+                name: 'dexto_capability_call',
+                inputSchema: { type: 'object' },
+                _meta: { 'dexto/level': 'act' },
+            },
+        ];
+        replies = [
+            {
+                connections: [
+                    {
+                        kind: 'connector',
+                        name: 'x',
+                        id: 'fixture-x',
+                        provider: 'x',
+                        status: 'connected',
+                        nextAction: null,
+                    },
+                ],
+            },
+            { tools },
+            { tools: [{ path, description: 'Search the connected fake X account' }] },
+            { tools },
+            { found: true, tool: { path, inputSchema: { type: 'object' } } },
+            { tools },
+            { ok: true, result: { posts: [{ id: 'fixture-post', text: 'Synthetic X result' }] } },
+        ];
+        expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
+        expect(lastResult().connections[0].status).toBe('connected');
+        stdout = '';
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'call',
+                'dexto_capabilities_search',
+                '--data',
+                JSON.stringify({ query: 'X search recent posts' }),
+                '--json',
+            ]),
+            stderr
+        ).toBe(0);
+        expect(JSON.parse(stdout).tools[0].path).toBe(path);
+        stdout = '';
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'call',
+                'dexto_capability_describe',
+                '--data',
+                JSON.stringify({ path }),
+                '--json',
+            ])
+        ).toBe(0);
+        expect(JSON.parse(stdout).found).toBe(true);
+        stdout = '';
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'call',
+                'dexto_capability_call',
+                '--data',
+                JSON.stringify({ path, input: { query: 'synthetic release' } }),
+                '--yes',
+                '--json',
+            ])
+        ).toBe(0);
+        expect(JSON.parse(stdout)).toMatchObject({
+            ok: true,
+            result: { posts: [{ id: 'fixture-post' }] },
+        });
+        expect(calls.at(-1)).toEqual({
+            name: 'dexto_capability_call',
+            arguments: { path, input: { query: 'synthetic release' } },
+        });
+        expect(
+            calls.some(
+                (call) =>
+                    call.name === 'dexto_connection_start' || call.name === 'dexto_connection_wait'
+            )
+        ).toBe(false);
     });
     it('returns a resumable connector attempt without waiting', async () => {
         replies = [
