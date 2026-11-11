@@ -42,11 +42,11 @@
     "@dexto/storage": "workspace:*",
     "@dexto/tui": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "@opentelemetry/instrumentation-http": "^0.223.0",
-    "@opentelemetry/instrumentation-undici": "^0.33.0",
     "@opentelemetry/core": "^2.12.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.223.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+    "@opentelemetry/instrumentation-http": "^0.223.0",
+    "@opentelemetry/instrumentation-undici": "^0.33.0",
     "@opentelemetry/resources": "^2.12.0",
     "@opentelemetry/sdk-node": "^0.223.0",
     "@opentelemetry/sdk-trace-base": "^2.12.0",
@@ -64,6 +64,7 @@
     "tar": "^7.5.22",
     "tsx": "^4.23.15",
     "ws": "^8.22.0",
+    "yauzl": "^3.4.0",
     "zod": "^4.3.6"
   },
   "scripts": {
@@ -77,6 +78,7 @@
   },
   "devDependencies": {
     "@types/ws": "^8.5.11",
+    "@types/yauzl": "^3.4.0",
     "type-fest": "^4.26.1"
   },
   "files": [

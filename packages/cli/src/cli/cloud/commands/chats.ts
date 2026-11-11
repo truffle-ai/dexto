@@ -32,6 +32,8 @@ import {
 } from '../../import/transcript.js';
 import { queryWorkspaceTool } from './workspace.js';
 import { safeJson } from '@dexto/tui/signal-text';
+import { importClaudeExport } from './claude-export.js';
+import { readClaudeExport } from '../../import/claude-export.js';
 
 const FIND_OPTIONS = {
     dir: {
@@ -41,7 +43,7 @@ const FIND_OPTIONS = {
         valueName: 'PATH',
     },
     from: {
-        description: `Where the chats are: ${LOCAL_CHAT_SOURCES.join(' or ')}.`,
+        description: `Where the chats are: ${LOCAL_CHAT_SOURCES.join(', ')} or claude-export (followed by export.zip).`,
         type: 'string',
         valueName: 'SOURCE',
     },
@@ -87,11 +89,16 @@ function sourceName(source: LocalChatSource): string {
 }
 
 const local: Command = {
+    arguments: '[export.zip]',
     options: FIND_OPTIONS,
     path: ['chat', 'local'],
     summary:
         'List Claude Code or Codex chats on this machine, newest first, to pick some for chat import.',
     async run(context, input) {
+        if (stringOption(input, 'from') === 'claude-export') {
+            context.output.record(await readClaudeExport(argument(input, 0, 'export.zip')));
+            return 0;
+        }
         const scan = await findLocalChats(context.runtime, localQuery(input));
         noteScan(context, scan);
         context.output.list(
@@ -117,6 +124,7 @@ const local: Command = {
                 { header: 'folder', value: (row) => row.cwd },
             ]
         );
+        return 0;
     },
 };
 
@@ -135,7 +143,7 @@ interface SessionResult {
 }
 
 const importChats: Command = {
-    arguments: '[session_ids...]',
+    arguments: '[export.zip] [session_ids...]',
     options: {
         ...FIND_OPTIONS,
         all: { description: 'Import every session chat local lists.', type: 'boolean' },
@@ -147,8 +155,11 @@ const importChats: Command = {
     },
     path: ['chat', 'import'],
     summary:
-        'Import Claude Code or Codex chats from this machine as your private Dexto chats, redacted here first.',
+        'Import local Claude Code/Codex chats or a Claude export ZIP as private chats, redacted here first.',
     async run(context, input) {
+        if (stringOption(input, 'from') === 'claude-export') {
+            return importClaudeExport(context, input);
+        }
         const query = localQuery(input);
         const ids = input.positionals;
         const all = flag(input, 'all');

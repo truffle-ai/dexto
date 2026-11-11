@@ -3679,7 +3679,8 @@
             "description": "The coding agent the transcript came from.",
             "enum": [
               "claude-code",
-              "codex"
+              "codex",
+              "claude-export"
             ],
             "type": "string"
           },
@@ -3781,6 +3782,7 @@
             "enum": [
               "claude_code",
               "codex",
+              "claude_export",
               "any"
             ]
           },
@@ -10329,8 +10331,13 @@
             "type": "string",
             "enum": [
               "claude_code",
-              "codex"
+              "codex",
+              "claude_export"
             ]
+          },
+          "prepareFiles": {
+            "description": "Provision the canonical Project Files folder for a subsequent ordinary Drive upload. Requires drive:write and an unrestricted Drive grant. Returns filesFolder; never activates imported text as instructions.",
+            "type": "boolean"
           },
           "sourceId": {
             "type": "string",
@@ -10590,6 +10597,7 @@
             "enum": [
               "claude_code",
               "codex",
+              "claude_export",
               "any"
             ]
           },

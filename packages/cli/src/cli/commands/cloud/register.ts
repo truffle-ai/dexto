@@ -3,6 +3,7 @@ import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 
 /** The top-level words the cloud command engine owns, and what each is for. */
 const ENGINE_WORDS = {
+    import: 'Import local Claude Code and Codex chats',
     connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
     connections: 'List, inspect and disconnect model subscriptions',
     login: 'Sign in to Dexto with your browser or a device code, or save an API key for CI',

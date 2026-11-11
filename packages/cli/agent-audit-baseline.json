@@ -644,6 +644,20 @@
     "examples": false
   },
   {
+    "command": "import",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "import list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "login",
     "json": true,
     "dryRun": false,

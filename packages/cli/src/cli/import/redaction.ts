@@ -7,7 +7,7 @@ export interface ChatImportInput {
     readonly cwd?: string;
     readonly gitBranch?: string;
     readonly messages: readonly LocalChatMessage[];
-    readonly source: LocalChatSource;
+    readonly source: LocalChatSource | 'claude-export';
     readonly sourceSessionId: string;
     readonly title: string;
 }
@@ -100,13 +100,14 @@ export type PreparedImport =
       }
     | { readonly kind: 'skipped'; readonly reason: string };
 
-const SOURCE_NAMES: Readonly<Record<LocalChatSource, string>> = {
+const SOURCE_NAMES: Readonly<Record<ChatImportInput['source'], string>> = {
+    'claude-export': 'Claude export',
     'claude-code': 'Claude Code',
     codex: 'Codex',
 };
 
 /** The first message of a chat whose oldest messages were left out, saying so. */
-function leftOutNote(source: LocalChatSource, leftOut: number): string {
+function leftOutNote(source: ChatImportInput['source'], leftOut: number): string {
     const what =
         leftOut === 1
             ? 'the first message of this session was'
@@ -119,7 +120,9 @@ function leftOutNote(source: LocalChatSource, leftOut: number): string {
  * the import's bounds keeps its newest messages, after a note that says how many were left out.
  */
 export function toImportInput(
-    chat: Pick<LocalChat, 'cwd' | 'gitBranch' | 'id' | 'messages' | 'source' | 'title'>
+    chat: Pick<LocalChat, 'cwd' | 'gitBranch' | 'id' | 'messages' | 'title'> & {
+        source: ChatImportInput['source'];
+    }
 ): PreparedImport {
     if (!SOURCE_SESSION_ID.test(chat.id))
         return { kind: 'skipped', reason: "Its session id isn't one Dexto takes." };
@@ -154,7 +157,7 @@ export function toImportInput(
  */
 function newestWithin(
     messages: readonly LocalChatMessage[],
-    source: LocalChatSource
+    source: ChatImportInput['source']
 ): { leftOut: number; messages: LocalChatMessage[] } {
     const chars = messages.reduce((sum, message) => sum + message.text.length, 0);
     if (messages.length <= MAX_IMPORT_MESSAGES && chars <= MAX_IMPORT_CHARS)

@@ -159,7 +159,6 @@ dexto_notification_get
 dexto_notifications_list
 dexto_notifications_mark_read
 dexto_open
-dexto_project_import
 dexto_share
 dexto_share_access
 dexto_share_received
@@ -191,6 +190,7 @@ const approvedLocalOnly = [
     'chat move',
     'chat watch',
     'cloud projects use',
+    'import list',
     'login',
     'logout',
     'whoami',
