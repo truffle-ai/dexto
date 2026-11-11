@@ -1,3 +1,6 @@
+packages/llm:1.17.0
+packages/registry:1.17.0
+packages/client-sdk:1.17.0
 packages/cloud-client:1.17.0
 packages/core:1.17.0
 packages/storage:1.17.0

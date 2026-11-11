@@ -14,6 +14,8 @@ const positions = new Map(
     selected.map((path, index) => [packages.find((pkg) => pkg.path === path).name, index])
 );
 for (const pkg of packages.filter((pkg) => !pkg.private)) {
+    // No public package retains a stable pin after the 1.17.0 merge.
+    assert(positions.has(pkg.name), `Public package missing from beta: ${pkg.name}`);
     for (const dep of Object.keys({
         ...pkg.dependencies,
         ...pkg.peerDependencies,
