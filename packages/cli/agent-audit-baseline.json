@@ -595,6 +595,13 @@
     "examples": false
   },
   {
+    "command": "connect",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "connect claude",
     "json": true,
     "dryRun": false,

@@ -64,7 +64,7 @@ const connectOptions = {
     attempt: {
         type: 'string',
         valueName: 'ID',
-        description: 'Resume an existing attempt; Claude without --code retries only saving.',
+        description: 'Resume an existing attempt by ID; Claude without --code retries only saving.',
     },
     code: {
         type: 'string',
@@ -81,7 +81,7 @@ type Started = Extract<StartResult, { outcome: 'started' }>;
 type FinishResult = z.output<typeof Finish>;
 
 function resume(provider: string, attempt: string): string {
-    return `dexto connect ${provider} --attempt ${shellWord(attempt)}`;
+    return `dexto connect ${shellWord(provider)} --attempt ${shellWord(attempt)}`;
 }
 function submitCode(attempt: string): string {
     return `${resume('claude', attempt)} --code -`;
@@ -93,7 +93,7 @@ function writeResult(context: CommandContext, value: unknown, text: string): voi
 async function showAuthorization(
     context: CommandContext,
     input: CommandInput,
-    started: Started | Extract<FinishResult, { outcome: 'code_rejected' }>
+    started: Started | Extract<FinishResult, { outcome: 'code_rejected' }> | { url: string }
 ): Promise<void> {
     if (context.output.json) writeResult(context, started, '');
     else context.output.note(`${started.url}${'code' in started ? `\nCode: ${started.code}` : ''}`);
@@ -259,8 +259,16 @@ const claude: Command = {
 const Wait = z.discriminatedUnion('outcome', [
     z.object({ outcome: z.literal('connected'), name: z.string(), nextAction: z.null() }),
     z.object({
-        outcome: z.enum(['timeout', 'expired', 'ended', 'expired_retry_sign_in']),
+        outcome: z.enum([
+            'timeout',
+            'expired',
+            'ended',
+            'expired_retry_sign_in',
+            'cancelled',
+            'failed',
+        ]),
         attemptId: z.string(),
+        reason: z.literal('expired').optional(),
         nextAction: z.string(),
     }),
 ]);
@@ -375,7 +383,134 @@ const codex: Command = {
         }
     },
 };
+const connector: Command = {
+    path: ['connect'],
+    arguments: '<connector>',
+    options: {
+        'no-browser': connectOptions['no-browser'],
+        'no-wait': connectOptions['no-wait'],
+        attempt: connectOptions.attempt,
+    },
+    summary: 'Connect a catalog service to your cloud account.',
+    async run(context, input) {
+        const provider = argument(input, 0, 'connector');
+        let attempt = stringOption(input, 'attempt');
+        if (attempt !== undefined && !z.string().uuid().safeParse(attempt).success)
+            throw new UsageError('Connector --attempt must be an opaque attempt ID.');
+        let startedHere = false;
+        if (attempt === undefined) {
+            const started = z
+                .discriminatedUnion('outcome', [
+                    z.object({
+                        outcome: z.literal('started'),
+                        provider: z.string(),
+                        attemptId: z.string().uuid(),
+                        url: z.string().url(),
+                        nextAction: z.string(),
+                    }),
+                    z.object({
+                        outcome: z.literal('connected'),
+                        name: z.string(),
+                        nextAction: z.null(),
+                    }),
+                ])
+                .parse(await queryWorkspaceTool(context, 'dexto_connection_start', { provider }));
+            if (started.outcome === 'connected') {
+                writeResult(context, started, `${provider} connected.`);
+                return 0;
+            }
+            attempt = started.attemptId;
+            startedHere = true;
+            await showAuthorization(context, input, started);
+        }
+        if (flag(input, 'no-wait')) {
+            if (!context.output.json || !startedHere)
+                writeResult(
+                    context,
+                    {
+                        outcome: 'started',
+                        provider,
+                        attemptId: attempt,
+                        nextCommand: resume(provider, attempt),
+                    },
+                    `Next: ${resume(provider, attempt)}`
+                );
+            return 0;
+        }
+        for (let tries = 0; tries < 120; tries++) {
+            context.runtime.signal.throwIfAborted();
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 30_000);
+            let waited: z.output<typeof Wait>;
+            try {
+                waited = Wait.parse(
+                    await queryWorkspaceTool(
+                        {
+                            ...context,
+                            runtime: {
+                                ...context.runtime,
+                                signal: AbortSignal.any([
+                                    context.runtime.signal,
+                                    controller.signal,
+                                ]),
+                            },
+                        },
+                        'dexto_connection_wait',
+                        { provider, attemptId: attempt }
+                    )
+                );
+            } catch (error) {
+                context.runtime.signal.throwIfAborted();
+                if (controller.signal.aborted || error instanceof TypeError) {
+                    if (tries < 119) {
+                        await context.runtime.sleep(1000);
+                        continue;
+                    }
+                }
+                const next = resume(provider, attempt);
+                if (error instanceof CommandFailure)
+                    throw new CommandFailure(
+                        error.kind,
+                        error.message,
+                        `${error.fix === null ? '' : `${error.fix}; then `}${next}`
+                    );
+                throw new CommandFailure('failed', 'Could not check the connector sign-in.', next);
+            } finally {
+                clearTimeout(timer);
+            }
+            if (waited.outcome === 'connected') {
+                writeResult(context, waited, `${provider} connected.`);
+                return 0;
+            }
+            if (waited.outcome !== 'timeout') {
+                writeResult(
+                    context,
+                    waited,
+                    waited.reason === 'expired'
+                        ? 'Sign-in expired. Start again.'
+                        : `Sign-in ${waited.outcome}.`
+                );
+                return EXIT_CODES.failed;
+            }
+            await context.runtime.sleep(1000);
+        }
+        writeResult(
+            context,
+            { outcome: 'timeout', attemptId: attempt, nextCommand: resume(provider, attempt) },
+            `Next: ${resume(provider, attempt)}`
+        );
+        return EXIT_CODES.waiting_on_person;
+    },
+};
 const ConnectionRow = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('connector'),
+        name: z.string(),
+        id: z.string(),
+        provider: z.string(),
+        status: z.string(),
+        nextAction: z.string().nullable(),
+    }),
     z.object({
         kind: z.literal('claude_home'),
         name: z.literal('claude'),
@@ -408,7 +543,7 @@ const ConnectionRow = z.discriminatedUnion('kind', [
 ]);
 const list: Command = {
     path: ['connections', 'list'],
-    summary: 'List your model connections and subscription sign-ins.',
+    summary: 'List your cloud connections and subscription sign-ins.',
     async run(context) {
         const result = z
             .object({ connections: z.array(ConnectionRow) })
@@ -424,7 +559,7 @@ const list: Command = {
 const status: Command = {
     path: ['connections', 'status'],
     arguments: '<name>',
-    summary: 'Show the status of Claude, Codex or a saved model connection.',
+    summary: 'Show the status of a cloud connection.',
     async run(context, input) {
         const name = argument(input, 0, 'name');
         const row = ConnectionRow.parse(
@@ -433,12 +568,15 @@ const status: Command = {
         const nextCommand =
             row.kind === 'claude_home'
                 ? 'dexto connect claude'
-                : row.kind === 'codex_status' ||
-                    (row.authType === 'oauth' &&
-                        row.provider === 'openai' &&
-                        row.methodId === 'chatgpt_login')
-                  ? 'dexto connect codex'
-                  : null;
+                : row.kind === 'connector'
+                  ? `dexto connect ${shellWord(row.name)}`
+                  : row.kind === 'codex_status' ||
+                      (row.kind === 'model_connection' &&
+                          row.authType === 'oauth' &&
+                          row.provider === 'openai' &&
+                          row.methodId === 'chatgpt_login')
+                    ? 'dexto connect codex'
+                    : null;
         const fix = nextCommand ?? 'Update it in dashboard Settings > Models';
         writeResult(
             context,
@@ -462,7 +600,7 @@ const disconnect: Command = {
     path: ['connections', 'disconnect'],
     arguments: '<name>',
     options: YES_OPTION,
-    summary: 'Disconnect a subscription sign-in. API keys stay dashboard-managed.',
+    summary: 'Disconnect a cloud connection. Model API keys stay dashboard-managed.',
     async run(context, input) {
         const name = argument(input, 0, 'name');
         const connection = ConnectionRow.parse(
@@ -503,16 +641,21 @@ const disconnect: Command = {
     },
 };
 // Keep the server's refusal text and exit kind, with a safe next command for every refusal.
-export const connectionCommands: readonly Command[] = [claude, codex, list, status, disconnect].map(
-    (command) => ({
-        ...command,
-        async run(context, input) {
-            try {
-                return await command.run(context, input);
-            } catch (error) {
-                if (!(error instanceof CommandFailure) || error.fix !== null) throw error;
-                throw new CommandFailure(error.kind, error.message, 'dexto connections list');
-            }
-        },
-    })
-);
+export const connectionCommands: readonly Command[] = [
+    claude,
+    codex,
+    connector,
+    list,
+    status,
+    disconnect,
+].map((command) => ({
+    ...command,
+    async run(context, input) {
+        try {
+            return await command.run(context, input);
+        } catch (error) {
+            if (!(error instanceof CommandFailure) || error.fix !== null) throw error;
+            throw new CommandFailure(error.kind, error.message, 'dexto connections list');
+        }
+    },
+}));

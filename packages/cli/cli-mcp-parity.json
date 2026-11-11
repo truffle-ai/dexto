@@ -12,6 +12,7 @@
             "dexto_project_import",
             "dexto_drive"
         ],
+        "connect": ["dexto_connection_start", "dexto_connection_wait"],
         "connect claude": ["dexto_connection_start", "dexto_connection_finish"],
         "connect codex": ["dexto_connection_start", "dexto_connection_wait"],
         "connections list": ["dexto_connections_list"],

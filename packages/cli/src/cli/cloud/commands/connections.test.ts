@@ -77,7 +77,10 @@ describe('subscription connections over MCP', () => {
                 return Response.json({
                     jsonrpc: '2.0',
                     id: message.id,
-                    result: { content: [], structuredContent: value },
+                    result:
+                        message.method === 'tools/list'
+                            ? value
+                            : { content: [], structuredContent: value },
                 });
             },
             get prompt() {
@@ -120,6 +123,241 @@ describe('subscription connections over MCP', () => {
     afterEach(async () => {
         vi.restoreAllMocks();
         await rm(path.dirname(dir), { recursive: true, force: true });
+    });
+    it('rejects OAuth state as a connector attempt and prints only the opaque id to resume', async () => {
+        const state = 'secret-oauth-state';
+        const id = '00000000-0000-4000-8000-000000000123';
+        expect(
+            await runCloud(host, ['connect', 'notion', '--attempt', state, '--no-wait'])
+        ).not.toBe(0);
+        expect(calls).toHaveLength(0);
+        stdout = '';
+        stdoutIsTerminal = true;
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'notion',
+                attemptId: id,
+                url: `https://example.test/approve?state=${state}`,
+                nextAction: 'dexto_connection_wait',
+            },
+        ];
+        expect(await runCloud(host, ['connect', 'notion', '--no-browser', '--no-wait'])).toBe(0);
+        const resumeLine = stdout.split('\n').find((line) => line.includes('--attempt'));
+        expect(resumeLine).toContain(`--attempt ${id}`);
+        expect(resumeLine).not.toContain(state);
+    });
+    it('starts a catalog connector and reports its completed authorization', async () => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'github',
+                attemptId: '00000000-0000-4000-8000-000000000001',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+            { outcome: 'connected', name: 'github', nextAction: null },
+        ];
+        const exitCode = await runCloud(host, ['connect', 'github', '--no-browser', '--json']);
+        expect(exitCode).toBe(0);
+        expect(calls).toEqual([
+            { name: 'dexto_connection_start', arguments: { provider: 'github' } },
+            {
+                name: 'dexto_connection_wait',
+                arguments: {
+                    provider: 'github',
+                    attemptId: '00000000-0000-4000-8000-000000000001',
+                },
+            },
+        ]);
+        expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'github' });
+    });
+    it('reports a catalog connector that completes without browser authorization', async () => {
+        replies = [{ outcome: 'connected', name: 'public-mcp', nextAction: null }];
+        expect(await runCloud(host, ['connect', 'public-mcp', '--no-browser', '--json'])).toBe(0);
+        expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'public-mcp' });
+        expect(calls).toHaveLength(1);
+    });
+    it('lists and disconnects an owned connector', async () => {
+        const row = {
+            kind: 'connector',
+            name: 'github',
+            id: 'conn-1',
+            provider: 'github',
+            status: 'connected',
+            nextAction: null,
+        };
+        replies = [
+            { connections: [row] },
+            row,
+            { outcome: 'disconnected', name: 'github', nextAction: 'dexto_connection_start' },
+        ];
+        expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
+        expect(lastResult().connections).toEqual([row]);
+        expect(
+            await runCloud(host, ['connections', 'disconnect', 'github', '--yes', '--json'])
+        ).toBe(0);
+        expect(calls.at(-1)).toEqual({
+            name: 'dexto_connection_disconnect',
+            arguments: { name: 'github' },
+        });
+    });
+    it('uses an already connected fake X account through capability discovery and execution without signing in again (DEXTO-2923)', async () => {
+        const path = 'dexto.x.fixture-account.search_recent_posts';
+        const tools = [
+            {
+                name: 'dexto_capabilities_search',
+                inputSchema: { type: 'object' },
+                _meta: { 'dexto/level': 'read' },
+            },
+            {
+                name: 'dexto_capability_describe',
+                inputSchema: { type: 'object' },
+                _meta: { 'dexto/level': 'read' },
+            },
+            {
+                name: 'dexto_capability_call',
+                inputSchema: { type: 'object' },
+                _meta: { 'dexto/level': 'act' },
+            },
+        ];
+        replies = [
+            {
+                connections: [
+                    {
+                        kind: 'connector',
+                        name: 'x',
+                        id: 'fixture-x',
+                        provider: 'x',
+                        status: 'connected',
+                        nextAction: null,
+                    },
+                ],
+            },
+            { tools },
+            { tools: [{ path, description: 'Search the connected fake X account' }] },
+            { tools },
+            { found: true, tool: { path, inputSchema: { type: 'object' } } },
+            { tools },
+            { ok: true, result: { posts: [{ id: 'fixture-post', text: 'Synthetic X result' }] } },
+        ];
+        expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
+        expect(lastResult().connections[0].status).toBe('connected');
+        stdout = '';
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'call',
+                'dexto_capabilities_search',
+                '--data',
+                JSON.stringify({ query: 'X search recent posts' }),
+                '--json',
+            ]),
+            stderr
+        ).toBe(0);
+        expect(JSON.parse(stdout).tools[0].path).toBe(path);
+        stdout = '';
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'call',
+                'dexto_capability_describe',
+                '--data',
+                JSON.stringify({ path }),
+                '--json',
+            ])
+        ).toBe(0);
+        expect(JSON.parse(stdout).found).toBe(true);
+        stdout = '';
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'call',
+                'dexto_capability_call',
+                '--data',
+                JSON.stringify({ path, input: { query: 'synthetic release' } }),
+                '--yes',
+                '--json',
+            ])
+        ).toBe(0);
+        expect(JSON.parse(stdout)).toMatchObject({
+            ok: true,
+            result: { posts: [{ id: 'fixture-post' }] },
+        });
+        expect(calls.at(-1)).toEqual({
+            name: 'dexto_capability_call',
+            arguments: { path, input: { query: 'synthetic release' } },
+        });
+        expect(
+            calls.some(
+                (call) =>
+                    call.name === 'dexto_connection_start' || call.name === 'dexto_connection_wait'
+            )
+        ).toBe(false);
+    });
+    it('returns a resumable connector attempt without waiting', async () => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'notion',
+                attemptId: '00000000-0000-4000-8000-000000000002',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+        ];
+        expect(
+            await runCloud(host, ['connect', 'notion', '--no-browser', '--no-wait', '--json'])
+        ).toBe(0);
+        expect(lastResult()).toMatchObject({
+            outcome: 'started',
+            attemptId: '00000000-0000-4000-8000-000000000002',
+            url: 'https://example.test/approve',
+        });
+        expect(calls).toHaveLength(1);
+    });
+    it('keeps the attempt when a connector wait needs permission', async () => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'github',
+                attemptId: '00000000-0000-4000-8000-000000000003',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+        ];
+        beforeWait = () => {
+            rpcError = {
+                code: -32003,
+                message: 'Permission required',
+                data: { kind: 'forbidden', scope: 'models:write' },
+            };
+        };
+        expect(await runCloud(host, ['connect', 'github', '--no-browser', '--json'])).not.toBe(0);
+        expect(calls.filter((call) => call.name === 'dexto_connection_start')).toHaveLength(1);
+        expect(stderr).toContain(
+            'dexto connect github --attempt 00000000-0000-4000-8000-000000000003'
+        );
+    });
+    it.each(['cancelled', 'failed'])('reports a connector attempt that %s', async (outcome) => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'github',
+                attemptId: '00000000-0000-4000-8000-000000000004',
+                url: 'https://example.test/approve',
+                nextAction: 'dexto_connection_wait',
+            },
+            {
+                outcome,
+                attemptId: '00000000-0000-4000-8000-000000000004',
+                nextAction: 'dexto_connection_start',
+            },
+        ];
+        expect(await runCloud(host, ['connect', 'github', '--no-browser', '--json'])).toBe(1);
+        expect(lastResult()).toMatchObject({
+            outcome,
+            attemptId: '00000000-0000-4000-8000-000000000004',
+        });
     });
     it('starts Console sign-in on the requested chat and preserves the method during retries', async () => {
         replies = [
@@ -169,7 +407,7 @@ describe('subscription connections over MCP', () => {
             {
                 outcome: 'started',
                 provider: 'claude',
-                attemptId: 'attempt-1',
+                attemptId: '00000000-0000-4000-8000-000000000001',
                 sessionId: 'session-1',
                 url: 'https://example.test/authorize',
                 expiresAt: null,
@@ -184,7 +422,7 @@ describe('subscription connections over MCP', () => {
         expect(calls.map((c) => c.arguments)).toEqual([
             { provider: 'claude' },
             { provider: 'claude', sessionId: 'session-1' },
-            { attemptId: 'attempt-1', code: 'auth-code' },
+            { attemptId: '00000000-0000-4000-8000-000000000001', code: 'auth-code' },
         ]);
         expect(lastResult()).toEqual({
             outcome: 'connected',
@@ -197,13 +435,19 @@ describe('subscription connections over MCP', () => {
         replies = [
             {
                 outcome: 'expired_retry_sign_in',
-                attemptId: 'attempt-1',
+                attemptId: '00000000-0000-4000-8000-000000000001',
                 nextAction: 'dexto_connection_start',
             },
         ];
         stdoutIsTerminal = true;
         expect(
-            await runCloud(host, ['connect', 'codex', '--attempt', 'attempt-1', '--no-browser'])
+            await runCloud(host, [
+                'connect',
+                'codex',
+                '--attempt',
+                '00000000-0000-4000-8000-000000000001',
+                '--no-browser',
+            ])
         ).toBe(1);
         expect(stdout).toContain("Sign-in didn't finish. Run `dexto connect codex` again.");
     });
