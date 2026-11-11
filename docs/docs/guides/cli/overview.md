@@ -9,19 +9,42 @@ The Dexto CLI provides two ways to interact with AI agents:
 
 | Mode | What It Is | How to Use |
 |------|------------|------------|
-| **CLI Tool** | Terminal commands for managing agents, sessions, and configuration | `dexto agents install`, `dexto setup`, `dexto agents list` |
+| **CLI Tool** | Terminal commands for chats, headless runs, your sign-in, Dexto Cloud and your workspace | `dexto run`, `dexto chat list`, `dexto login` |
 | **Interactive Mode** | Chat session with slash commands for real-time control | `/model switch`, `/mcp add`, `/search` |
 
 This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
 
+## Install
+
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
+Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+
+```sh
+npm install -g dexto@next
+```
+
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
+Do not approve sign-in on their behalf. Check the first account result:
+
+```sh
+dexto whoami --json
+```
+
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.
+
 ## What You Can Do
 
-- Talk to any LLM in your terminal or browser
-- Create long-lived AI agents with tools, knowledge, and memories
-- Turn any folder into a Dexto workspace with authored agents and skills
-- Deploy agents locally or on the cloud
-- Build custom integrations with Discord, Telegram, Slack, etc.
-- Scaffold new AI applications with `dexto create-app`
+- Talk to any LLM in your terminal
+- Run long-lived AI agents with tools, knowledge, and memories
+- Run one task headless with `dexto run`
+- Build in Dexto Cloud and use your workspace from the terminal
 
 ---
 
@@ -30,26 +53,17 @@ This guide covers the **CLI Tool** commands. For slash commands available during
 ### Basic Usage
 
 ```bash
-# Start interactive session (opens Web UI by default)
+# Start the interactive CLI
 dexto
 
-# Start interactive CLI mode
-dexto --mode cli
-
-# Run a single prompt (auto-uses CLI mode)
-dexto "list files here"
+# Start the interactive CLI and run a prompt
 dexto -p "create a snake game"
 
-# Start as API server
-dexto --mode server
-
-# Run as MCP server
-dexto --mode mcp
+# Run a single headless task
+dexto run "list files here"
 ```
 
-:::tip Mode Auto-Detection
-`dexto` opens the Web UI by default. When you provide a prompt via `-p` or as a positional argument, Dexto automatically switches to CLI mode for one-shot execution.
-:::
+The first start needs a model: a provider key in the environment (such as `ANTHROPIC_API_KEY`) or `dexto login` for Dexto models. With neither, `dexto` points you to `dexto login`.
 
 ### Main Command Options
 
@@ -57,110 +71,23 @@ dexto --mode mcp
 |------|-------------|---------|
 | `-v, --version` | Show version | `dexto --version` |
 | `-a, --agent <id\|path>` | Use agent ID or path to config file | `dexto -a nano-banana-agent` |
-| `-p, --prompt <text>` | Run single prompt and exit | `dexto -p "list files"` |
+| `-p, --prompt <text>` | Start the interactive CLI and run the prompt | `dexto -p "list files"` |
 | `-m, --model <model>` | Specify LLM model | `dexto -m gpt-5-mini` |
 | `-c, --continue` | Continue most recent conversation | `dexto -c` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
-| `--mode <mode>` | Run mode (web/cli/server/mcp, default: web) | `dexto --mode cli` |
-| `--port <port>` | Server port (default: 3000 for web, 3001 for server mode) | `dexto --port 8080` |
-| `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
-| `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
-| `--no-auto-install` | Disable auto agent install | `dexto --no-auto-install` |
+| `--no-interactive` | Disable interactive prompts | `dexto --no-interactive` |
 | `--permissions-mode` | Select `manual` or `auto-approve` in TUI or headless mode | `dexto --permissions-mode manual` |
 | `--auto-approve` / `--bypass-permissions` | Select `auto-approve`; mandatory approvals still apply | `dexto --auto-approve` |
 
-**Note:** The `-a, --agent` flag accepts both agent IDs from the registry and paths to agent config files. See the [Agent Registry](/docs/guides/agent-registry) for available agents.
+**Note:** The `-a, --agent` flag accepts bundled agent IDs and paths to agent config files. See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
 ## Subcommands
 
 ### `run` - Run a Headless Task
 
 Use `dexto run "your task"` for a non-interactive task. It prints the reply at a terminal and one JSON result otherwise; `--json`, `--stream-json` and `--text` choose explicitly. See [Headless Tasks](./headless-tasks.md) for the output contract.
-
-### `create-app` - Scaffold New TypeScript App
-
-Create a new Dexto TypeScript application from scratch.
-
-```bash
-dexto create-app
-```
-
-This command will:
-1. Create project structure
-2. Set up TypeScript configuration
-3. Prompt for LLM provider and API keys
-4. Install dependencies
-5. Generate example files
-
-### `init` - Initialize a Dexto Workspace
-
-Turn the current folder into a Dexto workspace with visible authored folders for agents and skills.
-
-```bash
-# Initialize the current folder
-dexto init
-
-# Create a workspace agent (interactive if you omit the id)
-dexto init agent
-dexto init agent review-agent
-
-# Create and auto-link a subagent to the current primary agent
-dexto init agent explore-agent --subagent
-
-# Set or change the workspace primary agent
-dexto init primary review-agent
-
-# Create a workspace skill
-dexto init skill code-review
-
-# Inspect the current workspace config and deploy preview
-dexto init status
-```
-
-**What `dexto init` creates:**
-- `AGENTS.md`
-- `agents/`
-- `.agents/skills/`
-- `.agents/skills/create-skill/` as a starter skill bundle for authoring more skills
-
-**What the follow-up commands do:**
-- `dexto init agent` creates `agents/<id>/<id>.yml`
-- The first non-subagent agent becomes the workspace primary by default
-- `dexto init agent --subagent` creates a subagent and links it to the current primary agent when one exists
-- `dexto init skill <id>` creates `.agents/skills/<id>/SKILL.md` plus `handlers/`, `scripts/`, `mcps/`, and `references/`
-- `dexto init status` shows the current workspace structure, primary agent and skills
-
-### `init-app` - Initialize Existing TypeScript App
-
-Add Dexto to an existing TypeScript project.
-
-```bash
-dexto init-app
-```
-
-**Requirements:**
-- Must have `package.json` and `tsconfig.json` in current directory
-
-### `setup` - Configure Global Preferences
-
-Configure global Dexto preferences including default LLM provider, model, and agent.
-
-```bash
-dexto setup
-dexto setup --provider openai --model gpt-5-mini
-dexto setup --force
-```
-
-**Options:**
-- `--provider <provider>` - LLM provider (openai, anthropic, google, groq, xai, cohere)
-- `--model <model>` - Model name (uses provider default if not specified)
-- `--default-agent <agent>` - Default agent name (default: coding-agent)
-- `--force` - Overwrite existing setup without confirmation
-- `--no-interactive` - Skip interactive prompts
-
-See [Global Preferences](./global-preferences) for detailed configuration guide.
 
 ### `login` - Sign In to Dexto
 
@@ -183,62 +110,13 @@ Sign-ins are saved per profile in `~/.dexto/accounts/`, readable only by you. `-
 
 Signed in, every local session also gets the Dexto MCP as a server named `dexto`: your connectors, Drive, Sites and Apps, Loops and memory, beside your own MCP servers. Its tools ask first through the normal approval prompt. If Dexto is unreachable, the session still runs and those tools show as unavailable. A server you name `dexto` yourself takes its place.
 
-### `agents install` - Install Agents
-
-Install agents from the registry or custom YAML files/directories.
-
-```bash
-# Install single agent from registry
-dexto agents install nano-banana-agent
-
-# Install multiple agents
-dexto agents install podcast-agent coding-agent database-agent
-
-# Install all available agents
-dexto agents install --all
-
-# Install custom agent from file
-dexto agents install ./my-agent.yml
-
-# Install from directory (interactive)
-dexto agents install ./my-agent-dir/
-```
-
-**Options:**
-- `--all` - Install all available agents from registry
-- `--force` - Force reinstall even if agent is already installed
-
-See the [Agent Registry](/docs/guides/agent-registry) for available agents.
-
-### `agents uninstall` - Uninstall Agents
-
-Remove agents from your local installation.
-
-```bash
-# Uninstall single agent
-dexto agents uninstall nano-banana-agent
-
-# Uninstall multiple agents
-dexto agents uninstall agent1 agent2
-
-# Uninstall all agents
-dexto agents uninstall --all
-```
-
-**Options:**
-- `--all` - Uninstall all installed agents
-- `--force` - Force uninstall even if agent is protected (e.g., coding-agent)
-
 ### `upgrade` - Upgrade Dexto CLI
 
-Upgrade the Dexto CLI itself. If an older npm global install is detected, this command migrates to native installer automatically.
+For script installs, upgrade the Dexto CLI with `dexto upgrade next`. For npm installs, use `npm install -g dexto@next`.
 
 ```bash
-# Upgrade to latest
-dexto upgrade
-
-# Upgrade to a specific version
-dexto upgrade 1.6.8
+# Stay on the 2.0 beta channel
+dexto upgrade next
 ```
 
 **Options:**
@@ -247,7 +125,7 @@ dexto upgrade 1.6.8
 
 ### `uninstall` - Uninstall Dexto CLI
 
-Uninstall the Dexto CLI binary (agent removal is handled by `dexto agents uninstall`).
+Uninstall the Dexto CLI binary:
 
 ```bash
 # Remove CLI binary only (keeps ~/.dexto)
@@ -263,61 +141,6 @@ dexto uninstall --purge
 **Options:**
 - `--purge` - Remove `~/.dexto` completely
 - `--dry-run` - Show what would be removed
-
-### `agents sync` - Sync Agent Configs
-
-Sync installed agents with bundled versions after Dexto updates.
-
-```bash
-# Check status and prompt for updates
-dexto agents sync
-
-# List what would change (dry run)
-dexto agents sync --list
-
-# Force update all without prompts
-dexto agents sync --force
-```
-
-**Options:**
-- `--list` - Show status without making changes
-- `--force` - Update all agents without confirmation
-
-**When to use:** When Dexto shows "Agent updates available" notification after an update, or when you want to reset agents to their default configurations.
-
-### `agents list` - List Available Agents
-
-List agents from the registry and locally installed agents.
-
-```bash
-# List all agents (registry + installed)
-dexto agents list
-
-# Show only installed agents
-dexto agents list --installed
-
-# Show only registry agents
-dexto agents list --available
-
-# Show detailed information
-dexto agents list --verbose
-```
-
-**Options:**
-- `--verbose` - Show detailed agent information
-- `--installed` - Show only installed agents
-- `--available` - Show only available agents from registry
-
-See the [Agent Registry](/docs/guides/agent-registry) for detailed agent information.
-
-### `which` - Show Agent Path
-
-Display the path to a specific agent's configuration file.
-
-```bash
-dexto which nano-banana-agent
-dexto which coding-agent
-```
 
 ### `chat` - Your Chats
 
@@ -360,48 +183,9 @@ dexto chat local                 # chats Dexto can import
 dexto chat import --all          # import every chat that local lists
 ```
 
-### `search` - Search Session History
+### Removed in 2.0
 
-Search across all conversation messages in session history.
-
-```bash
-# Search all sessions
-dexto search "bug fix"
-
-# Search in specific session
-dexto search "error" --session my-session
-
-# Filter by role
-dexto search "help" --role assistant
-
-# Limit results
-dexto search "code" --limit 20
-```
-
-**Options:**
-- `--session <sessionId>` - Search in specific session only
-- `--role <role>` - Filter by role (user, assistant, system, tool)
-- `--limit <number>` - Limit number of results (default: 10)
-
-### `mcp` - MCP Server Mode
-
-Start Dexto as an MCP server to aggregate and re-expose tools from configured MCP servers.
-
-```bash
-# Start MCP tool aggregation server
-dexto mcp --group-servers
-
-# Start in strict mode
-dexto mcp --group-servers --strict
-```
-
-**Options:**
-- `--group-servers` - Aggregate and re-expose tools from configured MCP servers
-- `-s, --strict` - Require all MCP server connections to succeed
-- `--name <name>` - MCP server name (default: 'dexto-tools')
-- `--version <version>` - MCP server version (default: '1.0.0')
-
-**Note:** In the future, `dexto --mode mcp` will be moved to this subcommand to expose the agent as an MCP server by default.
+`setup`, `connect`, `agents`, `which`, `init`, `create-app`, `init-app`, `image`, `plugin`, `mcp`, `search` and `--mode web|server|mcp` are gone in 2.0. See [Removed in 2.0](https://github.com/truffle-ai/dexto/blob/HEAD/packages/cli/CLI.md#removed-in-20) for what replaces each.
 
 ---
 
@@ -410,16 +194,13 @@ dexto mcp --group-servers --strict
 ### Quick Start
 
 ```bash
-# Interactive session with default settings (opens Web UI)
+# Interactive session with default settings
 dexto
 
-# Interactive CLI mode
-dexto --mode cli
-
-# Use a specific agent (opens Web UI)
+# Use a specific agent
 dexto --agent nano-banana-agent
 
-# Start with a specific model (opens Web UI)
+# Start with a specific model
 dexto -m claude-sonnet-4-5-20250929
 ```
 
@@ -443,72 +224,24 @@ dexto --agent coding-agent -m gpt-5 --auto-approve "build a todo app with React"
 ### Session Continuation
 
 ```bash
-# Continue most recent conversation (opens Web UI)
+# Continue most recent conversation
 dexto --continue
-
-# Continue in CLI mode
-dexto --continue --mode cli
 
 # Continue with a one-shot prompt, then exit
 dexto -c -p "now add error handling"
 
-# Resume specific session (opens Web UI)
-# Get session id from the web UI or dexto chat list
+# Resume specific session (get the id from dexto chat list)
 dexto --resume my-project-session
-
-# Resume session in CLI mode
-dexto --resume my-project-session --mode cli
 
 # Resume and run a one-shot prompt
 dexto -r my-project-session "fix the bug we discussed"
 ```
 
-### Agent Management
+### Custom Agents
 
 ```bash
-# Install agents for specific use cases
-dexto agents install podcast-agent music-agent coding-agent
-
-# Install all available agents
-dexto agents install --all
-
-# List what's installed
-dexto agents list --installed
-
-# Find agent config location
-dexto which coding-agent
-
-# Use custom agent file
-dexto --agent ./agents/my-custom-agent.yml
-```
-
-### Web UI
-
-```bash
-# Launch on default port (3000)
-dexto
-
-# Custom port
-dexto --port 8080
-
-# With specific agent
-dexto --agent database-agent
-```
-
-### API Server
-
-```bash
-# Start REST + SSE streaming server (default port 3001)
-dexto --mode server
-
-# With custom port
-dexto --mode server --port 8080
-
-# With specific agent and strict mode
-dexto --mode server --agent my-agent --strict
-
-# For production with custom agent
-dexto --mode server --agent ./production-agent.yml --port 3001
+# Use a custom agent file
+dexto --agent ./my-agent.yml
 ```
 
 ### Content Generation
@@ -544,27 +277,11 @@ dexto "run the test suite and explain any failures"
 git diff | dexto -p "generate a conventional commit message for these changes"
 ```
 
-### Multi-Agent Workflows
+### History
 
 ```bash
-# Start researcher agent as MCP server (Terminal 1)
-dexto --mode mcp --port 4000 --agent researcher-agent
-
-# Start coordinator agent that uses researcher (Terminal 2)
-dexto --agent coordinator-agent --port 5000
-```
-
-### Search & History
-
-```bash
-# Search all conversations
-dexto search "database schema"
-
-# Search in specific session
-dexto search "bug fix" --session my-session-id
-
-# Filter by role
-dexto search "error" --role assistant
+# List this machine's chats
+dexto chat list
 
 # View session history
 dexto chat history my-session-id
@@ -607,6 +324,7 @@ dexto workspace                            # your apps
 dexto workspace drive                      # what an app does
 dexto workspace drive put ./report.pdf     # upload into Drive
 dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan-1 --yes
+dexto workspace artifacts list --chat <id> --json
 dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
 dexto workspace email send --to a@b.c --yes
@@ -625,4 +343,3 @@ An operation that acts, approves or spends asks first; pass `--yes` only once yo
 - **[Agent Registry](/docs/guides/agent-registry)** - Browse available agents
 - **[Agent Configuration](/docs/guides/configuring-dexto/overview)** - Create custom agents
 - **[MCP Integration](/docs/mcp/overview)** - Connect external tools and services
-- **[Global Preferences](./global-preferences)** - Configure system-wide defaults

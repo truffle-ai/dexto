@@ -4,7 +4,7 @@
  * With reduced motion it never ticks: each mode change adds a short block instead.
  */
 import { useEffect, useRef, useState } from 'react';
-import { useCaps } from './caps.js';
+import { useCaps } from './hooks.js';
 import { isQuiet, pushSample, type TraceKind, type TraceSample } from './trace.js';
 
 /** Columns per second the trace scrolls at. */

@@ -29,6 +29,7 @@ Draft for DEXTO-2031. Each 2.0 change a 1.x user notices is listed here as it la
 
 ## Renamed and removed
 
+- The 1.x local-agent commands are gone: `setup`, `connect`, `agents`, `which`, `init`, `create-app`, `init-app`, `image`, `create-image`, `plugin`, `mcp`, `search` and `--mode web|server|mcp`, with `--skip-setup`, `--no-auto-install`, `--image`, `--dev` and `--port`. The interactive chat and `dexto run` stay. [CLI.md](CLI.md#removed-in-20) maps each to its replacement. The first start asks for `dexto login` or a provider key instead of opening setup.
 - `dexto session list|history|delete` are now `dexto chat list|history|delete`. `dexto chat local` and `dexto chat import` bring Claude Code and Codex chats into Dexto.
 - `dexto deploy` (1.x workspace deploys) is gone: its service no longer exists. Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`. `dexto --cloud-agent`, which chatted with a workspace deploy, is gone with it.
 - `dexto trace list`, `dexto trace view <run_id>` and `dexto span list <run_id>` read run traces from Dexto's public `/v1/traces` API, with 1.x's filters. The bare `dexto trace <run_id>` is now `dexto trace view <run_id>`; `--json` prints the `/v1/traces` objects (snake_case, such as `{ object: "list", data }`), not 1.x's `{ traces }`, `{ trace }` and `{ spans }`; `--platform-url` is `--api-base-url`.

@@ -1,10 +1,10 @@
 #!/bin/sh
 # Installs the Dexto CLI for the current user, without sudo.
 #
-#   curl -fsSL https://dexto.ai/install | sh
+#   curl -fsSL https://dexto.ai/install | sh -s -- --version next
 #   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0
 #
-# It needs Node.js 20 or later with npm. It installs the `dexto` npm package into
+# Needs npm; Node.js 20 or later works, 22 is recommended. It installs the `dexto` npm package into
 # ~/.dexto/cli/<version>, after checking the downloaded tarball against the registry's sha512
 # integrity, then links it as ~/.local/bin/dexto (or $DEXTO_INSTALL_DIR/dexto) and records the
 # install in ~/.dexto/install.json, which `dexto upgrade` and `dexto uninstall` read.
@@ -16,6 +16,11 @@
 # Exit codes follow the CLI: 0 done, 1 failed, 2 invalid input, 5 version not found.
 #
 # Re-running it is safe: the installed version is left alone, any other version is replaced.
+#
+# When ~/.local/bin is not on PATH but a global npm dexto's bin dir is (as when 1.x's `dexto upgrade`
+# runs this), it removes that npm dexto and links into that bin dir, so dexto keeps running once the
+# caller's own `npm uninstall -g dexto` finds nothing to remove. A later `npm install -g dexto` may
+# replace that link and `npm uninstall -g dexto` may remove it; then run this installer again.
 
 set -u
 
@@ -43,9 +48,13 @@ Environment:
   DEXTO_INSTALL_DIR        Same as --install-dir
   DEXTO_INSTALL_FORCE=1    Same as --force
 
+For Dexto 2.0, select next. The default latest is for 1.x upgrades.
+After install and PATH setup: dexto login --device
+Then check your account: dexto whoami --json
+
 Examples:
+  curl -fsSL https://dexto.ai/install | sh -s -- --version next
   curl -fsSL https://dexto.ai/install | sh
-  curl -fsSL https://dexto.ai/install | DEXTO_VERSION=next sh
   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0 --yes
 EOF
 }
@@ -56,6 +65,59 @@ say() {
 
 json_string() {
     printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\t\r\n' '   ' | LC_ALL=C tr -d '\000-\037\177')"
+}
+
+# canonical_path <path>: the path with its directory resolved through symlinks and `..`, found
+# with cd -P and pwd -P, which dash, bash and busybox all have. Fails if the directory is missing.
+canonical_path() {
+    canonical_dir="$(cd -P "${1%/*}" 2>/dev/null && pwd -P)" || return 1
+    printf '%s/%s' "${canonical_dir}" "${1##*/}"
+}
+
+# resolve_final <path>: canonical_path, then every link in the chain followed to the file it ends at
+# (there is no realpath in busybox). Gives up after 40 links, so a loop fails.
+resolve_final() {
+    resolved_hops=0
+    resolved_path="$(canonical_path "$1")" || return 1
+    while [ -L "${resolved_path}" ]; do
+        resolved_hops=$((resolved_hops + 1))
+        [ "${resolved_hops}" -le 40 ] || return 1
+        resolved_target="$(readlink "${resolved_path}")" || return 1
+        case "${resolved_target}" in
+            /*) ;;
+            *) resolved_target="${resolved_path%/*}/${resolved_target}" ;;
+        esac
+        resolved_path="$(canonical_path "${resolved_target}")" || return 1
+    done
+    printf '%s' "${resolved_path}"
+}
+
+# is_release_version <text>: one token of the form 1.2.3 or 1.2.3-beta.4+build, with no slash,
+# whitespace, control character or "..", so it can name a directory under ~/.dexto/cli.
+is_release_version() {
+    case "$1" in
+        '' | *[!0-9A-Za-z.+-]* | *..*) return 1 ;;
+        *.*.*) ;;
+        *) return 1 ;;
+    esac
+    release_major="${1%%.*}"
+    release_rest="${1#*.}"
+    release_minor="${release_rest%%.*}"
+    release_rest="${release_rest#*.}"
+    release_patch="${release_rest%%[-+]*}"
+    for release_part in "${release_major}" "${release_minor}" "${release_patch}"; do
+        case "${release_part}" in
+            '' | *[!0-9]*) return 1 ;;
+        esac
+    done
+    return 0
+}
+
+path_has() {
+    case ":${PATH}:" in
+        *":$1:"*) return 0 ;;
+    esac
+    return 1
 }
 
 json_string_or_null() {
@@ -169,8 +231,10 @@ fi
 dexto_home="${HOME}/.dexto"
 cli_root="${dexto_home}/cli"
 metadata_path="${dexto_home}/install.json"
+install_dir_chosen=1
 if [ -z "${install_dir}" ]; then
     install_dir="${HOME}/.local/bin"
+    install_dir_chosen=0
 fi
 case "${install_dir}" in
     /*) ;;
@@ -227,6 +291,97 @@ fi
 # shouldn't change what gets installed.
 cd "${HOME}" 2>/dev/null || cd / || fail failed "Could not change to the home directory." ""
 
+# The earlier install this one replaces, from the metadata it wrote.
+tab="$(printf '\t')"
+previous_version=""
+previous_path=""
+if [ -f "${metadata_path}" ]; then
+    previous="$(node -e '
+const fs = require("fs");
+try {
+    const meta = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (typeof meta.version === "string" && typeof meta.installedPath === "string") {
+        process.stdout.write(meta.version + "\t" + meta.installedPath);
+    }
+} catch {}
+' "${metadata_path}" </dev/null 2>/dev/null)"
+    if [ -n "${previous}" ]; then
+        previous_version="${previous%%"${tab}"*}"
+        previous_path="${previous#*"${tab}"}"
+    fi
+fi
+
+# 1.x's `dexto upgrade` runs this script and then `npm uninstall -g dexto`. When ~/.local/bin is not
+# on PATH, that would leave no dexto to run. So, unless a directory was asked for, reuse the bin dir
+# of an earlier install of ours that PATH has (a run that did the next thing), or else take over the
+# bin dir the global npm dexto has on PATH, when it can be written: the uninstall below then finds
+# nothing left to remove.
+# link_is_ours <link> <version>: the link was made by an install of ours. It is a symlink named
+# dexto to exactly ~/.dexto/cli/<version>/bin/dexto, where <version> is one release token and its
+# directory is a real directory of ~/.dexto/cli (not a link out of it), and that file leads, through
+# any links, to a file inside the same version directory. Anything else is never adopted or removed.
+link_is_ours() {
+    is_release_version "$2" || return 1
+    [ "${1##*/}" = dexto ] && [ -L "$1" ] || return 1
+    ours_linked="$(readlink "$1")"
+    case "${ours_linked}" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    [ ! -L "${cli_root}/$2" ] || return 1
+    ours_root="$(cd -P "${cli_root}" 2>/dev/null && pwd -P)" || return 1
+    ours_dir="$(cd -P "${cli_root}/$2" 2>/dev/null && pwd -P)" || return 1
+    [ "${ours_dir}" = "${ours_root}/$2" ] || return 1
+    ours_bin="${ours_dir}/bin/dexto"
+    [ "$(canonical_path "${cli_root}/$2/bin/dexto")" = "${ours_bin}" ] || return 1
+    [ "$(canonical_path "${ours_linked}")" = "${ours_bin}" ] || return 1
+    ours_final="$(resolve_final "${ours_bin}")" || return 1
+    case "${ours_final}" in
+        "${ours_dir}"/*) return 0 ;;
+    esac
+    return 1
+}
+
+# An earlier install of ours that PATH has: a writable directory on PATH, holding a working link
+# that link_is_ours accepts for the version install.json records.
+earlier_install_is_ours() {
+    previous_dir="${previous_path%/*}"
+    [ -x "${previous_path}" ] && [ -w "${previous_dir}" ] && path_has "${previous_dir}" &&
+        link_is_ours "${previous_path}" "${previous_version}"
+}
+
+# fall_back_to_default_install_dir: link in ~/.local/bin instead, and leave alone whatever link was
+# going to be replaced or removed.
+fall_back_to_default_install_dir() {
+    install_dir="${HOME}/.local/bin"
+    link_path="${install_dir}/dexto"
+    previous_path=""
+    install_dir_adopted=0
+    adopted_earlier=0
+    on_path=false
+    if path_has "${install_dir}"; then
+        on_path=true
+    fi
+    mkdir -p "${install_dir}" || fail failed "Could not create ${install_dir}." "Check that you can write to it, or pass another --install-dir."
+}
+
+install_dir_adopted=0
+adopted_earlier=0
+if [ "${install_dir_chosen}" -eq 0 ] && ! path_has "${install_dir}"; then
+    if earlier_install_is_ours; then
+        install_dir="${previous_dir}"
+        install_dir_adopted=1
+        adopted_earlier=1
+    elif npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_prefix}" ] &&
+        [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
+        [ -w "${npm_prefix}/bin" ] && [ -w "${npm_prefix}/lib/node_modules" ] &&
+        path_has "${npm_prefix}/bin"; then
+        install_dir="${npm_prefix}/bin"
+        install_dir_adopted=1
+    fi
+fi
+link_path="${install_dir}/dexto"
+
 say "Resolving ${DEXTO_PACKAGE}@${version_spec}..."
 view_errors="$(mktemp "${TMPDIR:-/tmp}/dexto-install.XXXXXX")" ||
     fail failed "Could not create a temporary file." "Set TMPDIR to a writable directory."
@@ -258,7 +413,6 @@ process.stdin.on("end", () => {
 if [ -z "${resolved}" ]; then
     fail version_not_found "No ${DEXTO_PACKAGE} release matches ${version_spec}." "Check the versions with: npm view ${DEXTO_PACKAGE} dist-tags versions"
 fi
-tab="$(printf '\t')"
 version="${resolved%%"${tab}"*}"
 rest="${resolved#*"${tab}"}"
 integrity="${rest%%"${tab}"*}"
@@ -273,24 +427,6 @@ esac
 
 version_dir="${cli_root}/${version}"
 version_bin="${version_dir}/bin/dexto"
-
-previous_version=""
-previous_path=""
-if [ -f "${metadata_path}" ]; then
-    previous="$(node -e '
-const fs = require("fs");
-try {
-    const meta = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    if (typeof meta.version === "string" && typeof meta.installedPath === "string") {
-        process.stdout.write(meta.version + "\t" + meta.installedPath);
-    }
-} catch {}
-' "${metadata_path}" </dev/null 2>/dev/null)"
-    if [ -n "${previous}" ]; then
-        previous_version="${previous%%"${tab}"*}"
-        previous_path="${previous#*"${tab}"}"
-    fi
-fi
 
 already_installed=0
 if [ "${previous_version}" = "${version}" ] && [ "${previous_path}" = "${link_path}" ] &&
@@ -314,9 +450,9 @@ if [ -d "${link_path}" ]; then
 fi
 
 on_path=false
-case ":${PATH}:" in
-    *":${install_dir}:"*) on_path=true ;;
-esac
+if path_has "${install_dir}"; then
+    on_path=true
+fi
 
 print_result() {
     shadowed_by=""
@@ -434,15 +570,42 @@ if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_pre
     [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
     [ "$(cd "${npm_prefix}/bin" 2>/dev/null && pwd -P)" = "$(cd "${install_dir}" && pwd -P)" ]; then
     say "Removing the global npm ${DEXTO_PACKAGE} at ${npm_prefix}, which uses ${link_path}..."
-    # The link is made next either way: npm may have removed it before it failed.
-    if ! npm uninstall --global "${DEXTO_PACKAGE}" --loglevel=error </dev/null >&2; then
-        say "warning: could not remove the global npm ${DEXTO_PACKAGE}. If ${link_path} goes missing, run: npm uninstall -g ${DEXTO_PACKAGE}, then run the installer again."
+    if npm uninstall --global "${DEXTO_PACKAGE}" --loglevel=error </dev/null >&2; then
+        if [ "${install_dir_adopted}" -eq 1 ]; then
+            say "Using ${install_dir}, where the global npm ${DEXTO_PACKAGE} was. A later \`npm install -g ${DEXTO_PACKAGE}\` may replace ${link_path}, and \`npm uninstall -g ${DEXTO_PACKAGE}\` may remove it; if \`dexto\` stops working, run the installer again."
+        fi
+    elif [ ! -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ]; then
+        # npm removed it, then failed. The link is made next.
+        say "warning: could not remove the global npm ${DEXTO_PACKAGE} cleanly: npm removed it, then failed. If ${link_path} goes missing, run: npm uninstall -g ${DEXTO_PACKAGE}, then run the installer again."
+    elif [ "${install_dir_adopted}" -eq 1 ]; then
+        # Linking here would let a later successful `npm uninstall -g dexto` delete the new link.
+        say "warning: could not remove the global npm ${DEXTO_PACKAGE}, which is still installed and uses ${link_path}. Leaving it alone and linking into ${HOME}/.local/bin instead, which is not on your PATH. Run: npm uninstall -g ${DEXTO_PACKAGE}, then add ${HOME}/.local/bin to your PATH."
+        # An earlier link of ours in npm's bin dir keeps working until npm removes it.
+        fall_back_to_default_install_dir
+    else
+        say "warning: could not remove the global npm ${DEXTO_PACKAGE}, which is still installed and uses ${link_path}. A later \`npm uninstall -g ${DEXTO_PACKAGE}\` removes the link made now: run it yourself, then run the installer again."
     fi
 fi
 
 temp_link="${install_dir}/.dexto-link-$$"
 rm -f "${temp_link}"
-if ! ln -s "${version_bin}" "${temp_link}" || ! mv -f "${temp_link}" "${link_path}"; then
+if ! ln -s "${version_bin}" "${temp_link}"; then
+    fail failed "Could not link ${link_path}." "Check that you can write to ${install_dir}, or pass another --install-dir."
+fi
+# The adopted link may have changed since it was chosen; replace it only while it is still ours. A
+# path that is gone is recreated: removing the global npm dexto above deletes the link there.
+if [ "${adopted_earlier}" -eq 1 ] && { [ -e "${link_path}" ] || [ -L "${link_path}" ]; } &&
+    ! link_is_ours "${link_path}" "${previous_version}"; then
+    rm -f "${temp_link}"
+    say "warning: ${link_path} is no longer a link made by this installer. Leaving it alone and linking into ${HOME}/.local/bin instead."
+    fall_back_to_default_install_dir
+    temp_link="${install_dir}/.dexto-link-$$"
+    rm -f "${temp_link}"
+    if ! ln -s "${version_bin}" "${temp_link}"; then
+        fail failed "Could not link ${link_path}." "Check that you can write to ${install_dir}, or pass another --install-dir."
+    fi
+fi
+if ! mv -f "${temp_link}" "${link_path}"; then
     rm -f "${temp_link}"
     fail failed "Could not link ${link_path}." "Check that you can write to ${install_dir}, or pass another --install-dir."
 fi
@@ -471,10 +634,9 @@ fs.renameSync(temp, env.DEXTO_META_PATH);
 fi
 
 # A link left in another install dir would point at a version removed below.
-if [ -n "${previous_path}" ] && [ "${previous_path}" != "${link_path}" ] && [ -L "${previous_path}" ]; then
-    case "$(readlink "${previous_path}")" in
-        "${cli_root}"/*) rm -f "${previous_path}" ;;
-    esac
+if [ -n "${previous_path}" ] && [ "${previous_path}" != "${link_path}" ] &&
+    link_is_ours "${previous_path}" "${previous_version}"; then
+    rm -f "${previous_path}"
 fi
 
 # The previous version stays until the next install, so a dexto still running it keeps its files.

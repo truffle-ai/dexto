@@ -4,16 +4,20 @@
  * notes in `signInPromptText` stay the default until it ships.
  */
 import {
+    capsFor,
     clock,
     cutRows,
+    drawOn,
     drawnWidth,
     line,
     link,
     richOutput,
     signalOn,
     span,
+    spansWidth,
     spinnerFrame,
     strong,
+    type Caps,
     type Span,
 } from '@dexto/tui/signal-text';
 import type { dextoSignIn } from '@dexto/agent-management';
@@ -121,6 +125,36 @@ function shortUrl(url: string): string {
     return `${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname}`;
 }
 
+/** Spans with the same look, run together: one escape pair instead of several. */
+function merged(spans: readonly Span[]): Span[] {
+    return spans.reduce<Span[]>((out, each) => {
+        const last = out[out.length - 1];
+        if (
+            last !== undefined &&
+            last.role === each.role &&
+            last.bold === each.bold &&
+            last.href === each.href
+        )
+            out[out.length - 1] = { ...last, text: last.text + each.text };
+        else out.push(each);
+        return out;
+    }, []);
+}
+
+/**
+ * `parts` on one indented row, `joint` between them, when it fits in `columns`; otherwise each
+ * part on its own indented row.
+ */
+function rowOrRows(parts: readonly (readonly Span[])[], joint: Span, columns: number): string[] {
+    const indent = span('dim', '  ');
+    const joined = merged([
+        indent,
+        ...parts.flatMap((part, index) => (index === 0 ? part : [joint, ...part])),
+    ]);
+    if (spansWidth(joined) <= columns) return [line(joined)];
+    return parts.map((part) => line(merged([indent, ...part])));
+}
+
 /** Screen 3: who you are now, what that adds, and what next. */
 export function signedInLines(signedIn: SignedIn, columns: number): string[] {
     const who =
@@ -131,12 +165,15 @@ export function signedInLines(signedIn: SignedIn, columns: number): string[] {
         line([span('cloud', '◆ '), span('fg', 'approved in the browser')]),
         '',
         line([span('cloud', '◆ '), strong('cloud', who)]),
-        line([
-            span(
-                'dim',
-                `  profile ${signedIn.profile} · stored in ~/.dexto · your provider keys stay on this machine`
-            ),
-        ]),
+        // One row when it fits; a profile name longer than `default` overflows 80 columns.
+        ...rowOrRows(
+            [
+                [span('dim', `profile ${signedIn.profile} · stored in ~/.dexto`)],
+                [span('dim', 'your provider keys stay on this machine')],
+            ],
+            span('dim', ' · '),
+            columns
+        ),
         signedIn.cloudProject === null
             ? line([
                   span(
@@ -146,14 +183,21 @@ export function signedInLines(signedIn: SignedIn, columns: number): string[] {
               ])
             : line([span('dim', `  Dexto models bill Cloud project ${signedIn.cloudProject}.`)]),
         ...(signedIn.notCurrent
-            ? [
-                  line([
-                      span('dim', '  Other commands still use another profile: pass '),
-                      span('teal', `--profile ${signedIn.profile}`),
-                      span('dim', ', or run '),
-                      span('teal', `dexto accounts use ${signedIn.profile}`),
-                  ]),
-              ]
+            ? rowOrRows(
+                  [
+                      [
+                          span('dim', 'Other commands still use another profile: pass '),
+                          span('teal', `--profile ${signedIn.profile}`),
+                          span('dim', ','),
+                      ],
+                      [
+                          span('dim', 'or run '),
+                          span('teal', `dexto accounts use ${signedIn.profile}`),
+                      ],
+                  ],
+                  span('dim', ' '),
+                  columns
+              )
             : []),
         '',
         line([span('fg', '  Now available:')]),
@@ -173,22 +217,31 @@ export function terminalSignInScreen(
     note: (text: string) => void,
     json: boolean
 ): SignInScreen {
-    // These screens go to stderr, so stderr has to be the terminal.
+    // These screens go to stderr, so stderr has to be the terminal, and its caps draw them.
     if (json || !signalOn() || process.stderr.isTTY !== true) return plainSignInScreen(note);
-    return signalSignInScreen(write, process.stderr.columns ?? 80);
+    return signalSignInScreen(
+        write,
+        process.stderr.columns ?? 80,
+        Date.now,
+        capsFor(process.stderr)
+    );
 }
 
 const CLEAR_LINE = '\r\u001B[2K';
 
 /**
  * Prints a prompt to stderr and keeps its waiting line live until the sign-in settles. On
- * success the code fades. Without a terminal the waiting line is left out.
+ * success the code fades. Without a terminal the waiting line is left out. `caps` are the
+ * stream's (stderr's); null draws with the process caps. The signed-in text is a result for
+ * stdout, so it keeps the process caps.
  */
 export function signalSignInScreen(
     write: (text: string) => void,
     columns: number,
-    now: () => number = Date.now
+    now: () => number = Date.now,
+    caps: Caps | null = null
 ): SignInScreen {
+    const on = <T>(draw: () => T): T => (caps === null ? draw() : drawOn(caps, draw));
     let timer: ReturnType<typeof setInterval> | null = null;
     let shown: SignInPrompt | null = null;
     // Ctrl-C while waiting: end the live line so the shell prompt starts on its own row.
@@ -201,17 +254,18 @@ export function signalSignInScreen(
         signedInText: (signedIn) => signedInLines(signedIn, columns).join('\n'),
         show(prompt: SignInPrompt): void {
             shown = prompt;
-            const lines =
-                prompt.kind === 'device' ? devicePromptLines(prompt) : browserPromptLines(prompt);
+            const lines = on(() =>
+                prompt.kind === 'device' ? devicePromptLines(prompt) : browserPromptLines(prompt)
+            );
             write(`${lines.join('\n')}\n`);
             // A row that wraps breaks the in-place redraw, so a narrow terminal gets no live line.
             const widest = Math.max(...lines.map(drawnWidth));
-            if (!richOutput() || widest > columns) return;
+            if (!on(richOutput) || widest > columns) return;
             process.once('SIGINT', onInterrupt);
             const started = now();
             let tick = 0;
             const draw = () =>
-                write(`${CLEAR_LINE}${waitingLine(prompt, now() - started, tick++)}`);
+                write(`${CLEAR_LINE}${on(() => waitingLine(prompt, now() - started, tick++))}`);
             draw();
             timer = setInterval(draw, 100);
         },
@@ -222,16 +276,11 @@ export function signalSignInScreen(
             process.off('SIGINT', onInterrupt);
             write(CLEAR_LINE);
             // The code is 3 rows, then a blank row, then this line: fade it in place.
-            if (
-                signedIn &&
-                shown?.kind === 'device' &&
-                codeLines(shown.userCode, true).length === 3
-            )
-                write(
-                    `\u001B[4A${codeLines(shown.userCode, true)
-                        .map((row) => `${CLEAR_LINE}${row}`)
-                        .join('\n')}\n\n`
-                );
+            const code = shown;
+            if (!signedIn || code?.kind !== 'device') return;
+            const faded = on(() => codeLines(code.userCode, true));
+            if (faded.length === 3)
+                write(`\u001B[4A${faded.map((row) => `${CLEAR_LINE}${row}`).join('\n')}\n\n`);
         },
     };
 }

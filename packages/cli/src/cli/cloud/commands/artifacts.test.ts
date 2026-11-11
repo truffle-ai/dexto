@@ -173,6 +173,33 @@ describe('dexto workspace artifacts', () => {
         expect(page.data[0].artifactId).toBe('a1');
     });
 
+    it('passes --chat and paging to the Artifact MCP tool in JSON mode', async () => {
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'artifacts',
+                'list',
+                '--chat',
+                'chat-a',
+                '--limit',
+                '5',
+                '--after',
+                'c1',
+                '--json',
+            ])
+        ).toBe(0);
+        expect(calls).toEqual([
+            {
+                name: 'dexto_artifacts_list',
+                arguments: { sessionId: 'chat-a', cursor: 'c1', limit: 5 },
+            },
+        ]);
+        expect(JSON.parse(stdout)).toMatchObject({
+            data: [{ artifactId: 'a1' }],
+            next_after: 'c2',
+        });
+    });
+
     it("writes an Artifact's HTML to --out and shows the rest", async () => {
         const out = path.join(path.dirname(dir), 'plan.html');
 

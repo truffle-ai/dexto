@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { onTerminal } from '@dexto/tui/signal-harness';
 import { resolveConnection } from './connection.js';
 import { cloudCommands, CLOUD_GROUPS } from './host.js';
 import type { SignInFor } from './commands/account.js';
@@ -102,6 +103,7 @@ describe('dexto cloud', () => {
             appUrl: 'https://app.dexto.ai',
             apiBaseUrl: API,
             canOpenBrowser: true,
+            interactive: false,
             chatSyncOn: async () => false,
             dexto: {
                 signInWithBrowser: async () => signedIn(),
@@ -194,6 +196,21 @@ describe('dexto cloud', () => {
         expect(JSON.parse(stdout)).toEqual(PROJECTS);
     });
 
+    it('chat hand-off is signed-out exit 3, prints one JSON error and never opens a local agent', async () => {
+        host = {
+            ...host,
+            openLocalAgent: async () => {
+                throw new Error('must authenticate first');
+            },
+        };
+        expect(
+            await runCloud(host, ['chat', 'move', 'local-chat', '--to', 'cloud', '--json'])
+        ).toBe(3);
+        expect(JSON.parse(stderr).error.code).toBe('needs_sign_in');
+        expect(stdout).toBe('');
+        expect(requests).toHaveLength(0);
+    });
+
     it('needs a sign-in: exit 3 with the command that fixes it', async () => {
         const code = await runCloud(host, ['cloud', 'projects', 'list']);
 
@@ -232,6 +249,67 @@ describe('dexto cloud', () => {
             fix: 'dexto login --device --scope cloud:write',
         });
         expect(granted).toEqual([]);
+    });
+
+    it('strips control characters from the API error on the plain stderr notes', async () => {
+        // ESC[2J clears the screen, OSC 0 sets the title, CSI as one C1 byte sets a colour.
+        const hostile = 'Evil\u001B[2J Org\u001B]0;pwned\u0007 \u009B31mInc';
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: `expired${hostile}`,
+                        message: `Session expired for ${hostile}.`,
+                        requestId: 'req_3',
+                        retryable: false,
+                    },
+                },
+                { status: 401 }
+            );
+
+        const code = await runCloud(host, ['cloud', 'projects', 'list', '--table']);
+
+        expect(code).toBe(3);
+        // eslint-disable-next-line no-control-regex
+        expect(stderr).not.toMatch(/[\u001B\u0007\u0080-\u009F]/u);
+        expect(stderr).toContain(
+            'Error (expiredEvil[2J Org]0;pwned 31mInc): Session expired for Evil[2J Org]0;pwned 31mInc.\n'
+        );
+        expect(stderr).toContain('Run: dexto login');
+    });
+
+    it('escapes control, bidi and invisible characters in plain error details', async () => {
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: 'invalid',
+                        message: 'Bad request.',
+                        details: {
+                            ['fi\u202Eeld']: 'invoice\u202Etxt.exe\u007F\u009B2J\u001B[2J\u200B',
+                            nested: ['\u2066x\u2069'],
+                        },
+                        requestId: 'req_4',
+                        retryable: false,
+                    },
+                },
+                { status: 400 }
+            );
+
+        await runCloud(host, ['cloud', 'projects', 'list', '--table']);
+
+        expect(stderr).not.toMatch(
+            // eslint-disable-next-line no-control-regex
+            /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200B\u202E\u2066\u2069]/u
+        );
+        expect(stderr).toContain(
+            '"fi\\u202Eeld": "invoice\\u202Etxt.exe\\u007F\\u009B2J\\u001b[2J\\u200B"'
+        );
+        expect(stderr).toContain('"\\u2066x\\u2069"');
+        // Still pretty-printed: one field per line.
+        expect(stderr).toMatch(/\{\n {2}"fi/u);
     });
 
     it('maps a missing resource to exit 5', async () => {
@@ -299,7 +377,11 @@ describe('dexto cloud', () => {
         it('is signed out with exit 3 and the command that signs in', async () => {
             expect(await runCloud(host, ['whoami'])).toBe(3);
             expect(JSON.parse(stderr)).toEqual({
-                error: { code: 'needs_sign_in', message: 'Not signed in.', fix: 'dexto login' },
+                error: {
+                    code: 'needs_sign_in',
+                    message: 'Not signed in.',
+                    fix: 'dexto login --device',
+                },
             });
         });
 
@@ -325,6 +407,108 @@ describe('dexto cloud', () => {
                 'dexto/openai/gpt-5',
             ]);
             expect(requests[0]?.url).toBe(`${API}/v1/models`);
+        });
+    });
+
+    describe('on Signal, for people at a terminal', () => {
+        const savedIsTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY');
+        const stderrIsTTY = (isTTY: boolean) =>
+            Object.defineProperty(process.stderr, 'isTTY', { value: isTTY, configurable: true });
+        const notFound = () =>
+            Response.json(
+                {
+                    error: {
+                        code: 'not_found',
+                        message: 'Not found.',
+                        requestId: 'req_2',
+                        retryable: false,
+                    },
+                },
+                { status: 404 }
+            );
+
+        beforeEach(() => {
+            host = { ...host, runtime: { ...host.runtime, stdoutIsTerminal: true } };
+            stderrIsTTY(false);
+        });
+
+        afterEach(() => {
+            if (savedIsTTY === undefined) Reflect.deleteProperty(process.stderr, 'isTTY');
+            else Object.defineProperty(process.stderr, 'isTTY', savedIsTTY);
+        });
+
+        const onSignal = (argv: readonly string[]) =>
+            onTerminal('16-dark', () => runCloud(host, argv));
+
+        it('prints a failure as the fault block, plain when stderr is piped', async () => {
+            await dextoAccounts.writeLogin(dir, 'default', signedIn());
+            reply = notFound;
+
+            expect(await onSignal(['cloud', 'api', 'GET', '/v1/agents/nope'])).toBe(5);
+            expect(stderr).toBe('  ▌ FAULT   HTTP 404: Not found.\n');
+
+            stderr = '';
+            await dextoAccounts.forgetLogin(dir, 'default');
+            expect(await onSignal(['cloud', 'projects', 'list'])).toBe(3);
+            expect(stderr).toBe(
+                [
+                    '  ▌ FAULT   Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
+                    '  ▌ next    dexto login --device',
+                    '',
+                ].join('\n')
+            );
+        });
+
+        it('keeps the colour when stderr is a terminal', async () => {
+            await dextoAccounts.writeLogin(dir, 'default', signedIn());
+            reply = notFound;
+            stderrIsTTY(true);
+
+            expect(await onSignal(['cloud', 'api', 'GET', '/v1/agents/nope'])).toBe(5);
+
+            expect(stderr).toContain('\u001B[');
+            expect(stderr).toContain('FAULT');
+        });
+
+        it('points a usage mistake at help instead of printing it', async () => {
+            expect(await onSignal(['cloud', 'nope'])).toBe(2);
+            expect(stderr).toBe(
+                [
+                    '  ▌ FAULT   Unknown command: dexto cloud nope',
+                    '',
+                    '  every command: dexto --help',
+                    '',
+                ].join('\n')
+            );
+
+            stderr = '';
+            await dextoAccounts.writeLogin(dir, 'default', signedIn());
+            expect(await onSignal(['cloud', 'projects', 'create'])).toBe(2);
+            expect(stderr).toBe(
+                [
+                    '  ▌ FAULT   Missing arguments: <name>',
+                    '',
+                    '  this command: dexto cloud projects create --help',
+                    '',
+                ].join('\n')
+            );
+        });
+
+        it('exits with the same codes as without Signal', async () => {
+            const codes = async (run: (argv: readonly string[]) => Promise<number>) => [
+                await run(['cloud', 'nope']),
+                await run(['cloud', 'projects', 'list']),
+                await run(['whoami']),
+            ];
+
+            const plain = await codes((argv) => runCloud(host, argv));
+            expect(stderr).not.toContain('FAULT');
+            stderr = '';
+            const signal = await codes(onSignal);
+
+            expect(signal).toEqual(plain);
+            expect(signal).toEqual([2, 3, 3]);
+            expect(stderr).toContain('▌ FAULT');
         });
     });
 });

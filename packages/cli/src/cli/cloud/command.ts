@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import type { CloudClient } from '@dexto/cloud-client';
 
 import { CommandFailure } from '../failure.js';
+import { isSshSession } from '../auth/ssh.js';
 import { shellWord } from '../interaction.js';
 
 import type { Connection, ConnectionOverrides } from './connection.js';
@@ -35,6 +36,9 @@ export interface CommandInput {
 }
 
 export interface CommandContext {
+    /** Available to local chat commands registered by the CLI runtime. */
+    readonly openLocalAgent?: () => Promise<import('@dexto/core').DextoAgent>;
+    readonly syncLocalChat?: (id: string) => Promise<void>;
     /** The /v1 client for the resolved credential; fails with how to sign in when there is none. */
     client(): Promise<CloudClient>;
     connection(): Promise<Connection>;
@@ -194,27 +198,34 @@ export const YES_OPTION = {
  * session, whose loopback redirect a browser on the person's own device can't reach.
  */
 export function signsInWithDevice(runtime: CloudRuntime): boolean {
-    return (
-        runtime.prompt === null ||
-        runtime.environment.SSH_CONNECTION !== undefined ||
-        runtime.environment.SSH_TTY !== undefined
-    );
+    return runtime.prompt === null || isSshSession(runtime.environment);
 }
 
 /** What saying how to sign in again needs: the process, and the profile `--profile` chose. */
 export type SignInContext = Pick<CommandContext, 'overrides' | 'runtime'>;
 
+/** How a cloud command signs in again, using its profile and terminal. */
+export function signInCommand(context: SignInContext, scope: string | null): string {
+    return loginCommand(
+        { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
+        scope
+    );
+}
+
 /**
  * How to sign in again, to the same app and profile, with a device code where a browser can't
  * finish it.
  */
-export function signInCommand(context: SignInContext, scope: string | null): string {
-    const profile = context.overrides.profile;
+export function loginCommand(
+    input: { readonly profile: string | null; readonly device: boolean },
+    scope: string | null
+): string {
+    const profile = input.profile;
     return [
         'dexto',
         'login',
         ...(profile === null ? [] : ['--profile', profile]),
-        ...(signsInWithDevice(context.runtime) ? ['--device'] : []),
+        ...(input.device ? ['--device'] : []),
         ...(scope === null ? [] : ['--scope', scope]),
     ]
         .map(shellWord)

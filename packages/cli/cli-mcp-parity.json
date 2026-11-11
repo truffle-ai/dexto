@@ -1,0 +1,536 @@
+{
+    "version": 1,
+    "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
+    "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
+    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
+    "commands": {
+        "chat outputs": ["dexto_chat_outputs_list"],
+        "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
+        "connect claude": ["dexto_connection_start", "dexto_connection_finish"],
+        "connect codex": ["dexto_connection_start", "dexto_connection_wait"],
+        "connections list": ["dexto_connections_list"],
+        "connections status": ["dexto_connection_get"],
+        "connections disconnect": ["dexto_connection_disconnect"],
+        "find": ["dexto_search", "dexto_route_get"],
+        "profile get": ["dexto_profile_get"],
+        "profile update": ["dexto_profile_update"],
+        "publish": ["dexto_upload_prepare", "dexto_site_deploy", "dexto_site_publish"],
+        "skills push": ["dexto_upload_prepare", "dexto_skill_bundle_import"],
+        "skills sync": ["dexto_skills_search", "dexto_apps_action", "dexto_skill_bundle_download"],
+        "span list": ["dexto_span_list"],
+        "trace list": ["dexto_trace_list"],
+        "trace view": ["dexto_trace_view"],
+        "workspace artifacts create": ["dexto_artifacts_create"],
+        "workspace artifacts get": ["dexto_artifacts_get"],
+        "workspace artifacts list": ["dexto_artifacts_list"],
+        "workspace artifacts replace": ["dexto_artifacts_replace"],
+        "workspace artifacts share": ["dexto_artifacts_share"],
+        "workspace call": [],
+        "workspace computers keys create": ["dexto_computer_enrollment_key_create"],
+        "workspace computers keys list": ["dexto_computer_enrollment_keys_list"],
+        "workspace computers keys revoke": ["dexto_computer_enrollment_key_revoke"],
+        "workspace describe": [],
+        "workspace drive put": ["dexto_upload_prepare", "dexto_drive"],
+        "workspace tools": [],
+        "cloud automations create": ["dexto_cloud_automations_create"],
+        "cloud automations delete": ["dexto_cloud_automations_delete"],
+        "cloud automations firings": ["dexto_cloud_automations_firings"],
+        "cloud automations get": ["dexto_cloud_automations_get"],
+        "cloud automations list": ["dexto_cloud_automations_list"],
+        "cloud automations pause": ["dexto_cloud_automations_pause"],
+        "cloud automations resume": ["dexto_cloud_automations_resume"],
+        "cloud automations run": ["dexto_cloud_automations_run"],
+        "cloud automations update": ["dexto_cloud_automations_update"],
+        "cloud search": ["dexto_capability_describe", "dexto_capability_call"],
+        "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"],
+        "chat start": ["dexto_chat_start", "dexto_chat_wait"],
+        "chat computers": ["dexto_chat_computers_list"],
+        "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
+        "chat follow": ["dexto_chat_follow"],
+        "billing": ["dexto_billing_summary"],
+        "cloud agents approve": ["dexto_cloud_agents_approve"],
+        "cloud agents archive": ["dexto_cloud_agents_archive"],
+        "cloud agents chat": ["dexto_cloud_agents_chat"],
+        "cloud agents create": ["dexto_cloud_agents_create"],
+        "cloud agents get": ["dexto_cloud_agents_get"],
+        "cloud agents list": ["dexto_cloud_agents_list"],
+        "cloud agents messages": ["dexto_cloud_agents_messages"],
+        "cloud agents reject": ["dexto_cloud_agents_reject"],
+        "cloud agents runs get": ["dexto_cloud_agents_runs_get"],
+        "cloud agents runs list": ["dexto_cloud_agents_runs_list"],
+        "cloud agents runs steps": ["dexto_cloud_agents_runs_steps"],
+        "cloud agents sessions cancel": ["dexto_cloud_agents_sessions_cancel"],
+        "cloud agents sessions delete": ["dexto_cloud_agents_sessions_delete"],
+        "cloud agents sessions get": ["dexto_cloud_agents_sessions_get"],
+        "cloud agents sessions list": ["dexto_cloud_agents_sessions_list"],
+        "cloud agents update": ["dexto_cloud_agents_update"],
+        "cloud files delete": ["dexto_cloud_files_list", "dexto_cloud_files_delete"],
+        "cloud files download": ["dexto_cloud_files_list", "dexto_cloud_files_download"],
+        "cloud files get": ["dexto_cloud_files_list", "dexto_cloud_files_get"],
+        "cloud files list": ["dexto_cloud_files_list"],
+        "cloud files upload": ["dexto_cloud_files_upload", "dexto_cloud_files_upload_complete"],
+        "cloud files url": ["dexto_cloud_files_list", "dexto_cloud_files_url"],
+        "cloud models get": ["dexto_cloud_models_get"],
+        "cloud models list": ["dexto_cloud_models_list"],
+        "cloud models run": ["dexto_cloud_models_estimate", "dexto_cloud_models_run"],
+        "cloud models runs get": ["dexto_cloud_models_runs_get"],
+        "cloud models runs list": ["dexto_cloud_models_runs_list"],
+        "cloud projects list": ["dexto_cloud_projects_list"],
+        "cloud projects create": ["dexto_cloud_projects_create"],
+        "cloud functions list": ["dexto_cloud_functions_list"],
+        "cloud data-deletions list": ["dexto_cloud_data_deletions_list"],
+        "cloud data-deletions get": ["dexto_cloud_data_deletions_get"],
+        "cloud sandboxes list": ["dexto_cloud_sandboxes_list"],
+        "cloud sandboxes get": ["dexto_cloud_sandboxes_get"],
+        "cloud sandboxes ls": ["dexto_cloud_sandboxes_ls"],
+        "cloud sandboxes cat": ["dexto_cloud_sandboxes_cat"],
+        "cloud sites list": ["dexto_cloud_sites_list"],
+        "cloud secrets list": ["dexto_cloud_secrets_list"],
+        "cloud secrets get": ["dexto_cloud_secrets_get"],
+        "projects list": ["dexto_projects_list"],
+        "projects get": ["dexto_project_get"],
+        "projects create": ["dexto_project_create"],
+        "projects update": ["dexto_project_update"],
+        "projects delete": ["dexto_project_delete"],
+        "projects move": ["dexto_project_chat_move"],
+        "projects start": ["dexto_project_chat_start"],
+        "projects run": ["dexto_chat_send"]
+    },
+    "localOnly": [
+        {
+            "command": "chat move",
+            "reason": "Moves this machine's synced session and git working tree; requires local bundle building, patch apply and session resume (DEXTO-2519).",
+            "registry": "cloud"
+        },
+        {
+            "command": "chat watch",
+            "reason": "Attaches this local terminal to the hosted chat through its saved local session mapping; owns the local detach lifecycle (DEXTO-2519).",
+            "registry": "cloud"
+        },
+        {
+            "command": "accounts list",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "accounts remove",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "accounts use",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "chat local",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "cloud projects use",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "login",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "logout",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "whoami",
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        }
+    ],
+    "exceptions": [
+        {
+            "name": "cloud-fetch",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Metered /v1/fetch has no web_fetch capability in the account MCP catalog.",
+            "commands": ["cloud fetch"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_fetch",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-api",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Arbitrary project-key /v1 dispatch has no equivalent MCP dispatcher.",
+            "commands": ["cloud api"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_api",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-automations-rotate-secret",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "A webhook automation's signing secret is a credential, and MCP tool results never carry secrets: rotate it with the CLI or /v1.",
+            "commands": ["cloud automations rotate-secret"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_automations_rotate-secret",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-data-deletions-create",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Starting a deletion irreversibly erases an end user's or an agent's sessions, automations and versions, so it stays a deliberate CLI or /v1 action; MCP clients list and read deletions.",
+            "commands": ["cloud data-deletions create"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_data_deletions_create",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-functions-deploy",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "A Cloud project deploy publishes executable code and can bind a Dexto key that acts as the project, so it stays a CLI or /v1 action; MCP clients deploy an uploaded package as themselves with dexto_function_deploy.",
+            "commands": ["cloud functions deploy"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_function_deploy",
+                    "inputs": ["cloudProjectId", "provider"]
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-create",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "A sandbox is metered compute created under a caller-held idempotency key, so creating one stays a CLI or /v1 action; MCP clients read sandboxes.",
+            "commands": ["cloud sandboxes create"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_create",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-delete",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Deleting a sandbox destroys its workspace, so it stays a deliberate CLI or /v1 action.",
+            "commands": ["cloud sandboxes delete"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_delete",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-exec",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Running a command is arbitrary code execution in the sandbox, so it stays a CLI or /v1 action.",
+            "commands": ["cloud sandboxes exec"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_exec",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-export",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Saving a sandbox file as a project file moves bytes that MCP clients cannot stream and charges storage, so it stays a CLI or /v1 action.",
+            "commands": ["cloud sandboxes export"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_export",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-import",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Copying project files into a sandbox moves bytes that MCP clients cannot stream, so it stays a CLI or /v1 action.",
+            "commands": ["cloud sandboxes import"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_import",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-pause",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Pausing settles metered compute under a caller-held idempotency key that MCP calls do not carry, so it stays a CLI or /v1 action.",
+            "commands": ["cloud sandboxes pause"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_pause",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-rm",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Deleting a sandbox file destroys workspace data, so it stays a CLI or /v1 action.",
+            "commands": ["cloud sandboxes rm"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_rm",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-start",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Starting a sandbox spends the project's credits under a caller-held idempotency key, so it stays a CLI or /v1 action.",
+            "commands": ["cloud sandboxes start"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_start",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sandboxes-write",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Writing a sandbox file stages code for execution, so it stays a CLI or /v1 action; MCP clients read files with dexto_cloud_sandboxes_cat.",
+            "commands": ["cloud sandboxes write"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_sandboxes_write",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-secrets-create",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "A secret's value must not pass through a chat or a tool result, so creating one stays a CLI or /v1 action; MCP clients read names and metadata only.",
+            "commands": ["cloud secrets create"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_secrets_create",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-secrets-delete",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "Deleting a secret destroys a value that cannot be recovered, so it stays a deliberate CLI or /v1 action.",
+            "commands": ["cloud secrets delete"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_secrets_delete",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-secrets-update",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "A secret's value must not pass through a chat or a tool result, so replacing one stays a CLI or /v1 action.",
+            "commands": ["cloud secrets update"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_cloud_secrets_update",
+                    "inputs": []
+                }
+            ]
+        },
+        {
+            "name": "cloud-sites-deploy",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "A Cloud project deploy publishes executable code on the public Site origin, so it stays a CLI or /v1 action; MCP clients deploy an uploaded package as themselves with dexto_site_deploy.",
+            "commands": ["cloud sites deploy"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_site_deploy",
+                    "inputs": ["cloudProjectId", "provider"]
+                }
+            ]
+        },
+        {
+            "name": "models-list",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "GET /v1/models is the curated gateway catalog; chat models are account/plan/connection-filtered and include chat-only routes.",
+            "commands": ["models list"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_gateway_models_list",
+                    "inputs": []
+                }
+            ]
+        }
+    ],
+    "localOnlyNotes": "Only cloud-host registrations are pinned here. Separately registered local run/upgrade/uninstall/chat helpers, local config/preferences and automatic chat synchronization need no MCP coverage and are outside this registration guard.",
+    "passthroughOnly": [
+        "dexto_agents_list",
+        "dexto_app_data_remove",
+        "dexto_app_deploy",
+        "dexto_app_deployment_verify",
+        "dexto_app_get",
+        "dexto_app_open",
+        "dexto_app_request_access",
+        "dexto_app_runtime",
+        "dexto_application_create",
+        "dexto_application_deploy",
+        "dexto_application_get",
+        "dexto_application_history",
+        "dexto_application_insights",
+        "dexto_application_install",
+        "dexto_application_logs",
+        "dexto_application_operations_list",
+        "dexto_application_plugin_export",
+        "dexto_application_purge",
+        "dexto_application_release_delete",
+        "dexto_application_release_get",
+        "dexto_application_resume",
+        "dexto_application_retire",
+        "dexto_application_rollback",
+        "dexto_application_suspend",
+        "dexto_application_usage",
+        "dexto_application_variables_list",
+        "dexto_applications_list",
+        "dexto_apps_list",
+        "dexto_apps_uninstalled_list",
+        "dexto_autobot_chat_start",
+        "dexto_autobot_get",
+        "dexto_autobot_input_submit",
+        "dexto_autobot_publish",
+        "dexto_autobot_save",
+        "dexto_autobot_status",
+        "dexto_autobots_list",
+        "dexto_automation_create",
+        "dexto_automation_delete",
+        "dexto_automation_get",
+        "dexto_automation_recipe_install",
+        "dexto_automation_recipes_list",
+        "dexto_automation_trigger",
+        "dexto_automation_update",
+        "dexto_automations_list",
+        "dexto_capabilities_search",
+        "dexto_channel_get",
+        "dexto_channel_send",
+        "dexto_channels_list",
+        "dexto_chat_cancel",
+        "dexto_chat_computer",
+        "dexto_chat_continue",
+        "dexto_chat_get",
+        "dexto_chat_list",
+        "dexto_chat_models",
+        "dexto_contacts_block",
+        "dexto_contacts_connect",
+        "dexto_contacts_invite_link",
+        "dexto_contacts_people_list",
+        "dexto_contacts_people_search",
+        "dexto_contacts_remove",
+        "dexto_contacts_request_answer",
+        "dexto_contacts_requests_list",
+        "dexto_contacts_unblock",
+        "dexto_cos_report",
+        "dexto_credits_balance",
+        "dexto_credits_topup",
+        "dexto_direct_conversation_get",
+        "dexto_direct_conversations_list",
+        "dexto_direct_message_send",
+        "dexto_docs_read",
+        "dexto_docs_search",
+        "dexto_feedback_submit",
+        "dexto_function_credential_configure",
+        "dexto_function_deploy",
+        "dexto_function_get",
+        "dexto_function_invoke",
+        "dexto_function_plan",
+        "dexto_function_promote",
+        "dexto_function_secret_delete",
+        "dexto_functions_list",
+        "dexto_gigs_finding",
+        "dexto_gigs_posting",
+        "dexto_gpu_process_get",
+        "dexto_gpu_process_logs",
+        "dexto_gpu_process_start",
+        "dexto_gpu_process_stop",
+        "dexto_gpu_profiles_list",
+        "dexto_gpu_sandbox_delete",
+        "dexto_gpu_sandbox_get",
+        "dexto_gpu_sandbox_provision",
+        "dexto_gpu_sandbox_start",
+        "dexto_gpu_sandbox_stop",
+        "dexto_gpu_sandboxes_list",
+        "dexto_marketplace_get",
+        "dexto_marketplace_install",
+        "dexto_marketplace_preview",
+        "dexto_marketplace_publish",
+        "dexto_marketplace_search",
+        "dexto_marketplace_uninstall",
+        "dexto_marketplace_unpublish",
+        "dexto_mcp_server_import",
+        "dexto_network_send",
+        "dexto_network_thread_get",
+        "dexto_network_thread_mark_read",
+        "dexto_network_threads_list",
+        "dexto_notification_get",
+        "dexto_notifications_list",
+        "dexto_notifications_mark_read",
+        "dexto_open",
+        "dexto_project_import",
+        "dexto_share",
+        "dexto_share_access",
+        "dexto_share_received",
+        "dexto_site_collections_list",
+        "dexto_site_get",
+        "dexto_site_promote",
+        "dexto_site_record_create",
+        "dexto_site_record_delete",
+        "dexto_site_record_get",
+        "dexto_site_record_update",
+        "dexto_site_records_list",
+        "dexto_skill_create",
+        "dexto_skill_delete",
+        "dexto_skill_file_get",
+        "dexto_skill_get",
+        "dexto_skill_install",
+        "dexto_skill_publish",
+        "dexto_skill_restore",
+        "dexto_skill_uninstall",
+        "dexto_skill_update",
+        "dexto_skill_validate",
+        "dexto_skill_versions"
+    ],
+    "pendingCli": []
+}

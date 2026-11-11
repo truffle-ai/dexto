@@ -144,6 +144,19 @@ export class LLMError {
         );
     }
 
+    static streamStalled(provider: LLMProvider, model: string, idleTimeoutMs: number) {
+        return new DextoRuntimeError(
+            LLMErrorCode.STREAM_STALLED,
+            ErrorScope.LLM,
+            ErrorType.THIRD_PARTY,
+            `The model stopped responding for ${Math.round(idleTimeoutMs / 60_000)} minutes. Try again.`,
+            { details: { provider, model, idleTimeoutMs } },
+            'Send the message again',
+            undefined,
+            'retryable'
+        );
+    }
+
     // Switch operation errors (runtime checks not covered by Zod)
     static switchInputMissing() {
         return new DextoRuntimeError(

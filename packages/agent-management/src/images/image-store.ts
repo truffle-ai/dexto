@@ -198,15 +198,13 @@ export async function resolveImageEntryFileFromStore(
             return entry.installed[installedVersions[0] ?? '']?.entryFile ?? null;
         }
         throw new Error(
-            `Image '${specifier.id}' has multiple installed versions but no active version set. Run: dexto image use ${specifier.id}@<version>`
+            `Image '${specifier.id}' has multiple installed versions but no active version set.`
         );
     }
 
     const resolved = entry.installed[resolvedVersion];
     if (!resolved) {
-        throw new Error(
-            `Image '${specifier.id}@${resolvedVersion}' is not installed. Run: dexto image install ${specifier.id}@${resolvedVersion}`
-        );
+        throw new Error(`Image '${specifier.id}@${resolvedVersion}' is not installed.`);
     }
 
     return resolved.entryFile;

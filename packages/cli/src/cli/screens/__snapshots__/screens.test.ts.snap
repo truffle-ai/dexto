@@ -19,7 +19,8 @@ exports[`Signal screens on 16-dark > 3 signed in, no project 1`] = `
 ␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
 ␛[90m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[33m  This organization has no Cloud project for Dexto models to bill.␛[39m
-␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
+␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
 
   Now available:
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
@@ -78,39 +79,6 @@ exports[`Signal screens on 16-dark > 6 usage mistake 1`] = `
 ␛[90m  every command: ␛[39m␛[36mdexto --help␛[39m"
 `;
 
-exports[`Signal screens on 16-dark > 7 help 1`] = `
-"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
-
-␛[90m  S T A R T␛[39m
-␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
-␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
-␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
-␛[36m  run            ␛[39m␛[90mRun a single prompt non-interactively (headless mode)␛[39m
-
-␛[90m  C H A T␛[39m
-␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
-
-␛[90m  C L O U D␛[39m
-␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can open␛[39m
-
-␛[90m  A C C O U N T␛[39m
-␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
-␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
-␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
-
-␛[90m  L O C A L␛[39m
-␛[36m  setup          ␛[39m␛[90mConfigure global Dexto preferences␛[39m
-
-␛[90m  O P T I O N S␛[39m
-␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
-␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
-␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
-␛[36m  --mode <mode>  ␛[39m␛[90mweb | cli | server | mcp␛[39m
-␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
-
-␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
-`;
-
 exports[`Signal screens on 16-dark > 7 help, one command 1`] = `
 "␛[1mdexto login [options]␛[22m
 Sign in to Dexto with your browser.
@@ -136,8 +104,8 @@ Local agent harness. Cloud when you sign in.             ␛[90mdexto 2.0.0 · f
 ␛[36m▪ ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m          ␛[36mOK␛[39m
 ␛[90m▫ ␛[39mcloud        ␛[90msigned out · local works fully without it␛[39m                    ␛[90mSKIP␛[39m
 
-␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
-␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m1␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -153,6 +121,71 @@ exports[`Signal screens on 16-dark > at 80 columns > 3 signed in 1`] = `
   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
 
 ␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile acme-work · stored in ~/.dexto␛[39m
+␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
+  ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, other profile 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
+␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
+  ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 80 columns > 7 help 1`] = `
+"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
+
+␛[90m  S T A R T␛[39m
+␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
+␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
+␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
+␛[36m  run            ␛[39m␛[90mRun one prompt and print the result␛[39m
+
+␛[90m  C H A T␛[39m
+␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
+
+␛[90m  C L O U D␛[39m
+␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can␛[39m
+␛[90m                 open␛[39m
+
+␛[90m  A C C O U N T␛[39m
+␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
+␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
+␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
+
+␛[90m  L O C A L␛[39m
+␛[36m  upgrade        ␛[39m␛[90mUpgrade dexto, or install a given version␛[39m
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
+␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
+␛[36m  --model <id>   ␛[39m␛[90mSpecify the LLM model to use␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
+
+␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on 16-dark > at 124 columns > 1 first run 1`] = `
@@ -172,8 +205,8 @@ Local agent harness. Cloud when you sign in.                                    
 ␛[36m▪ ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m                                                      ␛[36mOK␛[39m
 ␛[90m▫ ␛[39mcloud        ␛[90msigned out · local works fully without it␛[39m                                                                ␛[90mSKIP␛[39m
 
-␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
-␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m1␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -189,6 +222,68 @@ exports[`Signal screens on 16-dark > at 124 columns > 3 signed in 1`] = `
   ␛[35m◆ ␛[39mProjects
 
 ␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers
+  ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, other profile 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers
+  ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 124 columns > 7 help 1`] = `
+"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
+
+␛[90m  S T A R T␛[39m
+␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
+␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
+␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
+␛[36m  run            ␛[39m␛[90mRun one prompt and print the result␛[39m
+
+␛[90m  C H A T␛[39m
+␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
+
+␛[90m  C L O U D␛[39m
+␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[90m  A C C O U N T␛[39m
+␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
+␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
+␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
+
+␛[90m  L O C A L␛[39m
+␛[36m  upgrade        ␛[39m␛[90mUpgrade dexto, or install a given version␛[39m
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
+␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
+␛[36m  --model <id>   ␛[39m␛[90mSpecify the LLM model to use␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
+
+␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on 256-dark > 2 device code, waiting 1`] = `
@@ -210,7 +305,8 @@ exports[`Signal screens on 256-dark > 3 signed in, no project 1`] = `
 ␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
 ␛[38;5;109m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;5;221m  This organization has no Cloud project for Dexto models to bill.␛[39m
-␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m, or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
+␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m,␛[39m
+␛[38;5;109m  or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
 
 ␛[38;5;188m  Now available:␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
@@ -269,39 +365,6 @@ exports[`Signal screens on 256-dark > 6 usage mistake 1`] = `
 ␛[38;5;109m  every command: ␛[39m␛[38;5;115mdexto --help␛[39m"
 `;
 
-exports[`Signal screens on 256-dark > 7 help 1`] = `
-"␛[38;5;231m␛[1mdexto␛[22m␛[39m␛[38;5;59m  2.0.0  ␛[39m␛[38;5;188myour agent harness, local and cloud␛[39m
-
-␛[38;5;109m  S T A R T␛[39m
-␛[38;5;115m  dexto          ␛[39m␛[38;5;109mStart the agent here, in this folder␛[39m
-␛[38;5;115m  dexto -c       ␛[39m␛[38;5;109mContinue the most recent chat␛[39m
-␛[38;5;115m  dexto -r <id>  ␛[39m␛[38;5;109mResume a chat by id␛[39m
-␛[38;5;115m  run            ␛[39m␛[38;5;109mRun a single prompt non-interactively (headless mode)␛[39m
-
-␛[38;5;109m  C H A T␛[39m
-␛[38;5;115m  chat           ␛[39m␛[38;5;109mYour chats: this machine's sessions␛[39m
-
-␛[38;5;109m  C L O U D␛[39m
-␛[38;5;115m  publish        ␛[39m␛[38;5;109mPublish a file, folder or .zip as a link anyone with it can open␛[39m
-
-␛[38;5;109m  A C C O U N T␛[39m
-␛[38;5;115m  login          ␛[39m␛[38;5;109mSign in to Dexto with your browser or a device code␛[39m
-␛[38;5;115m  whoami         ␛[39m␛[38;5;109mShow who Dexto commands act as␛[39m
-␛[38;5;115m  logout         ␛[39m␛[38;5;109mEnd the sign-in on the server and forget it here␛[39m
-
-␛[38;5;109m  L O C A L␛[39m
-␛[38;5;115m  setup          ␛[39m␛[38;5;109mConfigure global Dexto preferences␛[39m
-
-␛[38;5;109m  O P T I O N S␛[39m
-␛[38;5;115m  --json         ␛[39m␛[38;5;109mPrint JSON; the default when stdout isn't a terminal␛[39m
-␛[38;5;115m  --stream-json  ␛[39m␛[38;5;109mdexto run: JSON events, one per line␛[39m
-␛[38;5;115m  --profile      ␛[39m␛[38;5;109mUse a saved sign-in for one run␛[39m
-␛[38;5;115m  --mode <mode>  ␛[39m␛[38;5;109mweb | cli | server | mcp␛[39m
-␛[38;5;115m  -h, --help     ␛[39m␛[38;5;109mdisplay help for command␛[39m
-
-␛[38;5;109m  help for one command: ␛[39m␛[38;5;115mdexto <command> --help␛[39m␛[38;5;109m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;5;183m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
-`;
-
 exports[`Signal screens on 256-dark > 7 help, one command 1`] = `
 "␛[38;5;231m␛[1mdexto login [options]␛[22m␛[39m
 ␛[38;5;188mSign in to Dexto with your browser.␛[39m
@@ -327,8 +390,8 @@ exports[`Signal screens on 256-dark > at 80 columns > 1 first run 1`] = `
 ␛[38;5;115m▪ ␛[39m␛[38;5;231mmodel        ␛[39m␛[38;5;109mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;5;188m          ␛[39m␛[38;5;115mOK␛[39m
 ␛[38;5;59m▫ ␛[39m␛[38;5;231mcloud        ␛[39m␛[38;5;109msigned out · local works fully without it␛[39m␛[38;5;188m                    ␛[39m␛[38;5;59mSKIP␛[39m
 
-␛[38;5;231m␛[1m1␛[22m␛[39m␛[38;5;109m stay local   ␛[39m␛[38;5;115mdexto setup␛[39m
-␛[38;5;231m␛[1m2␛[22m␛[39m␛[38;5;109m sign in      ␛[39m␛[38;5;115mdexto login␛[39m
+␛[38;5;231m␛[1m1␛[22m␛[39m␛[38;5;109m sign in      ␛[39m␛[38;5;115mdexto login␛[39m
+␛[38;5;231m␛[1m2␛[22m␛[39m␛[38;5;109m or a key     ␛[39m␛[38;5;115mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -344,6 +407,71 @@ exports[`Signal screens on 256-dark > at 80 columns > 3 signed in 1`] = `
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
 ␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile acme-work · stored in ~/.dexto␛[39m
+␛[38;5;109m  your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, other profile 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m,␛[39m
+␛[38;5;109m  or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 80 columns > 7 help 1`] = `
+"␛[38;5;231m␛[1mdexto␛[22m␛[39m␛[38;5;59m  2.0.0  ␛[39m␛[38;5;188myour agent harness, local and cloud␛[39m
+
+␛[38;5;109m  S T A R T␛[39m
+␛[38;5;115m  dexto          ␛[39m␛[38;5;109mStart the agent here, in this folder␛[39m
+␛[38;5;115m  dexto -c       ␛[39m␛[38;5;109mContinue the most recent chat␛[39m
+␛[38;5;115m  dexto -r <id>  ␛[39m␛[38;5;109mResume a chat by id␛[39m
+␛[38;5;115m  run            ␛[39m␛[38;5;109mRun one prompt and print the result␛[39m
+
+␛[38;5;109m  C H A T␛[39m
+␛[38;5;115m  chat           ␛[39m␛[38;5;109mYour chats: this machine's sessions␛[39m
+
+␛[38;5;109m  C L O U D␛[39m
+␛[38;5;115m  publish        ␛[39m␛[38;5;109mPublish a file, folder or .zip as a link anyone with it can␛[39m
+␛[38;5;109m                 open␛[39m
+
+␛[38;5;109m  A C C O U N T␛[39m
+␛[38;5;115m  login          ␛[39m␛[38;5;109mSign in to Dexto with your browser or a device code␛[39m
+␛[38;5;115m  whoami         ␛[39m␛[38;5;109mShow who Dexto commands act as␛[39m
+␛[38;5;115m  logout         ␛[39m␛[38;5;109mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;5;109m  L O C A L␛[39m
+␛[38;5;115m  upgrade        ␛[39m␛[38;5;109mUpgrade dexto, or install a given version␛[39m
+
+␛[38;5;109m  O P T I O N S␛[39m
+␛[38;5;115m  --json         ␛[39m␛[38;5;109mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;5;115m  --stream-json  ␛[39m␛[38;5;109mdexto run: JSON events, one per line␛[39m
+␛[38;5;115m  --profile      ␛[39m␛[38;5;109mUse a saved sign-in for one run␛[39m
+␛[38;5;115m  --model <id>   ␛[39m␛[38;5;109mSpecify the LLM model to use␛[39m
+␛[38;5;115m  -h, --help     ␛[39m␛[38;5;109mdisplay help for command␛[39m
+
+␛[38;5;109m  help for one command: ␛[39m␛[38;5;115mdexto <command> --help␛[39m␛[38;5;109m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;5;183m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on 256-dark > at 124 columns > 1 first run 1`] = `
@@ -363,8 +491,8 @@ exports[`Signal screens on 256-dark > at 124 columns > 1 first run 1`] = `
 ␛[38;5;115m▪ ␛[39m␛[38;5;231mmodel        ␛[39m␛[38;5;109mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;5;188m                                                      ␛[39m␛[38;5;115mOK␛[39m
 ␛[38;5;59m▫ ␛[39m␛[38;5;231mcloud        ␛[39m␛[38;5;109msigned out · local works fully without it␛[39m␛[38;5;188m                                                                ␛[39m␛[38;5;59mSKIP␛[39m
 
-␛[38;5;231m␛[1m1␛[22m␛[39m␛[38;5;109m stay local   ␛[39m␛[38;5;115mdexto setup␛[39m
-␛[38;5;231m␛[1m2␛[22m␛[39m␛[38;5;109m sign in      ␛[39m␛[38;5;115mdexto login␛[39m
+␛[38;5;231m␛[1m1␛[22m␛[39m␛[38;5;109m sign in      ␛[39m␛[38;5;115mdexto login␛[39m
+␛[38;5;231m␛[1m2␛[22m␛[39m␛[38;5;109m or a key     ␛[39m␛[38;5;115mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -380,6 +508,68 @@ exports[`Signal screens on 256-dark > at 124 columns > 3 signed in 1`] = `
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
 ␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, other profile 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m, or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 124 columns > 7 help 1`] = `
+"␛[38;5;231m␛[1mdexto␛[22m␛[39m␛[38;5;59m  2.0.0  ␛[39m␛[38;5;188myour agent harness, local and cloud␛[39m
+
+␛[38;5;109m  S T A R T␛[39m
+␛[38;5;115m  dexto          ␛[39m␛[38;5;109mStart the agent here, in this folder␛[39m
+␛[38;5;115m  dexto -c       ␛[39m␛[38;5;109mContinue the most recent chat␛[39m
+␛[38;5;115m  dexto -r <id>  ␛[39m␛[38;5;109mResume a chat by id␛[39m
+␛[38;5;115m  run            ␛[39m␛[38;5;109mRun one prompt and print the result␛[39m
+
+␛[38;5;109m  C H A T␛[39m
+␛[38;5;115m  chat           ␛[39m␛[38;5;109mYour chats: this machine's sessions␛[39m
+
+␛[38;5;109m  C L O U D␛[39m
+␛[38;5;115m  publish        ␛[39m␛[38;5;109mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[38;5;109m  A C C O U N T␛[39m
+␛[38;5;115m  login          ␛[39m␛[38;5;109mSign in to Dexto with your browser or a device code␛[39m
+␛[38;5;115m  whoami         ␛[39m␛[38;5;109mShow who Dexto commands act as␛[39m
+␛[38;5;115m  logout         ␛[39m␛[38;5;109mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;5;109m  L O C A L␛[39m
+␛[38;5;115m  upgrade        ␛[39m␛[38;5;109mUpgrade dexto, or install a given version␛[39m
+
+␛[38;5;109m  O P T I O N S␛[39m
+␛[38;5;115m  --json         ␛[39m␛[38;5;109mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;5;115m  --stream-json  ␛[39m␛[38;5;109mdexto run: JSON events, one per line␛[39m
+␛[38;5;115m  --profile      ␛[39m␛[38;5;109mUse a saved sign-in for one run␛[39m
+␛[38;5;115m  --model <id>   ␛[39m␛[38;5;109mSpecify the LLM model to use␛[39m
+␛[38;5;115m  -h, --help     ␛[39m␛[38;5;109mdisplay help for command␛[39m
+
+␛[38;5;109m  help for one command: ␛[39m␛[38;5;115mdexto <command> --help␛[39m␛[38;5;109m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;5;183m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on ascii > 2 device code, waiting 1`] = `
@@ -398,7 +588,8 @@ exports[`Signal screens on ascii > 3 signed in, no project 1`] = `
 ␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
 ␛[90m  profile work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
 ␛[33m  This organization has no Cloud project for Dexto models to bill.␛[39m
-␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
+␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
 
   Now available:
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
@@ -456,39 +647,6 @@ exports[`Signal screens on ascii > 6 usage mistake 1`] = `
 ␛[90m  every command: ␛[39m␛[36mdexto --help␛[39m"
 `;
 
-exports[`Signal screens on ascii > 7 help 1`] = `
-"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
-
-␛[90m  S T A R T␛[39m
-␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
-␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
-␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
-␛[36m  run            ␛[39m␛[90mRun a single prompt non-interactively (headless mode)␛[39m
-
-␛[90m  C H A T␛[39m
-␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
-
-␛[90m  C L O U D␛[39m
-␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can open␛[39m
-
-␛[90m  A C C O U N T␛[39m
-␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
-␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
-␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
-
-␛[90m  L O C A L␛[39m
-␛[36m  setup          ␛[39m␛[90mConfigure global Dexto preferences␛[39m
-
-␛[90m  O P T I O N S␛[39m
-␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
-␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
-␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
-␛[36m  --mode <mode>  ␛[39m␛[90mweb | cli | server | mcp␛[39m
-␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
-
-␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m . ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
-`;
-
 exports[`Signal screens on ascii > 7 help, one command 1`] = `
 "␛[1mdexto login [options]␛[22m
 Sign in to Dexto with your browser.
@@ -514,8 +672,8 @@ Local agent harness. Cloud when you sign in.             ␛[90mdexto 2.0.0 . fi
 ␛[36m* ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found . anthropic/claude-sonnet-4-5␛[39m          ␛[36mOK␛[39m
 ␛[90m. ␛[39mcloud        ␛[90msigned out . local works fully without it␛[39m                    ␛[90mSKIP␛[39m
 
-␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
-␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m1␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=.␛[39m
 "
 `;
 
@@ -531,6 +689,71 @@ exports[`Signal screens on ascii > at 80 columns > 3 signed in 1`] = `
   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
 
 ␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile acme-work . stored in ~/.dexto␛[39m
+␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
+  ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 80 columns > 3 signed in, other profile 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
+␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
+  ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 80 columns > 7 help 1`] = `
+"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
+
+␛[90m  S T A R T␛[39m
+␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
+␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
+␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
+␛[36m  run            ␛[39m␛[90mRun one prompt and print the result␛[39m
+
+␛[90m  C H A T␛[39m
+␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
+
+␛[90m  C L O U D␛[39m
+␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can␛[39m
+␛[90m                 open␛[39m
+
+␛[90m  A C C O U N T␛[39m
+␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
+␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
+␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
+
+␛[90m  L O C A L␛[39m
+␛[36m  upgrade        ␛[39m␛[90mUpgrade dexto, or install a given version␛[39m
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
+␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
+␛[36m  --model <id>   ␛[39m␛[90mSpecify the LLM model to use␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
+
+␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m . ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on ascii > at 124 columns > 1 first run 1`] = `
@@ -550,8 +773,8 @@ Local agent harness. Cloud when you sign in.                                    
 ␛[36m* ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found . anthropic/claude-sonnet-4-5␛[39m                                                      ␛[36mOK␛[39m
 ␛[90m. ␛[39mcloud        ␛[90msigned out . local works fully without it␛[39m                                                                ␛[90mSKIP␛[39m
 
-␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
-␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m1␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=.␛[39m
 "
 `;
 
@@ -567,6 +790,68 @@ exports[`Signal screens on ascii > at 124 columns > 3 signed in 1`] = `
   ␛[35m* ␛[39mProjects
 
 ␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile acme-work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers
+  ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 124 columns > 3 signed in, other profile 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers
+  ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 124 columns > 7 help 1`] = `
+"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
+
+␛[90m  S T A R T␛[39m
+␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
+␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
+␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
+␛[36m  run            ␛[39m␛[90mRun one prompt and print the result␛[39m
+
+␛[90m  C H A T␛[39m
+␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
+
+␛[90m  C L O U D␛[39m
+␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[90m  A C C O U N T␛[39m
+␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
+␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
+␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
+
+␛[90m  L O C A L␛[39m
+␛[36m  upgrade        ␛[39m␛[90mUpgrade dexto, or install a given version␛[39m
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
+␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
+␛[36m  --model <id>   ␛[39m␛[90mSpecify the LLM model to use␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
+
+␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m . ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on no-color > 2 device code, waiting 1`] = `
@@ -585,7 +870,8 @@ exports[`Signal screens on no-color > 3 signed in, no project 1`] = `
 ◆ Signed in as Sam Rivera · Acme
   profile work · stored in ~/.dexto · your provider keys stay on this machine
   This organization has no Cloud project for Dexto models to bill.
-  Other commands still use another profile: pass --profile work, or run dexto accounts use work
+  Other commands still use another profile: pass --profile work,
+  or run dexto accounts use work
 
   Now available:
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
@@ -643,39 +929,6 @@ exports[`Signal screens on no-color > 6 usage mistake 1`] = `
   every command: dexto --help"
 `;
 
-exports[`Signal screens on no-color > 7 help 1`] = `
-"dexto  2.0.0  your agent harness, local and cloud
-
-  S T A R T
-  dexto          Start the agent here, in this folder
-  dexto -c       Continue the most recent chat
-  dexto -r <id>  Resume a chat by id
-  run            Run a single prompt non-interactively (headless mode)
-
-  C H A T
-  chat           Your chats: this machine's sessions
-
-  C L O U D
-  publish        Publish a file, folder or .zip as a link anyone with it can open
-
-  A C C O U N T
-  login          Sign in to Dexto with your browser or a device code
-  whoami         Show who Dexto commands act as
-  logout         End the sign-in on the server and forget it here
-
-  L O C A L
-  setup          Configure global Dexto preferences
-
-  O P T I O N S
-  --json         Print JSON; the default when stdout isn't a terminal
-  --stream-json  dexto run: JSON events, one per line
-  --profile      Use a saved sign-in for one run
-  --mode <mode>  web | cli | server | mcp
-  -h, --help     display help for command
-
-  help for one command: dexto <command> --help · cli.dexto.ai"
-`;
-
 exports[`Signal screens on no-color > 7 help, one command 1`] = `
 "dexto login [options]
 Sign in to Dexto with your browser.
@@ -699,8 +952,8 @@ P R E F L I G H T
 ▪ model        ANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5          OK
 ▫ cloud        signed out · local works fully without it                    SKIP
 
-1 stay local   dexto setup
-2 sign in      dexto login
+1 sign in      dexto login
+2 or a key     export ANTHROPIC_API_KEY=…
 "
 `;
 
@@ -718,6 +971,71 @@ exports[`Signal screens on no-color > at 80 columns > 3 signed in 1`] = `
   next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
 `;
 
+exports[`Signal screens on no-color > at 80 columns > 3 signed in, longer profile 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile acme-work · stored in ~/.dexto
+  your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
+  ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 80 columns > 3 signed in, other profile 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile work · stored in ~/.dexto · your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+  Other commands still use another profile: pass --profile work,
+  or run dexto accounts use work
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
+  ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 80 columns > 7 help 1`] = `
+"dexto  2.0.0  your agent harness, local and cloud
+
+  S T A R T
+  dexto          Start the agent here, in this folder
+  dexto -c       Continue the most recent chat
+  dexto -r <id>  Resume a chat by id
+  run            Run one prompt and print the result
+
+  C H A T
+  chat           Your chats: this machine's sessions
+
+  C L O U D
+  publish        Publish a file, folder or .zip as a link anyone with it can
+                 open
+
+  A C C O U N T
+  login          Sign in to Dexto with your browser or a device code
+  whoami         Show who Dexto commands act as
+  logout         End the sign-in on the server and forget it here
+
+  L O C A L
+  upgrade        Upgrade dexto, or install a given version
+
+  O P T I O N S
+  --json         Print JSON; the default when stdout isn't a terminal
+  --stream-json  dexto run: JSON events, one per line
+  --profile      Use a saved sign-in for one run
+  --model <id>   Specify the LLM model to use
+  -h, --help     display help for command
+
+  help for one command: dexto <command> --help · cli.dexto.ai"
+`;
+
 exports[`Signal screens on no-color > at 124 columns > 1 first run 1`] = `
 "dexto
 
@@ -730,8 +1048,8 @@ P R E F L I G H T
 ▪ model        ANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5                                                      OK
 ▫ cloud        signed out · local works fully without it                                                                SKIP
 
-1 stay local   dexto setup
-2 sign in      dexto login
+1 sign in      dexto login
+2 or a key     export ANTHROPIC_API_KEY=…
 "
 `;
 
@@ -747,6 +1065,68 @@ exports[`Signal screens on no-color > at 124 columns > 3 signed in 1`] = `
   ◆ Projects
 
   next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 124 columns > 3 signed in, longer profile 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers
+  ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 124 columns > 3 signed in, other profile 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile work · stored in ~/.dexto · your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+  Other commands still use another profile: pass --profile work, or run dexto accounts use work
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers
+  ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 124 columns > 7 help 1`] = `
+"dexto  2.0.0  your agent harness, local and cloud
+
+  S T A R T
+  dexto          Start the agent here, in this folder
+  dexto -c       Continue the most recent chat
+  dexto -r <id>  Resume a chat by id
+  run            Run one prompt and print the result
+
+  C H A T
+  chat           Your chats: this machine's sessions
+
+  C L O U D
+  publish        Publish a file, folder or .zip as a link anyone with it can open
+
+  A C C O U N T
+  login          Sign in to Dexto with your browser or a device code
+  whoami         Show who Dexto commands act as
+  logout         End the sign-in on the server and forget it here
+
+  L O C A L
+  upgrade        Upgrade dexto, or install a given version
+
+  O P T I O N S
+  --json         Print JSON; the default when stdout isn't a terminal
+  --stream-json  dexto run: JSON events, one per line
+  --profile      Use a saved sign-in for one run
+  --model <id>   Specify the LLM model to use
+  -h, --help     display help for command
+
+  help for one command: dexto <command> --help · cli.dexto.ai"
 `;
 
 exports[`Signal screens on truecolor-dark > 2 device code, waiting 1`] = `
@@ -768,7 +1148,8 @@ exports[`Signal screens on truecolor-dark > 3 signed in, no project 1`] = `
 ␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
 ␛[38;2;127;140;138m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;244;181;74m  This organization has no Cloud project for Dexto models to bill.␛[39m
-␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m, or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
+␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m,␛[39m
+␛[38;2;127;140;138m  or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
 
 ␛[38;2;216;224;222m  Now available:␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
@@ -827,39 +1208,6 @@ exports[`Signal screens on truecolor-dark > 6 usage mistake 1`] = `
 ␛[38;2;127;140;138m  every command: ␛[39m␛[38;2;78;201;176mdexto --help␛[39m"
 `;
 
-exports[`Signal screens on truecolor-dark > 7 help 1`] = `
-"␛[38;2;244;248;247m␛[1mdexto␛[22m␛[39m␛[38;2;59;70;68m  2.0.0  ␛[39m␛[38;2;216;224;222myour agent harness, local and cloud␛[39m
-
-␛[38;2;127;140;138m  S T A R T␛[39m
-␛[38;2;78;201;176m  dexto          ␛[39m␛[38;2;127;140;138mStart the agent here, in this folder␛[39m
-␛[38;2;78;201;176m  dexto -c       ␛[39m␛[38;2;127;140;138mContinue the most recent chat␛[39m
-␛[38;2;78;201;176m  dexto -r <id>  ␛[39m␛[38;2;127;140;138mResume a chat by id␛[39m
-␛[38;2;78;201;176m  run            ␛[39m␛[38;2;127;140;138mRun a single prompt non-interactively (headless mode)␛[39m
-
-␛[38;2;127;140;138m  C H A T␛[39m
-␛[38;2;78;201;176m  chat           ␛[39m␛[38;2;127;140;138mYour chats: this machine's sessions␛[39m
-
-␛[38;2;127;140;138m  C L O U D␛[39m
-␛[38;2;78;201;176m  publish        ␛[39m␛[38;2;127;140;138mPublish a file, folder or .zip as a link anyone with it can open␛[39m
-
-␛[38;2;127;140;138m  A C C O U N T␛[39m
-␛[38;2;78;201;176m  login          ␛[39m␛[38;2;127;140;138mSign in to Dexto with your browser or a device code␛[39m
-␛[38;2;78;201;176m  whoami         ␛[39m␛[38;2;127;140;138mShow who Dexto commands act as␛[39m
-␛[38;2;78;201;176m  logout         ␛[39m␛[38;2;127;140;138mEnd the sign-in on the server and forget it here␛[39m
-
-␛[38;2;127;140;138m  L O C A L␛[39m
-␛[38;2;78;201;176m  setup          ␛[39m␛[38;2;127;140;138mConfigure global Dexto preferences␛[39m
-
-␛[38;2;127;140;138m  O P T I O N S␛[39m
-␛[38;2;78;201;176m  --json         ␛[39m␛[38;2;127;140;138mPrint JSON; the default when stdout isn't a terminal␛[39m
-␛[38;2;78;201;176m  --stream-json  ␛[39m␛[38;2;127;140;138mdexto run: JSON events, one per line␛[39m
-␛[38;2;78;201;176m  --profile      ␛[39m␛[38;2;127;140;138mUse a saved sign-in for one run␛[39m
-␛[38;2;78;201;176m  --mode <mode>  ␛[39m␛[38;2;127;140;138mweb | cli | server | mcp␛[39m
-␛[38;2;78;201;176m  -h, --help     ␛[39m␛[38;2;127;140;138mdisplay help for command␛[39m
-
-␛[38;2;127;140;138m  help for one command: ␛[39m␛[38;2;78;201;176mdexto <command> --help␛[39m␛[38;2;127;140;138m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;226;141;240m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
-`;
-
 exports[`Signal screens on truecolor-dark > 7 help, one command 1`] = `
 "␛[38;2;244;248;247m␛[1mdexto login [options]␛[22m␛[39m
 ␛[38;2;216;224;222mSign in to Dexto with your browser.␛[39m
@@ -885,8 +1233,8 @@ exports[`Signal screens on truecolor-dark > at 80 columns > 1 first run 1`] = `
 ␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mmodel        ␛[39m␛[38;2;127;140;138mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;216;224;222m          ␛[39m␛[38;2;78;201;176mOK␛[39m
 ␛[38;2;59;70;68m▫ ␛[39m␛[38;2;244;248;247mcloud        ␛[39m␛[38;2;127;140;138msigned out · local works fully without it␛[39m␛[38;2;216;224;222m                    ␛[39m␛[38;2;59;70;68mSKIP␛[39m
 
-␛[38;2;244;248;247m␛[1m1␛[22m␛[39m␛[38;2;127;140;138m stay local   ␛[39m␛[38;2;78;201;176mdexto setup␛[39m
-␛[38;2;244;248;247m␛[1m2␛[22m␛[39m␛[38;2;127;140;138m sign in      ␛[39m␛[38;2;78;201;176mdexto login␛[39m
+␛[38;2;244;248;247m␛[1m1␛[22m␛[39m␛[38;2;127;140;138m sign in      ␛[39m␛[38;2;78;201;176mdexto login␛[39m
+␛[38;2;244;248;247m␛[1m2␛[22m␛[39m␛[38;2;127;140;138m or a key     ␛[39m␛[38;2;78;201;176mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -902,6 +1250,71 @@ exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in 1`] = `
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
 ␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile acme-work · stored in ~/.dexto␛[39m
+␛[38;2;127;140;138m  your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, other profile 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m,␛[39m
+␛[38;2;127;140;138m  or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 80 columns > 7 help 1`] = `
+"␛[38;2;244;248;247m␛[1mdexto␛[22m␛[39m␛[38;2;59;70;68m  2.0.0  ␛[39m␛[38;2;216;224;222myour agent harness, local and cloud␛[39m
+
+␛[38;2;127;140;138m  S T A R T␛[39m
+␛[38;2;78;201;176m  dexto          ␛[39m␛[38;2;127;140;138mStart the agent here, in this folder␛[39m
+␛[38;2;78;201;176m  dexto -c       ␛[39m␛[38;2;127;140;138mContinue the most recent chat␛[39m
+␛[38;2;78;201;176m  dexto -r <id>  ␛[39m␛[38;2;127;140;138mResume a chat by id␛[39m
+␛[38;2;78;201;176m  run            ␛[39m␛[38;2;127;140;138mRun one prompt and print the result␛[39m
+
+␛[38;2;127;140;138m  C H A T␛[39m
+␛[38;2;78;201;176m  chat           ␛[39m␛[38;2;127;140;138mYour chats: this machine's sessions␛[39m
+
+␛[38;2;127;140;138m  C L O U D␛[39m
+␛[38;2;78;201;176m  publish        ␛[39m␛[38;2;127;140;138mPublish a file, folder or .zip as a link anyone with it can␛[39m
+␛[38;2;127;140;138m                 open␛[39m
+
+␛[38;2;127;140;138m  A C C O U N T␛[39m
+␛[38;2;78;201;176m  login          ␛[39m␛[38;2;127;140;138mSign in to Dexto with your browser or a device code␛[39m
+␛[38;2;78;201;176m  whoami         ␛[39m␛[38;2;127;140;138mShow who Dexto commands act as␛[39m
+␛[38;2;78;201;176m  logout         ␛[39m␛[38;2;127;140;138mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;2;127;140;138m  L O C A L␛[39m
+␛[38;2;78;201;176m  upgrade        ␛[39m␛[38;2;127;140;138mUpgrade dexto, or install a given version␛[39m
+
+␛[38;2;127;140;138m  O P T I O N S␛[39m
+␛[38;2;78;201;176m  --json         ␛[39m␛[38;2;127;140;138mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;2;78;201;176m  --stream-json  ␛[39m␛[38;2;127;140;138mdexto run: JSON events, one per line␛[39m
+␛[38;2;78;201;176m  --profile      ␛[39m␛[38;2;127;140;138mUse a saved sign-in for one run␛[39m
+␛[38;2;78;201;176m  --model <id>   ␛[39m␛[38;2;127;140;138mSpecify the LLM model to use␛[39m
+␛[38;2;78;201;176m  -h, --help     ␛[39m␛[38;2;127;140;138mdisplay help for command␛[39m
+
+␛[38;2;127;140;138m  help for one command: ␛[39m␛[38;2;78;201;176mdexto <command> --help␛[39m␛[38;2;127;140;138m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;226;141;240m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on truecolor-dark > at 124 columns > 1 first run 1`] = `
@@ -921,8 +1334,8 @@ exports[`Signal screens on truecolor-dark > at 124 columns > 1 first run 1`] = `
 ␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mmodel        ␛[39m␛[38;2;127;140;138mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;216;224;222m                                                      ␛[39m␛[38;2;78;201;176mOK␛[39m
 ␛[38;2;59;70;68m▫ ␛[39m␛[38;2;244;248;247mcloud        ␛[39m␛[38;2;127;140;138msigned out · local works fully without it␛[39m␛[38;2;216;224;222m                                                                ␛[39m␛[38;2;59;70;68mSKIP␛[39m
 
-␛[38;2;244;248;247m␛[1m1␛[22m␛[39m␛[38;2;127;140;138m stay local   ␛[39m␛[38;2;78;201;176mdexto setup␛[39m
-␛[38;2;244;248;247m␛[1m2␛[22m␛[39m␛[38;2;127;140;138m sign in      ␛[39m␛[38;2;78;201;176mdexto login␛[39m
+␛[38;2;244;248;247m␛[1m1␛[22m␛[39m␛[38;2;127;140;138m sign in      ␛[39m␛[38;2;78;201;176mdexto login␛[39m
+␛[38;2;244;248;247m␛[1m2␛[22m␛[39m␛[38;2;127;140;138m or a key     ␛[39m␛[38;2;78;201;176mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -938,6 +1351,68 @@ exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in 1`] = `
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
 ␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, other profile 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m, or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 124 columns > 7 help 1`] = `
+"␛[38;2;244;248;247m␛[1mdexto␛[22m␛[39m␛[38;2;59;70;68m  2.0.0  ␛[39m␛[38;2;216;224;222myour agent harness, local and cloud␛[39m
+
+␛[38;2;127;140;138m  S T A R T␛[39m
+␛[38;2;78;201;176m  dexto          ␛[39m␛[38;2;127;140;138mStart the agent here, in this folder␛[39m
+␛[38;2;78;201;176m  dexto -c       ␛[39m␛[38;2;127;140;138mContinue the most recent chat␛[39m
+␛[38;2;78;201;176m  dexto -r <id>  ␛[39m␛[38;2;127;140;138mResume a chat by id␛[39m
+␛[38;2;78;201;176m  run            ␛[39m␛[38;2;127;140;138mRun one prompt and print the result␛[39m
+
+␛[38;2;127;140;138m  C H A T␛[39m
+␛[38;2;78;201;176m  chat           ␛[39m␛[38;2;127;140;138mYour chats: this machine's sessions␛[39m
+
+␛[38;2;127;140;138m  C L O U D␛[39m
+␛[38;2;78;201;176m  publish        ␛[39m␛[38;2;127;140;138mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[38;2;127;140;138m  A C C O U N T␛[39m
+␛[38;2;78;201;176m  login          ␛[39m␛[38;2;127;140;138mSign in to Dexto with your browser or a device code␛[39m
+␛[38;2;78;201;176m  whoami         ␛[39m␛[38;2;127;140;138mShow who Dexto commands act as␛[39m
+␛[38;2;78;201;176m  logout         ␛[39m␛[38;2;127;140;138mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;2;127;140;138m  L O C A L␛[39m
+␛[38;2;78;201;176m  upgrade        ␛[39m␛[38;2;127;140;138mUpgrade dexto, or install a given version␛[39m
+
+␛[38;2;127;140;138m  O P T I O N S␛[39m
+␛[38;2;78;201;176m  --json         ␛[39m␛[38;2;127;140;138mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;2;78;201;176m  --stream-json  ␛[39m␛[38;2;127;140;138mdexto run: JSON events, one per line␛[39m
+␛[38;2;78;201;176m  --profile      ␛[39m␛[38;2;127;140;138mUse a saved sign-in for one run␛[39m
+␛[38;2;78;201;176m  --model <id>   ␛[39m␛[38;2;127;140;138mSpecify the LLM model to use␛[39m
+␛[38;2;78;201;176m  -h, --help     ␛[39m␛[38;2;127;140;138mdisplay help for command␛[39m
+
+␛[38;2;127;140;138m  help for one command: ␛[39m␛[38;2;78;201;176mdexto <command> --help␛[39m␛[38;2;127;140;138m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;226;141;240m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on truecolor-light > 2 device code, waiting 1`] = `
@@ -959,7 +1434,8 @@ exports[`Signal screens on truecolor-light > 3 signed in, no project 1`] = `
 ␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
 ␛[38;2;94;106;104m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;149;90;0m  This organization has no Cloud project for Dexto models to bill.␛[39m
-␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m, or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
+␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m,␛[39m
+␛[38;2;94;106;104m  or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
 
 ␛[38;2;27;34;33m  Now available:␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
@@ -1018,39 +1494,6 @@ exports[`Signal screens on truecolor-light > 6 usage mistake 1`] = `
 ␛[38;2;94;106;104m  every command: ␛[39m␛[38;2;11;122;104mdexto --help␛[39m"
 `;
 
-exports[`Signal screens on truecolor-light > 7 help 1`] = `
-"␛[38;2;5;8;7m␛[1mdexto␛[22m␛[39m␛[38;2;186;196;193m  2.0.0  ␛[39m␛[38;2;27;34;33myour agent harness, local and cloud␛[39m
-
-␛[38;2;94;106;104m  S T A R T␛[39m
-␛[38;2;11;122;104m  dexto          ␛[39m␛[38;2;94;106;104mStart the agent here, in this folder␛[39m
-␛[38;2;11;122;104m  dexto -c       ␛[39m␛[38;2;94;106;104mContinue the most recent chat␛[39m
-␛[38;2;11;122;104m  dexto -r <id>  ␛[39m␛[38;2;94;106;104mResume a chat by id␛[39m
-␛[38;2;11;122;104m  run            ␛[39m␛[38;2;94;106;104mRun a single prompt non-interactively (headless mode)␛[39m
-
-␛[38;2;94;106;104m  C H A T␛[39m
-␛[38;2;11;122;104m  chat           ␛[39m␛[38;2;94;106;104mYour chats: this machine's sessions␛[39m
-
-␛[38;2;94;106;104m  C L O U D␛[39m
-␛[38;2;11;122;104m  publish        ␛[39m␛[38;2;94;106;104mPublish a file, folder or .zip as a link anyone with it can open␛[39m
-
-␛[38;2;94;106;104m  A C C O U N T␛[39m
-␛[38;2;11;122;104m  login          ␛[39m␛[38;2;94;106;104mSign in to Dexto with your browser or a device code␛[39m
-␛[38;2;11;122;104m  whoami         ␛[39m␛[38;2;94;106;104mShow who Dexto commands act as␛[39m
-␛[38;2;11;122;104m  logout         ␛[39m␛[38;2;94;106;104mEnd the sign-in on the server and forget it here␛[39m
-
-␛[38;2;94;106;104m  L O C A L␛[39m
-␛[38;2;11;122;104m  setup          ␛[39m␛[38;2;94;106;104mConfigure global Dexto preferences␛[39m
-
-␛[38;2;94;106;104m  O P T I O N S␛[39m
-␛[38;2;11;122;104m  --json         ␛[39m␛[38;2;94;106;104mPrint JSON; the default when stdout isn't a terminal␛[39m
-␛[38;2;11;122;104m  --stream-json  ␛[39m␛[38;2;94;106;104mdexto run: JSON events, one per line␛[39m
-␛[38;2;11;122;104m  --profile      ␛[39m␛[38;2;94;106;104mUse a saved sign-in for one run␛[39m
-␛[38;2;11;122;104m  --mode <mode>  ␛[39m␛[38;2;94;106;104mweb | cli | server | mcp␛[39m
-␛[38;2;11;122;104m  -h, --help     ␛[39m␛[38;2;94;106;104mdisplay help for command␛[39m
-
-␛[38;2;94;106;104m  help for one command: ␛[39m␛[38;2;11;122;104mdexto <command> --help␛[39m␛[38;2;94;106;104m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;158;42;156m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
-`;
-
 exports[`Signal screens on truecolor-light > 7 help, one command 1`] = `
 "␛[38;2;5;8;7m␛[1mdexto login [options]␛[22m␛[39m
 ␛[38;2;27;34;33mSign in to Dexto with your browser.␛[39m
@@ -1076,8 +1519,8 @@ exports[`Signal screens on truecolor-light > at 80 columns > 1 first run 1`] = `
 ␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mmodel        ␛[39m␛[38;2;94;106;104mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;27;34;33m          ␛[39m␛[38;2;11;122;104mOK␛[39m
 ␛[38;2;186;196;193m▫ ␛[39m␛[38;2;5;8;7mcloud        ␛[39m␛[38;2;94;106;104msigned out · local works fully without it␛[39m␛[38;2;27;34;33m                    ␛[39m␛[38;2;186;196;193mSKIP␛[39m
 
-␛[38;2;5;8;7m␛[1m1␛[22m␛[39m␛[38;2;94;106;104m stay local   ␛[39m␛[38;2;11;122;104mdexto setup␛[39m
-␛[38;2;5;8;7m␛[1m2␛[22m␛[39m␛[38;2;94;106;104m sign in      ␛[39m␛[38;2;11;122;104mdexto login␛[39m
+␛[38;2;5;8;7m␛[1m1␛[22m␛[39m␛[38;2;94;106;104m sign in      ␛[39m␛[38;2;11;122;104mdexto login␛[39m
+␛[38;2;5;8;7m␛[1m2␛[22m␛[39m␛[38;2;94;106;104m or a key     ␛[39m␛[38;2;11;122;104mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -1093,6 +1536,71 @@ exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in 1`] = `
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
 ␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile acme-work · stored in ~/.dexto␛[39m
+␛[38;2;94;106;104m  your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, other profile 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m,␛[39m
+␛[38;2;94;106;104m  or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 80 columns > 7 help 1`] = `
+"␛[38;2;5;8;7m␛[1mdexto␛[22m␛[39m␛[38;2;186;196;193m  2.0.0  ␛[39m␛[38;2;27;34;33myour agent harness, local and cloud␛[39m
+
+␛[38;2;94;106;104m  S T A R T␛[39m
+␛[38;2;11;122;104m  dexto          ␛[39m␛[38;2;94;106;104mStart the agent here, in this folder␛[39m
+␛[38;2;11;122;104m  dexto -c       ␛[39m␛[38;2;94;106;104mContinue the most recent chat␛[39m
+␛[38;2;11;122;104m  dexto -r <id>  ␛[39m␛[38;2;94;106;104mResume a chat by id␛[39m
+␛[38;2;11;122;104m  run            ␛[39m␛[38;2;94;106;104mRun one prompt and print the result␛[39m
+
+␛[38;2;94;106;104m  C H A T␛[39m
+␛[38;2;11;122;104m  chat           ␛[39m␛[38;2;94;106;104mYour chats: this machine's sessions␛[39m
+
+␛[38;2;94;106;104m  C L O U D␛[39m
+␛[38;2;11;122;104m  publish        ␛[39m␛[38;2;94;106;104mPublish a file, folder or .zip as a link anyone with it can␛[39m
+␛[38;2;94;106;104m                 open␛[39m
+
+␛[38;2;94;106;104m  A C C O U N T␛[39m
+␛[38;2;11;122;104m  login          ␛[39m␛[38;2;94;106;104mSign in to Dexto with your browser or a device code␛[39m
+␛[38;2;11;122;104m  whoami         ␛[39m␛[38;2;94;106;104mShow who Dexto commands act as␛[39m
+␛[38;2;11;122;104m  logout         ␛[39m␛[38;2;94;106;104mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;2;94;106;104m  L O C A L␛[39m
+␛[38;2;11;122;104m  upgrade        ␛[39m␛[38;2;94;106;104mUpgrade dexto, or install a given version␛[39m
+
+␛[38;2;94;106;104m  O P T I O N S␛[39m
+␛[38;2;11;122;104m  --json         ␛[39m␛[38;2;94;106;104mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;2;11;122;104m  --stream-json  ␛[39m␛[38;2;94;106;104mdexto run: JSON events, one per line␛[39m
+␛[38;2;11;122;104m  --profile      ␛[39m␛[38;2;94;106;104mUse a saved sign-in for one run␛[39m
+␛[38;2;11;122;104m  --model <id>   ␛[39m␛[38;2;94;106;104mSpecify the LLM model to use␛[39m
+␛[38;2;11;122;104m  -h, --help     ␛[39m␛[38;2;94;106;104mdisplay help for command␛[39m
+
+␛[38;2;94;106;104m  help for one command: ␛[39m␛[38;2;11;122;104mdexto <command> --help␛[39m␛[38;2;94;106;104m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;158;42;156m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
 
 exports[`Signal screens on truecolor-light > at 124 columns > 1 first run 1`] = `
@@ -1112,8 +1620,8 @@ exports[`Signal screens on truecolor-light > at 124 columns > 1 first run 1`] = 
 ␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mmodel        ␛[39m␛[38;2;94;106;104mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;27;34;33m                                                      ␛[39m␛[38;2;11;122;104mOK␛[39m
 ␛[38;2;186;196;193m▫ ␛[39m␛[38;2;5;8;7mcloud        ␛[39m␛[38;2;94;106;104msigned out · local works fully without it␛[39m␛[38;2;27;34;33m                                                                ␛[39m␛[38;2;186;196;193mSKIP␛[39m
 
-␛[38;2;5;8;7m␛[1m1␛[22m␛[39m␛[38;2;94;106;104m stay local   ␛[39m␛[38;2;11;122;104mdexto setup␛[39m
-␛[38;2;5;8;7m␛[1m2␛[22m␛[39m␛[38;2;94;106;104m sign in      ␛[39m␛[38;2;11;122;104mdexto login␛[39m
+␛[38;2;5;8;7m␛[1m1␛[22m␛[39m␛[38;2;94;106;104m sign in      ␛[39m␛[38;2;11;122;104mdexto login␛[39m
+␛[38;2;5;8;7m␛[1m2␛[22m␛[39m␛[38;2;94;106;104m or a key     ␛[39m␛[38;2;11;122;104mexport ANTHROPIC_API_KEY=…␛[39m
 "
 `;
 
@@ -1129,4 +1637,66 @@ exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in 1`] = 
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
 ␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, other profile 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m, or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 124 columns > 7 help 1`] = `
+"␛[38;2;5;8;7m␛[1mdexto␛[22m␛[39m␛[38;2;186;196;193m  2.0.0  ␛[39m␛[38;2;27;34;33myour agent harness, local and cloud␛[39m
+
+␛[38;2;94;106;104m  S T A R T␛[39m
+␛[38;2;11;122;104m  dexto          ␛[39m␛[38;2;94;106;104mStart the agent here, in this folder␛[39m
+␛[38;2;11;122;104m  dexto -c       ␛[39m␛[38;2;94;106;104mContinue the most recent chat␛[39m
+␛[38;2;11;122;104m  dexto -r <id>  ␛[39m␛[38;2;94;106;104mResume a chat by id␛[39m
+␛[38;2;11;122;104m  run            ␛[39m␛[38;2;94;106;104mRun one prompt and print the result␛[39m
+
+␛[38;2;94;106;104m  C H A T␛[39m
+␛[38;2;11;122;104m  chat           ␛[39m␛[38;2;94;106;104mYour chats: this machine's sessions␛[39m
+
+␛[38;2;94;106;104m  C L O U D␛[39m
+␛[38;2;11;122;104m  publish        ␛[39m␛[38;2;94;106;104mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[38;2;94;106;104m  A C C O U N T␛[39m
+␛[38;2;11;122;104m  login          ␛[39m␛[38;2;94;106;104mSign in to Dexto with your browser or a device code␛[39m
+␛[38;2;11;122;104m  whoami         ␛[39m␛[38;2;94;106;104mShow who Dexto commands act as␛[39m
+␛[38;2;11;122;104m  logout         ␛[39m␛[38;2;94;106;104mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;2;94;106;104m  L O C A L␛[39m
+␛[38;2;11;122;104m  upgrade        ␛[39m␛[38;2;94;106;104mUpgrade dexto, or install a given version␛[39m
+
+␛[38;2;94;106;104m  O P T I O N S␛[39m
+␛[38;2;11;122;104m  --json         ␛[39m␛[38;2;94;106;104mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;2;11;122;104m  --stream-json  ␛[39m␛[38;2;94;106;104mdexto run: JSON events, one per line␛[39m
+␛[38;2;11;122;104m  --profile      ␛[39m␛[38;2;94;106;104mUse a saved sign-in for one run␛[39m
+␛[38;2;11;122;104m  --model <id>   ␛[39m␛[38;2;94;106;104mSpecify the LLM model to use␛[39m
+␛[38;2;11;122;104m  -h, --help     ␛[39m␛[38;2;94;106;104mdisplay help for command␛[39m
+
+␛[38;2;94;106;104m  help for one command: ␛[39m␛[38;2;11;122;104mdexto <command> --help␛[39m␛[38;2;94;106;104m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;158;42;156m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;

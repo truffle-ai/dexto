@@ -1,10 +1,12 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'node:crypto';
 import { parseDocument, stringify } from 'yaml';
 import { loadAgentConfig } from './loader.js';
 import { enrichAgentConfig } from './config-enrichment.js';
 import {
     AgentConfigSchema,
+    assertSafeConfigKeys,
     type AgentConfig,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
@@ -69,12 +71,16 @@ export async function updateAgentConfigFile(
     configPath: string,
     updates: Partial<AgentConfig>
 ): Promise<ValidatedAgentConfig> {
+    assertSafeConfigKeys(updates);
+
     // Read raw YAML from disk (without env var expansion)
     const rawYaml = await fs.readFile(configPath, 'utf-8');
 
     // Use YAML Document API to preserve comments/anchors/formatting
     const doc = parseDocument(rawYaml);
     const rawConfig = doc.toJSON() as Record<string, unknown>;
+
+    assertSafeConfigKeys(rawConfig);
 
     // Shallow merge top-level updates into raw config
     const updatedRawConfig = { ...rawConfig, ...updates } as AgentConfig;
@@ -100,10 +106,7 @@ export async function updateAgentConfigFile(
     // Serialize the Document back to YAML
     const yamlContent = String(doc);
 
-    // Atomic write: write to temp file then rename
-    const tmpPath = `${configPath}.tmp`;
-    await fs.writeFile(tmpPath, yamlContent, 'utf-8');
-    await fs.rename(tmpPath, configPath);
+    await writeFileAtomic(configPath, yamlContent);
 
     // Return the enriched, validated config (ready for agent.reload())
     return parsed.data;
@@ -140,9 +143,19 @@ export async function reloadAgentConfigFromFile(configPath: string): Promise<Age
  * Helper to write file atomically
  */
 async function writeFileAtomic(configPath: string, content: string): Promise<void> {
-    const tmpPath = `${configPath}.tmp`;
-    await fs.writeFile(tmpPath, content, 'utf-8');
-    await fs.rename(tmpPath, configPath);
+    const mode = 0o600;
+    const tmpPath = `${configPath}.${randomUUID()}.tmp`;
+    const file = await fs.open(tmpPath, 'wx', mode);
+    try {
+        await file.writeFile(content, 'utf-8');
+        await file.chmod(mode);
+        await file.close();
+        await fs.rename(tmpPath, configPath);
+    } catch (error) {
+        await file.close().catch(() => {});
+        await fs.unlink(tmpPath).catch(() => {});
+        throw error;
+    }
 }
 
 // ============================================================================

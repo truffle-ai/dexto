@@ -53,3 +53,5 @@ export { toDextoAgentOptions } from './resolver/to-dexto-agent-options.js';
 export type { ResolvedServices } from './resolver/types.js';
 
 export { cleanNullValues } from './utils/clean-null-values.js';
+
+export { assertSafeConfigKeys } from './utils/assert-safe-config-keys.js';

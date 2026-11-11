@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
 import type { DextoAgent, StreamingEvent } from '@dexto/core';
+import { DextoRuntimeError, ErrorType, LLMErrorCode } from '@dexto/core';
+import { CommandFailure } from '../../failure.js';
 import { registerRunCommand } from './register.js';
 
 const { safeExit } = vi.hoisted(() => ({ safeExit: vi.fn() }));
@@ -14,6 +16,19 @@ vi.mock('@dexto/core', () => ({
     safeStringify: JSON.stringify,
     isTextPart: (part: { type: string }) => part.type === 'text',
     ApprovalType: { TOOL_APPROVAL: 'tool_approval', COMMAND_APPROVAL: 'command_approval' },
+    ErrorType: { USER: 'user' },
+    LLMErrorCode: { API_KEY_MISSING: 'llm_api_key_missing' },
+    DextoRuntimeError: class DextoRuntimeError extends Error {
+        constructor(
+            readonly code: string,
+            readonly scope: string,
+            readonly type: string,
+            message: string,
+            readonly context?: unknown
+        ) {
+            super(message);
+        }
+    },
 }));
 
 function streamingAgent(events: StreamingEvent[]): DextoAgent {
@@ -247,6 +262,85 @@ describe('dexto run output', () => {
             JSON.stringify({ error: { code: 'failed', message: 'Missing model credentials' } })
         );
         expect(safeExit).toHaveBeenCalledWith('run', 1, 'error');
+    });
+
+    it('needs sign-in (exit 3) when the model has no key and no Dexto sign-in', async () => {
+        const missingKey = new DextoRuntimeError(
+            LLMErrorCode.API_KEY_MISSING,
+            'llm',
+            ErrorType.USER,
+            "API key required for provider 'anthropic'",
+            { provider: 'anthropic', envVar: 'ANTHROPIC_API_KEY' }
+        );
+        const agent = streamingAgent([response]);
+        vi.mocked(agent.createSession).mockRejectedValueOnce(missingKey);
+        await run(['task', '--json'], agent);
+        const error = {
+            code: 'needs_sign_in',
+            message: 'Sign in to use Dexto models, or set ANTHROPIC_API_KEY.',
+            fix: 'dexto login',
+        };
+        expect(JSON.parse(stdout.join(''))).toEqual({
+            type: 'result',
+            status: 'failed',
+            error,
+            permission_denials: [],
+        });
+        expect(stderr.join('')).toBe(`${JSON.stringify({ error })}\n`);
+        expect(safeExit).toHaveBeenCalledWith('run', 3, 'error');
+    });
+
+    it("exits with a CommandFailure's own code, such as a --model with no key", async () => {
+        await run(
+            ['task', '--json'],
+            new CommandFailure('needs_sign_in', 'Set OPENAI_API_KEY to use gpt-4o-mini.', null)
+        );
+        expect(stderr.join('')).toBe(
+            `${JSON.stringify({ error: { code: 'needs_sign_in', message: 'Set OPENAI_API_KEY to use gpt-4o-mini.' } })}\n`
+        );
+        expect(safeExit).toHaveBeenCalledWith('run', 3, 'error');
+    });
+
+    it('keeps stderr to the one JSON failure in JSON mode: no progress or error lines', async () => {
+        await run(
+            ['task', '--json'],
+            streamingAgent([
+                {
+                    name: 'llm:tool-call',
+                    toolName: 'read_file',
+                    args: {},
+                    callId: 'call-1',
+                    sessionId: 'session-1',
+                } as StreamingEvent,
+                {
+                    name: 'run:complete',
+                    finishReason: 'error',
+                    error: new Error('provider failed'),
+                    sessionId: 'session-1',
+                } as StreamingEvent,
+            ])
+        );
+        expect(stderr).toEqual([
+            `${JSON.stringify({ error: { code: 'failed', message: 'provider failed' } })}\n`,
+        ]);
+    });
+
+    it('prints a failure once in text mode, with the command that fixes it', async () => {
+        const printed = vi.spyOn(console, 'error').mockImplementation(() => {});
+        await run(
+            ['task', '--text'],
+            new CommandFailure('needs_sign_in', 'Not signed in.', 'dexto login')
+        );
+        expect(stdout).toEqual([]);
+        expect(printed.mock.calls).toEqual([['Error: Not signed in.'], ['Run: dexto login']]);
+        expect(stderr).toEqual([]);
+        expect(safeExit).toHaveBeenCalledWith('run', 3, 'error');
+    });
+
+    it('prints the reply once in text mode: stdout only, not echoed on stderr', async () => {
+        await run(['task', '--text'], streamingAgent([response]));
+        expect(stdout.join('')).toBe('done\n');
+        expect(stderr.join('')).not.toContain('[DEXTO]');
     });
 
     it('streams JSONL events and includes final content in one terminal result', async () => {

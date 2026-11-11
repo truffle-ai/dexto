@@ -8,4 +8,5 @@ export {
     type TurnDriverNextAction,
     type TurnDriverOptions,
     type TurnDriverState,
+    type TurnDriverToolCalls,
 } from './turn-executor.js';

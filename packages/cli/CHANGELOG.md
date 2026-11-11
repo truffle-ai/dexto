@@ -1,5 +1,110 @@
 # dexto
 
+## 1.16.1
+
+### Patch Changes
+
+- f624099: Tighten the CLI command-end event contract and verify failure reporting.
+- aa5c24a: Limit CLI analytics arguments to non-content metadata.
+- 5471dd3: Avoid sending agent names and error messages in CLI analytics. Show the path of a forbidden configuration key when loading an agent config; keys named `constructor` or `prototype` are rejected even in custom config maps.
+- Updated dependencies [1064696]
+- Updated dependencies [77dc15c]
+- Updated dependencies [749f275]
+- Updated dependencies [360a05f]
+- Updated dependencies [5471dd3]
+- Updated dependencies [ff72927]
+    - @dexto/agent-management@1.16.1
+    - @dexto/core@1.16.1
+    - @dexto/agent-config@1.16.1
+    - @dexto/server@1.16.1
+    - @dexto/analytics@1.16.1
+    - @dexto/image-local@1.16.1
+    - @dexto/image-logger-agent@1.16.1
+    - @dexto/tui@1.16.1
+    - @dexto/client-sdk@1.16.1
+    - @dexto/storage@1.16.1
+    - @dexto/llm@1.16.1
+    - @dexto/registry@1.16.1
+
+## 1.16.0
+
+### Patch Changes
+
+- Updated dependencies [4c3b408]
+- Updated dependencies [5f6c02f]
+    - @dexto/core@1.16.0
+    - @dexto/agent-config@1.16.0
+    - @dexto/agent-management@1.16.0
+    - @dexto/analytics@1.16.0
+    - @dexto/client-sdk@1.16.0
+    - @dexto/image-local@1.16.0
+    - @dexto/image-logger-agent@1.16.0
+    - @dexto/server@1.16.0
+    - @dexto/storage@1.16.0
+    - @dexto/tui@1.16.0
+    - @dexto/llm@1.16.0
+    - @dexto/registry@1.16.0
+
+## 1.15.0
+
+### Patch Changes
+
+- Updated dependencies [e44ecb3]
+    - @dexto/core@1.15.0
+    - @dexto/agent-config@1.15.0
+    - @dexto/agent-management@1.15.0
+    - @dexto/analytics@1.15.0
+    - @dexto/client-sdk@1.15.0
+    - @dexto/image-local@1.15.0
+    - @dexto/image-logger-agent@1.15.0
+    - @dexto/server@1.15.0
+    - @dexto/storage@1.15.0
+    - @dexto/tui@1.15.0
+    - @dexto/llm@1.15.0
+    - @dexto/registry@1.15.0
+
+## 1.14.6
+
+### Patch Changes
+
+- Updated dependencies [2e03ad2]
+    - @dexto/core@1.14.6
+    - @dexto/agent-config@1.14.6
+    - @dexto/agent-management@1.14.6
+    - @dexto/analytics@1.14.6
+    - @dexto/client-sdk@1.14.6
+    - @dexto/image-local@1.14.6
+    - @dexto/image-logger-agent@1.14.6
+    - @dexto/server@1.14.6
+    - @dexto/storage@1.14.6
+    - @dexto/tui@1.14.6
+    - @dexto/llm@1.14.6
+    - @dexto/registry@1.14.6
+
+## 1.14.5
+
+### Patch Changes
+
+- e17975f: Move `glob` from 12 to 14, `minimatch` from 10 to 11 and `@hono/node-server` from 1.19.17 to 2.1.5, so Dexto's own dependencies no longer carry their published advisories. The APIs Dexto calls are unchanged, and all three support the Node 20 floor Dexto already requires. The lockfile also moves the MCP SDK's `@hono/node-server` to 2.1.5, which its range already allows, so the Docker image and standalone binaries carry one patched copy. The WebUI is still served the same way.
+- ce63e57: Build, test and ship the Docker image and standalone binaries with `zod` 4.6.7 and `follow-redirects` 1.16.2 instead of `zod` 4.3.6 and `follow-redirects` 1.16.1, which have published advisories. The declared `zod` range is unchanged, so installs from npm already resolved a patched `zod`; this makes the repository's tests and bundled artifacts match what users get. The cancel-task route now declares its path parameter with `unknown().transform().pipe()` because `z.preprocess` no longer type-checks there.
+- Updated dependencies [77101ce]
+- Updated dependencies [e17975f]
+- Updated dependencies [3f3c456]
+- Updated dependencies [7cdf653]
+- Updated dependencies [ce63e57]
+    - @dexto/core@1.14.5
+    - @dexto/server@1.14.5
+    - @dexto/image-local@1.14.5
+    - @dexto/agent-config@1.14.5
+    - @dexto/agent-management@1.14.5
+    - @dexto/analytics@1.14.5
+    - @dexto/client-sdk@1.14.5
+    - @dexto/image-logger-agent@1.14.5
+    - @dexto/storage@1.14.5
+    - @dexto/tui@1.14.5
+    - @dexto/llm@1.14.5
+    - @dexto/registry@1.14.5
+
 ## 1.14.4
 
 ### Patch Changes

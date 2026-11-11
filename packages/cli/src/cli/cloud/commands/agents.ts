@@ -26,6 +26,8 @@ import {
 } from '../command.js';
 import { sessionEvents, type AgentEvent } from '../events.js';
 import type { Column } from '../output.js';
+import { safeLines, unfiltered } from '../runtime.js';
+import { safeJson, safeText } from '@dexto/tui/signal-text';
 
 type Agent = V1Response<'/v1/agents/{agent_id}', 'get'>;
 type AgentDefinitionInput = V1Body<'/v1/agents', 'post'>;
@@ -203,7 +205,7 @@ const chat: Command = {
         const prompt = context.runtime.prompt;
         if (prompt === null) return await turn((await context.runtime.readStdin()).trim());
         for (;;) {
-            const next = (await prompt(chalk.bold('> '), { secret: false })).trim();
+            const next = (await prompt('> ', { secret: false })).trim();
             if (next.length === 0) return 0;
             const code = await turn(next);
             if (code !== 0) return code;
@@ -251,7 +253,7 @@ async function runTurn(
             const event = result.value;
             if (event.run_id !== run.id) continue;
             // A reply is content: only an explicit --json prints its events.
-            if (output.jsonContent) runtime.writeOutput(`${JSON.stringify(event)}\n`);
+            if (output.jsonContent) runtime.writeOutput(`${safeJson(event, 0)}\n`);
             else streamedText = renderEvent(context, event, streamedText);
             if (event.type === 'approval.requested') {
                 const decided = await decide(context, client, target, event);
@@ -498,8 +500,11 @@ const messages: Command = {
             })
         );
         if (context.output.json) return context.output.list(page, []);
+        // Bold label, so styled: the text is cleaned here instead of by the runtime.
         for (const message of page.data)
-            context.runtime.writeOutput(`${chalk.bold(message.role)}: ${message.text}\n\n`);
+            unfiltered(context.runtime).writeOutput(
+                `${chalk.bold(safeText(message.role))}: ${safeLines(message.text)}\n\n`
+            );
         if (page.has_more && page.next_after !== null)
             context.output.note(`More messages: add --after ${page.next_after}`);
     },

@@ -44,5 +44,4 @@ The generated default export matches `@dexto/agent-config`’s `DextoImage` inte
 
 ## Related
 
-- `dexto create-image` (CLI scaffold that uses this bundler)
 - `@dexto/agent-config` (image loading + config→services resolver)

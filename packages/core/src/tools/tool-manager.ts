@@ -26,6 +26,7 @@ import type {
 } from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type {
+    ApprovalHandlerContext,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
@@ -885,6 +886,11 @@ export class ToolManager {
         return descriptors;
     }
 
+    /** Whether the model is offered this tool; only an unlisted local tool is not. */
+    isListedForModel(toolName: string): boolean {
+        return this.agentTools.get(toolName)?.modelListing !== 'unlisted';
+    }
+
     /** Whether a successful call of this local tool with this input ends the turn. */
     endsTurn(toolName: string, input: unknown): boolean {
         const endsTurn = this.agentTools.get(toolName)?.endsTurn;
@@ -934,17 +940,28 @@ export class ToolManager {
         return {
             name: tool.id,
             description: await this.getLocalToolDescription(tool),
-            approval:
-                this.approvalMode === 'auto-approve' ||
-                tool.needsApproval === false ||
-                tool.needsApproval === null
-                    ? 'never'
-                    : 'possible',
+            approval: this.describeLocalToolApproval(tool.needsApproval),
             identity: { type: 'local', toolId: tool.id },
             inputSchema,
             ...(outputSchema === undefined ? {} : { outputSchema }),
             schemaFingerprint: toolSchemaFingerprint(inputSchema, outputSchema),
         };
+    }
+
+    private describeLocalToolApproval(needsApproval: Tool['needsApproval']): 'never' | 'possible' {
+        if (needsApproval === false || needsApproval === null) {
+            return 'never';
+        }
+        // Auto-approve settles every call except one whose tool asks afresh, which a function
+        // decides per call.
+        if (
+            this.approvalMode === 'auto-approve' &&
+            typeof needsApproval !== 'function' &&
+            typeof needsApproval !== 'object'
+        ) {
+            return 'never';
+        }
+        return 'possible';
     }
 
     private prefixMcpToolDescriptor(descriptor: MCPToolDescriptor): ToolDescriptor {
@@ -1163,6 +1180,7 @@ export class ToolManager {
 
         // Add local tools
         for (const [toolName, tool] of this.agentTools) {
+            if (tool.modelListing === 'unlisted') continue;
             const description = await this.getLocalToolDescription(tool);
 
             allTools[toolName] = {
@@ -1323,7 +1341,7 @@ export class ToolManager {
     }
 
     private async prepareApprovalRequiredToolCall(input: {
-        approvalGate: Extract<ToolApprovalGate, { kind: 'approval-required' }>;
+        approvalGate: Exclude<ToolApprovalGate, { kind: 'ready' }>;
         args: Record<string, unknown>;
         call: ExecutableToolCall;
         approvalDescription?: string | undefined;
@@ -1343,16 +1361,21 @@ export class ToolManager {
             toolName: input.toolName,
         });
         const hostRuntime = input.runContext?.hostRuntime;
+        const approvalKey =
+            input.approvalGate.kind === 'approval-required'
+                ? input.approvalGate.approvalKey
+                : undefined;
         const requestDetails: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_APPROVAL,
+            ...(input.approvalGate.kind === 'always-ask'
+                ? { autoApproval: 'disallowed' as const }
+                : {}),
             ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
             ...(hostRuntime !== undefined ? { hostRuntime } : {}),
             metadata: {
                 toolName: input.toolName,
                 toolIdentity: input.call.identity,
-                ...(input.approvalGate.approvalKey !== undefined
-                    ? { approvalKey: input.approvalGate.approvalKey }
-                    : {}),
+                ...(approvalKey !== undefined ? { approvalKey } : {}),
                 presentationSnapshot: input.call.presentationSnapshot,
                 toolCallId: input.toolCallId,
                 ...(input.call.parentToolCallId === undefined
@@ -1430,8 +1453,11 @@ export class ToolManager {
         };
     }
 
-    async requestApprovalDecision(recorded: RecordedToolApproval): Promise<ApprovalResponse> {
-        return this.approvalManager.requestApprovalDecision(recorded.request);
+    async requestApprovalDecision(
+        recorded: RecordedToolApproval,
+        context?: ApprovalHandlerContext
+    ): Promise<ApprovalResponse> {
+        return this.approvalManager.requestApprovalDecision(recorded.request, context);
     }
 
     async cancelApprovalRequest(recorded: RecordedToolApproval): Promise<void> {
@@ -1488,6 +1514,11 @@ export class ToolManager {
     ): Promise<void> {
         const approvalRequestDetails = prepared.requestDetails;
         const sessionId = approvalRequestDetails.sessionId;
+
+        // A fresh approval covers this call only; remembering it would let it settle a later one.
+        if (approvalRequestDetails.autoApproval === 'disallowed') {
+            return;
+        }
 
         if (approvalRequestDetails.type === ApprovalType.TOOL_APPROVAL) {
             const toolMetadata = ToolApprovalMetadataSchema.parse(approvalRequestDetails.metadata);

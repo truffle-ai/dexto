@@ -25,7 +25,6 @@ const AGENTS_TO_COPY = [
     'product-name-researcher/',
     'sora-video-agent/',
     'talk2pdf-agent/',
-    'triage-demo/',
 ];
 
 const SOURCE_DIR = join(__dirname, '../../../agents');

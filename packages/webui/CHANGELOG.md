@@ -1,5 +1,76 @@
 # @dexto/webui
 
+## 1.16.1
+
+### Patch Changes
+
+- Updated dependencies [749f275]
+- Updated dependencies [ff72927]
+    - @dexto/core@1.16.1
+    - @dexto/agent-config@1.16.1
+    - @dexto/analytics@1.16.1
+    - @dexto/client-sdk@1.16.1
+    - @dexto/storage@1.16.1
+    - @dexto/llm@1.16.1
+    - @dexto/registry@1.16.1
+
+## 1.16.0
+
+### Patch Changes
+
+- Updated dependencies [4c3b408]
+- Updated dependencies [5f6c02f]
+    - @dexto/core@1.16.0
+    - @dexto/agent-config@1.16.0
+    - @dexto/analytics@1.16.0
+    - @dexto/client-sdk@1.16.0
+    - @dexto/storage@1.16.0
+    - @dexto/llm@1.16.0
+    - @dexto/registry@1.16.0
+
+## 1.15.0
+
+### Patch Changes
+
+- Updated dependencies [e44ecb3]
+    - @dexto/core@1.15.0
+    - @dexto/agent-config@1.15.0
+    - @dexto/analytics@1.15.0
+    - @dexto/client-sdk@1.15.0
+    - @dexto/storage@1.15.0
+    - @dexto/llm@1.15.0
+    - @dexto/registry@1.15.0
+
+## 1.14.6
+
+### Patch Changes
+
+- Updated dependencies [2e03ad2]
+    - @dexto/core@1.14.6
+    - @dexto/agent-config@1.14.6
+    - @dexto/analytics@1.14.6
+    - @dexto/client-sdk@1.14.6
+    - @dexto/storage@1.14.6
+    - @dexto/llm@1.14.6
+    - @dexto/registry@1.14.6
+
+## 1.14.5
+
+### Patch Changes
+
+- Updated dependencies [77101ce]
+- Updated dependencies [e17975f]
+- Updated dependencies [3f3c456]
+- Updated dependencies [7cdf653]
+- Updated dependencies [ce63e57]
+    - @dexto/core@1.14.5
+    - @dexto/agent-config@1.14.5
+    - @dexto/analytics@1.14.5
+    - @dexto/client-sdk@1.14.5
+    - @dexto/storage@1.14.5
+    - @dexto/llm@1.14.5
+    - @dexto/registry@1.14.5
+
 ## 1.14.4
 
 ### Patch Changes

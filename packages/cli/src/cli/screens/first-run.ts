@@ -1,10 +1,12 @@
 /**
  * The Signal first run (DEXTO-2041 screen 1): the wordmark, what Dexto is, a preflight of this
- * machine, then the two ways on. The first-run flow has no two-way choice of its own, so the ways
- * on are printed as commands and setup carries on as it does today. Behind DEXTO_PALETTE=signal.
+ * machine, then the two ways on, printed as what to do next. Shown when there is neither a provider
+ * key nor a sign-in to start the chat with. Behind DEXTO_PALETTE=signal.
  */
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import {
     getCaps,
     letterspaced,
@@ -61,7 +63,7 @@ function checks(facts: FirstRunFacts): Check[] {
             value: 'read · edit · write · run · search · web · your MCP servers',
         },
         facts.model === null
-            ? { ok: false, name: 'model', value: 'no provider key found · setup picks one' }
+            ? { ok: false, name: 'model', value: 'no provider key found' }
             : {
                   ok: true,
                   name: 'model',
@@ -99,30 +101,53 @@ export function firstRunLines(facts: FirstRunFacts): string[] {
         line([span('dim', letterspaced('preflight'))]),
         ...checks(facts).flatMap((check) => checkLine(check, facts.columns)),
         '',
-        key('1', 'stay local', 'dexto setup'),
-        key('2', 'sign in', 'dexto login'),
+        key('1', 'sign in', 'dexto login'),
+        key('2', 'or a key', 'export ANTHROPIC_API_KEY=…'),
         '',
     ];
 }
 
-/** The branch and how many files have changes, or null outside a git repository. */
-function readGit(cwd: string): FirstRunFacts['git'] {
+const execFileAsync = promisify(execFile);
+
+/** How long the preflight waits on git, for both questions together. */
+const GIT_TIMEOUT_MS = 1000;
+
+/**
+ * The branch and how many files have changes, or null outside a git repository or when git
+ * doesn't answer within `timeoutMs`. Both questions run at once, under the one deadline.
+ */
+export async function readGit(
+    cwd: string,
+    timeoutMs: number = GIT_TIMEOUT_MS
+): Promise<FirstRunFacts['git']> {
+    const signal = AbortSignal.timeout(timeoutMs);
+    const run = async (args: string[]) =>
+        (await execFileAsync('git', args, { cwd, encoding: 'utf8', signal })).stdout;
     try {
-        const run = (args: string[]) =>
-            execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 1000, stdio: 'pipe' });
-        const branch = run(['branch', '--show-current']).trim() || 'detached';
-        const uncommitted = run(['status', '--porcelain']).split('\n').filter(Boolean).length;
-        return { branch, uncommitted };
+        const [branch, status] = await Promise.all([
+            run(['branch', '--show-current']),
+            run(['status', '--porcelain']),
+        ]);
+        return {
+            branch: branch.trim() || 'detached',
+            uncommitted: status.split('\n').filter(Boolean).length,
+        };
     } catch {
         return null;
     }
 }
 
-export function homeRelative(folder: string): string {
-    const home = os.homedir();
-    return folder === home || folder.startsWith(`${home}/`)
-        ? `~${folder.slice(home.length)}`
-        : folder;
+/** `folder` with the home folder as `~`, on any platform's paths; other folders as they are. */
+export function homeRelative(
+    folder: string,
+    home: string = os.homedir(),
+    paths: typeof path.posix = path
+): string {
+    const relative = paths.relative(home, folder);
+    if (relative === '') return '~';
+    if (relative === '..' || relative.startsWith(`..${paths.sep}`) || paths.isAbsolute(relative))
+        return folder;
+    return `~${paths.sep}${relative}`;
 }
 
 /** This machine's facts for the preflight; the caller says who it is signed in as. */
@@ -147,7 +172,7 @@ export async function readFirstRunFacts(
         columns: process.stdout.columns ?? 80,
         rows: process.stdout.rows ?? 24,
         cwd: homeRelative(process.cwd()),
-        git: readGit(process.cwd()),
+        git: await readGit(process.cwd()),
         model,
         signedInAs,
     };

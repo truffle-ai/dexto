@@ -1,11 +1,13 @@
 import chalk from 'chalk';
-import * as p from '@clack/prompts';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { safeExit, ExitSignal } from '../../analytics/wrapper.js';
 import { hasUsableCredentials } from '../../config/cli-overrides.js';
 import type { MainModeContext } from './context.js';
 import { applyWorkspaceToAgent } from '../../utils/workspace.js';
+import { nodeChatSyncStore } from '../chat-sync/node.js';
+import { nodeCloudHost } from '../cloud/host.js';
+import { runCloud } from '../cloud/run.js';
 
 async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
     const sessionIds = await agent.listSessions();
@@ -53,121 +55,49 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
         await agent.start();
         await applyWorkspaceToAgent(agent, workspaceRoot);
         const llmConfig = agent.getCurrentLLMConfig();
-        if (!hasUsableCredentials(llmConfig.provider, llmConfig)) {
-            const { globalPreferencesExist, loadGlobalPreferences } = await import(
-                '@dexto/agent-management'
-            );
+        // Dexto models run on the sign-in, which startup has already checked.
+        if (
+            llmConfig.provider !== 'dexto-nova' &&
+            !hasUsableCredentials(llmConfig.provider, llmConfig)
+        ) {
             const { interactiveApiKeySetup } = await import('../utils/api-key-setup.js');
             const { getProviderDisplayName, getProviderEnvVar } = await import(
                 '../utils/provider-setup.js'
             );
-
-            let hasCompletedSetup = false;
-            if (globalPreferencesExist()) {
-                try {
-                    const preferences = await loadGlobalPreferences();
-                    hasCompletedSetup = preferences.setup.completed;
-                } catch {
-                    hasCompletedSetup = false;
-                }
-            }
 
             console.log(
                 chalk.yellow(
                     `\n⚠️  API key required for provider '${getProviderDisplayName(llmConfig.provider)}'\n`
                 )
             );
+            console.log(
+                chalk.gray(
+                    `Set ${getProviderEnvVar(llmConfig.provider)}, or run ${chalk.cyan(
+                        'dexto login'
+                    )} to use Dexto models.`
+                )
+            );
 
-            if (!hasCompletedSetup) {
-                console.log(
-                    chalk.gray(
-                        `Dexto started with the bundled coding-agent defaults. ` +
-                            `Set ${getProviderEnvVar(llmConfig.provider)} or run ${chalk.cyan(
-                                'dexto setup'
-                            )} to choose a different provider.`
-                    )
-                );
+            const setupResult = await interactiveApiKeySetup(llmConfig.provider, {
+                exitOnCancel: false,
+                model: llmConfig.model,
+            });
+
+            if (setupResult.cancelled) {
+                safeExit('main', 0, 'api-key-setup-cancelled');
             }
 
-            const runProviderKeySetup = async () => {
-                const setupResult = await interactiveApiKeySetup(llmConfig.provider, {
-                    exitOnCancel: false,
+            if (setupResult.skipped) {
+                safeExit('main', 0, 'api-key-pending');
+            }
+
+            if (setupResult.success && setupResult.apiKey) {
+                await agent.switchLLM({
+                    provider: llmConfig.provider,
                     model: llmConfig.model,
+                    apiKey: setupResult.apiKey,
                 });
-
-                if (setupResult.cancelled) {
-                    safeExit('main', 0, 'api-key-setup-cancelled');
-                }
-
-                if (setupResult.skipped) {
-                    safeExit('main', 0, 'api-key-pending');
-                }
-
-                if (setupResult.success && setupResult.apiKey) {
-                    await agent.switchLLM({
-                        provider: llmConfig.provider,
-                        model: llmConfig.model,
-                        apiKey: setupResult.apiKey,
-                    });
-                    logger.info('API key configured successfully, continuing...');
-                }
-            };
-
-            if (hasCompletedSetup) {
-                await runProviderKeySetup();
-            } else {
-                const action = await p.select({
-                    message: 'How would you like to continue?',
-                    options: [
-                        {
-                            value: 'key',
-                            label: `Paste a ${getProviderDisplayName(llmConfig.provider)} key`,
-                            hint: 'Continue in this session',
-                        },
-                        {
-                            value: 'setup',
-                            label: 'Run dexto setup',
-                            hint: 'Choose a different provider or save defaults',
-                        },
-                        {
-                            value: 'exit',
-                            label: 'Exit',
-                            hint: 'Configure later',
-                        },
-                    ],
-                });
-
-                if (p.isCancel(action) || action === 'exit') {
-                    safeExit('main', 0, 'api-key-setup-cancelled');
-                }
-
-                if (action === 'setup') {
-                    const { handleSetupCommand } = await import('../commands/setup.js');
-                    await handleSetupCommand({ interactive: true, force: true });
-
-                    let preferences;
-                    try {
-                        preferences = await loadGlobalPreferences();
-                    } catch {
-                        safeExit('main', 0, 'setup-incomplete');
-                    }
-
-                    if (!preferences.setup.completed) {
-                        safeExit('main', 0, 'setup-incomplete');
-                    }
-                    if (preferences.setup.apiKeyPending) {
-                        safeExit('main', 0, 'api-key-pending');
-                    }
-                    await agent.switchLLM({
-                        provider: preferences.llm.provider,
-                        model: preferences.llm.model,
-                        ...(preferences.llm.apiKey && { apiKey: preferences.llm.apiKey }),
-                        ...(preferences.llm.baseURL && { baseURL: preferences.llm.baseURL }),
-                    });
-                    logger.info('Provider configured successfully, continuing...');
-                } else {
-                    await runProviderKeySetup();
-                }
+                logger.info('API key configured successfully, continuing...');
             }
         }
 
@@ -241,6 +171,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
             const chatSync = isDextoAuthEnabled()
                 ? await startNodeChatSync(agent, process.cwd()).catch(() => null)
                 : null;
+            let moveController: AbortController | null = null;
 
             setTuiRuntimeServices({
                 registerGracefulShutdown,
@@ -307,8 +238,63 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     );
                     return summary?.balanceUsd ?? null;
                 },
+                assertLocalChat: async (id: string) => {
+                    const store = nodeChatSyncStore();
+                    for (const account of await store.listAccounts()) {
+                        const saved = await store.readChat(account, id);
+                        if (saved?.status === 'paused')
+                            throw new Error(
+                                saved.reason === 'move_in_progress'
+                                    ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
+                                    : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                            );
+                    }
+                },
                 ...(chatSync !== null && {
+                    abortChatMove: () => {
+                        if (moveController === null || moveController.signal.aborted) return false;
+                        moveController.abort();
+                        return true;
+                    },
                     chatSync: { command: chatSync.command, onNotice: chatSync.onNotice },
+                    chatMove: async (to: 'cloud' | 'local', id: string) => {
+                        if (moveController !== null)
+                            throw new Error('Another hand-off is still running.');
+                        const controller = new AbortController();
+                        moveController = controller;
+                        const abort = () => controller.abort();
+                        process.once('SIGINT', abort);
+                        try {
+                            const host = nodeCloudHost(controller.signal);
+                            const lines: string[] = [];
+                            const runtime = {
+                                ...host.runtime,
+                                // Ink owns stdin; the slash command is the person's consent.
+                                prompt: null,
+                                stdoutIsTerminal: true,
+                                writeOutput: (text: string) => {
+                                    lines.push(text);
+                                },
+                                writeError: (text: string) => {
+                                    lines.push(text);
+                                },
+                            };
+                            const code = await runCloud(
+                                {
+                                    ...host,
+                                    runtime,
+                                    openLocalAgent: async () => agent,
+                                    syncLocalChat: (chatId) => chatSync.engine.sync(chatId),
+                                },
+                                ['chat', 'move', id, '--to', to, '--detach', '--yes', '--table']
+                            );
+                            if (code !== 0) throw new Error(lines.join('\n'));
+                            return lines.join('\n');
+                        } finally {
+                            process.removeListener('SIGINT', abort);
+                            moveController = null;
+                        }
+                    },
                 }),
             });
             void chatSync?.start(cliSessionId).catch(() => undefined);

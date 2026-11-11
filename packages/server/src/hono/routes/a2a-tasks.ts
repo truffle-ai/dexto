@@ -472,8 +472,9 @@ export function createA2ATasksRouter(
         description: 'Cancel a running task (A2A tasks/cancel)',
         tags: ['a2a'],
         request: {
-            params: z.preprocess(
-                (value) => {
+            params: z
+                .unknown()
+                .transform((value) => {
                     if (value && typeof value === 'object' && !Array.isArray(value)) {
                         const raw = readCancelTaskParam(value);
                         if (raw !== undefined) {
@@ -483,11 +484,12 @@ export function createA2ATasksRouter(
                         }
                     }
                     return value;
-                },
-                z.object({
-                    id: z.string().describe('Task ID'),
                 })
-            ),
+                .pipe(
+                    z.object({
+                        id: z.string().describe('Task ID'),
+                    })
+                ),
         },
         responses: {
             200: {

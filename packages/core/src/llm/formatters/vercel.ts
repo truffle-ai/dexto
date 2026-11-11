@@ -6,6 +6,7 @@ import type {
     ToolMessage,
     FilePart,
 } from '../../context/types.js';
+import { IMPORTED_TRANSCRIPT_METADATA_KEY } from '../../context/types.js';
 import {
     getImageData,
     getFileData,
@@ -18,6 +19,68 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 type RemoteToolMedia =
     | { type: 'image'; image: URL; mediaType: string }
     | { type: 'file'; data: URL; mediaType: string; filename?: string };
+
+/** Providers require results directly after calls; system and unmarked messages end the imported region. */
+function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMessage[] {
+    const normalized: InternalMessage[] = [];
+    for (let index = 0; index < history.length; ) {
+        const first = history[index];
+        if (
+            !first ||
+            first.role === 'system' ||
+            first.metadata?.[IMPORTED_TRANSCRIPT_METADATA_KEY] !== true
+        ) {
+            if (first) normalized.push(first);
+            index++;
+            continue;
+        }
+        let end = index;
+        const resultIndexes = new Map<string, number[]>();
+        while (end < history.length) {
+            const message = history[end];
+            if (
+                !message ||
+                message.role === 'system' ||
+                message.metadata?.[IMPORTED_TRANSCRIPT_METADATA_KEY] !== true
+            )
+                break;
+            if (message.role === 'tool') {
+                const indexes = resultIndexes.get(message.toolCallId) ?? [];
+                indexes.push(end);
+                resultIndexes.set(message.toolCallId, indexes);
+            }
+            end++;
+        }
+        const moved = new Set<number>();
+        for (let cursor = index; cursor < end; cursor++) {
+            if (moved.has(cursor)) continue;
+            const message = history[cursor];
+            if (!message) continue;
+            normalized.push(message);
+            if (message.role !== 'assistant' || !message.toolCalls?.length) continue;
+            const matching: number[] = [];
+            for (const call of message.toolCalls) {
+                const indexes = resultIndexes.get(call.id);
+                if (!indexes) continue;
+                while (indexes.length > 0) {
+                    const candidate = indexes[0];
+                    if (candidate === undefined || candidate > cursor) break;
+                    indexes.shift();
+                }
+                const resultIndex = indexes.shift();
+                if (resultIndex !== undefined) matching.push(resultIndex);
+            }
+            matching.sort((left, right) => left - right);
+            for (const resultIndex of matching) {
+                const result = history[resultIndex];
+                if (result) normalized.push(result);
+                moved.add(resultIndex);
+            }
+        }
+        index = end;
+    }
+    return normalized;
+}
 
 /**
  * Checks if a string is a URL (http:// or https://).
@@ -242,7 +305,7 @@ export class VercelMessageFormatter {
             }
         };
 
-        for (const msg of filteredHistory) {
+        for (const msg of normalizeInterleavedToolHistory(filteredHistory)) {
             if (msg.role !== 'tool' && pendingToolCalls.size > 0) {
                 closePendingToolTurn();
             }

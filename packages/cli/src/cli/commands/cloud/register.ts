@@ -4,6 +4,8 @@ import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 /** The top-level words the cloud command engine owns, and what each is for. */
 const ENGINE_WORDS = {
     import: 'Import local Claude Code and Codex chats',
+    connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
+    connections: 'List, inspect and disconnect model subscriptions',
     login: 'Sign in to Dexto with your browser or a device code, or save an API key for CI',
     logout: 'End the sign-in on the server and forget it here',
     whoami: 'Show who Dexto commands act as',
@@ -11,6 +13,8 @@ const ENGINE_WORDS = {
     models: 'Models Dexto serves on your sign-in',
     billing: "Show the organization's credit balance and recent spending",
     cloud: 'Build in Dexto Cloud: projects, agents, files, sandboxes and more',
+    projects:
+        'Your Dexto Projects: list and change them, message their coordinators, start their chats',
     workspace: 'Use your Dexto workspace as yourself: its apps and tools, over the Dexto MCP',
     find: 'Find the command for something you want to do in Dexto',
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',

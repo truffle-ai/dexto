@@ -37,10 +37,12 @@ import {
     RenamePathResult,
     BufferEncoding,
 } from './types.js';
+import { copyWithoutFollowingLinks } from './backup-copy.js';
 import { PathValidator, type DirectoryApprovalOperation } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 import { detectMimeType, getMediaFileKind, isLikelyBinary, isTextMimeType } from './mime-utils.js';
 import { resolveUserPath } from './path-utils.js';
+import { canonicalizePath, mkdirNoFollow, writeFileNoFollow } from './safe-fs.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_RESULTS = 1000;
@@ -670,9 +672,13 @@ export class FileSystemService {
         const recursive = options.recursive ?? false;
 
         try {
-            const firstCreated = await fs.mkdir(normalizedPath, { recursive });
-            const created = recursive ? typeof firstCreated === 'string' : true;
-            return { path: normalizedPath, created };
+            if (recursive) {
+                const created = await mkdirNoFollow(normalizedPath);
+                return { path: normalizedPath, created };
+            }
+            await this.assertCanonicalUnchanged(path.dirname(normalizedPath));
+            await fs.mkdir(normalizedPath);
+            return { path: normalizedPath, created: true };
         } catch (error) {
             const code = (error as NodeJS.ErrnoException).code;
             if (code === 'EEXIST') {
@@ -704,7 +710,10 @@ export class FileSystemService {
     ): Promise<DeletePathResult> {
         await this.ensureInitialized();
 
-        const validation = await this.pathValidator.validatePath(targetPath, 'write');
+        // A symlink is deleted itself, not its target.
+        const validation = await this.pathValidator.validatePath(targetPath, 'write', {
+            followFinalSymlink: false,
+        });
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(targetPath, validation.error || 'Unknown error');
         }
@@ -712,6 +721,7 @@ export class FileSystemService {
         const normalizedPath = validation.normalizedPath;
 
         try {
+            await this.assertCanonicalUnchanged(path.dirname(normalizedPath));
             await fs.rm(normalizedPath, { recursive: options.recursive ?? false, force: false });
             return { path: normalizedPath, deleted: true };
         } catch (error) {
@@ -735,12 +745,18 @@ export class FileSystemService {
     async renamePath(fromPath: string, toPath: string): Promise<RenamePathResult> {
         await this.ensureInitialized();
 
-        const fromValidation = await this.pathValidator.validatePath(fromPath, 'write');
+        // rename() acts on symlinks themselves (source and destination), so validate the
+        // link locations rather than their targets.
+        const fromValidation = await this.pathValidator.validatePath(fromPath, 'write', {
+            followFinalSymlink: false,
+        });
         if (!fromValidation.isValid || !fromValidation.normalizedPath) {
             throw FileSystemError.invalidPath(fromPath, fromValidation.error || 'Unknown error');
         }
 
-        const toValidation = await this.pathValidator.validatePath(toPath, 'write');
+        const toValidation = await this.pathValidator.validatePath(toPath, 'write', {
+            followFinalSymlink: false,
+        });
         if (!toValidation.isValid || !toValidation.normalizedPath) {
             throw FileSystemError.invalidPath(toPath, toValidation.error || 'Unknown error');
         }
@@ -753,7 +769,7 @@ export class FileSystemService {
         }
 
         try {
-            await fs.access(normalizedTo);
+            await fs.lstat(normalizedTo);
             throw FileSystemError.renameFailed(
                 normalizedFrom,
                 `Target already exists: ${normalizedTo}`
@@ -776,6 +792,8 @@ export class FileSystemService {
         }
 
         try {
+            await this.assertCanonicalUnchanged(path.dirname(normalizedFrom));
+            await this.assertCanonicalUnchanged(path.dirname(normalizedTo));
             await fs.rename(normalizedFrom, normalizedTo);
             return { from: normalizedFrom, to: normalizedTo };
         } catch (error) {
@@ -934,6 +952,16 @@ export class FileSystemService {
     }
 
     /**
+     * Throw if a validated canonical directory no longer resolves to itself, i.e. one of its
+     * components was replaced by a symlink after validation.
+     */
+    private async assertCanonicalUnchanged(canonicalDir: string): Promise<void> {
+        if ((await canonicalizePath(canonicalDir)) !== canonicalDir) {
+            throw new Error(`Path changed during operation: ${canonicalDir}`);
+        }
+    }
+
+    /**
      * Write content to a file
      */
     async writeFile(
@@ -969,11 +997,10 @@ export class FileSystemService {
         }
 
         try {
-            const dir = path.dirname(normalizedPath);
-            await fs.mkdir(dir, { recursive: true });
-
-            // Write file
-            await fs.writeFile(normalizedPath, content, encoding);
+            // Creates missing parent directories without following symlinks.
+            await writeFileNoFollow(normalizedPath, content, encoding, (candidate) =>
+                this.pathValidator.isPathAllowedQuick(candidate, 'write')
+            );
 
             const bytesWritten = Buffer.byteLength(content, encoding);
 
@@ -1049,7 +1076,12 @@ export class FileSystemService {
             }
 
             // Write updated content
-            await fs.writeFile(normalizedPath, newContent, options.encoding || DEFAULT_ENCODING);
+            await writeFileNoFollow(
+                normalizedPath,
+                newContent,
+                options.encoding || DEFAULT_ENCODING,
+                (candidate) => this.pathValidator.isPathAllowedQuick(candidate, 'edit')
+            );
 
             this.logger.debug(`File edited: ${normalizedPath} (${occurrences} replacements)`);
 
@@ -1083,7 +1115,7 @@ export class FileSystemService {
 
         try {
             await fs.mkdir(backupDir, { recursive: true });
-            await fs.copyFile(filePath, backupPath);
+            await copyWithoutFollowingLinks(filePath, backupPath);
             this.logger.debug(`Backup created: ${backupPath}`);
 
             // Clean up old backups after creating new one

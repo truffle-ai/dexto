@@ -5,7 +5,7 @@ import { createCloudClient } from '@dexto/cloud-client';
 import type { InternalMessage } from '@dexto/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createChatSync, type ChatSync, type LocalChat } from './engine.js';
-import { chatSyncStore, type ChatSyncStore } from './store.js';
+import { chatSyncStore, type ChatSyncStore, type ChatSyncState } from './store.js';
 
 const ACCOUNT = 'org_1-acct_1';
 const CLOUD_CHAT = '11111111-1111-4111-8111-111111111111';
@@ -457,6 +457,31 @@ describe('createChatSync', () => {
 });
 
 describe('deleting and making a chat private', () => {
+    it.each(['chat_in_cloud', 'move_in_progress'] satisfies Array<
+        'chat_in_cloud' | 'move_in_progress'
+    >)('refuses privacy during %s, retaining its return state', async (reason) => {
+        const server = fakeServer((request) => synced(request.body));
+        const sync = engine(server);
+        chat('s1', 1);
+        await sync.sync('s1');
+        const ownership = {
+            status: 'paused',
+            reason,
+            cloudChatId: CLOUD_CHAT,
+            nextIndex: 1,
+            sentCount: 1,
+            since: new Date(now).toISOString(),
+        } satisfies ChatSyncState;
+        await store.writeChat(ACCOUNT, 's1', ownership);
+
+        await expect(sync.makePrivate('s1')).rejects.toThrow('/local');
+
+        expect(await store.readChat(ACCOUNT, 's1')).toEqual(ownership);
+        expect((await store.readSettings()).privateChats).toEqual([]);
+        expect((await store.readAccount(ACCOUNT)).pendingDeletes).toEqual([]);
+        expect(server.sent.map((request) => request.method)).toEqual(['POST']);
+    });
+
     it('deletes the cloud copy when the local chat is deleted', async () => {
         const server = fakeServer((request) =>
             request.method === 'DELETE'

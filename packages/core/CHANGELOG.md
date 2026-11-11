@@ -1,5 +1,51 @@
 # @dexto/core
 
+## 1.16.1
+
+### Patch Changes
+
+- 749f275: Allow an HTTP MCP client to use a caller-provided fetch implementation.
+    - @dexto/llm@1.16.1
+
+## 1.16.0
+
+### Minor Changes
+
+- 4c3b408: Let a tool ask the person afresh for every call. `needsApproval` may now return `{ kind: 'always-ask' }`. For that call, auto-approve mode, the allowed-tool lists and remembered approval keys no longer let it run unasked: core records the approval request before the call runs, with `autoApproval: 'disallowed'`, so a host may defer and resume it like any other approval. Approving it remembers nothing, and a remembered approval for a sibling call never settles it while it is pending. Core now reads a local tool's `needsApproval` before checking allowed-tool lists and auto-approve mode, and a tool with a per-call `needsApproval` function is described with `approval: 'possible'` in auto-approve mode.
+
+### Patch Changes
+
+- 5f6c02f: Allow callers to select reasoning for an individual prepared model step.
+    - @dexto/llm@1.16.0
+
+## 1.15.0
+
+### Minor Changes
+
+- e44ecb3: Let a host defer a model tool call's approval. The turn driver now passes `{ deferrable }` to the approval handler for a call's own approval, asked before the call runs; it is `false` when the batch starts a tool in the background, since a background start has no execution record to replay. Handlers asked without a context are still called with the request alone. The handler may throw `ApprovalDeferredError` instead of answering: `TurnDriver.executeToolCalls()` then returns `{ kind: 'deferred', approvalIds }` after every sibling settles, persists nothing, and leaves the batch unexecuted, so a driver resumed from its checkpoint asks again and replays completed siblings from the tool execution store. `executeToolCalls()` now returns `{ kind: 'executed' }` otherwise; `TurnExecutor.execute()` fails a turn whose approval is deferred.
+
+### Patch Changes
+
+- @dexto/llm@1.15.0
+
+## 1.14.6
+
+### Patch Changes
+
+- 2e03ad2: Preserve paired tool results in imported transcripts whose parts interleave with other messages. Mark every message in the imported region with `IMPORTED_TRANSCRIPT_METADATA_KEY` so normal turns remain outside that region.
+    - @dexto/llm@1.14.6
+
+## 1.14.5
+
+### Patch Changes
+
+- 77101ce: `sanitizeToolResult` is exported from `@dexto/core/context`, so a host that runs a tool for another model, such as Dexto Cloud's tool relay to Claude Code, can give that model the same content a Dexto turn's model gets, its images as image parts.
+- e17975f: Move `glob` from 12 to 14, `minimatch` from 10 to 11 and `@hono/node-server` from 1.19.17 to 2.1.5, so Dexto's own dependencies no longer carry their published advisories. The APIs Dexto calls are unchanged, and all three support the Node 20 floor Dexto already requires. The lockfile also moves the MCP SDK's `@hono/node-server` to 2.1.5, which its range already allows, so the Docker image and standalone binaries carry one patched copy. The WebUI is still served the same way.
+- 3f3c456: A model stream that sends nothing for 15 minutes no longer holds the turn. Before any output the attempt is retried like a transient provider error; after output the turn fails with `llm_stream_stalled`. The `llm.stream` span now records `llm.stream.max_event_gap_ms`.
+- 7cdf653: A tool can be left out of the model's tool list with `modelListing: 'unlisted'`. The model is not offered it and a model call to it is refused, while a host that reaches it another way (a script or a catalog) still prepares and runs it with its rules and approvals.
+- ce63e57: Build, test and ship the Docker image and standalone binaries with `zod` 4.6.7 and `follow-redirects` 1.16.2 instead of `zod` 4.3.6 and `follow-redirects` 1.16.1, which have published advisories. The declared `zod` range is unchanged, so installs from npm already resolved a patched `zod`; this makes the repository's tests and bundled artifacts match what users get. The cancel-task route now declares its path parameter with `unknown().transform().pipe()` because `z.preprocess` no longer type-checks there.
+    - @dexto/llm@1.14.5
+
 ## 1.14.4
 
 ### Patch Changes

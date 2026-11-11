@@ -4,19 +4,17 @@ import { createServer } from 'node:http';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { openBrowserUrl } from './browser-launch.js';
 import { dextoSignIn } from '@dexto/agent-management';
+import { safeSignInPrompt } from '../commands/auth/sign-in-commands.js';
 
 type RedirectListener = dextoSignIn.RedirectListener;
 type SignInRuntime = dextoSignIn.SignInRuntime;
 
-const DONE_PAGE = `<!doctype html><meta charset="utf-8"><title>Dexto</title>
-<body style="font-family:system-ui;margin:4rem auto;max-width:28rem">
-<h1>Signed in</h1><p>You can close this tab and return to your terminal.</p></body>`;
-
 /**
  * Listens on 127.0.0.1 at any free port for the browser's redirect to `/callback` (RFC 8252), and
- * resolves with its query on the first one.
+ * resolves with its query on the first one. The browser goes on to the app's `/cli/signed-in`
+ * page, carrying the OAuth `error`, if any, so a declined sign-in never reads as signed in.
  */
-export async function listenForRedirect(): Promise<RedirectListener> {
+export async function listenForRedirect(appUrl: string): Promise<RedirectListener> {
     let deliver: (params: URLSearchParams) => void = () => undefined;
     const result = new Promise<URLSearchParams>((resolve) => {
         deliver = resolve;
@@ -27,7 +25,10 @@ export async function listenForRedirect(): Promise<RedirectListener> {
             response.writeHead(404).end();
             return;
         }
-        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(DONE_PAGE);
+        const page = new URL('/cli/signed-in', appUrl);
+        const error = url.searchParams.get('error');
+        if (error !== null) page.searchParams.set('error', error);
+        response.writeHead(302, { location: page.toString() }).end();
         deliver(url.searchParams);
     });
     await new Promise<void>((resolve, reject) => {
@@ -52,7 +53,8 @@ export function nodeSignInRuntime(signal: AbortSignal): SignInRuntime {
     return {
         fetch: globalThis.fetch,
         signal,
-        prompt: (prompt) => process.stderr.write(`${dextoSignIn.signInPromptText(prompt)}\n`),
+        prompt: (prompt) =>
+            process.stderr.write(`${dextoSignIn.signInPromptText(safeSignInPrompt(prompt))}\n`),
         openBrowser: async (url) => {
             try {
                 await openBrowserUrl(url);

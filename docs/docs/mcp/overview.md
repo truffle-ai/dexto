@@ -136,5 +136,3 @@ MCP is a key part of what makes Dexto flexible, extensible, and able to automate
 - [MCP Elicitation](./elicitation) - Request structured user input during workflows
 - [Agent Configuration Reference](../guides/configuring-dexto/agent-yml) - Complete agent.yml reference
 - [MCP Manager](./mcp-manager) - Runtime server management
-- [Aggregate Multiple Servers](./dexto-group-mcp-servers) - Group MCP servers
-- [Expose Dexto as MCP Server](./dexto-as-mcp-server) - Use Dexto as an MCP server

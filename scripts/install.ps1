@@ -1,11 +1,11 @@
 # Installs the Dexto CLI for the current Windows user, without admin rights.
 #
-#   irm https://dexto.ai/install.ps1 | iex
+#   $env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
 #   $env:DEXTO_VERSION = '2.0.0'; irm https://dexto.ai/install.ps1 | iex
 #   & ([scriptblock]::Create((irm https://dexto.ai/install.ps1))) -Version next -Yes
 #
-# The Windows counterpart of scripts/install.sh, with the same contract. It needs Node.js 20 or
-# later with npm. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
+# The Windows counterpart of scripts/install.sh, with the same contract.
+# Needs npm; Node.js 20 or later works, 22 is recommended. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
 # after checking the downloaded tarball against the registry's sha512 integrity, then writes
 # %USERPROFILE%\.dexto\bin\dexto.cmd (or $env:DEXTO_INSTALL_DIR\dexto.cmd) to run it, adds that
 # directory to the user PATH, and records the install in %USERPROFILE%\.dexto\install.json, which
@@ -129,6 +129,10 @@ Environment:
   DEXTO_INSTALL_DIR      Same as -InstallDir
   DEXTO_INSTALL_FORCE=1  Same as -Force
   DEXTO_NO_MODIFY_PATH=1 Same as -NoModifyPath
+
+For Dexto 2.0, set DEXTO_VERSION=next. The default latest is for 1.x upgrades.
+After install and PATH setup: dexto login --device
+Then check your account: dexto whoami --json
 '@ | Write-Output
         return
     }
@@ -313,9 +317,42 @@ Environment:
         [Console]::Out.WriteLine($line)
     }
 
+    # Adds the install dir to the user and current-session PATH unless -NoModifyPath or -DryRun;
+    # returns whether the user PATH changed. An unchanged run calls it too, so a rerun repairs the
+    # PATH an earlier -NoModifyPath run skipped.
+    function Invoke-UserPathSetup {
+        if ($NoModifyPath -or $DryRun) {
+            return $false
+        }
+        $pathUpdated = $false
+        # Read and written as stored, so entries like %LOCALAPPDATA%\... stay unexpanded.
+        $envKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
+        try {
+            $userPath = [string]$envKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            if (-not (Test-PathListEntry $userPath $InstallDir)) {
+                $newUserPath = if ($userPath) { "$InstallDir;$userPath" } else { $InstallDir }
+                $envKey.SetValue('Path', $newUserPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+                $pathUpdated = $true
+            }
+        } finally {
+            $envKey.Dispose()
+        }
+        if ($pathUpdated) {
+            # Setting a user variable through .NET tells Explorer, and so new terminals, to re-read
+            # the environment.
+            [Environment]::SetEnvironmentVariable('DEXTO_INSTALL_PATH_REFRESH', '1', 'User')
+            [Environment]::SetEnvironmentVariable('DEXTO_INSTALL_PATH_REFRESH', $null, 'User')
+            Write-Note "Added $InstallDir to your user PATH. Open a new terminal to use it there."
+        }
+        if (-not (Test-PathListEntry $env:Path $InstallDir)) {
+            $env:Path = "$InstallDir;$env:Path"
+        }
+        return $pathUpdated
+    }
+
     if ($action -eq 'unchanged') {
         Write-Note "$DextoPackage $targetVersion is already installed at $launcherPath."
-        Write-Result 'unchanged' $false
+        Write-Result 'unchanged' (Invoke-UserPathSetup)
         return
     }
 
@@ -472,31 +509,7 @@ Environment:
     Remove-Item -LiteralPath $state.WorkDir -Recurse -Force -ErrorAction SilentlyContinue
     $state.WorkDir = $null
 
-    $pathUpdated = $false
-    if (-not $NoModifyPath) {
-        # Read and written as stored, so entries like %LOCALAPPDATA%\... stay unexpanded.
-        $envKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
-        try {
-            $userPath = [string]$envKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-            if (-not (Test-PathListEntry $userPath $InstallDir)) {
-                $newUserPath = if ($userPath) { "$InstallDir;$userPath" } else { $InstallDir }
-                $envKey.SetValue('Path', $newUserPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
-                $pathUpdated = $true
-            }
-        } finally {
-            $envKey.Dispose()
-        }
-        if ($pathUpdated) {
-            # Setting a user variable through .NET tells Explorer, and so new terminals, to re-read
-            # the environment.
-            [Environment]::SetEnvironmentVariable('DEXTO_INSTALL_PATH_REFRESH', '1', 'User')
-            [Environment]::SetEnvironmentVariable('DEXTO_INSTALL_PATH_REFRESH', $null, 'User')
-            Write-Note "Added $InstallDir to your user PATH. Open a new terminal to use it there."
-        }
-        if (-not (Test-PathListEntry $env:Path $InstallDir)) {
-            $env:Path = "$InstallDir;$env:Path"
-        }
-    }
+    $pathUpdated = Invoke-UserPathSetup
 
     Write-Note "Installed $DextoPackage $targetVersion at $launcherPath."
     Write-Result $action $pathUpdated

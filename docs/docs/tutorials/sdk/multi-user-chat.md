@@ -15,7 +15,7 @@ This tutorial has two parts:
 ## Prerequisites
 
 - Completed the [Sessions tutorial](./sessions.md)
-- Node.js 18+
+- Node.js 20 or later works; 22 is recommended
 - `OPENAI_API_KEY` in your environment
 
 ## Part I: Understanding the Pattern

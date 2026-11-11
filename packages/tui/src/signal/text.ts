@@ -9,9 +9,10 @@
  * Plain output (not a TTY, or NO_COLOR) gets no colour, no links, no wordmark and no cut type:
  * the same words on plain lines.
  */
+import chalk, { type ColorSupportLevel } from 'chalk';
 import stringWidth from 'string-width';
 import stripAnsi from 'strip-ansi';
-import { getCaps } from './caps.js';
+import { detectCaps, getCaps, setCaps, type Caps } from './caps.js';
 import { cutLines } from './cut.js';
 import { glyphText } from './glyphs.js';
 import { paint } from './paint.js';
@@ -60,16 +61,82 @@ export function glyph(text: string): string {
 
 /** Cells the spans take on screen. */
 export function spansWidth(spans: readonly Span[]): number {
-    return spans.reduce((width, each) => width + stringWidth(glyph(each.text)), 0);
+    return spans.reduce((width, each) => width + stringWidth(glyph(safeText(each.text))), 0);
+}
+
+// C0 (with DEL) and C1 controls. Tab, newline and carriage return become a space, so words
+// stay apart; the rest are dropped.
+const SPACING_CONTROLS = /[\t\n\r]/gu;
+// eslint-disable-next-line no-control-regex
+const CONTROLS = /[\u0000-\u001F\u007F-\u009F]/gu;
+// Characters that change how text reads without showing: bidi marks, embeddings, overrides and
+// isolates (U+200E/200F, U+202A-202E, U+2066-2069), zero-width space (U+200B), word joiner
+// (U+2060), BOM (U+FEFF) and the language tag and unassigned tags (U+E0000-E001F). Some stay:
+// the zero-width joiner (U+200D) holds emoji sequences together, the zero-width non-joiner
+// (U+200C) is part of how Persian, Kurdish, Urdu and Indic scripts are spelled, and tag
+// characters U+E0020-E007F spell subdivision flags (Scotland's is U+1F3F4, `gbsct` in tags,
+// then U+E007F).
+const INVISIBLES =
+    /[\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF\u{E0000}-\u{E001F}]/gu;
+// What `JSON.stringify` leaves raw that `safeText` takes out: it escapes C0 itself, and the only
+// C0 it writes raw is the newline of its own indent.
+const UNESCAPED_IN_JSON =
+    /[\u007F-\u009F\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF\u{E0000}-\u{E001F}]/gu;
+
+/**
+ * Text with its control characters taken out. Span text can come from a server (a name, an
+ * error message), and an ESC or C1 in it could move the cursor, rewrite the title or start a
+ * link of its own; a bidi override or an invisible character could make it read as something
+ * else.
+ */
+export function safeText(text: string): string {
+    return text.replace(SPACING_CONTROLS, ' ').replace(CONTROLS, '').replace(INVISIBLES, '');
+}
+
+/**
+ * A value as JSON that is safe to print: `JSON.stringify` escapes only C0, so DEL, C1, bidi
+ * controls and invisible characters in a key or a string are written as `\uXXXX` too. Nothing
+ * is dropped and newlines from `space` stay, so the JSON still parses to the same value. `space`
+ * 0 is one line.
+ */
+export function safeJson(value: unknown, space: number): string {
+    // `undefined` and functions have no JSON; print them as `undefined`.
+    const json = JSON.stringify(value, null, space) as string | undefined;
+    if (json === undefined) return 'undefined';
+    return json.replace(UNESCAPED_IN_JSON, (match) =>
+        Array.from(
+            { length: match.length },
+            (_, index) =>
+                `\\u${match.charCodeAt(index).toString(16).toUpperCase().padStart(4, '0')}`
+        ).join('')
+    );
+}
+
+/**
+ * The link target for OSC 8: an http(s) URL with no control characters, which could end the
+ * escape early. Anything else (`file:`, `javascript:`, a URL that doesn't parse, an ESC or BEL
+ * in it) is null, and the text is drawn without a link.
+ */
+export function safeHref(href: string): string | null {
+    let parsed: URL;
+    try {
+        parsed = new URL(href);
+    } catch {
+        return null;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return href === safeText(href) ? href : null;
 }
 
 function drawSpan(each: Span): string {
-    const text = glyph(each.text);
+    const text = glyph(safeText(each.text));
     if (!richOutput() || text === '') return text;
     let chalk = paint(each.role);
     if (each.bold) chalk = chalk.bold;
     if (each.href === null) return chalk(text);
-    return `\u001B]8;;${each.href}\u0007${chalk.underline(text)}\u001B]8;;\u0007`;
+    const href = safeHref(each.href);
+    if (href === null) return chalk.underline(text);
+    return `\u001B]8;;${href}\u0007${chalk.underline(text)}\u001B]8;;\u0007`;
 }
 
 /** Cells a drawn line takes on screen, escapes left out. */
@@ -209,4 +276,34 @@ export function faultLines(fault: Fault, indent = 2): string[] {
     if (fault.fix !== null)
         rows.push({ bar: 'redDim', label: span('dim', 'next'), text: [span('amber', fault.fix)] });
     return barLines(rows, indent);
+}
+
+const CHALK_LEVELS: Readonly<Record<Caps['color'], ColorSupportLevel>> = {
+    none: 0,
+    '16': 1,
+    '256': 2,
+    truecolor: 3,
+};
+
+/**
+ * Caps for a stream other than stdout (stderr for the sign-in screens): its own TTY decides the
+ * colour, links and live lines; the rest (glyphs, theme, palette) is this terminal's.
+ */
+export function capsFor(stream: { readonly isTTY?: boolean }): Caps {
+    const own = detectCaps(process.env, stream.isTTY === true);
+    return { ...getCaps(), tty: own.tty, color: own.color };
+}
+
+/** `draw` with these caps and the matching chalk level; both are put back afterwards. */
+export function drawOn<T>(caps: Caps, draw: () => T): T {
+    const savedCaps = getCaps();
+    const savedLevel = chalk.level;
+    setCaps(caps);
+    chalk.level = CHALK_LEVELS[caps.color];
+    try {
+        return draw();
+    } finally {
+        chalk.level = savedLevel;
+        setCaps(savedCaps);
+    }
 }

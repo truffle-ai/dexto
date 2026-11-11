@@ -22,7 +22,6 @@ const sidebars: SidebarsConfig = {
                 'image-generation',
                 'amazon-shopping',
                 'email-slack',
-                'triage-agent',
             ],
         },
         {

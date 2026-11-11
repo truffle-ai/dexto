@@ -1,11 +1,6 @@
 // packages/cli/src/analytics/wrapper.ts
 import { COMMAND_TIMEOUT_MS } from './constants.js';
-import type {
-    CliCommandEndEvent,
-    CommandArgsMeta,
-    SanitizedOptionValue,
-    CliCommandTimeoutEvent,
-} from './events.js';
+import type { CliCommandEndEvent, CommandArgsMeta, CliCommandTimeoutEvent } from './events.js';
 
 type AnalyticsModule = typeof import('./index.js');
 let analyticsModulePromise: Promise<AnalyticsModule> | null = null;
@@ -27,42 +22,12 @@ async function ensureAnalyticsInitialized(): Promise<AnalyticsModule> {
     return analytics;
 }
 
-function sanitizeOptions(obj: Record<string, unknown>): Record<string, SanitizedOptionValue> {
-    const redactedKeys = /key|token|secret|password|api[_-]?key|authorization|auth/i;
-    const truncate = (s: string, max = 256) => (s.length > max ? s.slice(0, max) + '…' : s);
-    const out: Record<string, SanitizedOptionValue> = {};
-    for (const [k, v] of Object.entries(obj)) {
-        if (typeof v === 'string') {
-            out[k] = redactedKeys.test(k) ? '[REDACTED]' : truncate(v);
-        } else if (Array.isArray(v)) {
-            out[k] = { type: 'array', length: v.length };
-        } else if (typeof v === 'number' || typeof v === 'boolean' || v === null) {
-            out[k] = v as SanitizedOptionValue;
-        } else if (typeof v === 'object' && v) {
-            out[k] = { type: 'object' };
-        } else {
-            out[k] = String(v ?? 'unknown');
-        }
-    }
-    return out;
-}
-
-function buildArgsPayload(args: unknown[]): CommandArgsMeta {
+export function buildArgsPayload(args: unknown[]): CommandArgsMeta {
     const meta: CommandArgsMeta = {
-        argTypes: args.map((a) => (Array.isArray(a) ? 'array' : typeof a)),
+        argTypes: args.map((arg) => (Array.isArray(arg) ? 'array' : typeof arg)),
     };
-
-    if (args.length > 0 && Array.isArray(args[0])) {
-        const list = (args[0] as unknown[]).map((x) => String(x));
-        const trimmed = list.map((s) => (s.length > 512 ? s.slice(0, 512) + '…' : s)).slice(0, 10);
-        meta.positionalRaw = trimmed;
-        meta.positionalCount = list.length;
-    }
-
-    const last = args[args.length - 1];
-    if (last && typeof last === 'object' && !Array.isArray(last)) {
-        meta.optionKeys = Object.keys(last as Record<string, unknown>);
-        meta.options = sanitizeOptions(last as Record<string, unknown>);
+    if (Array.isArray(args[0])) {
+        meta.positionalCount = args[0].length;
     }
     return meta;
 }
@@ -142,7 +107,6 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             try {
                 if (analytics) {
                     await analytics.onCommandEnd(commandName, false, {
-                        error: err instanceof Error ? err.message : String(err),
                         args: argsMeta,
                     });
                 }

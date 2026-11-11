@@ -1,5 +1,27 @@
 {
   "name": "dexto",
+  "description": "Dexto 2.0 CLI: manage your Dexto cloud agents, chats, sandboxes and Sites, and run AI agents in your terminal.",
+  "keywords": [
+    "dexto",
+    "ai-agents",
+    "agent",
+    "cli",
+    "mcp",
+    "cloud",
+    "infrastructure",
+    "coding-agent",
+    "chat",
+    "sites"
+  ],
+  "homepage": "https://dexto.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/truffle-ai/dexto.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/truffle-ai/dexto/issues"
+  },
   "version": "1.14.4",
   "type": "module",
   "bin": {
@@ -17,7 +39,6 @@
     "@dexto/image-logger-agent": "workspace:*",
     "@dexto/llm": "workspace:*",
     "@dexto/registry": "workspace:*",
-    "@dexto/server": "workspace:*",
     "@dexto/storage": "workspace:*",
     "@dexto/tui": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -35,17 +56,14 @@
     "chalk": "^5.6.0",
     "commander": "^11.1.0",
     "dotenv": "^16.4.7",
-    "fs-extra": "^11.3.0",
-    "hono": "^4.13.13",
     "ioredis": "^5.7.0",
-    "minimatch": "^10.2.3",
+    "minimatch": "^11.0.3",
     "open": "^10.2.0",
     "pg": "^8.15.4",
     "posthog-node": "^4.2.1",
     "tar": "^7.5.22",
     "tsx": "^4.23.15",
     "ws": "^8.22.0",
-    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "scripts": {

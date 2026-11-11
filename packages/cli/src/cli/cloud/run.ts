@@ -24,10 +24,11 @@ import {
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
 import { createOutput, type OutputFormat } from './output.js';
-import { forStream, signalOn } from '@dexto/tui/signal-text';
+import { guardRuntime, unfiltered, type CloudRuntime } from './runtime.js';
+import { forStream, safeText, signalOn } from '@dexto/tui/signal-text';
+import { jsonResult } from '../output.js';
 import { failureLines } from '../screens/fault.js';
 import { pageHelpLines, type HelpSection } from '../screens/help.js';
-import type { CloudRuntime } from './runtime.js';
 
 /** One area of commands in help, such as `projects` under `cloud`. */
 export interface Group {
@@ -37,6 +38,8 @@ export interface Group {
 
 /** What the commands run against: injected so tests use a fake server and sign-in. */
 export interface CloudHost {
+    readonly openLocalAgent?: () => Promise<import('@dexto/core').DextoAgent>;
+    readonly syncLocalChat?: (id: string) => Promise<void>;
     readonly commands: readonly Command[];
     /** Help's areas by the words before them, such as `cloud`. */
     readonly groups: Readonly<Record<string, readonly Group[]>>;
@@ -96,7 +99,13 @@ export async function runCloud(host: CloudHost, argv: readonly string[]): Promis
     return await run(host, argv, true);
 }
 
-async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean): Promise<number> {
+async function run(
+    unguarded: CloudHost,
+    argv: readonly string[],
+    mayGrant: boolean
+): Promise<number> {
+    // Every command prints through the guarded runtime: see guardRuntime.
+    const host: CloudHost = { ...unguarded, runtime: guardRuntime(unguarded.runtime) };
     const { runtime } = host;
     let globals: Globals;
     try {
@@ -106,7 +115,13 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
         return reportError(
             { overrides: NO_OVERRIDES, runtime },
             argv.includes('--json') || !runtime.stdoutIsTerminal,
-            { text: groupHelp(host, argv.slice(0, 1)), command: 'dexto --help' },
+            {
+                text: groupHelp(host, argv.slice(0, 1)),
+                command:
+                    argv[0] === 'connect' || argv[0] === 'connections'
+                        ? `dexto ${argv[0]} --help`
+                        : 'dexto --help',
+            },
             error
         );
     }
@@ -235,7 +250,7 @@ function workspaceHelp(host: CloudHost, apps: readonly WorkspaceApp[] | null): s
             ? ['  Run dexto workspace while signed in to list them.']
             : apps.length === 0
               ? ['  None yet.']
-              : [`  ${apps.map((app) => app.id).join(' · ')}`]),
+              : [`  ${apps.map((app) => safeText(app.id)).join(' · ')}`]),
         '',
         'Commands:',
         ...commands.map(
@@ -292,6 +307,8 @@ function contextFor(
         output,
         overrides,
         runtime: host.runtime,
+        ...(host.openLocalAgent === undefined ? {} : { openLocalAgent: host.openLocalAgent }),
+        ...(host.syncLocalChat === undefined ? {} : { syncLocalChat: host.syncLocalChat }),
     };
 }
 
@@ -331,28 +348,31 @@ function reportError(context: SignInContext, json: boolean, help: Help, error: u
     const { runtime } = context;
     const failure = describeFailure(context, error);
     if (json) {
+        const error = {
+            code: failure.code,
+            message: failure.message,
+            ...(failure.fix === null ? {} : { fix: failure.fix }),
+            ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
+            ...(failure.details === null ? {} : { details: failure.details }),
+        };
         runtime.writeError(
-            jsonError({
-                code: failure.code,
-                message: failure.message,
-                ...(failure.fix === null ? {} : { fix: failure.fix }),
-                ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
-                ...(failure.details === null ? {} : { details: failure.details }),
-            })
+            /^dexto (?:connect|connections)(?: |$)/u.test(help.command)
+                ? `${JSON.stringify({ error })}\n`
+                : jsonError(error)
         );
     } else if (signalOn()) {
-        runtime.writeError(
+        // Styled, and its text cleaned by the Signal screen.
+        unfiltered(runtime).writeError(
             `${forStream(process.stderr.isTTY === true, failureLines(failure, help.command)).join('\n')}\n`
         );
     } else if (failure.code === 'usage') {
         runtime.writeError(`${failure.message}\n\n${help.text}`);
     } else {
         runtime.writeError(
-            `Error${failure.apiCode === null ? '' : ` (${failure.apiCode})`}: ${failure.message}\n`
+            `Error${failure.apiCode === null ? '' : ` (${safeText(failure.apiCode)})`}: ${safeText(failure.message)}\n`
         );
-        if (failure.details !== null)
-            runtime.writeError(`${JSON.stringify(failure.details, null, 2)}\n`);
-        if (failure.fix !== null) runtime.writeError(`Run: ${failure.fix}\n`);
+        if (failure.details !== null) runtime.writeError(jsonResult(failure.details));
+        if (failure.fix !== null) runtime.writeError(`Run: ${safeText(failure.fix)}\n`);
     }
     return EXIT_CODES[failure.code];
 }
@@ -454,6 +474,20 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
             }
             continue;
         }
+        // Authorization codes belong in command input, never in a suggested rerun.
+        if (name === '--code') {
+            const value = inline ?? argv[index + 1];
+            if (value === undefined || (inline === null && value.startsWith('-') && value !== '-'))
+                throw new UsageError('Missing value for --code. Use --code - to read stdin.');
+            if (value !== '-')
+                throw new UsageError('Read the authorization code from stdin with --code -.');
+            rest.push(token);
+            if (inline === null) {
+                rest.push(value);
+                index += 1;
+            }
+            continue;
+        }
         if (token === '--json') json = true;
         else if (token === '--table') table = true;
         else if (token === '--help' || token === '-h') help = true;
@@ -514,7 +548,11 @@ function startsWith(path: readonly string[], prefix: readonly string[]): boolean
 /** Help as text for people, or as JSON where the output is JSON. */
 function printHelp(runtime: CloudRuntime, globals: Globals, text: string, json: unknown): number {
     if (createOutput(runtime, globals.format).json)
-        runtime.writeOutput(`${JSON.stringify(json, null, 2)}\n`);
+        runtime.writeOutput(
+            `${JSON.stringify(json, null, globals.rest[0] === 'connect' || globals.rest[0] === 'connections' ? undefined : 2)}\n`
+        );
+    // Signal help is styled by its own screen.
+    else if (signalOn()) unfiltered(runtime).writeOutput(text);
     else runtime.writeOutput(text);
     return 0;
 }

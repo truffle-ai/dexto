@@ -26,6 +26,16 @@ import { discoverClaudeCodePlugins, loadClaudeCodePlugin } from '../plugins/inde
 // - Test execution context detection (dexto-source, dexto-project, global-cli)
 
 describe('enrichAgentConfig', () => {
+    it.each(['__proto__', 'constructor', 'prototype'])(
+        'rejects nested unsafe key %s before enrichment',
+        (key) => {
+            const config = JSON.parse(`{"tools":[{"${key}":{"polluted":true}}]}`);
+            expect(() => enrichAgentConfig(config)).toThrow(
+                `Forbidden configuration key: tools.0.${key}`
+            );
+        }
+    );
+
     beforeEach(() => {
         vi.mocked(discoverCommandPrompts).mockReset();
         vi.mocked(discoverCommandPrompts).mockReturnValue([]);

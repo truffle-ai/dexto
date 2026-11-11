@@ -1,19 +1,29 @@
-// `publish`: puts a page, a document or a folder online as a link anyone with it can open.
+// `publish`: puts a page, a document or a folder online as a Site.
 
 import { CommandFailure } from '../../failure.js';
+import { requireConsent } from '../../interaction.js';
 
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
+import { CloudApiError, unwrap, type V1Response } from '@dexto/cloud-client';
 
-import { argument, stringOption, flag, UsageError, YES_OPTION, type Command } from '../command.js';
+import {
+    argument,
+    stringOption,
+    flag,
+    signInCommand,
+    UsageError,
+    YES_OPTION,
+    type Command,
+} from '../command.js';
 import { sendBytes } from '../transfer.js';
 import { zipArchive, type ZipFile } from '../zip.js';
 import { requireLoginScopes } from './deploys.js';
 import { formatBytes } from './files.js';
-import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
+import { queryWorkspaceTool } from './workspace.js';
 
 /** What a published link takes, as Dexto's Sites do: files, each file's size and their total. */
 const MAX_FILES = 100;
@@ -28,11 +38,16 @@ const PreparedSchema = z.object({
     path: z.string(),
     url: z.string(),
 });
-const PublishedSchema = z.object({
-    created: z.boolean(),
-    files: z.number(),
-    url: z.string(),
-});
+const PublishedSchema = z
+    .object({
+        created: z.boolean(),
+        files: z.number().int().nonnegative(),
+        homepage: z.string(),
+        site: z.object({ id: z.string(), slug: z.string(), title: z.string() }).strict(),
+        url: z.string(),
+        visibility: z.enum(['private', 'unlisted', 'public']),
+    })
+    .strict() satisfies z.ZodType<V1Response<'/v1/sites/publish', 'post'>>;
 
 const publish: Command = {
     arguments: '<path>',
@@ -48,13 +63,45 @@ const publish: Command = {
             type: 'string',
         },
         title: { description: "The page's title (default: the name).", type: 'string' },
+        visibility: {
+            description: 'Who can open the Site: private, unlisted, or public.',
+            type: 'string',
+            valueName: 'VISIBILITY',
+        },
+        'confirm-public': {
+            description: 'Confirm the exact existing private Site name before making it public.',
+            type: 'string',
+            valueName: 'SITE_NAME',
+        },
         ...YES_OPTION,
     },
     path: ['publish'],
-    summary:
-        'Publish a file, a folder or a .zip of one as a link anyone with it can open; publishing the same name again updates it.',
+    summary: 'Publish a file, folder or .zip as a Site; publishing the same name again updates it.',
     async run(context, input) {
-        await requireLoginScopes(context, ['sites:write']);
+        const parsedVisibility = z
+            .enum(['private', 'unlisted', 'public'])
+            .optional()
+            .safeParse(stringOption(input, 'visibility'));
+        if (!parsedVisibility.success)
+            throw new UsageError('--visibility must be private, unlisted, or public.');
+        const visibility = parsedVisibility.data;
+        const confirmPublicName = stringOption(input, 'confirm-public');
+        if (confirmPublicName !== undefined && visibility !== 'public')
+            throw new UsageError('--confirm-public requires --visibility public.');
+        await requireLoginScopes(context, ['sites:write', 'cloud:write']);
+        const connection = await context.connection();
+        if (connection.kind !== 'oauth')
+            throw new CommandFailure(
+                'needs_sign_in',
+                'Publishing files requires a workspace sign-in.',
+                signInCommand(context, null)
+            );
+        if (connection.cloudProject === null)
+            throw new CommandFailure(
+                'invalid_input',
+                'Choose a Cloud project with --project or dexto cloud projects use before publishing.',
+                null
+            );
         const target = path.resolve(argument(input, 0, 'path'));
         const found = await stat(target).catch(() => null);
         if (found === null || !(found.isFile() || found.isDirectory()))
@@ -69,7 +116,6 @@ const publish: Command = {
         const title = stringOption(input, 'title');
 
         let archive: Uint8Array<ArrayBuffer>;
-        let count: number | null = null;
         if (isZip) archive = new Uint8Array(await readFile(target));
         else {
             const files = found.isDirectory()
@@ -77,31 +123,28 @@ const publish: Command = {
                 : [{ bytes: await readFile(target), path: path.basename(target) }];
             checkSizes(files);
             archive = zipArchive(files);
-            count = files.length;
+            context.output.note(
+                `Packed ${files.length} file${files.length === 1 ? '' : 's'} into a ${formatBytes(archive.byteLength)} .zip.`
+            );
         }
         if (archive.byteLength > MAX_UPLOAD_BYTES)
             throw new UsageError(
                 `The .zip is ${formatBytes(archive.byteLength)}, over the ${formatBytes(MAX_UPLOAD_BYTES)} a published link's .zip can be.`
             );
 
-        const tool = (await listWorkspaceTools(context)).find(
-            (each) => each.name === 'dexto_site_publish'
-        );
-        if (tool === undefined)
-            throw new CommandFailure('failed', "This Dexto can't publish files yet.", null);
         const call = {
             name,
             ...(slug === undefined ? {} : { slug }),
             ...(title === undefined ? {} : { title }),
+            ...(visibility === undefined ? {} : { visibility }),
+            ...(confirmPublicName === undefined ? {} : { confirmPublicName }),
         };
-        const agreed = await agreeToCall(
+        await requireConsent(
             context,
-            {
-                level: toolCallLevel(tool, call),
-                schema: tool.inputSchema,
-                title: `Publish ${name} as a link anyone with it can open`,
-            },
-            flag(input, 'yes')
+            flag(input, 'yes'),
+            visibility === undefined
+                ? `Publish ${name} (a new Site is unlisted: anyone with the link can open it; an existing Site keeps its visibility).`
+                : `Publish ${name} with ${visibility} visibility.`
         );
 
         const prepared = PreparedSchema.safeParse(
@@ -116,19 +159,48 @@ const publish: Command = {
         if (!prepared.success)
             throw new CommandFailure('failed', "Dexto didn't say where to upload the files.", null);
         const { headers, method, url } = prepared.data;
+        context.output.note(`Uploading ${formatBytes(archive.byteLength)}…`);
         await sendBytes(context, { headers, method, url }, new globalThis.Blob([archive]));
-        const published = await queryWorkspaceTool(context, 'dexto_site_publish', {
-            ...call,
-            uploadPath: prepared.data.path,
-            ...agreed,
-        });
-        const shown = PublishedSchema.safeParse(published);
-        const files = shown.success ? shown.data.files : count;
+        context.output.note(`Publishing ${name}…`);
+        let response: unknown;
+        try {
+            response = await unwrap(
+                await (
+                    await context.client()
+                ).POST('/v1/sites/publish', {
+                    body: { ...call, uploadPath: prepared.data.path },
+                })
+            );
+        } catch (error) {
+            if (error instanceof CloudApiError && error.code === 'needs_confirmation')
+                throw new CommandFailure(
+                    'needs_confirmation',
+                    `${error.message} Pass --confirm-public <site-name> with that exact name.`,
+                    null
+                );
+            throw error;
+        }
+        const parsed = PublishedSchema.safeParse(response);
+        if (!parsed.success)
+            throw new CommandFailure(
+                'failed',
+                'Dexto returned an invalid Site publish result. Check the Site in Dexto before sharing it.',
+                null
+            );
+        const published = parsed.data;
+        if (visibility !== undefined && published.visibility !== visibility)
+            throw new CommandFailure(
+                'failed',
+                `The Site was published with ${published.visibility} visibility, not the requested ${visibility}. Check its visibility in Dexto before sharing it.`,
+                null
+            );
+        if (flag(input, 'yes'))
+            context.output.note(
+                `Site visibility: ${published.visibility}: ${published.visibility === 'private' ? 'only you and your organization can open it' : 'anyone with the link can open it'}.`
+            );
         context.output.result(
             published,
-            shown.success
-                ? `${shown.data.created ? 'Published' : 'Updated'} ${name} at ${shown.data.url} (${files} file${files === 1 ? '' : 's'}). Anyone with the link can open it.`
-                : JSON.stringify(published, null, 2)
+            `${published.created ? 'Published' : 'Updated'} ${name} at ${published.url} (${published.files} file${published.files === 1 ? '' : 's'}).${published.visibility === 'private' ? ' Open it from Dexto as an organization member.' : ' Anyone with the link can open it.'}`
         );
     },
 };

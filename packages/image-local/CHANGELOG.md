@@ -1,5 +1,104 @@
 # @dexto/image-local
 
+## 1.16.1
+
+### Patch Changes
+
+- Updated dependencies [1064696]
+- Updated dependencies [77dc15c]
+- Updated dependencies [e85952b]
+- Updated dependencies [a9782a9]
+- Updated dependencies [749f275]
+- Updated dependencies [7544d08]
+- Updated dependencies [360a05f]
+- Updated dependencies [5471dd3]
+- Updated dependencies [ff72927]
+    - @dexto/agent-management@1.16.1
+    - @dexto/tools-filesystem@1.16.1
+    - @dexto/core@1.16.1
+    - @dexto/tools-builtins@1.16.1
+    - @dexto/agent-config@1.16.1
+    - @dexto/storage@1.16.1
+    - @dexto/tools-lifecycle@1.16.1
+    - @dexto/tools-plan@1.16.1
+    - @dexto/tools-process@1.16.1
+    - @dexto/tools-scheduler@1.16.1
+    - @dexto/tools-todo@1.16.1
+
+## 1.16.0
+
+### Patch Changes
+
+- Updated dependencies [4c3b408]
+- Updated dependencies [5f6c02f]
+    - @dexto/core@1.16.0
+    - @dexto/agent-config@1.16.0
+    - @dexto/agent-management@1.16.0
+    - @dexto/storage@1.16.0
+    - @dexto/tools-builtins@1.16.0
+    - @dexto/tools-filesystem@1.16.0
+    - @dexto/tools-lifecycle@1.16.0
+    - @dexto/tools-plan@1.16.0
+    - @dexto/tools-process@1.16.0
+    - @dexto/tools-scheduler@1.16.0
+    - @dexto/tools-todo@1.16.0
+
+## 1.15.0
+
+### Patch Changes
+
+- Updated dependencies [e44ecb3]
+    - @dexto/core@1.15.0
+    - @dexto/agent-config@1.15.0
+    - @dexto/agent-management@1.15.0
+    - @dexto/storage@1.15.0
+    - @dexto/tools-builtins@1.15.0
+    - @dexto/tools-filesystem@1.15.0
+    - @dexto/tools-lifecycle@1.15.0
+    - @dexto/tools-plan@1.15.0
+    - @dexto/tools-process@1.15.0
+    - @dexto/tools-scheduler@1.15.0
+    - @dexto/tools-todo@1.15.0
+
+## 1.14.6
+
+### Patch Changes
+
+- Updated dependencies [2e03ad2]
+    - @dexto/core@1.14.6
+    - @dexto/agent-config@1.14.6
+    - @dexto/agent-management@1.14.6
+    - @dexto/storage@1.14.6
+    - @dexto/tools-builtins@1.14.6
+    - @dexto/tools-filesystem@1.14.6
+    - @dexto/tools-lifecycle@1.14.6
+    - @dexto/tools-plan@1.14.6
+    - @dexto/tools-process@1.14.6
+    - @dexto/tools-scheduler@1.14.6
+    - @dexto/tools-todo@1.14.6
+
+## 1.14.5
+
+### Patch Changes
+
+- e17975f: Move `glob` from 12 to 14, `minimatch` from 10 to 11 and `@hono/node-server` from 1.19.17 to 2.1.5, so Dexto's own dependencies no longer carry their published advisories. The APIs Dexto calls are unchanged, and all three support the Node 20 floor Dexto already requires. The lockfile also moves the MCP SDK's `@hono/node-server` to 2.1.5, which its range already allows, so the Docker image and standalone binaries carry one patched copy. The WebUI is still served the same way.
+- Updated dependencies [77101ce]
+- Updated dependencies [e17975f]
+- Updated dependencies [3f3c456]
+- Updated dependencies [7cdf653]
+- Updated dependencies [ce63e57]
+    - @dexto/core@1.14.5
+    - @dexto/tools-filesystem@1.14.5
+    - @dexto/agent-config@1.14.5
+    - @dexto/agent-management@1.14.5
+    - @dexto/storage@1.14.5
+    - @dexto/tools-builtins@1.14.5
+    - @dexto/tools-lifecycle@1.14.5
+    - @dexto/tools-plan@1.14.5
+    - @dexto/tools-process@1.14.5
+    - @dexto/tools-scheduler@1.14.5
+    - @dexto/tools-todo@1.14.5
+
 ## 1.14.4
 
 ### Patch Changes

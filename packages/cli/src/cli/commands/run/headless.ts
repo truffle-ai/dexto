@@ -273,6 +273,8 @@ export async function executeHeadlessRun(
     let finalMessage: string | undefined;
     let totalTokens: number | undefined;
     let fatalError: Error | undefined;
+    // JSON modes keep stderr for the one failure; the progress lines are for a person.
+    const human = format === 'text';
 
     try {
         for await (const event of await agent.stream(prompt, sessionId)) {
@@ -281,6 +283,7 @@ export async function executeHeadlessRun(
                 case 'approval:request': {
                     const required = toHeadlessApprovalRequired(event);
                     approvalRequired.push(required);
+                    if (!human) break;
                     if (stepLogEnabled()) {
                         writeHeadlessLine(
                             logLine(
@@ -305,7 +308,7 @@ export async function executeHeadlessRun(
                         startedAt: Date.now(),
                     };
                     toolCallState.set(callKey, call);
-                    if (stepLogEnabled()) break;
+                    if (!human || stepLogEnabled()) break;
                     writeHeadlessTaggedLine(
                         'TOOL',
                         formatToolInvocationForHeadless(call.toolName, call.args)
@@ -338,6 +341,10 @@ export async function executeHeadlessRun(
                         }
                     }
 
+                    if (!human) {
+                        if (matchedCallKey) toolCallState.delete(matchedCallKey);
+                        break;
+                    }
                     const toolName = matchedCall?.toolName ?? event.toolName;
                     const args = matchedCall?.args ?? {};
                     if (stepLogEnabled()) {
@@ -385,23 +392,17 @@ export async function executeHeadlessRun(
                 }
 
                 case 'llm:unsupported-input': {
-                    writeHeadlessTaggedLine('WARNING', event.errors.join('; '));
+                    if (human) writeHeadlessTaggedLine('WARNING', event.errors.join('; '));
                     break;
                 }
 
                 case 'llm:error': {
-                    if (!event.recoverable) {
-                        fatalError = event.error;
-                        writeHeadlessTaggedLine('ERROR', event.error.message);
-                    }
+                    if (!event.recoverable) fatalError = event.error;
                     break;
                 }
 
                 case 'run:complete': {
-                    if (event.finishReason === 'error' && event.error) {
-                        fatalError = event.error;
-                        writeHeadlessTaggedLine('ERROR', event.error.message);
-                    }
+                    if (event.finishReason === 'error' && event.error) fatalError = event.error;
                     break;
                 }
 
@@ -410,10 +411,7 @@ export async function executeHeadlessRun(
             }
         }
     } catch (error) {
-        if (fatalError === undefined) {
-            fatalError = error instanceof Error ? error : new Error(String(error));
-            writeHeadlessTaggedLine('ERROR', fatalError.message);
-        }
+        fatalError ??= error instanceof Error ? error : new Error(String(error));
     }
 
     const result: HeadlessRunResult = {};
@@ -430,20 +428,22 @@ export async function executeHeadlessRun(
     return result;
 }
 
-export function printHeadlessAssistantResponse(message: string, totalTokens?: number): void {
+/** After the reply (which goes to stdout): the token count, not the reply again. */
+export function printHeadlessAssistantResponse(totalTokens?: number): void {
+    const tokens =
+        typeof totalTokens === 'number'
+            ? new Intl.NumberFormat('en-US').format(totalTokens)
+            : undefined;
     if (stepLogEnabled()) {
-        const tokens =
-            typeof totalTokens === 'number'
-                ? `${new Intl.NumberFormat('en-US').format(totalTokens)} tokens`
-                : 'finished';
-        writeHeadlessLine(logLine('done', tokens, { error: false }));
+        writeHeadlessLine(
+            logLine('done', tokens === undefined ? 'finished' : `${tokens} tokens`, {
+                error: false,
+            })
+        );
         return;
     }
     writeHeadlessSeparator();
-    writeHeadlessTaggedBlock('DEXTO', message);
-    if (typeof totalTokens === 'number') {
-        writeHeadlessTaggedLine('TOKENS', new Intl.NumberFormat('en-US').format(totalTokens));
-    }
+    if (tokens !== undefined) writeHeadlessTaggedLine('TOKENS', tokens);
 }
 
 export function writeFinalMessageToStdout(message: string): void {
@@ -452,8 +452,4 @@ export function writeFinalMessageToStdout(message: string): void {
         return;
     }
     process.stdout.write(`${message}\n`);
-}
-
-export function writeHeadlessError(message: string): void {
-    writeHeadlessTaggedLine('ERROR', message);
 }

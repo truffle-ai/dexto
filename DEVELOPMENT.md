@@ -21,7 +21,7 @@ dexto/
 ├── packages/
 │   ├── core/          # @dexto/core - Core business logic
 │   ├── cli/           # dexto - CLI application
-│   └── webui/         # @dexto/webui - Next.js web interface
+│   └── ...            # Other @dexto/* packages
 ├── scripts/           # Build and development scripts
 ├── agents/            # Agent configurations
 └── docs/              # Documentation
@@ -30,7 +30,6 @@ dexto/
 ### Package Dependencies
 
 - `dexto` (CLI) depends on `@dexto/core`
-- `@dexto/webui` is embedded into CLI at build time
 - All packages version together (fixed versioning)
 
 ## Development Setup
@@ -59,36 +58,15 @@ pnpm run build
 
 ## Development Workflows
 
-### 1. Hot Reload Development (Recommended)
-
-Best for frontend development with automatic reload:
-
-```bash
-pnpm run dev
-```
-
-This command:
-
-- Builds core and CLI packages
-- Runs API server on port 3001 (from built dist)
-- Runs WebUI dev server on port 3000 (with hot reload)
-- Prefixes output with `[API]` and `[UI]` for clarity
-- **Automatically sets `DEXTO_DEV_MODE=true`** to use repository agent configs
-
-Access:
-
-- API: http://localhost:3001
-- WebUI: http://localhost:3000
-
-### 2. Symlink Development
+### 1. Symlink Development### 2. Symlink Development
 
 Best for CLI development with instant changes:
 
 ```bash
-# Create global symlink (full build with WebUI)
+# Create global symlink (full build)
 pnpm run link-cli
 
-# Create global symlink (fast, no WebUI)
+# Create global symlink (fast, CLI and its dependencies only)
 pnpm run link-cli-fast
 
 # Remove symlink
@@ -97,7 +75,7 @@ pnpm run unlink-cli
 
 Now `dexto` command uses your local development code directly.
 
-### 3. Production-like Testing
+### 2. Production-like Testing
 
 Test the actual installation experience:
 
@@ -105,7 +83,7 @@ Test the actual installation experience:
 # Install globally from local build (full)
 pnpm run install-cli
 
-# Install globally from local build (fast, no WebUI)
+# Install globally from local build (fast, CLI and its dependencies only)
 pnpm run install-cli-fast
 ```
 
@@ -153,15 +131,6 @@ pnpm run build:webui
 pnpm run build:cli-only
 ```
 
-### WebUI Embedding
-
-The WebUI is embedded into the CLI's dist folder during build:
-
-```bash
-# Embed WebUI into CLI dist (run after building WebUI)
-pnpm run embed-webui
-```
-
 ## Testing
 
 ### Automated Tests
@@ -193,14 +162,8 @@ dexto "list files in current directory"
 # Test other model override in CLI
 dexto -m gpt-5-mini "what is the current date"
 
-# Test web mode
+# Test the interactive CLI
 dexto
-
-# Test discord bot mode (requires additional setup)
-dexto --mode discord
-
-# Test telegram bot mode (requires additional setup)
-dexto --mode telegram
 ```
 
 2. Execution contexts
@@ -218,7 +181,7 @@ Test above commands in different execution contexts for manual testing coverage.
 
 **Developer Mode Environment Variable:**
 
-When running `dexto` from within this repository, it normally uses your `dexto setup` preferences and global `~/.dexto` directory. To force isolated testing with repository files:
+When running `dexto` from within this repository, it normally uses your saved preferences and global `~/.dexto` directory. To force isolated testing with repository files:
 
 ```bash
 export DEXTO_DEV_MODE=true  # Use repo configs and local .dexto directory
@@ -230,8 +193,6 @@ export DEXTO_DEV_MODE=true  # Use repo configs and local .dexto directory
 - **Logs/Database**: Uses `repo/.dexto/` (instead of `~/.dexto/`)
 - **Preferences**: Skips global setup validation
 - **Use Case**: Isolated testing and development on Dexto itself
-
-**Note**: `pnpm run dev` automatically sets `DEXTO_DEV_MODE=true`, so the development server always uses repository configs and local storage.
 
 ## Code Quality
 
@@ -343,19 +304,6 @@ pnpm install
 # If that doesn't work, clean and reinstall
 pnpm run clean
 pnpm install
-```
-
-### Port Conflicts
-
-Default ports:
-
-- API/Server: 3001
-- WebUI Dev: 3000
-
-Set environment variables to use different ports:
-
-```bash
-PORT=4000 API_PORT=4001 pnpm run dev
 ```
 
 ### Global Command Not Found

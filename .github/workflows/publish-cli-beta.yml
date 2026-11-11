@@ -2,10 +2,10 @@
 #
 # It never touches `latest`, and main's release path (changesets-publish.yml) is unchanged.
 # dexto resolves its @dexto/* dependencies to exact versions when published, so the packages it
-# needs that changed since 1.14.4 publish as prereleases with it, also under `next`:
-# @dexto/agent-management, @dexto/tui and the new @dexto/cloud-client, plus the packages that depend
-# on @dexto/agent-management, so one copy is installed. @dexto/core and the rest
-# are unchanged since 1.14.4 and resolve to the versions already on npm.
+# needs publish as prereleases with it, also under `next`. scripts/cli-beta-packages.txt lists
+# them in dependency order, including core/storage (better-sqlite3 ~12.9.0 for Node 24) and
+# every public dependent of the bumped packages, so none pulls stable core/storage back in.
+# llm, registry and client-sdk have unchanged dependency manifests and retain npm's 1.16.1.
 name: Publish dexto beta (manual)
 
 on:
@@ -42,9 +42,18 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
-          for target in packages/cli:2.0.0 packages/agent-management:1.15.0 packages/tui:1.15.0 packages/cloud-client:1.15.0 packages/server:1.15.0 packages/analytics:1.15.0 packages/image-local:1.15.0 packages/image-logger-agent:1.15.0; do
-            VERSION="${target#*:}-beta.${BETA}" node -e 'const fs = require("fs"); const path = process.argv[1] + "/package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 4) + "\n");' "${target%%:*}"
-          done
+          stable_tag='@dexto/llm@1.16.1'
+          if ! git rev-parse --verify "refs/tags/$stable_tag" >/dev/null 2>&1; then
+            git fetch --no-tags origin "refs/tags/$stable_tag:refs/tags/$stable_tag"
+          fi
+          git diff --quiet "$stable_tag" HEAD -- packages/llm packages/registry packages/client-sdk ':(exclude)**/CHANGELOG.md' || {
+            echo 'Retained stable packages changed; include them in the beta release.' >&2
+            exit 1
+          }
+          node scripts/check-cli-beta-packages.mjs
+          while IFS=: read -r -u 3 dir version; do
+            VERSION="${version}-beta.${BETA}" node -e 'const fs = require("fs"); const path = process.argv[1] + "/package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 4) + "\n");' "$dir"
+          done 3< scripts/cli-beta-packages.txt
 
       - run: pnpm run build
 
@@ -54,7 +63,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          for dir in packages/cloud-client packages/agent-management packages/analytics packages/image-local packages/image-logger-agent packages/server packages/tui packages/cli; do
+          while IFS=: read -r -u 3 dir version; do
+            read -r name v < <(node -e 'const pkg = require("./" + process.argv[1] + "/package.json"); console.log(pkg.name, pkg.version);' "$dir")
+            npm view "$name@$v" version >/dev/null 2>&1 && { echo "skip $name@$v"; continue; }
             (cd "$dir" && pnpm publish --tag next --access public --no-git-checks)
-          done
+          done 3< scripts/cli-beta-packages.txt
           pnpm view dexto dist-tags

@@ -21,12 +21,30 @@ export interface StyledOutput {
 /**
  * Result of command execution
  */
-export interface CommandExecutionResult {
-    type: 'handled' | 'output' | 'styled' | 'sendMessage';
-    output?: string;
-    styled?: StyledOutput;
-    /** Message text to send through normal streaming flow (for prompt commands) */
-    messageToSend?: string;
+export type CommandExecutionResult =
+    | { type: 'handled' }
+    | { type: 'output'; output: string }
+    | { type: 'styled'; styled: StyledOutput }
+    | { type: 'sendMessage'; messageToSend: string }
+    | { type: 'reloadHistory'; sessionId: string; output: string };
+
+export interface HistoryReloadMarker {
+    __reloadHistory: true;
+    sessionId: string;
+    output: string;
+}
+
+function isHistoryReloadMarker(result: unknown): result is HistoryReloadMarker {
+    return (
+        typeof result === 'object' &&
+        result !== null &&
+        '__reloadHistory' in result &&
+        result.__reloadHistory === true &&
+        'sessionId' in result &&
+        typeof result.sessionId === 'string' &&
+        'output' in result &&
+        typeof result.output === 'string'
+    );
 }
 
 /**
@@ -93,6 +111,9 @@ export class CommandService {
         configFilePath?: string | null
     ): Promise<CommandExecutionResult> {
         const result = await executeCommand(command, args, agent, sessionId, configFilePath);
+
+        if (isHistoryReloadMarker(result))
+            return { type: 'reloadHistory', sessionId: result.sessionId, output: result.output };
 
         // If result is a send message marker, return the text to send through normal flow
         if (isSendMessageMarker(result)) {

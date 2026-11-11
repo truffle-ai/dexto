@@ -21,35 +21,21 @@
     "examples": false
   },
   {
-    "command": "agents install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": true
-  },
-  {
-    "command": "agents list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "agents sync",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "agents uninstall",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
     "command": "billing",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat browser-profiles",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat computers",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
@@ -58,6 +44,13 @@
   {
     "command": "chat delete",
     "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat follow",
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
@@ -85,6 +78,34 @@
   },
   {
     "command": "chat local",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat move",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "chat outputs",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat start",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "chat watch",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
@@ -574,22 +595,36 @@
     "examples": false
   },
   {
-    "command": "connect",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": true,
-    "examples": false
-  },
-  {
-    "command": "create-app",
-    "json": false,
+    "command": "connect claude",
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
   },
   {
-    "command": "create-image",
-    "json": false,
+    "command": "connect codex",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "connections disconnect",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "connections list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "connections status",
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
@@ -597,48 +632,6 @@
   {
     "command": "find",
     "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image create",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image doctor",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": true
-  },
-  {
-    "command": "image list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image remove",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image use",
-    "json": false,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
@@ -658,48 +651,6 @@
     "examples": false
   },
   {
-    "command": "init",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": true
-  },
-  {
-    "command": "init agent",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init primary",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init skill",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init status",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init-app",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
     "command": "login",
     "json": true,
     "dryRun": false,
@@ -714,155 +665,8 @@
     "examples": false
   },
   {
-    "command": "mcp",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp add",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp call",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp connect",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp get-prompt",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp list",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp prompts",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp read-resource",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp remove",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp resources",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp tools",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
     "command": "models list",
     "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace add",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace plugins",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace remove",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace update",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin uninstall",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin validate",
-    "json": false,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
@@ -882,6 +686,62 @@
     "examples": false
   },
   {
+    "command": "projects create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects move",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects start",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "publish",
     "json": true,
     "dryRun": false,
@@ -889,25 +749,18 @@
     "examples": false
   },
   {
-    "command": "run",
+    "command": "review",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": true
   },
   {
-    "command": "search",
-    "json": false,
+    "command": "run",
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "setup",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "skills push",
@@ -959,13 +812,6 @@
     "examples": false
   },
   {
-    "command": "which",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
     "command": "whoami",
     "json": true,
     "dryRun": false,
@@ -1009,6 +855,27 @@
   },
   {
     "command": "workspace call",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys revoke",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
