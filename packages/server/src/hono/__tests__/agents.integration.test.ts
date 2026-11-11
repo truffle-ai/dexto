@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createTestAgent, startTestServer, httpRequest, type TestServer } from './test-fixtures.js';
-import { DextoAgent } from '@dexto/core';
+import { DextoAgent, logger } from '@dexto/core';
 import { AgentFactory } from '@dexto/agent-management';
 import type { CreateDextoAppOptions } from '../index.js';
 
@@ -204,6 +204,56 @@ describe('Hono API Integration Tests - Agent Routes', () => {
                 expect(response.status).toBe(201);
                 expect(install).toHaveBeenCalledOnce();
             } finally {
+                install.mockRestore();
+            }
+        });
+    });
+
+    describe('Custom agent create logging', () => {
+        it('logs the agent id and size, never the config', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const install = vi
+                .spyOn(AgentFactory, 'installCustomAgent')
+                .mockResolvedValue('/tmp/test-agent');
+            const info = vi.spyOn(logger, 'info').mockImplementation(() => {});
+            try {
+                const response = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    '/api/agents/custom/create',
+                    {
+                        id: 'log-config-test',
+                        name: 'Test',
+                        description: 'Test',
+                        config: {
+                            systemPrompt: 'Test',
+                            llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
+                            mcpServers: {
+                                remote: {
+                                    type: 'http',
+                                    url: 'https://mcp.example.com/mcp',
+                                    headers: { 'X-Custom-Auth': 'plain-header-value-1234' },
+                                },
+                                local: {
+                                    type: 'stdio',
+                                    command: 'node',
+                                    env: { DB_URL: 'plain-env-value-5678' },
+                                },
+                            },
+                        },
+                    }
+                );
+                expect(response.status, JSON.stringify(response.body)).toBe(201);
+
+                const logged = info.mock.calls.map((call) => String(call[0])).join('\n');
+                expect(logged).toMatch(
+                    /Creating agent config for log-config-test \(\d+ characters\)/
+                );
+                expect(logged).not.toContain('plain-header-value-1234');
+                expect(logged).not.toContain('plain-env-value-5678');
+                expect(logged).not.toContain('mcpServers');
+            } finally {
+                info.mockRestore();
                 install.mockRestore();
             }
         });

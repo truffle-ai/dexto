@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { getDextoPath } from '@dexto/core';
+import { getDextoPath, logger } from '@dexto/core';
 import type {
     OAuthTokens,
     OAuthClientInformationMixed,
@@ -12,11 +13,17 @@ export type McpAuthStore = {
     codeVerifier?: string | undefined;
 };
 
-export async function loadMcpAuthStore(serverId: string): Promise<McpAuthStore> {
-    const filePath = getMcpAuthStorePath(serverId);
+const STORE_FILE_EXTENSION = '.json';
+const URL_KEYED_FILE = /^[0-9a-f]{32}\.json$/;
+
+/** Credentials belong to a server URL, not to the name a config gives it. */
+export async function loadMcpAuthStore(serverUrl: string): Promise<McpAuthStore> {
+    await removeNameKeyedStores();
+    const filePath = getMcpAuthStorePath(serverUrl);
     try {
-        const data = await fs.readFile(filePath, 'utf8');
-        return JSON.parse(data) as McpAuthStore;
+        const store = JSON.parse(await fs.readFile(filePath, 'utf8')) as McpAuthStore;
+        await fs.chmod(filePath, 0o600);
+        return store;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
             return {};
@@ -25,16 +32,60 @@ export async function loadMcpAuthStore(serverId: string): Promise<McpAuthStore> 
     }
 }
 
-export async function saveMcpAuthStore(serverId: string, store: McpAuthStore): Promise<void> {
-    const filePath = getMcpAuthStorePath(serverId);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, JSON.stringify(store, null, 2));
+export async function saveMcpAuthStore(serverUrl: string, store: McpAuthStore): Promise<void> {
+    const filePath = getMcpAuthStorePath(serverUrl);
+    await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+    await fs.writeFile(filePath, JSON.stringify(store, null, 2), { mode: 0o600 });
+    await fs.chmod(filePath, 0o600);
 }
 
-export function getMcpAuthStorePath(serverId: string): string {
-    return getDextoPath('mcp-auth', `${sanitizeServerId(serverId)}.json`);
+export function getMcpAuthStorePath(serverUrl: string): string {
+    return getDextoPath('mcp-auth', `${hashServerUrl(serverUrl)}${STORE_FILE_EXTENSION}`);
 }
 
-function sanitizeServerId(serverId: string): string {
-    return serverId.replace(/[^a-zA-Z0-9._-]/g, '_');
+function hashServerUrl(serverUrl: string): string {
+    const { origin, pathname } = new URL(serverUrl);
+    const normalizedPath = pathname.replace(/\/+$/, '');
+    return createHash('sha256').update(`${origin}${normalizedPath}`).digest('hex').slice(0, 32);
+}
+
+/**
+ * Credentials used to be saved under the server's name. Nothing records which URL such an entry
+ * was issued for, so it could be sent to the wrong server; delete it and let the user sign in
+ * again.
+ */
+async function removeNameKeyedStores(): Promise<void> {
+    const directory = path.dirname(getMcpAuthStorePath('https://localhost/'));
+    let files: string[];
+    try {
+        files = await fs.readdir(directory);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return;
+        }
+        throw error;
+    }
+
+    const nameKeyed = files.filter(
+        (file) => file.endsWith(STORE_FILE_EXTENSION) && !URL_KEYED_FILE.test(file)
+    );
+    const removed = await Promise.all(
+        nameKeyed.map(async (file) => {
+            try {
+                await fs.rm(path.join(directory, file), { force: true });
+                return true;
+            } catch (error) {
+                logger.warn(
+                    `Could not remove saved MCP OAuth credential file '${file}' stored by server name (${(error as NodeJS.ErrnoException).code ?? 'unknown error'}); remove it by hand.`
+                );
+                return false;
+            }
+        })
+    );
+    const removedCount = removed.filter(Boolean).length;
+    if (removedCount > 0) {
+        logger.info(
+            `Removed ${removedCount} saved MCP OAuth credential file(s) stored by server name; sign in to those servers again.`
+        );
+    }
 }

@@ -62,6 +62,12 @@ export const StdioServerConfigSchema = z
             .record(z.string(), EnvExpandedString())
             .default({})
             .describe('Optional environment variables for the server process'),
+        passEnvironment: z
+            .array(z.string().regex(/^[^=\s]+$/, 'Variable names cannot contain "=" or spaces'))
+            .default([])
+            .describe(
+                'Names of host environment variables to forward to the server, such as GITHUB_TOKEN. The server otherwise receives only a small allowlist of host variables plus its configured env.'
+            ),
         timeout: z.coerce.number().int().positive().default(30000),
         connectionMode: z.enum(MCP_CONNECTION_MODES).default(DEFAULT_MCP_CONNECTION_MODE),
     })

@@ -1,5 +1,91 @@
 # @dexto/tools-process
 
+## 1.17.0
+
+### Minor Changes
+
+- e0126f9: `allowedCommands` now matches the whole command exactly instead of by prefix, so an allowed command can no longer be extended with extra shell commands.
+
+    Config change needed: each entry must be the full command string you want to allow, for example `git status` or `npm test`. An entry that used to allow many commands by prefix (such as `git` to allow `git status` and `git log`) now allows only the exact command `git`; list each full command you rely on. An empty list is unchanged (any command, subject to approval).
+
+- 2132ed2: Shell commands now start with a small environment instead of the full host environment, including commands run through a workspace (the CLI default). Commands receive only: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `TZ`, `XDG_*`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` (proxy names in upper or lower case), and the Windows system variables. Model provider keys, the server key and every other host variable are no longer visible to commands.
+
+    If a command relied on another inherited variable, either name it under `passEnvironment` to forward the host's value, or set a value under `environment`, in the `process-tools` config:
+
+    ```yaml
+    tools:
+        - type: process-tools
+          passEnvironment: [GH_TOKEN, GITHUB_TOKEN, SSH_AUTH_SOCK]
+          environment:
+              MY_FLAG: '1'
+    ```
+
+    `passEnvironment` forwards credentials such as `GH_TOKEN`, `GITHUB_TOKEN` and `SSH_AUTH_SOCK` to every command the agent runs, so list only what the agent should be able to use. `environment` values are literal strings and are not expanded from the host. `environment` and per-call `env` now also apply to commands run through a workspace.
+
+    Telemetry spans on agent classes no longer record method arguments by default. A class that wants them opts in with `captureArguments: true`.
+
+### Patch Changes
+
+- 2827371: Make foreground `bash_exec` through the workspace handle honour its timeout and the abort signal, stopping the command and everything it started. A non-zero exit is returned as a result instead of thrown. Background commands are now stopped as a process group, so their child processes stop too. `WorkspaceProcesses.exec` accepts an optional `signal` and may report `timedOut`.
+- Updated dependencies [2827371]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+    - @dexto/core@1.17.0
+    - @dexto/agent-config@1.17.0
+
+## 1.16.6
+
+### Patch Changes
+
+- Updated dependencies [489e1a7]
+- Updated dependencies [70960ab]
+- Updated dependencies [c0a33d0]
+    - @dexto/core@1.16.6
+    - @dexto/agent-config@1.16.6
+
+## 1.16.5
+
+### Patch Changes
+
+- Updated dependencies [3058397]
+    - @dexto/core@1.16.5
+    - @dexto/agent-config@1.16.5
+
+## 1.16.4
+
+### Patch Changes
+
+- Updated dependencies [e18778a]
+    - @dexto/core@1.16.4
+    - @dexto/agent-config@1.16.4
+
+## 1.16.3
+
+### Patch Changes
+
+- Updated dependencies [bfe6300]
+    - @dexto/core@1.16.3
+    - @dexto/agent-config@1.16.3
+
+## 1.16.2
+
+### Patch Changes
+
+- Updated dependencies [f80f6e7]
+    - @dexto/core@1.16.2
+    - @dexto/agent-config@1.16.2
+
 ## 1.16.1
 
 ### Patch Changes

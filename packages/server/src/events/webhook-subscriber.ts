@@ -6,7 +6,8 @@ import {
     type AgentEventMap,
     type AgentEventName,
 } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { createMetadataCheckedLookup, isMetadataHost, logger } from '@dexto/core';
+import { Agent, type Dispatcher } from 'undici';
 import { EventSubscriber } from './types.js';
 import {
     type WebhookConfig,
@@ -32,14 +33,25 @@ export class WebhookEventSubscriber implements EventSubscriber {
     private abortController?: AbortController;
     private deliveryOptions: Required<WebhookDeliveryOptions>;
     private fetchFn: typeof globalThis.fetch;
+    private dispatcher: Dispatcher;
 
     constructor({
         fetchFn,
+        resolveHost,
         ...deliveryOptions
-    }: WebhookDeliveryOptions & { fetchFn?: typeof globalThis.fetch } = {}) {
+    }: WebhookDeliveryOptions & {
+        fetchFn?: typeof globalThis.fetch;
+        /** Resolves a host name to all of its addresses; defaults to a DNS lookup. */
+        resolveHost?: (hostname: string) => Promise<string[]>;
+    } = {}) {
         this.deliveryOptions = { ...DEFAULT_DELIVERY_OPTIONS, ...deliveryOptions };
         // Use native fetch (Node.js 20+) or injected implementation (tests)
         this.fetchFn = fetchFn || fetch;
+        // Connections use the addresses the lookup checked, so DNS cannot change the target
+        // after the check (rebinding to a metadata address).
+        this.dispatcher = new Agent({
+            connect: { lookup: createMetadataCheckedLookup(resolveHost) },
+        });
         logger.debug('WebhookEventSubscriber initialized');
     }
 
@@ -143,6 +155,10 @@ export class WebhookEventSubscriber implements EventSubscriber {
         }
 
         this.webhooks.clear();
+        // Close the pooled connections; delivery needs a new subscriber afterwards.
+        this.dispatcher.close().catch((error: unknown) => {
+            logger.debug(`Closing the webhook dispatcher failed: ${String(error)}`);
+        });
         logger.debug('Webhook event subscriber cleaned up');
     }
 
@@ -303,12 +319,25 @@ export class WebhookEventSubscriber implements EventSubscriber {
         }
 
         try {
-            const response = await this.fetchFn(webhook.url, {
+            // IP literals never reach the pinned lookup, so refuse them here.
+            if (isMetadataHost(new URL(webhook.url).hostname)) {
+                return {
+                    success: false,
+                    error: 'Webhook URL points at a metadata address',
+                    responseTime: Date.now() - startTime,
+                    attempt,
+                };
+            }
+
+            const requestInit: RequestInit & { dispatcher: Dispatcher } = {
                 method: 'POST',
                 headers,
                 body: payload,
+                redirect: 'error',
                 signal: AbortSignal.timeout(this.deliveryOptions.timeout),
-            });
+                dispatcher: this.dispatcher,
+            };
+            const response = await this.fetchFn(webhook.url, requestInit);
 
             const responseTime = Date.now() - startTime;
             const success = response.ok;

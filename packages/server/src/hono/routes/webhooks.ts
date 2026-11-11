@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
+import { webhookUrlProblem } from '../../events/webhook-url.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
 import {
     ApiErrorResponseSchema,
@@ -35,6 +36,10 @@ const WebhookBodySchema = z
         url: z
             .string()
             .url('Invalid URL format')
+            .refine(
+                (url) => webhookUrlProblem(url) === undefined,
+                'Webhook URL must be http or https without credentials, and not a link-local or metadata address'
+            )
             .describe('The URL to send webhook events to (must be a valid HTTP/HTTPS URL)'),
         secret: z.string().optional().describe('A secret key for HMAC signature verification'),
         description: z.string().optional().describe('A description of the webhook for reference'),

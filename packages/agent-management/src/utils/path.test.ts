@@ -7,6 +7,7 @@ import {
     getDextoEnvPath,
     findPackageRoot,
     resolveBundledScript,
+    copyDirectory,
 } from './path.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
@@ -468,5 +469,63 @@ describe('real-world execution contexts', () => {
             expect(logPath).toContain('dexto.log');
             expect(logPath).not.toContain(tempDir); // Should be global, not local
         });
+    });
+});
+
+describe.skipIf(process.platform === 'win32')('copyDirectory with links', () => {
+    let sourceRoot: string;
+    let outsideDir: string;
+    let destDir: string;
+
+    beforeEach(() => {
+        const base = createTempDir();
+        sourceRoot = path.join(base, 'source');
+        outsideDir = path.join(base, 'outside');
+        destDir = path.join(base, 'dest');
+        fs.mkdirSync(sourceRoot);
+        fs.mkdirSync(outsideDir);
+        fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'private');
+        fs.writeFileSync(path.join(sourceRoot, 'plain.txt'), 'plain');
+    });
+
+    afterEach(() => {
+        fs.rmSync(path.dirname(sourceRoot), { recursive: true, force: true });
+    });
+
+    it('skips a file link that points outside the source', async () => {
+        fs.symlinkSync(path.join(outsideDir, 'secret.txt'), path.join(sourceRoot, 'linked.txt'));
+
+        await copyDirectory(sourceRoot, destDir);
+
+        expect(fs.readdirSync(destDir)).toEqual(['plain.txt']);
+    });
+
+    it('skips a directory link that points outside the source', async () => {
+        fs.symlinkSync(outsideDir, path.join(sourceRoot, 'linked-dir'));
+
+        await copyDirectory(sourceRoot, destDir);
+
+        expect(fs.readdirSync(destDir)).toEqual(['plain.txt']);
+    });
+
+    it('skips an escaping link nested in a subdirectory', async () => {
+        fs.mkdirSync(path.join(sourceRoot, 'sub'));
+        fs.symlinkSync(
+            path.join(outsideDir, 'secret.txt'),
+            path.join(sourceRoot, 'sub', 'linked.txt')
+        );
+
+        await copyDirectory(sourceRoot, destDir);
+
+        expect(fs.readdirSync(path.join(destDir, 'sub'))).toEqual([]);
+    });
+
+    it('copies a file link that stays inside the source as a regular file', async () => {
+        fs.symlinkSync(path.join(sourceRoot, 'plain.txt'), path.join(sourceRoot, 'alias.txt'));
+
+        await copyDirectory(sourceRoot, destDir);
+
+        expect(fs.lstatSync(path.join(destDir, 'alias.txt')).isFile()).toBe(true);
+        expect(fs.readFileSync(path.join(destDir, 'alias.txt'), 'utf8')).toBe('plain');
     });
 });

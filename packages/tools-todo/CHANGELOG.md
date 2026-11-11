@@ -1,5 +1,68 @@
 # @dexto/tools-todo
 
+## 1.17.0
+
+### Patch Changes
+
+- Updated dependencies [2827371]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+    - @dexto/core@1.17.0
+    - @dexto/agent-config@1.17.0
+
+## 1.16.6
+
+### Patch Changes
+
+- Updated dependencies [489e1a7]
+- Updated dependencies [70960ab]
+- Updated dependencies [c0a33d0]
+    - @dexto/core@1.16.6
+    - @dexto/agent-config@1.16.6
+
+## 1.16.5
+
+### Patch Changes
+
+- Updated dependencies [3058397]
+    - @dexto/core@1.16.5
+    - @dexto/agent-config@1.16.5
+
+## 1.16.4
+
+### Patch Changes
+
+- Updated dependencies [e18778a]
+    - @dexto/core@1.16.4
+    - @dexto/agent-config@1.16.4
+
+## 1.16.3
+
+### Patch Changes
+
+- Updated dependencies [bfe6300]
+    - @dexto/core@1.16.3
+    - @dexto/agent-config@1.16.3
+
+## 1.16.2
+
+### Patch Changes
+
+- Updated dependencies [f80f6e7]
+    - @dexto/core@1.16.2
+    - @dexto/agent-config@1.16.2
+
 ## 1.16.1
 
 ### Patch Changes

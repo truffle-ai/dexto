@@ -39,9 +39,31 @@ describe('MCP Schemas', () => {
                 const result = StdioServerConfigSchema.parse(config);
                 expect(result.args).toEqual([]); // default
                 expect(result.env).toEqual({}); // default
+                expect(result.passEnvironment).toEqual([]); // default
                 expect(result.timeout).toBe(30000); // default
                 expect(result.connectionMode).toBe('lenient'); // default
             });
+
+            it('should accept host variable names to forward', () => {
+                const result = StdioServerConfigSchema.parse({
+                    type: 'stdio',
+                    command: 'node',
+                    passEnvironment: ['GITHUB_TOKEN', 'AWS_PROFILE'],
+                });
+                expect(result.passEnvironment).toEqual(['GITHUB_TOKEN', 'AWS_PROFILE']);
+            });
+
+            it.each(['GITHUB_TOKEN=value', 'TWO WORDS', ''])(
+                'should reject %j as a forwarded variable name',
+                (name) => {
+                    const result = StdioServerConfigSchema.safeParse({
+                        type: 'stdio',
+                        command: 'node',
+                        passEnvironment: [name],
+                    });
+                    expect(result.success).toBe(false);
+                }
+            );
 
             it('should accept all optional fields', () => {
                 const config: StdioServerConfig = {

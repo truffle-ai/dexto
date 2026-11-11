@@ -11,6 +11,7 @@ import type {
     BlobStats,
     StoredBlobMetadata,
 } from './types.js';
+import { parseBlobReference } from './reference.js';
 import { InMemoryBlobStoreSchema, type InMemoryBlobStoreConfig } from './schemas.js';
 import type { InMemoryBlobStoreConfigInput } from './schemas.js';
 
@@ -139,7 +140,7 @@ export class MemoryBlobStore implements BlobStore {
             throw StorageError.blobBackendNotConnected('in-memory');
         }
 
-        const id = this.parseReference(reference);
+        const id = parseBlobReference(reference);
         const blob = this.blobs.get(id);
 
         if (!blob) {
@@ -200,7 +201,7 @@ export class MemoryBlobStore implements BlobStore {
             throw StorageError.blobBackendNotConnected('in-memory');
         }
 
-        const id = this.parseReference(reference);
+        const id = parseBlobReference(reference);
         return this.blobs.has(id);
     }
 
@@ -209,7 +210,7 @@ export class MemoryBlobStore implements BlobStore {
             throw StorageError.blobBackendNotConnected('in-memory');
         }
 
-        const id = this.parseReference(reference);
+        const id = parseBlobReference(reference);
 
         if (!this.blobs.has(id)) {
             throw StorageError.blobNotFound(reference);
@@ -322,26 +323,6 @@ export class MemoryBlobStore implements BlobStore {
         }
 
         throw StorageError.blobInvalidInput(input, `Unsupported input type: ${typeof input}`);
-    }
-
-    /**
-     * Parse blob reference to extract ID.
-     * Copied from LocalBlobStore.
-     */
-    private parseReference(reference: string): string {
-        if (!reference) {
-            throw StorageError.blobInvalidReference(reference, 'Empty reference');
-        }
-
-        if (reference.startsWith('blob:')) {
-            const id = reference.substring(5);
-            if (!id) {
-                throw StorageError.blobInvalidReference(reference, 'Empty blob ID after prefix');
-            }
-            return id;
-        }
-
-        return reference;
     }
 
     /**

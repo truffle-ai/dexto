@@ -23,6 +23,7 @@ import type {
 } from '../types.js';
 import { TaskView } from '../adapters/task-view.js';
 import { a2aToInternalMessage } from '../adapters/message.js';
+import { JsonRpcInvalidParamsError } from './types.js';
 
 type MethodMap = {
     'message/send': (params: MessageSendParams) => Promise<Task>;
@@ -63,7 +64,7 @@ export class A2AMethodHandlers {
      */
     async messageSend(params: MessageSendParams): Promise<Task> {
         if (!params?.message) {
-            throw new Error('message is required');
+            throw new JsonRpcInvalidParamsError('message is required');
         }
 
         const { message } = params;
@@ -94,13 +95,13 @@ export class A2AMethodHandlers {
      */
     async tasksGet(params: TaskQueryParams): Promise<Task> {
         if (!params?.id) {
-            throw new Error('id is required');
+            throw new JsonRpcInvalidParamsError('id is required');
         }
 
         // Check if session exists (don't create if not found)
         const session = await this.agent.getSession(params.id);
         if (!session) {
-            throw new Error(`Task not found: ${params.id}`);
+            throw new JsonRpcInvalidParamsError(`Task not found: ${params.id}`);
         }
 
         // Convert to task view
@@ -168,13 +169,13 @@ export class A2AMethodHandlers {
      */
     async tasksCancel(params: TaskIdParams): Promise<Task> {
         if (!params?.id) {
-            throw new Error('id is required');
+            throw new JsonRpcInvalidParamsError('id is required');
         }
 
         // Check if session exists (don't create if not found)
         const session = await this.agent.getSession(params.id);
         if (!session) {
-            throw new Error(`Task not found: ${params.id}`);
+            throw new JsonRpcInvalidParamsError(`Task not found: ${params.id}`);
         }
 
         // Cancel the session
@@ -213,7 +214,7 @@ export class A2AMethodHandlers {
      */
     async messageStream(params: MessageSendParams): Promise<{ taskId: string }> {
         if (!params?.message) {
-            throw new Error('message is required');
+            throw new JsonRpcInvalidParamsError('message is required');
         }
 
         const { message } = params;

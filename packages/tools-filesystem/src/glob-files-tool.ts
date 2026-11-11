@@ -12,6 +12,7 @@ import {
     truncateForHeader,
 } from '@dexto/core/tools';
 import type { SearchDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
+import type { BlockedPathCheck } from './blocked-path-check.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
 import { resolveUserPath } from './path-utils.js';
@@ -40,7 +41,8 @@ const GlobFilesInputSchema = z
  * Create the glob_files internal tool with directory approval support
  */
 export function createGlobFilesTool(
-    getFileSystemService: FileSystemServiceGetter
+    getFileSystemService: FileSystemServiceGetter,
+    blockedPathCheck: BlockedPathCheck
 ): Tool<typeof GlobFilesInputSchema> {
     return defineTool({
         id: 'glob_files',
@@ -82,9 +84,16 @@ export function createGlobFilesTool(
             }
             const handle = await context.services.workspaceManager.open({ intent: 'read' });
             const workspacePattern = joinWorkspacePattern(handle.context.path, searchPath, pattern);
-            const matches = await handle.files.glob(workspacePattern);
-            const limitedMatches = matches.slice(0, max_results);
-            const truncated = matches.length > max_results;
+            // Check blocked paths lazily, one match past the cap, so a large result is not
+            // checked in full: the extra match shows whether the result was cut off.
+            const allowedMatches: string[] = [];
+            for (const match of await handle.files.glob(workspacePattern)) {
+                if (allowedMatches.length > max_results) break;
+                const blocked = await blockedPathCheck(handle.context.path, match, context.logger);
+                if (blocked === null) allowedMatches.push(match);
+            }
+            const limitedMatches = allowedMatches.slice(0, max_results);
+            const truncated = allowedMatches.length > max_results;
 
             // Build display data (reuse SearchDisplayData for file list)
             const _display: SearchDisplayData = {

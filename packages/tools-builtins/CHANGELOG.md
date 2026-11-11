@@ -1,5 +1,74 @@
 # @dexto/tools-builtins
 
+## 1.17.0
+
+### Patch Changes
+
+- fcb27f2: Restrict `delegate_to_url` to plain agent base URLs, refuse redirects and cap the response size.
+- 8719e1e: The errors for a refused `http_request` target and a refused image download now name only the host that was requested. They no longer print the address a name resolved to or say whether it was a metadata or a private address.
+- c0848d6: Close the remaining gaps in how model-driven requests are kept off private addresses. The private-address check now also blocks site-local (fec0::/10) and multicast (ff00::/8) IPv6 addresses and NAT64 (64:ff9b::/96) addresses that translate to a private IPv4 address. `http_request` refuses a redirect to another origin that would still send its request body, whatever the status or method. Image and file URLs that the AI SDK downloads for a model are now resolved first and refused when any answer is a private address, and the connection uses the address that was checked.
+- 4619707: `http_request` and the AI SDK image and file downloader now also refuse a host name whose DNS answer is a cloud metadata address, such as the Azure WireServer address 168.63.129.16, which is not in a private range.
+- 395eed2: `http_request` and the AI SDK image and file downloader now refuse cloud metadata host names (such as `metadata.google.internal`) by name, using the shared `isMetadataHost` check, before any DNS lookup or connection.
+- 15a8e9f: Connect `delegate_to_url` and webhook deliveries through the address that was checked for metadata addresses, so a name that answers differently to a second DNS lookup cannot reach one.
+- Updated dependencies [2827371]
+- Updated dependencies [cd30ac1]
+- Updated dependencies [8719e1e]
+- Updated dependencies [c0848d6]
+- Updated dependencies [4619707]
+- Updated dependencies [395eed2]
+- Updated dependencies [09be87c]
+- Updated dependencies [3034ae7]
+- Updated dependencies [1acdc07]
+- Updated dependencies [fcb27f2]
+- Updated dependencies [15a8e9f]
+- Updated dependencies [4b9dbc3]
+- Updated dependencies [6cbdd47]
+- Updated dependencies [2132ed2]
+    - @dexto/core@1.17.0
+    - @dexto/agent-config@1.17.0
+
+## 1.16.6
+
+### Patch Changes
+
+- Updated dependencies [489e1a7]
+- Updated dependencies [70960ab]
+- Updated dependencies [c0a33d0]
+    - @dexto/core@1.16.6
+    - @dexto/agent-config@1.16.6
+
+## 1.16.5
+
+### Patch Changes
+
+- Updated dependencies [3058397]
+    - @dexto/core@1.16.5
+    - @dexto/agent-config@1.16.5
+
+## 1.16.4
+
+### Patch Changes
+
+- Updated dependencies [e18778a]
+    - @dexto/core@1.16.4
+    - @dexto/agent-config@1.16.4
+
+## 1.16.3
+
+### Patch Changes
+
+- Updated dependencies [bfe6300]
+    - @dexto/core@1.16.3
+    - @dexto/agent-config@1.16.3
+
+## 1.16.2
+
+### Patch Changes
+
+- Updated dependencies [f80f6e7]
+    - @dexto/core@1.16.2
+    - @dexto/agent-config@1.16.2
+
 ## 1.16.1
 
 ### Patch Changes

@@ -14,6 +14,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Offline: a git fixture and a mocked gh (needs git and jq). Runs first so a missing changeset
+      # below does not hide it.
+      - name: CLI security drift check regressions
+        run: bash scripts/check-cli-security-drift.test.sh
       - name: Determine changed files
         id: diff
         run: |

@@ -16,4 +16,9 @@ export type {
     JsonRpcBatchRequest,
     JsonRpcBatchResponse,
 } from './types.js';
-export { JsonRpcErrorCode, isJsonRpcError, isJsonRpcSuccess } from './types.js';
+export {
+    JsonRpcErrorCode,
+    JsonRpcInvalidParamsError,
+    isJsonRpcError,
+    isJsonRpcSuccess,
+} from './types.js';

@@ -294,6 +294,86 @@ describe('skill_create tool', () => {
         await expect(fs.readFile(outsideFile, 'utf8')).resolves.toContain('Do not overwrite.');
     });
 
+    describe.skipIf(process.platform === 'win32')('links in the skill directory', () => {
+        function createContextForWorkspace(): ToolExecutionContext {
+            return {
+                logger: createMockLogger(),
+                workspace: { path: tempDir },
+                services: {
+                    skills: {
+                        load: vi.fn().mockResolvedValue(null),
+                        list: vi.fn().mockResolvedValue([]),
+                        readFile: vi.fn().mockResolvedValue(''),
+                    },
+                },
+            } as unknown as ToolExecutionContext;
+        }
+
+        it('skill_create with overwrite does not write through a SKILL.md link', async () => {
+            const skillDir = path.join(tempDir, '.agents', 'skills', 'linked-file');
+            const outsideFile = path.join(tempDir, 'outside-file.md');
+            await fs.mkdir(skillDir, { recursive: true });
+            await fs.writeFile(outsideFile, 'keep me', 'utf8');
+            await fs.symlink(outsideFile, path.join(skillDir, 'SKILL.md'));
+
+            const tool = getCreatorTool('skill_create');
+            await expect(
+                tool.execute(
+                    tool.inputSchema.parse({
+                        id: 'linked-file',
+                        description: 'Attempt.',
+                        content: 'Attempted write.',
+                        overwrite: true,
+                    }),
+                    createContextForWorkspace()
+                )
+            ).rejects.toThrow();
+            await expect(fs.readFile(outsideFile, 'utf8')).resolves.toBe('keep me');
+        });
+
+        it('skill_create does not write into a skill directory that is a link out of the skills root', async () => {
+            const skillsRoot = path.join(tempDir, '.agents', 'skills');
+            const outsideDir = path.join(tempDir, 'outside-dir');
+            await fs.mkdir(skillsRoot, { recursive: true });
+            await fs.mkdir(outsideDir);
+            await fs.symlink(outsideDir, path.join(skillsRoot, 'linked-dir'));
+
+            const tool = getCreatorTool('skill_create');
+            await expect(
+                tool.execute(
+                    tool.inputSchema.parse({
+                        id: 'linked-dir',
+                        description: 'Attempt.',
+                        content: 'Attempted write.',
+                    }),
+                    createContextForWorkspace()
+                )
+            ).rejects.toThrow();
+            await expect(fs.readdir(outsideDir)).resolves.toEqual([]);
+        });
+
+        it('skill_update does not write through a SKILL.md link', async () => {
+            const skillDir = path.join(tempDir, '.agents', 'skills', 'linked-update');
+            const outsideFile = path.join(tempDir, 'outside-update.md');
+            await fs.mkdir(skillDir, { recursive: true });
+            await fs.writeFile(outsideFile, 'keep me', 'utf8');
+            await fs.symlink(outsideFile, path.join(skillDir, 'SKILL.md'));
+
+            const tool = getCreatorTool('skill_update');
+            await expect(
+                tool.execute(
+                    tool.inputSchema.parse({
+                        id: 'linked-update',
+                        description: 'Attempt.',
+                        content: 'Attempted update.',
+                    }),
+                    createContextForWorkspace()
+                )
+            ).rejects.toThrow();
+            await expect(fs.readFile(outsideFile, 'utf8')).resolves.toBe('keep me');
+        });
+    });
+
     it('re-reads one skill bundle so later file edits are visible in the current session', async () => {
         const logger = createMockLogger();
         const skillFile = path.join(tempDir, '.agents', 'skills', 'release-check', 'SKILL.md');

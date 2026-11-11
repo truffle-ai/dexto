@@ -1,6 +1,9 @@
+import { TextDecoder } from 'node:util';
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
+import { createMetadataCheckedLookup, isMetadataHost } from '@dexto/core';
+import { Agent, type Dispatcher } from 'undici';
 import {
     TOOL_ACTIVITY,
     createLocalToolCallHeader,
@@ -49,6 +52,62 @@ interface A2AMessage {
     kind: 'message';
 }
 
+/** Resolves a host name to all of its addresses. Defaults to a DNS lookup; tests inject one. */
+type HostResolver = (hostname: string) => Promise<string[]>;
+
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * The delegation URL must be an agent base URL: http(s) only, no credentials, query or fragment
+ * (a query would let the caller choose the request path), and not a cloud metadata address or
+ * host name. Names that resolve to a metadata address are refused when connecting, see
+ * {@link createMetadataCheckedLookup}. Loopback and private addresses stay allowed because delegating to a local agent is the
+ * documented use of this tool.
+ */
+function assertDelegationUrl(rawUrl: string): void {
+    const invalid = (reason: string) =>
+        new DextoRuntimeError(
+            'DELEGATION_INVALID_URL',
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Invalid agent URL: ${reason}`
+        );
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw invalid('only http and https are supported');
+    }
+    if (parsed.username || parsed.password) {
+        throw invalid('credentials in the URL are not allowed');
+    }
+    if (rawUrl.includes('?') || rawUrl.includes('#')) {
+        throw invalid('the URL must not contain a query or fragment');
+    }
+    if (isMetadataHost(parsed.hostname)) {
+        throw invalid('link-local and metadata addresses are not allowed');
+    }
+}
+
+async function readJsonWithLimit(response: Response): Promise<unknown> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+        return JSON.parse(await response.text());
+    }
+    const decoder = new TextDecoder();
+    let total = 0;
+    let text = '';
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX_RESPONSE_BYTES) {
+            await reader.cancel();
+            throw new Error(`Response exceeded ${MAX_RESPONSE_BYTES} byte limit`);
+        }
+        text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -56,9 +115,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 class SimpleA2AClient {
     private url: string;
     private timeout: number;
+    private dispatcher: Dispatcher;
 
-    constructor(url: string, timeout: number = 30000) {
+    constructor(url: string, dispatcher: Dispatcher, timeout: number = 30000) {
         this.url = url.replace(/\/$/, '');
+        this.dispatcher = dispatcher;
         this.timeout = timeout;
     }
 
@@ -100,15 +161,18 @@ class SimpleA2AClient {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), this.timeout);
             try {
-                const response = await fetch(endpoint, {
+                const requestInit: RequestInit & { dispatcher: Dispatcher } = {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'User-Agent': '@dexto/core',
                     },
                     body: JSON.stringify(rpcRequest),
+                    redirect: 'error',
                     signal: controller.signal,
-                });
+                    dispatcher: this.dispatcher,
+                };
+                const response = await fetch(endpoint, requestInit);
 
                 if (!response.ok) {
                     lastError = new Error(
@@ -117,7 +181,7 @@ class SimpleA2AClient {
                     continue;
                 }
 
-                const data: unknown = await response.json();
+                const data = await readJsonWithLimit(response);
 
                 if (isPlainObject(data) && 'error' in data && data.error) {
                     const errorMessage =
@@ -189,7 +253,14 @@ class SimpleA2AClient {
  *
  * Delegates a message/task to another A2A-compliant agent URL via JSON-RPC and returns its response.
  */
-export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema> {
+export function createDelegateToUrlTool(
+    options: { resolveHost?: HostResolver } = {}
+): Tool<typeof DelegateToUrlInputSchema> {
+    // Connections use the addresses the lookup checked, so DNS cannot change the target after
+    // the check.
+    const dispatcher = new Agent({
+        connect: { lookup: createMetadataCheckedLookup(options.resolveHost) },
+    });
     return defineTool({
         id: 'delegate_to_url',
         description:
@@ -206,8 +277,10 @@ export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema>
         async execute(input, _context: ToolExecutionContext) {
             const { url, message, sessionId, timeout } = input;
 
+            assertDelegationUrl(url);
+
             try {
-                const client = new SimpleA2AClient(url, timeout);
+                const client = new SimpleA2AClient(url, dispatcher, timeout);
 
                 const effectiveSessionId =
                     sessionId ||

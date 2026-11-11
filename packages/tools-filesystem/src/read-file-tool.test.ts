@@ -3,11 +3,14 @@ import { InMemoryDextoStores } from '@dexto/core/storage';
 import type { ToolExecutionContext, ToolServices } from '@dexto/core/tools';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { FileSystemErrorCode } from './error-codes.js';
+import { allowAllPaths } from './test-helpers.js';
 import { createReadFileTool } from './read-file-tool.js';
 
 async function createContext(
     content: string,
-    readText = vi.fn(async () => content)
+    readText = vi.fn(async () => content),
+    readFileSize?: (file: string) => Promise<number>
 ): Promise<ToolExecutionContext> {
     const stores = new InMemoryDextoStores();
     await stores.connect();
@@ -26,6 +29,7 @@ async function createContext(
                 files: {
                     readFile: vi.fn(async () => content),
                     readText,
+                    ...(readFileSize === undefined ? {} : { readFileSize }),
                     glob: vi.fn(async () => []),
                     writeFile: vi.fn(async () => undefined),
                     listFiles: vi.fn(async () => []),
@@ -55,7 +59,7 @@ describe('read_file tool', () => {
         const getFileSystemService = vi.fn(async () => {
             throw new Error('read_file execute must not use FileSystemService');
         });
-        const tool = createReadFileTool(getFileSystemService);
+        const tool = createReadFileTool(getFileSystemService, allowAllPaths, 10 * 1024 * 1024);
 
         const result = await tool.execute({ file_path: 'local.txt' }, await createContext('alpha'));
 
@@ -70,7 +74,7 @@ describe('read_file tool', () => {
     });
 
     it('applies pagination after workspace reads', async () => {
-        const tool = createReadFileTool(vi.fn());
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10 * 1024 * 1024);
 
         const result = await tool.execute(
             { file_path: 'local.txt', offset: 2, limit: 2 },
@@ -88,7 +92,7 @@ describe('read_file tool', () => {
 
     it('normalizes workspace-contained absolute paths before reading', async () => {
         const readText = vi.fn(async () => 'alpha');
-        const tool = createReadFileTool(vi.fn());
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10 * 1024 * 1024);
 
         await tool.execute(
             { file_path: path.join('/repo', 'local.txt') },
@@ -100,7 +104,7 @@ describe('read_file tool', () => {
 
     it('rejects external absolute paths before file provider calls', async () => {
         const readText = vi.fn(async () => 'alpha');
-        const tool = createReadFileTool(vi.fn());
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10 * 1024 * 1024);
 
         await expect(
             tool.execute(
@@ -110,5 +114,65 @@ describe('read_file tool', () => {
         ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
 
         expect(readText).not.toHaveBeenCalled();
+    });
+
+    it('refuses a file larger than maxFileSize', async () => {
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute({ file_path: 'big.txt' }, await createContext('x'.repeat(11)))
+        ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
+    });
+
+    it('counts bytes, not characters, against maxFileSize', async () => {
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        // Six characters, twelve bytes.
+        await expect(
+            tool.execute({ file_path: 'wide.txt' }, await createContext('éééééé'))
+        ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
+    });
+
+    it('reads a file that is exactly maxFileSize', async () => {
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute({ file_path: 'edge.txt' }, await createContext('x'.repeat(10)))
+        ).resolves.toMatchObject({ size: 10 });
+    });
+
+    it('checks the size before reading the file', async () => {
+        const readText = vi.fn(async () => 'x'.repeat(11));
+        const readFileSize = vi.fn(async () => 11);
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute({ file_path: 'big.txt' }, await createContext('', readText, readFileSize))
+        ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
+
+        expect(readFileSize).toHaveBeenCalledWith('big.txt');
+        expect(readText).not.toHaveBeenCalled();
+    });
+
+    it('reads a file the handle reports at exactly maxFileSize', async () => {
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute(
+                { file_path: 'edge.txt' },
+                await createContext('x'.repeat(10), undefined, async () => 10)
+            )
+        ).resolves.toMatchObject({ size: 10 });
+    });
+
+    it('still checks after reading when the reported size was wrong', async () => {
+        const tool = createReadFileTool(vi.fn(), allowAllPaths, 10);
+
+        await expect(
+            tool.execute(
+                { file_path: 'grew.txt' },
+                await createContext('x'.repeat(11), undefined, async () => 3)
+            )
+        ).rejects.toMatchObject({ code: FileSystemErrorCode.FILE_TOO_LARGE });
     });
 });

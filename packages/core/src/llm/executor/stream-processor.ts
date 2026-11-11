@@ -195,6 +195,17 @@ export class StreamProcessor {
     async process(
         streamFn: (abortSignal: AbortSignal) => StreamTextResult<VercelToolSet, unknown>
     ): Promise<StreamProcessorResult> {
+        try {
+            return await this.processStream(streamFn);
+        } finally {
+            // The context manager holds the reply's message for this step only.
+            this.contextManager.releaseAssistantMessage();
+        }
+    }
+
+    private async processStream(
+        streamFn: (abortSignal: AbortSignal) => StreamTextResult<VercelToolSet, unknown>
+    ): Promise<StreamProcessorResult> {
         const startedAtMs = Date.now();
         const setStreamAttribute = (name: string, value: number | string): void => {
             trace.getActiveSpan()?.setAttribute(`llm.stream.${name}`, value);
