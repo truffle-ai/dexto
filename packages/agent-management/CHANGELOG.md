@@ -1,5 +1,39 @@
 # @dexto/agent-management
 
+## 1.18.0
+
+### Minor Changes
+
+- 9a75f3a: A signed-in person's Dexto Skills library joins local skill discovery:
+    - `dexto`: each session syncs the library into `~/.dexto/cloud-skills` (only Skills whose files changed download; Skills that left the library are removed; offline keeps the last copy with one warning; with no person signed in the copy is removed). `dexto skills sync` syncs on demand. `--api-key -` reads the key from stdin, and `--api-key` with no value asks for it. The coding agent ships an `import-chats` skill for `dexto chat local` and `dexto chat import`.
+    - `@dexto/agent-management`: `~/.dexto/cloud-skills` is the last standalone skill root, with source `cloud`, so a local Skill of the same name wins. `getStandaloneSkillPaths` is exported.
+    - `@dexto/cloud-client`: `GET /v1/skills` and `GET /v1/skills/{skill_id}/bundle`.
+
+- 9a75f3a: Support for dexto 2.0's sign-in:
+    - `@dexto/agent-management`: the Dexto sign-in store and OAuth client (`dextoAccounts`, `dextoSignIn`, `dextoCloud`), Dexto models on the sign-in (`dextoGateway`, used by `createModelAuthResolver` for `dexto-nova`), and the Dexto MCP for local sessions (`dextoMcp`). `isDextoAuthenticated` and `canUseDextoProvider` read the sign-in; `getDextoApiKeyFromAuth` is removed.
+    - `@dexto/cloud-client`: new, a typed client for Dexto's public `/v1` API.
+    - `@dexto/tui`: the host's sign-in services are `currentSignIn`, `signIn`, `signOut` and `dextoCreditBalance`, replacing 1.x's login internals.
+
+### Patch Changes
+
+- 9a75f3a: `dexto` 2.0 drops the 1.x local-agent commands: `setup`, `connect`, `agents`, `which`, `init`, `create-app`, `init-app`, `image`, `create-image`, `plugin`, `mcp`, `search`, `--mode web|server|mcp` (with the embedded Web UI and the Docker server image), `--skip-setup`, `--no-auto-install`, `--image`, `--dev` and `--port`. The interactive chat, `dexto run`, `chat`, `upgrade`, `uninstall` and the cloud commands stay. The first start needs a provider key in the environment or `dexto login` (signed in, it starts on Dexto models) instead of opening setup. Hints in other packages no longer name the removed commands. packages/cli/CLI.md maps each removed command to its replacement.
+- 9a75f3a: `dexto run` reports a failure once: in `--json` and `--stream-json`, stdout carries only JSON and stderr only the JSON error, and in text mode the error prints once with the command that fixes it. A run with no provider key and no Dexto sign-in exits 3 (needs sign-in) and points to `dexto login`; `--model` without that provider's key also exits 3. Logs go to stderr, so the first use of a bundled agent no longer prints install lines before the JSON. An unknown command exits 2 and points to `dexto --help` instead of trying to start the chat. Text mode no longer echoes the reply on stderr.
+- 9a75f3a: `dexto login` ends on the Dexto app's sign-in page, in light or dark, instead of a bare localhost page. When you deny access or the authorization server returns an error, the page now says so; the old page said "Signed in" even then. A failure after the redirect, such as the token exchange, still shows only in the terminal.
+- 9a75f3a: `dexto login --device` keeps polling through a dropped connection or a server error, including an HTML gateway error page, instead of failing while the code is still valid.
+- 9a75f3a: With `DEXTO_PALETTE=signal`, the first run, `dexto login` (browser and `--device`), `whoami`, errors, `--help` and the update notice use the Signal look. Without it, output is unchanged. `@dexto/agent-management` sign-in now hands the CLI a prompt to show (`SignInPrompt`) and says why a sign-in ended (`SignInEnded`).
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+    - @dexto/core@1.18.0
+    - @dexto/agent-config@1.18.0
+    - @dexto/tools-builtins@1.18.0
+    - @dexto/llm@1.18.0
+
 ## 1.17.0
 
 ### Patch Changes
