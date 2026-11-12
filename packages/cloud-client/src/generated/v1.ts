@@ -32,7 +32,7 @@ export interface paths {
         };
         /**
          * Get billing summary
-         * @description Returns the caller organization's current credit balance, charged usage for the preceding 30 days, and up to 50 recent events each for model and compute usage. Organization owners and admins see all members' usage; other members see only usage attributed to them.
+         * @description Returns the caller organization's current credit balance, charged usage for the preceding 30 days, and up to 50 recent model usage events. Organization owners and admins see all members' usage; other members see only usage attributed to them.
          */
         get: operations["getBillingSummary"];
         put?: never;
@@ -1314,7 +1314,7 @@ export interface paths {
         put?: never;
         /**
          * Start moving a synced chat
-         * @description Beta, may change. Start moving a synced chat. To the cloud: move it and its working tree to the chat's own cloud computer. A chat imported from Claude Code or Codex moves its folder the same way, once and only to the cloud: its next turn is told where the repository now is and that the laptop's paths in that repository are at the same place under it. Declare the branch, head commit, and the size and SHA-256 of the git bundle and of the patch of uncommitted changes, then PUT each to its URL and call uploaded. A bundle over 256 MiB or a patch over 32 MiB is refused with 413. 409 move_in_progress names the chat's open move; 409 chat_in_cloud means the chat is already in the cloud; 409 too_many_moves when 3 of the person's chats are already moving to the cloud. To local (`{"to":"local"}`): the chat in the cloud stops taking turns (409 chat_moving) while its computer exports the working tree, within about a minute: the commits after the head the CLI uploaded as a bundle, and the uncommitted changes as a patch without gitignored or secret-shaped files. The move is then ready, with export, or failed with export_failed or computer_unavailable and the chat back in the cloud; 409 chat_busy while a turn runs or messages wait in its queue, and 409 chat_local when the chat is not in the cloud. An open move expires an hour after it starts, and an expired or canceled move back puts the chat in the cloud again. 503 when this environment cannot take uploads.
+         * @description Beta, may change. Start moving a synced chat. To the cloud: move it and its working tree to the chat's own cloud computer. Declare the branch, head commit, and the size and SHA-256 of the git bundle and of the patch of uncommitted changes, then PUT each to its URL and call uploaded. A bundle over 256 MiB or a patch over 32 MiB is refused with 413. 409 move_in_progress names the chat's open move; 409 chat_in_cloud means the chat is already in the cloud; 409 too_many_moves when 3 of the person's chats are already moving to the cloud. To local (`{"to":"local"}`): the chat in the cloud stops taking turns (409 chat_moving) while its computer exports the working tree, within about a minute: the commits after the head the CLI uploaded as a bundle, and the uncommitted changes as a patch without gitignored or secret-shaped files. The move is then ready, with export, or failed with export_failed or computer_unavailable and the chat back in the cloud; 409 chat_busy while a turn runs or messages wait in its queue, and 409 chat_local when the chat is not in the cloud. An open move expires an hour after it starts, and an expired or canceled move back puts the chat in the cloud again. 503 when this environment cannot take uploads.
          */
         post: operations["startSyncedChatMove"];
         delete?: never;
@@ -1852,19 +1852,10 @@ export interface operations {
                             total_usage_events: number;
                         };
                         recent_model_usage: {
-                            allowance_usd: number;
                             cost_usd: number;
                             input_tokens: number;
                             model: string;
                             output_tokens: number;
-                            /** Format: date-time */
-                            timestamp: string;
-                        }[];
-                        recent_compute_usage: {
-                            allowance_usd: number;
-                            billable_seconds: number;
-                            cost_usd: number;
-                            provider: string;
                             /** Format: date-time */
                             timestamp: string;
                         }[];
@@ -13899,6 +13890,150 @@ export interface operations {
             };
         };
     };
+    publishSiteFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description What's published, such as the file or folder's name. It titles the page and, with your handle, makes its address, so publishing the same name again updates the same link. */
+                    name: string;
+                    /** @description The address to publish at, <slug>.<Sites host>, instead of one made from the name. A Site of yours there is updated. */
+                    slug?: string;
+                    /** @description The page's title. Defaults to the name. */
+                    title?: string;
+                    /**
+                     * @description Site visibility; defaults to the existing visibility or unlisted for a new Site.
+                     * @enum {string}
+                     */
+                    visibility?: "private" | "unlisted" | "public";
+                    /** @description The existing private Site's exact title, to confirm making it public. */
+                    confirmPublicName?: string;
+                    /** @description The path dexto_upload_prepare returned for purpose site-files. */
+                    uploadPath: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        files: number;
+                        homepage: string;
+                        site: {
+                            id: string;
+                            slug: string;
+                            title: string;
+                        };
+                        url: string;
+                        /** @enum {string} */
+                        visibility: "private" | "unlisted" | "public";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listSkills: {
         parameters: {
             query?: never;
@@ -13954,7 +14089,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14068,7 +14203,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14214,7 +14349,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14330,7 +14465,7 @@ export interface operations {
                             run_id: string;
                             run_span_id: string;
                         }[];
-                        /** @description The trace holds more than these 500 spans; list them with /spans, filtered by name or status. */
+                        /** @description The trace reached its 500-span cap and may hold more; list them with /spans, filtered by name or status. */
                         has_more: boolean;
                         /** @constant */
                         object: "run_trace";
@@ -14373,7 +14508,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14525,7 +14660,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14711,7 +14846,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14796,6 +14931,11 @@ export interface operations {
             };
         };
     };
+                    /**
+                     * @description Declare support for the v1 Git LFS object envelope.
+                     * @constant
+                     */
+                    lfsObjects?: "v1";
     deleteSyncedChat: {
         parameters: {
             query?: never;
@@ -14815,6 +14955,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @constant */
+                    /**
+                     * @description Declare support for the v1 Git LFS object envelope.
+                     * @constant
+                     */
+                    lfsObjects?: "v1";
                         deleted: true;
                         /** Format: uuid */
                         id: string;
@@ -14832,7 +14977,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14931,11 +15076,6 @@ export interface operations {
                 "application/json": {
                     /** @constant */
                     to: "cloud";
-                    /**
-                     * @description Declare support for the v1 Git LFS object envelope.
-                     * @constant
-                     */
-                    lfsObjects?: "v1";
                     working_tree: {
                         branch: string;
                         /** @description A Git bundle or v1 LFS envelope. The bundle and patch together are at most 256 MiB. */
@@ -14955,11 +15095,6 @@ export interface operations {
                 } | {
                     /** @constant */
                     to: "local";
-                    /**
-                     * @description Declare support for the v1 Git LFS object envelope.
-                     * @constant
-                     */
-                    lfsObjects?: "v1";
                 };
             };
         };
@@ -14980,11 +15115,12 @@ export interface operations {
                          * @description An open move is expired at this time.
                          */
                         expires_at: string;
-                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_extensions_unsupported" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
                         lfs_failure?: {
                             path: string;
                             size_bytes: number;
                         } | null;
+                        failure_message?: string | null;
                         /** Format: uuid */
                         id: string;
                         /** @constant */
@@ -15043,7 +15179,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15156,11 +15292,12 @@ export interface operations {
                          * @description An open move is expired at this time.
                          */
                         expires_at: string;
-                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_extensions_unsupported" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
                         lfs_failure?: {
                             path: string;
                             size_bytes: number;
                         } | null;
+                        failure_message?: string | null;
                         /** Format: uuid */
                         id: string;
                         /** @constant */
@@ -15219,7 +15356,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15332,11 +15469,12 @@ export interface operations {
                          * @description An open move is expired at this time.
                          */
                         expires_at: string;
-                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_extensions_unsupported" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
                         lfs_failure?: {
                             path: string;
                             size_bytes: number;
                         } | null;
+                        failure_message?: string | null;
                         /** Format: uuid */
                         id: string;
                         /** @constant */
@@ -15395,7 +15533,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15508,11 +15646,12 @@ export interface operations {
                          * @description An open move is expired at this time.
                          */
                         expires_at: string;
-                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_extensions_unsupported" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
                         lfs_failure?: {
                             path: string;
                             size_bytes: number;
                         } | null;
+                        failure_message?: string | null;
                         /** Format: uuid */
                         id: string;
                         /** @constant */
@@ -15571,7 +15710,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15684,11 +15823,12 @@ export interface operations {
                          * @description An open move is expired at this time.
                          */
                         expires_at: string;
-                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "lfs_missing" | "lfs_extensions_unsupported" | "lfs_too_large" | "lfs_unavailable" | "secret_path" | "update_cli_for_lfs" | "upload_mismatch") | null;
                         lfs_failure?: {
                             path: string;
                             size_bytes: number;
                         } | null;
+                        failure_message?: string | null;
                         /** Format: uuid */
                         id: string;
                         /** @constant */
@@ -15747,7 +15887,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15900,151 +16040,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The account has insufficient credits. */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The account cannot perform this operation. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The requested resource was not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The request conflicts with existing resource state. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The account exceeded this operation's request rate. */
-            429: {
-                headers: {
-                    /** @description Seconds to wait before retrying. */
-                    "Retry-After"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unexpected Dexto failure. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The upstream model provider failed. */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description A required Dexto service is temporarily unavailable. */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    publishSiteFiles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description What's published, such as the file or folder's name. It titles the page and, with your handle, makes its address, so publishing the same name again updates the same link. */
-                    name: string;
-                    /** @description The address to publish at, <slug>.<Sites host>, instead of one made from the name. A Site of yours there is updated. */
-                    slug?: string;
-                    /** @description The page's title. Defaults to the name. */
-                    title?: string;
-                    /**
-                     * @description Site visibility; defaults to the existing visibility or unlisted for a new Site.
-                     * @enum {string}
-                     */
-                    visibility?: "private" | "unlisted" | "public";
-                    /** @description The existing private Site's exact title, to confirm making it public. */
-                    confirmPublicName?: string;
-                    /** @description The path dexto_upload_prepare returned for purpose site-files. */
-                    uploadPath: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        created: boolean;
-                        files: number;
-                        homepage: string;
-                        site: {
-                            id: string;
-                            slug: string;
-                            title: string;
-                        };
-                        url: string;
-                        /** @enum {string} */
-                        visibility: "private" | "unlisted" | "public";
-                    };
-                };
-            };
-            /** @description Invalid JSON or request fields. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16667,7 +16663,10 @@ export interface operations {
                     schemaVersion: 1;
                     slug: string;
                     title: string;
-                    /** @enum {string} */
+                    /**
+                     * @default unlisted
+                     * @enum {string}
+                     */
                     visibility?: "private" | "unlisted" | "public";
                     assets: {
                         contentBase64: string;
@@ -17084,7 +17083,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17216,7 +17215,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17336,7 +17335,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid authentication. */
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;
