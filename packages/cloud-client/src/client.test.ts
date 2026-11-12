@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { describe, expect, it } from 'vitest';
 import { CloudApiError, createCloudClient, unwrap, type V1Body, type V1Response } from './index.js';
 
@@ -13,6 +14,28 @@ function fakeFetch(reply: (request: globalThis.Request) => Response) {
 }
 
 describe('createCloudClient', () => {
+    it('drops trailing slashes from the API base URL, quickly however many there are', async () => {
+        const server = fakeFetch(() => Response.json({ object: 'list', data: [] }));
+        const client = createCloudClient({
+            apiBaseUrl: 'https://api.dexto.ai///',
+            token: 'token',
+            cloudProject: null,
+            fetch: server.fetch,
+        });
+        // A run of '/' followed by more text was slow with /\/+$/.
+        const started = performance.now();
+        createCloudClient({
+            apiBaseUrl: `https://api.dexto.ai${'/'.repeat(50_000)}x`,
+            token: 'token',
+            cloudProject: null,
+        });
+        expect(performance.now() - started).toBeLessThan(1_000);
+
+        await unwrap(await client.GET('/v1/secrets'));
+
+        expect(server.requests[0]?.url).toBe('https://api.dexto.ai/v1/secrets');
+    });
+
     it("signs each request with the current token and names the person's Cloud project", async () => {
         let issued = 0;
         const server = fakeFetch(() => Response.json({ object: 'list', data: [] }));

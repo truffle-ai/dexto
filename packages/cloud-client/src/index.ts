@@ -19,9 +19,16 @@ export interface CloudClientOptions {
 
 export type CloudClient = ReturnType<typeof createClient<paths>>;
 
+/** `url` without trailing slashes; a loop, not /\/+$/, which is slow on long runs of '/'. */
+function withoutTrailingSlashes(url: string): string {
+    let end = url.length;
+    while (end > 0 && url[end - 1] === '/') end -= 1;
+    return url.slice(0, end);
+}
+
 export function createCloudClient(options: CloudClientOptions): CloudClient {
     const client = createClient<paths>({
-        baseUrl: options.apiBaseUrl.replace(/\/+$/u, ''),
+        baseUrl: withoutTrailingSlashes(options.apiBaseUrl),
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     });
     client.use({
