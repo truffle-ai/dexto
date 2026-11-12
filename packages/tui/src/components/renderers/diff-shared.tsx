@@ -5,9 +5,10 @@
  * Handles unified diff parsing, word-level diff highlighting, and line rendering.
  */
 
-import React from 'react';
+import React, { createContext, useContext } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { diffWords } from 'diff';
+import { tone } from '../../signal/index.js';
 
 // =============================================================================
 // Types
@@ -16,6 +17,8 @@ import { diffWords } from 'diff';
 export interface ParsedHunk {
     oldStart: number;
     newStart: number;
+    /** The hunk's own "@@ -1,2 +1,3 @@ context" line. */
+    header: string;
     lines: ParsedLine[];
 }
 
@@ -60,6 +63,7 @@ export function parseUnifiedDiff(unified: string): ParsedHunk[] {
             currentHunk = {
                 oldStart: oldLine,
                 newStart: newLine,
+                header: line,
                 lines: [],
             };
             continue;
@@ -159,6 +163,9 @@ export function formatLineNum(num: number, width: number): string {
 // Diff Line Component
 // =============================================================================
 
+/** Columns a surrounding frame takes from the terminal, so diff rows fit inside it. */
+export const DiffInsetContext = createContext(0);
+
 interface DiffLineProps {
     type: 'context' | 'addition' | 'deletion';
     lineNum: number;
@@ -175,7 +182,7 @@ interface DiffLineProps {
  */
 export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }: DiffLineProps) {
     const { stdout } = useStdout();
-    const terminalWidth = stdout?.columns ?? 80;
+    const terminalWidth = (stdout?.columns ?? 80) - useContext(DiffInsetContext);
 
     const lineNumStr = formatLineNum(lineNum, lineNumWidth);
     // Gutter: line number + space + symbol + space (e.g., " 42 - ")
@@ -189,9 +196,9 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
     const getColors = () => {
         switch (type) {
             case 'deletion':
-                return { bg: '#662222', fg: 'white', symbol: '-', symbolColor: 'red' };
+                return { bg: tone('delBg'), fg: tone('hi'), symbol: '-', symbolColor: tone('red') };
             case 'addition':
-                return { bg: '#224466', fg: 'white', symbol: '+', symbolColor: 'blue' };
+                return { bg: tone('addBg'), fg: tone('hi'), symbol: '+', symbolColor: tone('fg') };
             default:
                 return { bg: undefined, fg: undefined, symbol: ' ', symbolColor: undefined };
         }
@@ -205,13 +212,13 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
             return wordDiffParts.map((part, i) => {
                 if (type === 'deletion' && part.removed) {
                     return (
-                        <Text key={i} backgroundColor="#882222">
+                        <Text key={i} backgroundColor={tone('delBg2')}>
                             {part.value}
                         </Text>
                     );
                 } else if (type === 'addition' && part.added) {
                     return (
-                        <Text key={i} backgroundColor="#224488">
+                        <Text key={i} backgroundColor={tone('addBg2')}>
                             {part.value}
                         </Text>
                     );
@@ -226,7 +233,7 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
         <Box>
             {/* Column 1: Fixed-width gutter */}
             <Box width={gutterWidth} flexShrink={0}>
-                <Text color="gray">{lineNumStr}</Text>
+                <Text color={tone('dim')}>{lineNumStr}</Text>
                 <Text color={colors.symbolColor as any}> {colors.symbol} </Text>
             </Box>
             {/* Column 2: Fixed-width content - text wraps within this boundary */}
@@ -245,7 +252,7 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
 export function HunkSeparator() {
     return (
         <Box>
-            <Text color="gray">...</Text>
+            <Text color={tone('dim')}>...</Text>
         </Box>
     );
 }

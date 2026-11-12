@@ -1,0 +1,898 @@
+[
+  {
+    "command": "accounts list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "accounts remove",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "accounts use",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "billing",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat browser-profiles",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat computers",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat delete",
+    "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat follow",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat history",
+    "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat import",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "chat list",
+    "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat local",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat outputs",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat start",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "chat watch",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents approve",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents archive",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud agents chat",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud agents create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents messages",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents reject",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents runs get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents runs list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents runs steps",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents sessions cancel",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents sessions delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud agents sessions get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents sessions list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud agents update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud api",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud automations firings",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations pause",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations resume",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations rotate-secret",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud automations run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud automations update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud data-deletions create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud data-deletions get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud data-deletions list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud fetch",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud files delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud files download",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud files get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud files list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud files upload",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud files url",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud functions deploy",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud functions list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud models get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud models list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud models run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud models runs get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud models runs list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud projects create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud projects list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud projects use",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes cat",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes exec",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes export",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes import",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes ls",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes pause",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes rm",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes start",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sandboxes write",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud search",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud secrets create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud secrets delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud secrets get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud secrets list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud secrets update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sites delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "cloud sites deploy",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud sites list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "connect claude",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "connect codex",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "connections disconnect",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "connections list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "connections status",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "find",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "import",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "import list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "login",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "logout",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "models list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "profile get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "profile update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects move",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects start",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "projects update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "publish",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "review",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "skills push",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "skills sync",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "span list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "trace list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "trace view",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "uninstall",
+    "json": false,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "upgrade",
+    "json": false,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "whoami",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts create",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts replace",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts share",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace call",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace computers keys revoke",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace describe",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace drive put",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace tools",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  }
+]

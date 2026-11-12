@@ -1,7 +1,28 @@
 {
   "name": "dexto",
-  "version": "1.17.0",
-  "private": true,
+  "description": "Dexto 2.0 CLI: manage your Dexto cloud agents, chats, sandboxes and Sites, and run AI agents in your terminal.",
+  "keywords": [
+    "dexto",
+    "ai-agents",
+    "agent",
+    "cli",
+    "mcp",
+    "cloud",
+    "infrastructure",
+    "coding-agent",
+    "chat",
+    "sites"
+  ],
+  "homepage": "https://dexto.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/truffle-ai/dexto.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/truffle-ai/dexto/issues"
+  },
+  "version": "1.14.4",
   "type": "module",
   "bin": {
     "dexto": "./dist/index.js"
@@ -12,31 +33,28 @@
     "@dexto/agent-management": "workspace:*",
     "@dexto/analytics": "workspace:*",
     "@dexto/client-sdk": "workspace:*",
+    "@dexto/cloud-client": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/image-local": "workspace:*",
     "@dexto/image-logger-agent": "workspace:*",
     "@dexto/llm": "workspace:*",
     "@dexto/registry": "workspace:*",
-    "@dexto/server": "workspace:*",
     "@dexto/storage": "workspace:*",
     "@dexto/tui": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "@opentelemetry/instrumentation-http": "^0.223.0",
-    "@opentelemetry/instrumentation-undici": "^0.33.0",
     "@opentelemetry/core": "^2.12.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.223.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+    "@opentelemetry/instrumentation-http": "^0.223.0",
+    "@opentelemetry/instrumentation-undici": "^0.33.0",
     "@opentelemetry/resources": "^2.12.0",
     "@opentelemetry/sdk-node": "^0.223.0",
     "@opentelemetry/sdk-trace-base": "^2.12.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
-    "better-sqlite3": "^11.10.0",
     "boxen": "^7.1.1",
     "chalk": "^5.6.0",
     "commander": "^11.1.0",
     "dotenv": "^16.4.7",
-    "fs-extra": "^11.3.0",
-    "hono": "^4.13.13",
     "ioredis": "^5.7.0",
     "minimatch": "^11.0.3",
     "open": "^10.2.0",
@@ -45,8 +63,11 @@
     "tar": "^7.5.22",
     "tsx": "^4.23.15",
     "ws": "^8.22.0",
-    "yaml": "^2.8.3",
+    "yauzl": "^3.4.0",
     "zod": "^4.3.6"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "~12.9.0"
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json && pnpm run copy-agents && pnpm run copy-assets",
@@ -59,6 +80,7 @@
   },
   "devDependencies": {
     "@types/ws": "^8.5.11",
+    "@types/yauzl": "^3.4.0",
     "type-fest": "^4.26.1"
   },
   "files": [

@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { MessageItem } from './MessageItem.js';
 import type { Message } from '../../state/types.js';
+import { tone } from '../../signal/index.js';
 
 interface MessageListProps {
     messages: Message[];
@@ -29,14 +30,14 @@ export function MessageList({ messages, maxVisible = 50 }: MessageListProps) {
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
             {hasMoreMessages && (
                 <Box marginBottom={1}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         ... ({messages.length - maxVisible} earlier messages hidden)
                     </Text>
                 </Box>
             )}
             {visibleMessages.length === 0 && (
                 <Box marginY={2}>
-                    <Text color="greenBright">
+                    <Text color={tone('tealDim')}>
                         Welcome to Dexto CLI! Type your message below or use /help for commands.
                     </Text>
                 </Box>

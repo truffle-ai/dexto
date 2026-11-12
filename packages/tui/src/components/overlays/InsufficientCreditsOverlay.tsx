@@ -11,6 +11,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import { buildDextoBillingUrl, openDextoBillingPage } from '../../host/index.js';
+import { tone } from '../../signal/index.js';
 
 type OverlayStep = 'select' | 'waiting';
 type OpenedBillingTarget = string | null;
@@ -21,6 +22,7 @@ interface ActionOption {
         | 'top-up-10'
         | 'top-up-50'
         | 'open-billing'
+        | 'own-key'
         | 'reopen'
         | 'different-amount'
         | 'done';
@@ -52,6 +54,11 @@ const TOP_UP_OPTIONS: ActionOption[] = [
         id: 'open-billing',
         label: 'Open billing page',
         description: 'View full billing dashboard',
+    },
+    {
+        id: 'own-key',
+        label: 'Use your own model key',
+        description: 'Pick a model from a provider you have a key for',
     },
 ];
 
@@ -90,6 +97,8 @@ export interface InsufficientCreditsOverlayProps {
     initialBalanceUsd: number | null;
     onResolved: () => void;
     onClose: () => void;
+    /** Leaves credits for a model on the person's own key. */
+    onChooseOwnModel: () => void;
 }
 
 export interface InsufficientCreditsOverlayHandle {
@@ -99,7 +108,10 @@ export interface InsufficientCreditsOverlayHandle {
 const InsufficientCreditsOverlay = forwardRef<
     InsufficientCreditsOverlayHandle,
     InsufficientCreditsOverlayProps
->(function InsufficientCreditsOverlay({ isVisible, initialBalanceUsd, onResolved, onClose }, ref) {
+>(function InsufficientCreditsOverlay(
+    { isVisible, initialBalanceUsd, onResolved, onClose, onChooseOwnModel },
+    ref
+) {
     const selectorRef = useRef<BaseSelectorHandle>(null);
     const isActiveRef = useRef(false);
 
@@ -236,6 +248,9 @@ const InsufficientCreditsOverlay = forwardRef<
                 case 'open-billing':
                     void openBillingDashboard();
                     return;
+                case 'own-key':
+                    onChooseOwnModel();
+                    return;
                 case 'reopen':
                     void reopenBilling();
                     return;
@@ -247,16 +262,23 @@ const InsufficientCreditsOverlay = forwardRef<
                     return;
             }
         },
-        [onResolved, openBillingDashboard, openPrefilledBilling, reopenBilling, resetToSelection]
+        [
+            onChooseOwnModel,
+            onResolved,
+            openBillingDashboard,
+            openPrefilledBilling,
+            reopenBilling,
+            resetToSelection,
+        ]
     );
 
     const formatItem = useCallback((option: ActionOption, isSelected: boolean) => {
         return (
             <>
-                <Text color={isSelected ? 'yellow' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? tone('amberDim') : tone('dim')} bold={isSelected}>
                     {option.label}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
+                <Text color={isSelected ? tone('hi') : tone('dim')}> - {option.description}</Text>
             </>
         );
     }, []);
@@ -282,23 +304,23 @@ const InsufficientCreditsOverlay = forwardRef<
     return (
         <Box flexDirection="column">
             <Box>
-                <Text color="yellow" bold>
-                    Out of Dexto Nova credits
+                <Text color={tone('amberDim')} bold>
+                    Out of Dexto credits
                 </Text>
             </Box>
 
             <Box flexDirection="column" marginTop={1}>
-                <Text color="gray">
-                    This request stopped because your Dexto Nova balance ran out.
+                <Text color={tone('dim')}>
+                    This request stopped because your Dexto credits ran out.
                 </Text>
                 {formatBalance(balanceUsd) && (
-                    <Text color="gray">Current balance: {formatBalance(balanceUsd)}</Text>
+                    <Text color={tone('dim')}>Current balance: {formatBalance(balanceUsd)}</Text>
                 )}
             </Box>
 
             <Box flexDirection="column" marginTop={1}>
                 <Text>{statusMessage}</Text>
-                {errorMessage && <Text color="red">{errorMessage}</Text>}
+                {errorMessage && <Text color={tone('red')}>{errorMessage}</Text>}
             </Box>
 
             <Box marginTop={1}>
@@ -313,7 +335,7 @@ const InsufficientCreditsOverlay = forwardRef<
                     onClose={onClose}
                     formatItem={formatItem}
                     title={selectorTitle}
-                    borderColor="yellow"
+                    borderColor={tone('amberDim')}
                     maxVisibleItems={6}
                     loadingMessage={loadingMessage}
                     emptyMessage="No billing actions available"

@@ -9,6 +9,7 @@ import React from 'react';
 import path from 'path';
 import { Box, Text } from 'ink';
 import type { SearchDisplayData } from '@dexto/core';
+import { tone } from '../../signal/index.js';
 
 /**
  * Convert absolute path to relative path from cwd
@@ -42,7 +43,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
     return (
         <Box flexDirection="column">
             {/* Summary header */}
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 {'  ⎿ '}
                 {totalMatches} match{totalMatches !== 1 ? 'es' : ''} for "{pattern}"
                 {truncated && ' (truncated)'}
@@ -50,7 +51,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
 
             {/* Match results - file paths only for clean output */}
             {displayMatches.map((match, i) => (
-                <Text key={i} color="gray" wrap="truncate">
+                <Text key={i} color={tone('dim')} wrap="truncate">
                     {'  ⎿ '}
                     {toRelativePath(match.file)}
                     {match.line > 0 && `:${match.line}`}
@@ -58,7 +59,7 @@ export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
             ))}
 
             {matches.length > maxMatches && (
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {'  ⎿ '}... {matches.length - maxMatches} more
                 </Text>
             )}

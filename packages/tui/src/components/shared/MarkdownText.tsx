@@ -9,12 +9,12 @@
  * so they render as plain text until complete.
  */
 
-import React, { memo, useMemo } from 'react';
+import React, { createContext, memo, useContext, useMemo } from 'react';
 import { Text, Box, useStdout } from 'ink';
-import chalk from 'chalk';
 import wrapAnsi from 'wrap-ansi';
 import stringWidth from 'string-width';
 import { highlight, supportsLanguage } from 'cli-highlight';
+import { markdownChalk, paint, tone } from '../../signal/index.js';
 
 // ============================================================================
 // Inline Markdown Parsing
@@ -112,7 +112,7 @@ function parseInlineMarkdown(text: string): InlineSegment[] {
  * This allows wrap-ansi to properly handle styled text while word-wrapping.
  */
 function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string {
-    const colorFn = getChalkColor(defaultColor);
+    const colorFn = markdownChalk(defaultColor);
 
     return segments
         .map((segment) => {
@@ -120,15 +120,15 @@ function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string
                 case 'bold':
                     return colorFn.bold(segment.content);
                 case 'code':
-                    return chalk.cyan(segment.content);
+                    return paint('teal')(segment.content);
                 case 'italic':
-                    return chalk.gray(segment.content);
+                    return paint('dim')(segment.content);
                 case 'strikethrough':
                     return colorFn.strikethrough(segment.content);
                 case 'link':
-                    return colorFn(segment.content) + chalk.blue(` (${segment.url})`);
+                    return colorFn(segment.content) + paint('fg')(` (${segment.url})`);
                 case 'url':
-                    return chalk.blue(segment.content);
+                    return paint('fg')(segment.content);
                 default:
                     return colorFn(segment.content);
             }
@@ -136,37 +136,22 @@ function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string
         .join('');
 }
 
-/**
- * Get chalk color function from color name
- */
-function getChalkColor(color: string): typeof chalk {
-    switch (color) {
-        case 'white':
-            return chalk.white;
-        case 'gray':
-            return chalk.gray;
-        case 'blue':
-            return chalk.blue;
-        case 'cyan':
-            return chalk.cyan;
-        case 'green':
-            return chalk.green;
-        case 'yellow':
-            return chalk.rgb(255, 165, 0);
-        case 'orange':
-            return chalk.rgb(255, 165, 0);
-        case 'red':
-            return chalk.red;
-        case 'magenta':
-            return chalk.green;
-        default:
-            return chalk.white;
-    }
-}
-
 // ============================================================================
 // Wrapped Paragraph Component (uses wrap-ansi for proper word wrapping)
 // ============================================================================
+
+/** Columns a surrounding margin takes from the terminal, so paragraphs wrap inside it. */
+export const MarkdownInsetContext = createContext(0);
+
+function useMarkdownColumns(): number {
+    const { stdout } = useStdout();
+    const inset = useContext(MarkdownInsetContext);
+    return Math.max(20, (stdout?.columns ?? 80) - inset);
+}
+
+// One space at the start of a line, after any colour escapes.
+// eslint-disable-next-line no-control-regex
+const LEADING_BREAK_SPACE = /^((?:\u001B\[[0-9;]*m)*) /;
 
 interface WrappedParagraphProps {
     text: string;
@@ -185,8 +170,7 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
     bulletPrefix,
     isFirstParagraph = false,
 }) => {
-    const { stdout } = useStdout();
-    const terminalWidth = stdout?.columns ?? 80;
+    const terminalWidth = useMarkdownColumns();
 
     const wrappedLines = useMemo(() => {
         // Parse markdown and convert to ANSI string
@@ -204,7 +188,10 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
             trim: false, // Don't trim whitespace
         });
 
-        return wrapped.split('\n');
+        // With trim off, a space that lands exactly on the break starts the next line.
+        return wrapped
+            .split('\n')
+            .map((line, i) => (i === 0 ? line : line.replace(LEADING_BREAK_SPACE, '$1')));
     }, [text, defaultColor, bulletPrefix, isFirstParagraph, terminalWidth]);
 
     // Calculate indent for continuation lines (spaces to align with first line content)
@@ -251,7 +238,7 @@ interface RenderInlineProps {
  */
 const RenderInlineInternal: React.FC<RenderInlineProps> = ({
     text,
-    defaultColor = 'white',
+    defaultColor = tone('hi'),
     bold: baseBold = false,
 }) => {
     const segments = parseInlineMarkdown(text);
@@ -268,13 +255,13 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
                         );
                     case 'code':
                         return (
-                            <Text key={i} bold={baseBold} color="cyan">
+                            <Text key={i} bold={baseBold} color={tone('teal')}>
                                 {segment.content}
                             </Text>
                         );
                     case 'italic':
                         return (
-                            <Text key={i} bold={baseBold} color="gray">
+                            <Text key={i} bold={baseBold} color={tone('dim')}>
                                 {segment.content}
                             </Text>
                         );
@@ -288,12 +275,12 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
                         return (
                             <Text key={i} bold={baseBold} color={defaultColor}>
                                 {segment.content}
-                                <Text color="blue"> ({segment.url})</Text>
+                                <Text color={tone('fg')}> ({segment.url})</Text>
                             </Text>
                         );
                     case 'url':
                         return (
-                            <Text key={i} bold={baseBold} color="blue">
+                            <Text key={i} bold={baseBold} color={tone('fg')}>
                                 {segment.content}
                             </Text>
                         );
@@ -330,7 +317,7 @@ interface MarkdownTextProps {
  */
 const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
     children,
-    color = 'white',
+    color = tone('hi'),
     bulletPrefix,
 }) => {
     if (!children) return null;
@@ -404,7 +391,7 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
         if (hrRegex.test(trimmedLine)) {
             blocks.push(
                 <Box key={key}>
-                    <Text color="gray">{'─'.repeat(40)}</Text>
+                    <Text color={tone('dim')}>{'─'.repeat(40)}</Text>
                 </Box>
             );
             return;
@@ -495,14 +482,14 @@ interface RenderHeaderProps {
 const RenderHeaderInternal: React.FC<RenderHeaderProps> = ({ level, text }) => {
     // Color based on header level
     const headerColors: Record<number, string> = {
-        1: 'blue',
-        2: 'cyan',
-        3: 'white',
-        4: 'gray',
-        5: 'gray',
-        6: 'gray',
+        1: tone('fg'),
+        2: tone('teal'),
+        3: tone('hi'),
+        4: tone('dim'),
+        5: tone('dim'),
+        6: tone('dim'),
     };
-    const headerColor = headerColors[level] || 'white';
+    const headerColor = headerColors[level] || tone('hi');
 
     return (
         <Box marginTop={level <= 2 ? 1 : 0}>
@@ -530,8 +517,7 @@ const RenderListItemInternal: React.FC<RenderListItemProps> = ({
     text,
     defaultColor,
 }) => {
-    const { stdout } = useStdout();
-    const terminalWidth = stdout?.columns ?? 80;
+    const terminalWidth = useMarkdownColumns();
 
     const paddingLeft = Math.floor(indent / 2);
     const markerWithSpace = `${marker} `;
@@ -594,7 +580,7 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
                 return highlight(code, { language, ignoreIllegals: true });
             } catch {
                 // Fall back to plain cyan if highlighting fails
-                return chalk.cyan(code);
+                return paint('teal')(code);
             }
         }
 
@@ -604,20 +590,20 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
                 return highlight(code, { ignoreIllegals: true });
             } catch {
                 // Fall back to plain cyan if auto-detection fails
-                return chalk.cyan(code);
+                return paint('teal')(code);
             }
         }
 
         // Fallback: plain cyan text
-        return chalk.cyan(code);
+        return paint('teal')(code);
     }, [lines, language]);
 
     return (
         <Box flexDirection="column" marginTop={1} marginBottom={1}>
-            {language && <Text color="gray">{language}</Text>}
+            {language && <Text color={tone('dim')}>{language}</Text>}
             <Box flexDirection="column" paddingLeft={1}>
                 <Text>{highlightedCode}</Text>
-                {isPending && <Text color="gray">...</Text>}
+                {isPending && <Text color={tone('dim')}>...</Text>}
             </Box>
         </Box>
     );

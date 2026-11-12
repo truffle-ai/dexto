@@ -1,43 +1,16 @@
 // packages/cli/src/cli/auth/constants.ts
+//
+// Where the CLI reaches Dexto. Environment overrides, for previews and local development:
+// - DEXTO_PLATFORM_URL: the Dexto app, home of its OAuth server and MCP (e.g. http://localhost:3002)
+// - DEXTO_PUBLIC_API_URL: the versioned public API (e.g. http://localhost:3002)
+// - DEXTO_CREDITS_URL: the page to buy credits on
 
-/**
- * Dexto's Supabase configuration for CLI authentication.
- *
- * SECURITY NOTE:
- * The Supabase anon key is safe to hardcode in distributed code because:
- * 1. It's designed for client-side use (web browsers, mobile apps, CLIs)
- * 2. It only grants anonymous access - real security is enforced by Row Level Security (RLS)
- * 3. This is standard practice (Vercel CLI, Supabase CLI, Firebase CLI all do the same)
- *
- * The service role key (which has admin access) is NEVER in this codebase.
- *
- * Environment variable overrides (for local development):
- * - SUPABASE_URL: Override Supabase URL (e.g., http://localhost:54321)
- * - SUPABASE_ANON_KEY: Override anon key (from `supabase start` output)
- * - DEXTO_API_URL: Override Dexto gateway URL for data-plane calls (e.g., http://localhost:3001)
- * - DEXTO_PLATFORM_URL: Override Dexto app URL for auth/key/account control-plane calls (e.g., http://localhost:3002)
- * - DEXTO_PUBLIC_API_URL: Override versioned public API URL (e.g., http://localhost:3002)
- */
-export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gdfbxznhnnsamvsrtwjq.supabase.co';
-export const SUPABASE_ANON_KEY =
-    process.env.SUPABASE_ANON_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkZmJ4em5obm5zYW12c3J0d2pxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNjkzNjksImV4cCI6MjA3OTY0NTM2OX0.j2NWOJDOy8gTT84XeomalkGSPpLdPvTCBnQMrTgdlI4';
+/** The Dexto app a new sign-in goes to. */
+export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || 'https://app.dexto.ai';
 
-/**
- * Dexto gateway URL for retained data-plane endpoints.
- */
-export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://app.dexto.ai';
-
-/**
- * Dexto app URL for auth/key/account control-plane endpoints.
- */
-export const DEFAULT_DEXTO_PLATFORM_URL = 'https://app.dexto.ai';
-export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || DEFAULT_DEXTO_PLATFORM_URL;
-
+/** The versioned public API (`/v1`). */
 export const DEXTO_PUBLIC_API_URL = process.env.DEXTO_PUBLIC_API_URL || 'https://api.dexto.ai';
 
-/**
- * Dexto Nova credits purchase URL
- */
+/** Where to buy Dexto credits. */
 export const DEXTO_CREDITS_URL =
     process.env.DEXTO_CREDITS_URL || 'https://app.dexto.ai/dashboard/settings/billing';

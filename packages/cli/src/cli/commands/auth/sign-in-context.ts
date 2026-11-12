@@ -1,0 +1,108 @@
+// The sign-in context for this machine: ~/.dexto/accounts, Dexto's OAuth server and the browser.
+
+import os from 'node:os';
+import path from 'node:path';
+import * as p from '@clack/prompts';
+import { dextoAccounts, dextoCloud, dextoSignIn } from '@dexto/agent-management';
+import { getDextoGlobalPath } from '@dexto/core';
+import { shouldAttemptBrowserLaunch } from '../../auth/browser-launch.js';
+import { DEXTO_PLATFORM_URL, DEXTO_PUBLIC_API_URL } from '../../auth/constants.js';
+import { nodeSignInRuntime } from '../../auth/sign-in-runtime.js';
+import { terminalSignInScreen } from '../../screens/sign-in.js';
+import type { SignInContext, SignInScreen } from './sign-in-commands.js';
+
+/** Where results and notes go, and what cancels a sign-in; the terminal's by default. */
+export interface SignInIo {
+    readonly result: (value: unknown, text: string) => void;
+    readonly note: (text: string) => void;
+    readonly screen: SignInScreen;
+    /** Asks the person; false when there is no one to ask. */
+    readonly confirm: (question: string) => Promise<boolean>;
+    readonly signal: AbortSignal;
+}
+
+const toStderr = (text: string) => process.stderr.write(`${text}\n`);
+
+/**
+ * The terminal's io, built when a context is: the screen reads the caps and stderr then, not
+ * when this module is imported.
+ */
+function terminalIo(): SignInIo {
+    return {
+        result: (_value, text) => process.stdout.write(`${text}\n`),
+        note: toStderr,
+        screen: terminalSignInScreen((text) => process.stderr.write(text), toStderr, false),
+        confirm: async (question) => {
+            if (!process.stdin.isTTY) return false;
+            const answer = await p.confirm({ message: question, initialValue: false });
+            return answer === true;
+        },
+        signal: new AbortController().signal,
+    };
+}
+
+/** The folder the internal `dexto-cloud` CLI saved its sign-ins in. */
+function cloudCliDirectory(): string {
+    const configHome = process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config');
+    return path.join(configHome, 'dexto-cloud');
+}
+
+/**
+ * Carries this machine's earlier sign-ins into ~/.dexto/accounts, once: the `dexto-cloud` preview
+ * CLI's, else dexto 1.x's saved API key.
+ */
+export async function carryOverEarlierSignIns(): Promise<void> {
+    const dir = getDextoGlobalPath('accounts');
+    await dextoAccounts.carryOverCloudCliLogins(dir, cloudCliDirectory());
+    await dextoAccounts.carryOverDexto1ApiKey(
+        dir,
+        getDextoGlobalPath('', 'auth.json'),
+        DEXTO_PUBLIC_API_URL
+    );
+}
+
+export async function nodeSignInContext(io: SignInIo = terminalIo()): Promise<SignInContext> {
+    const dir = getDextoGlobalPath('accounts');
+    await carryOverEarlierSignIns();
+    const runtime = { ...nodeSignInRuntime(io.signal), prompt: io.screen.show };
+    return {
+        dir,
+        environment: process.env,
+        appUrl: DEXTO_PLATFORM_URL,
+        apiBaseUrl: DEXTO_PUBLIC_API_URL,
+        result: io.result,
+        note: io.note,
+        screen: io.screen,
+        confirm: io.confirm,
+        canOpenBrowser: shouldAttemptBrowserLaunch(),
+        interactive: process.stdin.isTTY === true,
+        chatSyncOn: async () => {
+            const { nodeChatSyncStore } = await import('../../chat-sync/node.js');
+            const { syncIsOn } = await import('../../chat-sync/store.js');
+            // Settings it can't read sync nothing, so the sign-in asks for no sync scope.
+            return await nodeChatSyncStore()
+                .readSettings()
+                .then(syncIsOn)
+                .catch(() => false);
+        },
+        dexto: {
+            signInWithBrowser: (input) => dextoSignIn.signInWithBrowser(runtime, input),
+            signInWithDevice: (input) => dextoSignIn.signInWithDevice(runtime, input),
+            endSignIn: (login) => dextoSignIn.endSignIn(runtime, login),
+            refreshSignIn: (login) => dextoSignIn.refreshSignIn(runtime, login),
+            listProjects: (login) =>
+                dextoCloud.listCloudProjects(runtime.fetch, login.apiBaseUrl, login.accessToken),
+            acceptsApiKey: async (apiBaseUrl, apiKey) => {
+                const response = await fetch(`${apiBaseUrl}/v1/models`, {
+                    headers: { authorization: `Bearer ${apiKey}` },
+                    signal: AbortSignal.timeout(10_000),
+                });
+                await response.body?.cancel();
+                if (response.status === 401) return false;
+                if (!response.ok)
+                    throw new Error(`Couldn't check the API key: HTTP ${response.status}.`);
+                return true;
+            },
+        },
+    };
+}

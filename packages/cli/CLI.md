@@ -4,24 +4,58 @@ The Dexto CLI provides an interactive terminal interface for conversing with AI 
 
 ## Quick Start
 
-```bash
-# Start interactive CLI (default)
-dexto
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
+Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 
-# Start interactive CLI explicitly
-dexto --mode cli
-
-# Start web UI
-dexto --mode web
-
-# Run one-shot query
-dexto "what is the current time"
-
-# Run with specific agent
-dexto --agent coding-agent --mode cli
+```sh
+npm install -g dexto@next
 ```
 
-If Dexto has not been set up yet, bare/default interactive startup enters the generic `dexto setup` flow before the CLI starts. Interactive launches from an explicit agent file or a project-local startup config bypass `dexto setup`, which keeps provider selection explicit without blocking project-owned agent configs.
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
+Do not approve sign-in on their behalf. Check the first account result:
+
+```sh
+dexto whoami --json
+```
+
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.
+
+```bash
+# Start the interactive CLI
+dexto
+
+# Run one headless task
+dexto run "what is the current time"
+
+# Run with a specific agent
+dexto --agent ./my-agent.yml
+```
+
+The first start needs a model: a provider key in the environment (such as `ANTHROPIC_API_KEY`) or `dexto login` for Dexto models. With neither, `dexto` points you to `dexto login`. An explicit agent file or a project-local agent config starts without this check.
+
+## Removed in 2.0
+
+`dexto` 2.0 is the cloud and infrastructure CLI around the local agent harness. These 1.x local-agent commands are gone:
+
+| 1.x | Use instead |
+| --- | --- |
+| `dexto setup`, `dexto connect` | `dexto login`, or a provider key in an env var |
+| `dexto agents install\|list` | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
+| `dexto init skill` | `dexto skills push` / `dexto skills sync` |
+| `dexto mcp call\|tools` | `dexto workspace call` / `dexto workspace tools` |
+| `dexto search` | `dexto chat history` |
+| `dexto --mode web` | the Dexto dashboard |
+| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK |
+| `dexto --agent triage-agent` (bundled demo) | removed: it ran its sub-agents with `--mode mcp` |
+
+The rest of `agents`, `init` and `mcp`, plus `create-image`, `--image`, `--no-auto-install`, `--skip-setup`, `--dev` and `--port`, are removed without a replacement.
 
 ## CLI Features
 
@@ -52,15 +86,15 @@ Use `@` to reference files and resources:
 
 ### Session Management
 - **New session**: Each CLI launch starts fresh (first message creates new session)
-- **Resume by ID**: `dexto --mode cli -r <session-id>` (resume specific session)
+- **Resume by ID**: `dexto -r <session-id>` (resume specific session)
 - **Resume interactively**: Use `/resume` or `/session switch` in CLI
 - **Auto-save**: Sessions are automatically saved
-- **Search history**: `dexto search <query>`
+- **Read a chat**: `dexto chat history <session-id>`
 
 ### Model Switching
 ```bash
 # Switch model via command
-dexto -m gpt-4o --mode cli
+dexto -m gpt-4o
 
 # Or use interactive selector in CLI
 /model
@@ -78,19 +112,19 @@ dexto -m gpt-4o --mode cli
 ### Tool Confirmation
 ```bash
 # Auto-approve all tool executions
-dexto --mode cli --auto-approve
+dexto --auto-approve
 
 # Manual approval (default)
-dexto --mode cli
+dexto
 ```
 
 ### Custom Agents
 ```bash
-# Use agent by name
-dexto --agent coding-agent --mode cli
+# Use a bundled agent by name
+dexto --agent coding-agent
 
 # Use agent from file
-dexto --agent ./my-agent.yml --mode cli
+dexto --agent ./my-agent.yml
 ```
 
 ### Headless Mode
@@ -145,7 +179,7 @@ packages/cli/src/cli/ink-cli/
 - Arrow keys to navigate, Tab to load into input, Enter to select
 
 ### Session Not Found
-- List sessions: `dexto session list`
+- List sessions: `dexto chat list`
 - Sessions are stored in `~/.dexto/sessions/` (or repo `.dexto/` in dev mode)
 - Use session ID from list output
 
@@ -160,17 +194,13 @@ packages/cli/src/cli/ink-cli/
 ```bash
 # Use repository configs (not global ~/.dexto)
 export DEXTO_DEV_MODE=true
-dexto --mode cli
+dexto
 ```
 
 ### Hot Reload
 ```bash
-# Build and run dev server
-pnpm run dev
-
-# Or just CLI
 pnpm run build:cli
-dexto --mode cli
+dexto
 ```
 
 ### Testing

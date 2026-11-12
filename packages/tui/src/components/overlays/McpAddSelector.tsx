@@ -9,6 +9,7 @@ import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { serverRegistry, type ServerRegistryEntry } from '@dexto/registry';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type McpAddResult = { type: 'preset'; entry: ServerRegistryEntry };
 
@@ -100,10 +101,10 @@ const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
         const formatItem = (option: McpAddOption, isSelected: boolean) => (
             <>
                 <Text>{option.icon} </Text>
-                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                     {option.label}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'}>
+                <Text color={isSelected ? tone('hi') : tone('dim')}>
                     {' '}
                     - {option.description.slice(0, 40)}
                     {option.description.length > 40 ? '...' : ''}
@@ -128,7 +129,7 @@ const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Add MCP Server (Presets)"
-                borderColor="green"
+                borderColor={tone('add')}
                 loadingMessage="Loading server presets..."
                 emptyMessage="No server presets available"
             />

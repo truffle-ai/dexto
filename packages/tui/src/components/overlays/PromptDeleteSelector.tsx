@@ -16,6 +16,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { PromptInfo } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 export interface DeletablePrompt {
     prompt: PromptInfo;
@@ -146,14 +147,14 @@ const PromptDeleteSelector = forwardRef<PromptDeleteSelectorHandle, PromptDelete
         const formatItem = (item: DeletablePrompt, isSelected: boolean) => {
             const displayName = item.prompt.displayName || item.prompt.name;
             const sourceLabel = item.sourceType === 'shared' ? 'shared' : 'config';
-            const sourceColor = item.sourceType === 'shared' ? 'magenta' : 'blue';
+            const sourceColor = item.sourceType === 'shared' ? tone('faint') : tone('fg');
 
             return (
                 <Box>
-                    <Text color={isSelected ? 'red' : 'white'} bold={isSelected}>
+                    <Text color={isSelected ? tone('red') : tone('hi')} bold={isSelected}>
                         {displayName}
                     </Text>
-                    {item.prompt.title && <Text color="gray"> - {item.prompt.title}</Text>}
+                    {item.prompt.title && <Text color={tone('dim')}> - {item.prompt.title}</Text>}
                     <Text color={sourceColor}> ({sourceLabel})</Text>
                 </Box>
             );
@@ -185,13 +186,13 @@ const PromptDeleteSelector = forwardRef<PromptDeleteSelectorHandle, PromptDelete
                     onClose={onClose}
                     formatItem={formatItem}
                     title="Delete Prompt"
-                    borderColor="red"
+                    borderColor={tone('red')}
                     emptyMessage={emptyMessage}
                     maxVisibleItems={10}
                 />
                 {isVisible && !isLoading && items.length > 0 && (
                     <Box marginTop={1}>
-                        <Text color="gray" italic>
+                        <Text color={tone('dim')} italic>
                             Note: MCP prompts cannot be deleted (they come from servers)
                         </Text>
                     </Box>

@@ -28,6 +28,7 @@ import {
 } from '@dexto/agent-management';
 import { LLM_PROVIDERS, type LLMProvider } from '@dexto/llm';
 import { applyLayeredEnvironmentLoading, isValidApiKeyFormat } from '../../host/index.js';
+import { tone } from '../../signal/index.js';
 
 type ConnectStep =
     | 'provider'
@@ -472,30 +473,32 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
         if (!isVisible) return null;
 
         return (
-            <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
+            <Box flexDirection="column" borderStyle="round" borderColor={tone('teal')} paddingX={1}>
                 <Box marginBottom={1}>
-                    <Text bold color="cyan">
+                    <Text bold color={tone('teal')}>
                         Connect Model Provider
                     </Text>
                 </Box>
-                <Text color={error ? 'red' : 'gray'}>{error ?? status}</Text>
+                <Text color={error ? tone('red') : tone('dim')}>{error ?? status}</Text>
                 {step === 'api-key' ? (
                     <Box flexDirection="column" marginTop={1}>
                         <Text>{maskSecret(apiKey)}</Text>
-                        <Text color="gray">Enter save • Esc cancel</Text>
+                        <Text color={tone('dim')}>Enter save • Esc cancel</Text>
                     </Box>
                 ) : step === 'delete-confirm' ? (
                     <Box flexDirection="column" marginTop={1}>
-                        <Text color="red">This removes saved credentials for this method.</Text>
-                        <Text color="gray">Enter delete • Esc cancel</Text>
+                        <Text color={tone('red')}>
+                            This removes saved credentials for this method.
+                        </Text>
+                        <Text color={tone('dim')}>Enter delete • Esc cancel</Text>
                     </Box>
                 ) : step === 'oauth-progress' ? (
                     <Box marginTop={1}>
-                        <Text color="gray">Esc cancel</Text>
+                        <Text color={tone('dim')}>Esc cancel</Text>
                     </Box>
                 ) : step === 'error' ? (
                     <Box marginTop={1}>
-                        <Text color="gray">Enter close • Esc close</Text>
+                        <Text color={tone('dim')}>Enter close • Esc close</Text>
                     </Box>
                 ) : (
                     <Box marginTop={1}>
@@ -515,10 +518,12 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                                       : 'Existing profile'
                             }
                             formatItem={(item, selected) => (
-                                <Text {...(selected ? { color: 'cyan' } : {})}>
+                                <Text {...(selected ? { color: tone('teal') } : {})}>
                                     {selected ? '› ' : '  '}
                                     {item.label}
-                                    {item.hint ? <Text color="gray"> — {item.hint}</Text> : null}
+                                    {item.hint ? (
+                                        <Text color={tone('dim')}> — {item.hint}</Text>
+                                    ) : null}
                                 </Text>
                             )}
                         />

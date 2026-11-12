@@ -16,6 +16,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { McpServerStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type McpServerActionType = 'enable' | 'disable' | 'authenticate' | 'delete' | 'back';
 
@@ -90,7 +91,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
                     type: 'enable',
                     label: 'Enable server',
                     icon: '▶️',
-                    color: 'green',
+                    color: tone('add'),
                 });
             }
 
@@ -100,7 +101,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
                     type: 'authenticate',
                     label: 'Authenticate server',
                     icon: '🔐',
-                    color: 'yellow',
+                    color: tone('amberDim'),
                 });
             }
 
@@ -110,7 +111,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
                 type: 'delete',
                 label: 'Delete server',
                 icon: '🗑️',
-                color: 'red',
+                color: tone('red'),
             });
 
             // Back option
@@ -119,7 +120,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
                 type: 'back',
                 label: 'Back to server list',
                 icon: '←',
-                color: 'gray',
+                color: tone('dim'),
             });
 
             return actions;
@@ -130,7 +131,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
             return (
                 <Box>
                     <Text>{item.icon} </Text>
-                    <Text color={isSelected ? item.color : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? item.color : tone('dim')} bold={isSelected}>
                         {item.label}
                     </Text>
                 </Box>
@@ -157,7 +158,7 @@ const McpServerActions = forwardRef<McpServerActionsHandle, McpServerActionsProp
                 onClose={onClose}
                 formatItem={formatItem}
                 title={`Server: ${server.name}`}
-                borderColor="magenta"
+                borderColor={tone('faint')}
                 emptyMessage="No actions available"
             />
         );

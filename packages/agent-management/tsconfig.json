@@ -19,7 +19,6 @@
     { "path": "../agent-config" },
     { "path": "../core" },
     { "path": "../llm" },
-    { "path": "../orchestration" },
     { "path": "../tools-builtins" }
   ]
 }

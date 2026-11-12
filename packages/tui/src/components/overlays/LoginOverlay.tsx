@@ -8,21 +8,11 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import {
-    type TuiDeviceApiKeyLoginResult,
-    type TuiDeviceLoginPrompt as DeviceLoginPrompt,
-    loadAuth,
-    performDeviceCodeLogin,
-    persistDeviceApiKeyLoginResult,
-} from '../../host/index.js';
+import { currentSignIn, signIn } from '../../host/index.js';
+import { tone } from '../../signal/index.js';
 
 export type LoginOverlayOutcome =
-    | {
-          outcome: 'success';
-          email?: string | undefined;
-          keyId?: string | undefined;
-          hasDextoApiKey: boolean;
-      }
+    | { outcome: 'success'; summary: string }
     | { outcome: 'cancelled' }
     | { outcome: 'closed' };
 
@@ -35,13 +25,7 @@ export interface LoginOverlayHandle {
     handleInput: (input: string, key: Key) => boolean;
 }
 
-type LoginStep =
-    | 'checking'
-    | 'already-authenticated'
-    | 'starting'
-    | 'waiting'
-    | 'finalizing'
-    | 'error';
+type LoginStep = 'checking' | 'already-authenticated' | 'signing-in' | 'error';
 
 const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function LoginOverlay(
     { isVisible, onDone },
@@ -49,9 +33,8 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
 ) {
     const [step, setStep] = useState<LoginStep>('checking');
     const [existingUser, setExistingUser] = useState<string | null>(null);
-    const [authUrl, setAuthUrl] = useState<string | null>(null);
-    const [devicePrompt, setDevicePrompt] = useState<DeviceLoginPrompt | null>(null);
-    const [status, setStatus] = useState<string>('Preparing login...');
+    const [signInNote, setSignInNote] = useState<string | null>(null);
+    const [status, setStatus] = useState<string>('Preparing sign-in...');
     const [error, setError] = useState<string | null>(null);
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -67,55 +50,27 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         abortControllerRef.current = null;
     }, []);
 
-    const runDeviceLogin = useCallback(
-        async (abortController: AbortController): Promise<TuiDeviceApiKeyLoginResult> => {
-            setStep('starting');
-            safeSetStatus('Starting device code login...');
-            setAuthUrl(null);
-            setDevicePrompt(null);
-
-            return performDeviceCodeLogin({
-                signal: abortController.signal,
-                onPrompt: (prompt) => {
-                    if (!isActiveRef.current || abortController.signal.aborted) {
-                        return;
-                    }
-                    setDevicePrompt(prompt);
-                    setAuthUrl(prompt.verificationUrlComplete ?? prompt.verificationUrl);
-                    setStep('waiting');
-                    safeSetStatus('Open the URL below and approve login.');
-                },
-            });
-        },
-        [safeSetStatus]
-    );
-
     const startLogin = useCallback(async () => {
         cancelInFlight();
         setError(null);
-        setAuthUrl(null);
-        setDevicePrompt(null);
+        setSignInNote(null);
+        setStep('signing-in');
+        safeSetStatus('Signing in...');
 
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
         try {
-            const result = await runDeviceLogin(abortController);
-
-            if (!result || !isActiveRef.current || abortController.signal.aborted) return;
-
-            setStep('finalizing');
-            safeSetStatus('Finalizing login...');
-
-            const persisted = await persistDeviceApiKeyLoginResult(result);
+            const summary = await signIn({
+                signal: abortController.signal,
+                onNote: (text) => {
+                    if (!isActiveRef.current || abortController.signal.aborted) return;
+                    setSignInNote(text);
+                },
+            });
 
             if (!isActiveRef.current || abortController.signal.aborted) return;
-            onDone({
-                outcome: 'success',
-                email: persisted.email,
-                keyId: persisted.keyId,
-                hasDextoApiKey: persisted.hasDextoApiKey,
-            });
+            onDone({ outcome: 'success', summary });
         } catch (err) {
             if (abortController.signal.aborted) {
                 return;
@@ -124,11 +79,11 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
             setStep('error');
             const errorMessage = err instanceof Error ? err.message : String(err);
             setError(errorMessage);
-            safeSetStatus('Login failed');
+            safeSetStatus('Sign-in failed');
         } finally {
             abortControllerRef.current = null;
         }
-    }, [cancelInFlight, onDone, runDeviceLogin, safeSetStatus]);
+    }, [cancelInFlight, onDone, safeSetStatus]);
 
     // Initialize when shown
     useEffect(() => {
@@ -137,20 +92,19 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         isActiveRef.current = true;
         setStep('checking');
         setExistingUser(null);
-        setAuthUrl(null);
-        setDevicePrompt(null);
-        setStatus('Preparing login...');
+        setSignInNote(null);
+        setStatus('Preparing sign-in...');
         setError(null);
 
         void (async () => {
             try {
-                const auth = await loadAuth();
+                const signedInAs = await currentSignIn();
                 if (!isActiveRef.current) return;
 
-                if (auth) {
-                    setExistingUser(auth.email || auth.userId || 'user');
+                if (signedInAs !== null) {
+                    setExistingUser(signedInAs);
                     setStep('already-authenticated');
-                    setStatus('You are already logged in');
+                    setStatus('You are already signed in');
                     return;
                 }
 
@@ -201,7 +155,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
 
     const hint =
         step === 'already-authenticated'
-            ? 'Enter to login again • Esc to close'
+            ? 'Enter to sign in again • Esc to close'
             : step === 'error'
               ? 'Enter to retry • Esc to close'
               : 'Esc to cancel';
@@ -210,52 +164,41 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="cyan"
+            borderColor={tone('teal')}
             paddingX={1}
             marginTop={1}
         >
             <Box marginBottom={1}>
-                <Text bold color="cyan">
-                    Login to Dexto
+                <Text bold color={tone('teal')}>
+                    Sign in to Dexto
                 </Text>
             </Box>
 
             {existingUser && step === 'already-authenticated' && (
                 <Box marginBottom={1}>
-                    <Text color="green">✅ Already logged in as: {existingUser}</Text>
+                    <Text color={tone('add')}>Signed in as {existingUser}</Text>
                 </Box>
             )}
 
             <Box marginBottom={1}>
-                <Text color="gray">Status: </Text>
+                <Text color={tone('dim')}>Status: </Text>
                 <Text>{status}</Text>
             </Box>
 
-            {devicePrompt && (
+            {signInNote && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="gray">Open this URL on any device:</Text>
-                    <Text color="yellowBright">
-                        {devicePrompt.verificationUrlComplete ?? devicePrompt.verificationUrl}
-                    </Text>
-                    <Text color="gray">Code: {devicePrompt.userCode}</Text>
-                </Box>
-            )}
-
-            {authUrl && !devicePrompt && (
-                <Box flexDirection="column" marginBottom={1}>
-                    <Text color="gray">If your browser didn&apos;t open, use this URL:</Text>
-                    <Text color="yellowBright">{authUrl}</Text>
+                    <Text>{signInNote}</Text>
                 </Box>
             )}
 
             {error && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="red">Error: {error}</Text>
+                    <Text color={tone('red')}>Error: {error}</Text>
                 </Box>
             )}
 
             <Box>
-                <Text color="gray" dimColor>
+                <Text color={tone('dim')} dimColor>
                     {hint}
                 </Text>
             </Box>

@@ -10,16 +10,16 @@ importers:
     dependencies:
       '@dexto/agent-config':
         specifier: ^1.1.3
-        version: 1.14.4(tsx@4.23.15)(zod@4.6.7)
+        version: 1.16.0(tsx@4.23.15)(zod@4.6.7)
       '@dexto/agent-management':
         specifier: ^1.1.3
-        version: 1.14.4(tsx@4.23.15)(zod@4.6.7)
+        version: 1.16.0(tsx@4.23.15)(zod@4.6.7)
       '@dexto/core':
         specifier: ^1.1.3
-        version: 1.14.4(tsx@4.23.15)(zod@4.6.7)
+        version: 1.16.0(tsx@4.23.15)(zod@4.6.7)
       '@dexto/image-local':
         specifier: ^1.1.3
-        version: 1.14.4(tsx@4.23.15)
+        version: 1.16.0(tsx@4.23.15)
       dotenv:
         specifier: ^16.3.1
         version: 16.6.1
@@ -110,8 +110,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@cfworker/json-schema@4.1.4':
-    resolution: {integrity: sha512-20rPE8EX0dSg6JGOVe31HpqsLYZTDSlcFJZA5mpZqQxcZ71vh/SXCMX+UuHO1mMcZBDKeb752z+3L8IWa+0Svg==}
+  '@cfworker/json-schema@4.1.6':
+    resolution: {integrity: sha512-YzVGTHXf4bzlyAL5KAvHYCdNbbt6zM5cYkAgxqxQPDQM6aZ4ShIIN5yJ+6q7YeonnevxT8k/LmD2tJi/jOiKkg==}
 
   '@colors/colors@1.6.0':
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
@@ -124,18 +124,18 @@ packages:
   '@dabh/diagnostics@2.0.9':
     resolution: {integrity: sha512-R6siwR65Hm+3yfgP7o8DKhNvputQAwfoz9zTc3kyDudnomj2/BcLmD+uGQQPICjuFUp8ounPBU+jmKsocwVVAg==}
 
-  '@dexto/agent-config@1.14.4':
-    resolution: {integrity: sha512-zExVjFV08FPAen6rt5B5fTl/DuI8xvd722HI7QVv01JjUfV8qG4RpZYfsUHqJJqZnfpvLjQ1MAVuEUJnIgrFDw==}
+  '@dexto/agent-config@1.16.0':
+    resolution: {integrity: sha512-cTPhCLDAoTZBjVc3mNEF4yVjRB/fClBu8f2uD8RHp2mkbtlUXGhDFy7qCHOfj3hsdB8SyHSIHExnAoBf2fVINg==}
     peerDependencies:
       zod: ^4.3.6
 
-  '@dexto/agent-management@1.14.4':
-    resolution: {integrity: sha512-YMOpk8BMGnPTebu+0tQAz3qDUyjiewXrJfvIYEab2rU4cdEY/Fq8ne610IcxXU2bMGu+b8UkXrCCSQdztcKuFw==}
+  '@dexto/agent-management@1.16.0':
+    resolution: {integrity: sha512-3RjpeUXwjkV/3S9VNw+mLDoXAiTVRQBc4Y5acs6+5GD0TOM0/x7hENXuMda70rJItCbJqQ8cMsp0clcAKb2lRw==}
     peerDependencies:
       zod: ^4.3.6
 
-  '@dexto/core@1.14.4':
-    resolution: {integrity: sha512-snZQ5gIAfkk3RkFxc/hZsINNHqafXrrpYlo6IkAti12klFs/eznR52Uk81oCxrCva5bkXGV/TeKHdCHLpHObgQ==}
+  '@dexto/core@1.16.0':
+    resolution: {integrity: sha512-iRI5AWJgQDjF+QxWS21oe8pRSTXf1xxzZ4v3+taYwHVAdqPnIwUV3KE5AHbq/uejBsXFEOugYebFfNcQT1G9mA==}
     peerDependencies:
       '@opentelemetry/core': ^2.12.0
       '@opentelemetry/exporter-trace-otlp-grpc': ^0.223.0
@@ -179,17 +179,17 @@ packages:
       tsx:
         optional: true
 
-  '@dexto/image-local@1.14.4':
-    resolution: {integrity: sha512-WAOfvqzCa+Z6k2JYz+oMJfzFvc9O+w+SxBMZSWA3KSydZ+AHH0iWE7uv2FwASQaBicQ1bkibjIHttbK8e/ny6w==}
+  '@dexto/image-local@1.16.0':
+    resolution: {integrity: sha512-8buXt4A7Eg+HGXjnZby9+gZPKIxw2OKVeTgQ9UOBWyialo0u9aTR51GiG0k3/9HD1doCWLbRWDqOP7I70HfHxg==}
 
-  '@dexto/llm@1.14.4':
-    resolution: {integrity: sha512-VNSUaUICIIrGtv+FEU5SaGOHeJM5koqmNzQSsWW4FFkSc+dk+dOch7x2vuFVauzcz4YgXVyaSW5VRLBGJ/i/KA==}
+  '@dexto/llm@1.16.0':
+    resolution: {integrity: sha512-+K3fp8TlTAx2oAlV55zta1Q6eQ/8LiDAqnPWtId/nhsK9AOyp9GDirhVsdgIyWi1YQhtLd7PuEpUWzRkkiDQBg==}
 
-  '@dexto/orchestration@1.14.4':
-    resolution: {integrity: sha512-h36VZdMYBouFIn8tvL7IHkpmLrwZP0trOUnsDg8lQdqlyUlcSriDBt8JhLRiJuuX5Hck9Yx4+UR6suID18D1Jw==}
+  '@dexto/orchestration@1.16.0':
+    resolution: {integrity: sha512-QWBel3q13Kk6gErggtXLPydXjc5EK2CrWdqh6CHVyf5+CUt/JIPx+7uxMB7s6sGePpZ2EZ0ON3h/lHOIZxxaNQ==}
 
-  '@dexto/storage@1.14.4':
-    resolution: {integrity: sha512-0kyIKLux89jEFvl6Uqa/g+1VTGW5mT2WuQ6aYnk7dpM3Uzrcxrwe6gTBcp9BOPWFLdNuD906SLBKWaXYeMuCtQ==}
+  '@dexto/storage@1.16.0':
+    resolution: {integrity: sha512-WYtuMglipbA3aYOZav0LPpf19Ztze2M7P02X+lp5eFBhT1KIfWk2Swxf23X1GHq3mdQwmeBSCtqy73fTmVIalg==}
     peerDependencies:
       better-sqlite3: ^11.10.0
       ioredis: ^5.7.0
@@ -202,26 +202,26 @@ packages:
       pg:
         optional: true
 
-  '@dexto/tools-builtins@1.14.4':
-    resolution: {integrity: sha512-m6sayrHqmYBG2u3abNSpVVWdbhaFboyHPz3m5CcfwraSH00Eg+DpgMMHTs6qrggx/a6f6zK4Li4uJCTzRk9Blw==}
+  '@dexto/tools-builtins@1.16.0':
+    resolution: {integrity: sha512-Epm09pJBxhps4sAKMplG9Vwxd7mwc2LQxfO4M+kgcjcAOPepUFMmFMlE4iDVSetrgVn0Bw843aQ9ecSY7ad6Aw==}
 
-  '@dexto/tools-filesystem@1.14.4':
-    resolution: {integrity: sha512-Jo9G+ciP/WrZHWefcBRzY//U7jIggGfxqoIQL2h2j1bKEdzWrhOP0Ma55DFnJjDX3RL5SqvH1aUoZOAoxAbY8A==}
+  '@dexto/tools-filesystem@1.16.0':
+    resolution: {integrity: sha512-4Ouah4olVs2n6ibtE24fgey4SdzNX2LY1uGSgHJIUSx2/OxwLUIKd1YR/Vi6ToQH5q85OcxwdwCBqfEgxxJ7Mw==}
 
-  '@dexto/tools-lifecycle@1.14.4':
-    resolution: {integrity: sha512-ZkmlDNknRfehhDR/yWAZHqla5mrtOYEDyv39iXPVwAaqeMnYACgqZufQOHHD5EuRjO3zm4N/ByT03CO7lTwrVg==}
+  '@dexto/tools-lifecycle@1.16.0':
+    resolution: {integrity: sha512-bs2/AOcTtt+5H5Z1LyEYLwUrYJYEDiFNusWsddA0tSrGvicEgO7SddJYeSfDanXnSWxjtrsuOAP1D9copSQ3LQ==}
 
-  '@dexto/tools-plan@1.14.4':
-    resolution: {integrity: sha512-Rb4/KodGTQAMJGle1hr5IUuuOfkUBoOWigkkhpMTZs72BHXhNmJHueoZG41Rk2dr2vXezZXOV7uYwi+a3D79Lw==}
+  '@dexto/tools-plan@1.16.0':
+    resolution: {integrity: sha512-omQanUgVBc9U49JdG5zwB7npwjgWBEzcYY8D15d5eOvEay0tff5y+94broVSjZr5lOtRxV51OI89CS7SunjmOg==}
 
-  '@dexto/tools-process@1.14.4':
-    resolution: {integrity: sha512-8AU+wNV/q7u3yyIPCQHA+WdvhVzgQr4dd4bhPYLv0lTgPlBzAkuuGiAZZBXStnROfV3+T4/bWZvd1Ccb1u+z6A==}
+  '@dexto/tools-process@1.16.0':
+    resolution: {integrity: sha512-cuXIEnFZJOQr4WSw4/BZrEqZts+cf0LjThQueRPdQWA3WcdsKM3SwOZTfSVeMH4pZkmbruHqfB8yHogPg5+sdA==}
 
-  '@dexto/tools-scheduler@1.14.4':
-    resolution: {integrity: sha512-9TVeLFFy/Ed3GbgvicxOufBjo+JKjUTpozJwiFIjlRK6LVok1z6ROSK9bldGShBmIGHVzPZj+l557HynJCFO5A==}
+  '@dexto/tools-scheduler@1.16.0':
+    resolution: {integrity: sha512-LyCqYgo4wtXMFF3W7fuWp8raZ2xGOQ1DQqwYESWdCl0zdnaHsawudWsxLLwOX3r1KpwW2gORtv14C4Y0dHk/pg==}
 
-  '@dexto/tools-todo@1.14.4':
-    resolution: {integrity: sha512-o73CbKk/AMy9bHfxMe9RlIirsoufU44pBEfophVK+oa0HhVl0msJo6O3V5U0Gs7Z5NPZQ8czA4K6F7HPvPInpQ==}
+  '@dexto/tools-todo@1.16.0':
+    resolution: {integrity: sha512-KK8XVAw+LMPKrw4V2XN1Q65/DeoVc9EuqfLMMcVlvNwHOhoL/CKHYcY3lixy5X2t+262tFjUvmnHLwvo6zQpNQ==}
 
   '@esbuild/aix-ppc64@0.28.2':
     resolution: {integrity: sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==}
@@ -382,15 +382,14 @@ packages:
   '@grammyjs/types@5.0.0':
     resolution: {integrity: sha512-iq1Qrq1iPKkB8yAa0qSuIURMZOCuqTY5pWy5gHpCeL1oQ+GPadGhw/cDTVE8waJwuCzacUzuIjRv1sESvk7u7A==}
 
-  '@hono/node-server@2.1.5':
-    resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
+  '@hono/node-server@2.1.6':
+    resolution: {integrity: sha512-p/KH9MnfNcsm3sR6x4lNgm5j+QN4Et8srKredl9DZfXiyZ1UQ3aQ2YVpFLbqktYN5JI+DB+VZFKM2PqE5hLKjQ==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
 
-  '@isaacs/cliui@9.0.0':
-    resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
-    engines: {node: '>=18'}
+  '@isaacs/nonrecursive-glob-match@1.1.0':
+    resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
 
   '@modelcontextprotocol/sdk@1.32.2':
     resolution: {integrity: sha512-SWsVtH/0vULSQStoZ6xxH2K09Li8fXYTMC64ZeogCdpZ3XSi1eCPOByV1OpuJxuI3OcmHhosDWYyii07tpPsLw==}
@@ -424,16 +423,16 @@ packages:
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
 
-  '@smithy/core@3.38.1':
-    resolution: {integrity: sha512-U/mB2XiwTLaf+NSgLSWwJfptsMT/H8aBi0aTAA/E5e2/TagFeGCqAyhKGG0w0A9IWTkm4qYEmLoD/HB6aYfnRA==}
+  '@smithy/core@3.39.0':
+    resolution: {integrity: sha512-JJ/46AWQ4ipS1N2eZmUj7yzIhH8NhQIfAE+dce7NSB6dmFh+7hvD4pbofcoT4I0Xzfy/LNhZx3V2QhwYyAiqdg==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/eventstream-codec@4.5.2':
     resolution: {integrity: sha512-u4EAkaviMcQYlorFSnxFUgF/Dnbgiu2TzGmqOU4h3CL4MbvrYyNCXpFkcBwvAEU11EvspKX2zzS2uX7q+43VdQ==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/types@4.19.0':
-    resolution: {integrity: sha512-r7jh49VJxGerfAcTQA6gXcKc+98zOp/tqRwzYjgOE+iSQsP6cEU1hq2QzbuipmP68QtYdY9wKEhiCQZIzHgZ4Q==}
+  '@smithy/types@4.20.0':
+    resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/util-utf8@4.5.2':
@@ -489,8 +488,8 @@ packages:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
     engines: {node: '>=8'}
 
-  ansi-regex@6.5.0:
-    resolution: {integrity: sha512-zhvbbbdt1kbw7EJ9OQoxmQcuaNR9P5kTj7e/YdmOSU10aHWbycofJxA6jKfoEy3vlLdctOF9ZHaxLtmSm998wQ==}
+  ansi-regex@6.6.0:
+    resolution: {integrity: sha512-XZ5apbzreCbXSKwPjJstu8R0zOi247w3XYwWxtwBXgpZrCyc1Ka7p9/xY0A9/diMewmHbEKz+FIraWaEWjlN5g==}
     engines: {node: '>=12'}
 
   ansi-styles@6.2.3:
@@ -688,8 +687,8 @@ packages:
     resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
     engines: {node: '>=18.0.0'}
 
-  express-rate-limit@8.7.2:
-    resolution: {integrity: sha512-U1ScocxDD9WI09LaBVypvNkOtNR5yWAmZLkuKJdAzIchA4YKFYF6GT5IKER7epG58oXtjvGlV0/6ii0F83EyZg==}
+  express-rate-limit@8.7.3:
+    resolution: {integrity: sha512-zPLqDI2f0gV2WmGnacLf9XSSqn4VldRyP5LCzOwx0BKH40mO6+2PCFkoSsRO2jePx87/Kf6NUF6P2QOTKXHbQA==}
     engines: {node: '>= 16'}
     peerDependencies:
       express: '>= 4.11'
@@ -720,10 +719,6 @@ packages:
 
   fn.name@1.1.0:
     resolution: {integrity: sha512-GRnmB5gPyJpAhTQdSZTSp9uaPSvl09KoYcMQtsB9rQoOmzs9dH6ffeccH+Z+cv6P68Hu5bC6JjRh4Ah/mHSNRw==}
-
-  foreground-child@3.3.1:
-    resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
-    engines: {node: '>=14'}
 
   formdata-polyfill@4.0.10:
     resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
@@ -761,10 +756,9 @@ packages:
     resolution: {integrity: sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==}
     engines: {node: '>= 0.4'}
 
-  glob@12.0.0:
-    resolution: {integrity: sha512-5Qcll1z7IKgHr5g485ePDdHcNQY0k2dtv/bjYy0iuyGxQw2qSOiiXUXJ+AYQpg3HNoUMHqAruX478Jeev7UULw==}
-    engines: {node: 20 || >=22}
-    hasBin: true
+  glob@14.0.4:
+    resolution: {integrity: sha512-mMiwNKoJZ4HAIRVJxotO6LsNRReA30gQwP9E2/p94tfLv+jygCNpKDjhhSL6OLY6LE371EZm5EAf7RpYuUqlsw==}
+    engines: {node: 18 || 20 || >=22}
 
   google-auth-library@10.9.1:
     resolution: {integrity: sha512-i1ydyHrqcIxXkWh/uBmVkzCvIuq5yiK2ATndIe5XxKholrG/MTYP9xGYka4sQhrbIAgGjL2B6NOE7rFaiF3fXw==}
@@ -790,8 +784,8 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
-  hono@4.13.14:
-    resolution: {integrity: sha512-yhRLQ21U6qa9Hsu2N7Qcbh8tE+WKEcoErjIo56LeSGiGXGp9sA7UpE86Ui9uexb61KakiGwuHMn2QdV7w6i6kQ==}
+  hono@4.13.17:
+    resolution: {integrity: sha512-vZIcbkvjOR5hHRWERbGkr8fGfF0GGM1ooYkuH448iO3b2AdVEr3AXZSw4Z3Kn+1L5z0CVoVeyV29VGYmFh05kQ==}
     engines: {node: '>=16.9.0'}
 
   http-errors@2.0.1:
@@ -809,8 +803,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  ip-address@10.7.5:
-    resolution: {integrity: sha512-t2v0rkILYv9WXmSL7TpAaU3HXgaFYOPUcH3QHgwQ++gpJuH3bqyMy4Fvt/DJCTKwzH3Cf+bAp5W/mFL39KPLzA==}
+  ip-address@10.7.6:
+    resolution: {integrity: sha512-00LYkM6byILa9eQIx6qoaXCM40xTLd56AZ4vyaPW3YTyb49VZYPo5xsiAq4tuQ54GH4R7gVdYScJ1B7B77PuTg==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -831,12 +825,8 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
-  jackspeak@4.2.3:
-    resolution: {integrity: sha512-ykkVRwrYvFm1nb2AJfKKYPr0emF6IiXDYUaFx4Zn9ZuIH7MrzEZ3sD5RlqGXNRpHtvUHJyOnCEFxOlNDtGo7wg==}
-    engines: {node: 20 || >=22}
-
-  jose@6.2.14:
-    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
+  jose@6.2.15:
+    resolution: {integrity: sha512-qdF6ewcZARtef63fJ9AKKZPgxw+t7USH6HLXYcD4CrdmSvDp79rpJSPFEKc90QBeGS63u1KQtN2MZQHC0yDIzA==}
 
   json-bigint@1.0.0:
     resolution: {integrity: sha512-SiPv/8VpZuWbvLSMtTDU8hEfrZWg/mH/nV/b4o0CYbSxu1UIQPLdwKOCIyLQX+VIPO5vrLX3i8qtqFyhdPSUSQ==}
@@ -891,9 +881,9 @@ packages:
     resolution: {integrity: sha512-Lbgzdk0h4juoQ9fCKXW4by0UJqj+nOOrI9MJ1sSj4nI8aI2eo1qmvQEie4VD1glsS250n15LsWsYtCugiStS5A==}
     engines: {node: '>=18'}
 
-  minimatch@10.2.6:
-    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
-    engines: {node: 18 || 20 || >=22}
+  minimatch@11.0.5:
+    resolution: {integrity: sha512-snPlVppFcYWfLLFQGhDxUyBcHNtMlWmn3jtj7pEaO+DP8pqL0IvAzXhMYmn1z9ASNtgmwLBdFxSf4tMUB0OTKA==}
+    engines: {node: 20 || >=22}
 
   minipass@7.1.3:
     resolution: {integrity: sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==}
@@ -951,9 +941,6 @@ packages:
   one-time@1.0.0:
     resolution: {integrity: sha512-5DXOiRKwuSEcQ/l0kGCF6Q3jcADFv5tSmRaJck/OqkVFcOzutB134KRSfF0xDrL39MNnqxbHBbUUcjZIhTgb2g==}
 
-  package-json-from-dist@1.0.1:
-    resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
-
   parseurl@1.3.3:
     resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
     engines: {node: '>= 0.8'}
@@ -962,8 +949,8 @@ packages:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
 
-  path-scurry@2.0.2:
-    resolution: {integrity: sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg==}
+  path-scurry@3.0.0:
+    resolution: {integrity: sha512-1pTbQqH1wIwMi/eleQ5leFTTCkzFsPcgXNjwOA8YGGW/W4/kHT3dssE7Z6NH+zuqNLOzOB0uaD61yl7cAcVhgg==}
     engines: {node: 18 || 20 || >=22}
 
   path-to-regexp@8.4.2:
@@ -1053,10 +1040,6 @@ packages:
     resolution: {integrity: sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==}
     engines: {node: '>= 0.4'}
 
-  signal-exit@4.1.0:
-    resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
-    engines: {node: '>=14'}
-
   stack-trace@0.0.10:
     resolution: {integrity: sha512-KGzahc7puUKkzyMt+IqAep+TVNbKP+k2Lmwhub39m1AsTSkaDutx56aDCo+HLDzf/D26BIHTJWNiTG1KAJiQCg==}
 
@@ -1118,8 +1101,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  undici@7.30.1:
-    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
+  undici@7.30.2:
+    resolution: {integrity: sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA==}
     engines: {node: '>=20.18.1'}
 
   unpipe@1.0.0:
@@ -1269,7 +1252,7 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.30(zod@4.6.7)
       zod: 4.6.7
 
-  '@cfworker/json-schema@4.1.4': {}
+  '@cfworker/json-schema@4.1.6': {}
 
   '@colors/colors@1.6.0': {}
 
@@ -1281,10 +1264,10 @@ snapshots:
       enabled: 2.0.0
       kuler: 2.0.0
 
-  '@dexto/agent-config@1.14.4(tsx@4.23.15)(zod@4.6.7)':
+  '@dexto/agent-config@1.16.0(tsx@4.23.15)(zod@4.6.7)':
     dependencies:
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/storage': 1.14.4(tsx@4.23.15)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/storage': 1.16.0(tsx@4.23.15)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/core'
@@ -1302,13 +1285,13 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/agent-management@1.14.4(tsx@4.23.15)(zod@4.6.7)':
+  '@dexto/agent-management@1.16.0(tsx@4.23.15)(zod@4.6.7)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/llm': 1.14.4
-      '@dexto/orchestration': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-builtins': 1.14.4(tsx@4.23.15)
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/llm': 1.16.0
+      '@dexto/orchestration': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-builtins': 1.16.0(tsx@4.23.15)
       yaml: 2.9.1
       zod: 4.6.7
     transitivePeerDependencies:
@@ -1327,7 +1310,7 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/core@1.14.4(tsx@4.23.15)(zod@4.6.7)':
+  '@dexto/core@1.16.0(tsx@4.23.15)(zod@4.6.7)':
     dependencies:
       '@ai-sdk/amazon-bedrock': 3.0.111(zod@4.6.7)
       '@ai-sdk/anthropic': 2.0.91(zod@4.6.7)
@@ -1339,9 +1322,9 @@ snapshots:
       '@ai-sdk/openai-compatible': 1.0.46(zod@4.6.7)
       '@ai-sdk/provider': 2.0.5
       '@ai-sdk/xai': 2.0.83(zod@4.6.7)
-      '@cfworker/json-schema': 4.1.4
-      '@dexto/llm': 1.14.4
-      '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.4)(zod@4.6.7)
+      '@cfworker/json-schema': 4.1.6
+      '@dexto/llm': 1.16.0
+      '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7)
       '@noble/hashes': 1.8.0
       '@openrouter/ai-sdk-provider': 1.5.4(ai@5.0.222(zod@4.6.7))(zod@4.6.7)
       '@opentelemetry/api': 1.10.0
@@ -1350,7 +1333,7 @@ snapshots:
       chalk: 5.6.2
       diff: 8.0.4
       dotenv: 16.6.1
-      glob: 12.0.0
+      glob: 14.0.4
       nanoid: 5.1.16
       winston: 3.19.0
       yaml: 2.9.1
@@ -1360,20 +1343,20 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@dexto/image-local@1.14.4(tsx@4.23.15)':
+  '@dexto/image-local@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/agent-management': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/storage': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-builtins': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-filesystem': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-lifecycle': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-plan': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-process': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-scheduler': 1.14.4(tsx@4.23.15)
-      '@dexto/tools-todo': 1.14.4(tsx@4.23.15)
-      glob: 12.0.0
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/agent-management': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/storage': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-builtins': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-filesystem': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-lifecycle': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-plan': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-process': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-scheduler': 1.16.0(tsx@4.23.15)
+      '@dexto/tools-todo': 1.16.0(tsx@4.23.15)
+      glob: 14.0.4
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/core'
@@ -1391,11 +1374,11 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/llm@1.14.4': {}
+  '@dexto/llm@1.16.0': {}
 
-  '@dexto/orchestration@1.14.4(tsx@4.23.15)':
+  '@dexto/orchestration@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/core'
@@ -1413,9 +1396,9 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/storage@1.14.4(tsx@4.23.15)':
+  '@dexto/storage@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/core'
@@ -1430,11 +1413,11 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/tools-builtins@1.14.4(tsx@4.23.15)':
+  '@dexto/tools-builtins@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      undici: 7.30.1
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      undici: 7.30.2
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/core'
@@ -1452,12 +1435,12 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/tools-filesystem@1.14.4(tsx@4.23.15)':
+  '@dexto/tools-filesystem@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       diff: 8.0.4
-      glob: 12.0.0
+      glob: 14.0.4
       safe-regex: 2.1.1
       zod: 4.6.7
     transitivePeerDependencies:
@@ -1476,10 +1459,10 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/tools-lifecycle@1.14.4(tsx@4.23.15)':
+  '@dexto/tools-lifecycle@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/core'
@@ -1497,10 +1480,10 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/tools-plan@1.14.4(tsx@4.23.15)':
+  '@dexto/tools-plan@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       diff: 8.0.4
       zod: 4.6.7
     transitivePeerDependencies:
@@ -1519,10 +1502,10 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/tools-process@1.14.4(tsx@4.23.15)':
+  '@dexto/tools-process@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/core'
@@ -1540,10 +1523,10 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/tools-scheduler@1.14.4(tsx@4.23.15)':
+  '@dexto/tools-scheduler@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       cron-parser: 4.9.0
       node-cron: 4.6.0
       zod: 4.6.7
@@ -1563,10 +1546,10 @@ snapshots:
       - supports-color
       - tsx
 
-  '@dexto/tools-todo@1.14.4(tsx@4.23.15)':
+  '@dexto/tools-todo@1.16.0(tsx@4.23.15)':
     dependencies:
-      '@dexto/agent-config': 1.14.4(tsx@4.23.15)(zod@4.6.7)
-      '@dexto/core': 1.14.4(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/agent-config': 1.16.0(tsx@4.23.15)(zod@4.6.7)
+      '@dexto/core': 1.16.0(tsx@4.23.15)(zod@4.6.7)
       nanoid: 5.1.16
       zod: 4.6.7
     transitivePeerDependencies:
@@ -1665,15 +1648,15 @@ snapshots:
 
   '@grammyjs/types@5.0.0': {}
 
-  '@hono/node-server@2.1.5(hono@4.13.14)':
+  '@hono/node-server@2.1.6(hono@4.13.17)':
     dependencies:
-      hono: 4.13.14
+      hono: 4.13.17
 
-  '@isaacs/cliui@9.0.0': {}
+  '@isaacs/nonrecursive-glob-match@1.1.0': {}
 
-  '@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.4)(zod@4.6.7)':
+  '@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7)':
     dependencies:
-      '@hono/node-server': 2.1.5(hono@4.13.14)
+      '@hono/node-server': 2.1.6(hono@4.13.17)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -1682,16 +1665,16 @@ snapshots:
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
       express: 5.3.0
-      express-rate-limit: 8.7.2(express@5.3.0)
-      hono: 4.13.14
-      jose: 6.2.14
+      express-rate-limit: 8.7.3(express@5.3.0)
+      hono: 4.13.17
+      jose: 6.2.15
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
       zod: 4.6.7
       zod-to-json-schema: 3.25.2(zod@4.6.7)
     optionalDependencies:
-      '@cfworker/json-schema': 4.1.4
+      '@cfworker/json-schema': 4.1.6
     transitivePeerDependencies:
       - supports-color
 
@@ -1711,23 +1694,23 @@ snapshots:
 
   '@opentelemetry/api@1.9.0': {}
 
-  '@smithy/core@3.38.1':
+  '@smithy/core@3.39.0':
     dependencies:
-      '@smithy/types': 4.19.0
+      '@smithy/types': 4.20.0
       tslib: 2.9.1
 
   '@smithy/eventstream-codec@4.5.2':
     dependencies:
-      '@smithy/core': 3.38.1
+      '@smithy/core': 3.39.0
       tslib: 2.9.1
 
-  '@smithy/types@4.19.0':
+  '@smithy/types@4.20.0':
     dependencies:
       tslib: 2.9.1
 
   '@smithy/util-utf8@4.5.2':
     dependencies:
-      '@smithy/core': 3.38.1
+      '@smithy/core': 3.39.0
       tslib: 2.9.1
 
   '@so-ric/colorspace@1.1.6':
@@ -1777,7 +1760,7 @@ snapshots:
 
   ansi-regex@5.0.1: {}
 
-  ansi-regex@6.5.0: {}
+  ansi-regex@6.6.0: {}
 
   ansi-styles@6.2.3: {}
 
@@ -1963,11 +1946,11 @@ snapshots:
     dependencies:
       eventsource-parser: 3.1.1
 
-  express-rate-limit@8.7.2(express@5.3.0):
+  express-rate-limit@8.7.3(express@5.3.0):
     dependencies:
       debug: 4.4.3
       express: 5.3.0
-      ip-address: 10.7.5
+      ip-address: 10.7.6
     transitivePeerDependencies:
       - supports-color
 
@@ -2030,11 +2013,6 @@ snapshots:
 
   fn.name@1.1.0: {}
 
-  foreground-child@3.3.1:
-    dependencies:
-      cross-spawn: 7.0.6
-      signal-exit: 4.1.0
-
   formdata-polyfill@4.0.10:
     dependencies:
       fetch-blob: 3.2.0
@@ -2082,14 +2060,11 @@ snapshots:
       dunder-proto: 1.0.1
       es-object-atoms: 1.1.2
 
-  glob@12.0.0:
+  glob@14.0.4:
     dependencies:
-      foreground-child: 3.3.1
-      jackspeak: 4.2.3
-      minimatch: 10.2.6
+      minimatch: 11.0.5
       minipass: 7.1.3
-      package-json-from-dist: 1.0.1
-      path-scurry: 2.0.2
+      path-scurry: 3.0.0
 
   google-auth-library@10.9.1:
     dependencies:
@@ -2122,7 +2097,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.13.14: {}
+  hono@4.13.17: {}
 
   http-errors@2.0.1:
     dependencies:
@@ -2145,7 +2120,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ip-address@10.7.5: {}
+  ip-address@10.7.6: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -2157,11 +2132,7 @@ snapshots:
 
   isexe@2.0.0: {}
 
-  jackspeak@4.2.3:
-    dependencies:
-      '@isaacs/cliui': 9.0.0
-
-  jose@6.2.14: {}
+  jose@6.2.15: {}
 
   json-bigint@1.0.0:
     dependencies:
@@ -2211,8 +2182,9 @@ snapshots:
     dependencies:
       mime-db: 1.54.0
 
-  minimatch@10.2.6:
+  minimatch@11.0.5:
     dependencies:
+      '@isaacs/nonrecursive-glob-match': 1.1.0
       brace-expansion: 5.0.12
 
   minipass@7.1.3: {}
@@ -2255,13 +2227,11 @@ snapshots:
     dependencies:
       fn.name: 1.1.0
 
-  package-json-from-dist@1.0.1: {}
-
   parseurl@1.3.3: {}
 
   path-key@3.1.1: {}
 
-  path-scurry@2.0.2:
+  path-scurry@3.0.0:
     dependencies:
       lru-cache: 11.5.3
       minipass: 7.1.3
@@ -2380,8 +2350,6 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
-  signal-exit@4.1.0: {}
-
   stack-trace@0.0.10: {}
 
   statuses@2.0.2: {}
@@ -2408,7 +2376,7 @@ snapshots:
 
   strip-ansi@7.2.0:
     dependencies:
-      ansi-regex: 6.5.0
+      ansi-regex: 6.6.0
 
   text-hex@1.0.0: {}
 
@@ -2436,7 +2404,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  undici@7.30.1: {}
+  undici@7.30.2: {}
 
   unpipe@1.0.0: {}
 

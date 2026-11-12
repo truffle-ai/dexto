@@ -1,4 +1,5 @@
 import { useInput, Text } from 'ink';
+import { tone } from '../signal/index.js';
 
 interface CustomInputProps {
     value: string;
@@ -75,10 +76,10 @@ export default function CustomInput({
         const rest = placeholder.slice(1);
         return (
             <Text>
-                <Text color="black" backgroundColor="green">
+                <Text color={tone('bg')} backgroundColor={tone('add')}>
                     {firstChar}
                 </Text>
-                <Text color="gray">{rest}</Text>
+                <Text color={tone('dim')}>{rest}</Text>
             </Text>
         );
     }
@@ -87,7 +88,7 @@ export default function CustomInput({
     return (
         <Text>
             {value}
-            <Text color="black" backgroundColor="green">
+            <Text color={tone('bg')} backgroundColor={tone('add')}>
                 {' '}
             </Text>
         </Text>

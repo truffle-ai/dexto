@@ -17,9 +17,12 @@ export class ResourceError {
             });
             return u.toString();
         } catch {
-            return uri
-                .replace(/\/\/([^@]+)@/, '//***@')
-                .replace(/((?:token|key|secret|sig|pwd|password)=)[^&]*/gi, '$1***');
+            return (
+                uri
+                    // Userinfo holds no '/': excluding it keeps this linear on long runs of '//'.
+                    .replace(/\/\/([^@/]+)@/, '//***@')
+                    .replace(/((?:token|key|secret|sig|pwd|password)=)[^&]*/gi, '$1***')
+            );
         }
     }
 

@@ -19,6 +19,7 @@ import {
     DiffLine,
     HunkSeparator,
 } from './diff-shared.js';
+import { tone } from '../../signal/index.js';
 
 // =============================================================================
 // DiffPreview Component
@@ -56,13 +57,13 @@ export function DiffPreview({ data, header }: DiffPreviewProps) {
         <Box flexDirection="column" marginBottom={1}>
             {/* Header - standalone line */}
             <Box marginBottom={0}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     {headerText}
                 </Text>
             </Box>
 
             {/* Box containing filename and diff content */}
-            <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
+            <Box flexDirection="column" borderStyle="round" borderColor={tone('dim')} paddingX={1}>
                 {/* Filename */}
                 <Box marginBottom={0}>
                     <Text>{makeRelativePath(filename)}</Text>
@@ -156,13 +157,18 @@ export function CreateFilePreview({ data, header }: CreateFilePreviewProps) {
         return (
             <Box flexDirection="column" marginBottom={1}>
                 <Box marginBottom={0}>
-                    <Text color="cyan" bold>
+                    <Text color={tone('teal')} bold>
                         {headerText}
                     </Text>
                 </Box>
-                <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
+                <Box
+                    flexDirection="column"
+                    borderStyle="round"
+                    borderColor={tone('dim')}
+                    paddingX={1}
+                >
                     <Text>{makeRelativePath(path)}</Text>
-                    {lineCount && <Text color="gray">{lineCount} lines</Text>}
+                    {lineCount && <Text color={tone('dim')}>{lineCount} lines</Text>}
                 </Box>
             </Box>
         );
@@ -175,13 +181,13 @@ export function CreateFilePreview({ data, header }: CreateFilePreviewProps) {
         <Box flexDirection="column" marginBottom={1}>
             {/* Header - standalone line */}
             <Box marginBottom={0}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     {headerText}
                 </Text>
             </Box>
 
             {/* Box containing filename and file content */}
-            <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
+            <Box flexDirection="column" borderStyle="round" borderColor={tone('dim')} paddingX={1}>
                 {/* Filename */}
                 <Box marginBottom={0}>
                     <Text>{makeRelativePath(path)}</Text>
@@ -190,7 +196,7 @@ export function CreateFilePreview({ data, header }: CreateFilePreviewProps) {
                 {/* File content */}
                 {lines.map((line, index) => (
                     <Box key={index}>
-                        <Text color="gray">{formatLineNum(index + 1, lineNumWidth)}</Text>
+                        <Text color={tone('dim')}>{formatLineNum(index + 1, lineNumWidth)}</Text>
                         <Text>
                             {'   '}
                             {line}

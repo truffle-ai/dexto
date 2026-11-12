@@ -8,6 +8,7 @@ import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import { isStreamingEnabled, setStreamingEnabled } from '../../state/streaming-state.js';
+import { tone } from '../../signal/index.js';
 
 interface StreamSelectorProps {
     isVisible: boolean;
@@ -80,12 +81,12 @@ const StreamSelector = forwardRef<StreamSelectorHandle, StreamSelectorProps>(
         const formatItem = (option: StreamOption, isSelected: boolean) => (
             <>
                 <Text>{option.icon} </Text>
-                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                     {option.label}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
+                <Text color={isSelected ? tone('hi') : tone('dim')}> - {option.description}</Text>
                 {option.isCurrent && (
-                    <Text color="green" bold>
+                    <Text color={tone('add')} bold>
                         {' '}
                         ✓
                     </Text>
@@ -112,7 +113,7 @@ const StreamSelector = forwardRef<StreamSelectorHandle, StreamSelectorProps>(
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Streaming Mode"
-                borderColor="cyan"
+                borderColor={tone('teal')}
                 emptyMessage="No options available"
             />
         );

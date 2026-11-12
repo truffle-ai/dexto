@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
+import { tone } from '../signal/index.js';
 
 interface MultiLineInputProps {
     value: string;
@@ -24,10 +25,10 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
     if (!value && placeholder) {
         return (
             <Box flexDirection="row">
-                <Text color="green" bold>
+                <Text color={tone('add')} bold>
                     {prompt}
                 </Text>
-                <Text color="gray">{placeholder}</Text>
+                <Text color={tone('dim')}>{placeholder}</Text>
             </Box>
         );
     }
@@ -40,7 +41,7 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
         <Box flexDirection="column">
             {startOffset > 0 && (
                 <Box>
-                    <Text color="gray">... ({startOffset} more lines above)</Text>
+                    <Text color={tone('dim')}>... ({startOffset} more lines above)</Text>
                 </Box>
             )}
             {visibleLines.map((line, index) => {
@@ -48,11 +49,11 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
                 return (
                     <Box key={actualIndex} flexDirection="row">
                         {index === 0 && (
-                            <Text color="green" bold>
+                            <Text color={tone('add')} bold>
                                 {prompt}
                             </Text>
                         )}
-                        {index > 0 && <Text color="green">{' '.repeat(prompt.length)}</Text>}
+                        {index > 0 && <Text color={tone('add')}>{' '.repeat(prompt.length)}</Text>}
                         <Text wrap="wrap">{line || ' '}</Text>
                     </Box>
                 );

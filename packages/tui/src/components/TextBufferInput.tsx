@@ -12,6 +12,7 @@ import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import type { TextBuffer } from './shared/text-buffer.js';
 import type { PendingImage, PastedBlock } from '../state/types.js';
 import { readClipboardImage } from '../utils/clipboardUtils.js';
+import { tone } from '../signal/index.js';
 
 /** Overlay trigger types for event-driven overlay detection */
 export type OverlayTrigger = 'slash-autocomplete' | 'resource-autocomplete' | 'close';
@@ -102,7 +103,7 @@ function HighlightedText({ text, query }: { text: string; query: string | undefi
     return (
         <Text>
             {before}
-            <Text color="green" bold>
+            <Text color={tone('add')} bold>
                 {match}
             </Text>
             {after}
@@ -587,8 +588,8 @@ export function TextBufferInput({
     // Detect shell command mode (input starts with "!")
     const isShellMode = bufferText.startsWith('!');
     const promptPrefix = isShellMode ? '$ ' : '> ';
-    const promptColor = isShellMode ? 'yellow' : 'green';
-    const separatorColor = isShellMode ? 'yellow' : 'gray';
+    const promptColor = isShellMode ? tone('amberDim') : tone('add');
+    const separatorColor = isShellMode ? tone('amberDim') : tone('dim');
 
     // Calculate visible window
     let startLine = 0;
@@ -608,18 +609,18 @@ export function TextBufferInput({
     if (bufferText === '') {
         return (
             <Box flexDirection="column" width={terminalWidth}>
-                <Text color="gray">{separator}</Text>
+                <Text color={tone('dim')}>{separator}</Text>
                 <Box width={terminalWidth}>
-                    <Text color="green" bold>
+                    <Text color={tone('add')} bold>
                         {'> '}
                     </Text>
                     <Text inverse> </Text>
-                    {placeholder && <Text color="gray">{placeholder}</Text>}
+                    {placeholder && <Text color={tone('dim')}>{placeholder}</Text>}
                     <Text>
                         {' '.repeat(Math.max(0, terminalWidth - 3 - (placeholder?.length || 0)))}
                     </Text>
                 </Box>
-                <Text color="gray">{separator}</Text>
+                <Text color={tone('dim')}>{separator}</Text>
             </Box>
         );
     }
@@ -628,7 +629,7 @@ export function TextBufferInput({
         <Box flexDirection="column" width={terminalWidth}>
             <Text color={separatorColor}>{separator}</Text>
             {startLine > 0 && (
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above (
                     {KEY_LABELS.altUp} to jump)
                 </Text>
@@ -679,7 +680,7 @@ export function TextBufferInput({
                 );
             })}
             {endLine < totalLines && (
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {'  '}↓ {totalLines - endLine} more line{totalLines - endLine > 1 ? 's' : ''}{' '}
                     below ({KEY_LABELS.altDown} to jump)
                 </Text>
@@ -712,7 +713,7 @@ function PasteBlockHint({
     // If something is expanded, always show collapse hint
     if (expandedBlock) {
         return (
-            <Text color="cyan">
+            <Text color={tone('teal')}>
                 {'  '}
                 {KEY_LABELS.ctrlT} to collapse expanded paste
             </Text>
@@ -722,7 +723,7 @@ function PasteBlockHint({
     // If cursor is on a collapsed paste, show expand hint
     if (cursorOnCollapsed) {
         return (
-            <Text color="cyan">
+            <Text color={tone('teal')}>
                 {'  '}
                 {KEY_LABELS.ctrlT} to expand paste
             </Text>
@@ -732,7 +733,7 @@ function PasteBlockHint({
     // Otherwise show count of collapsed pastes
     if (collapsedCount > 0) {
         return (
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 {'  '}
                 {collapsedCount} collapsed paste{collapsedCount > 1 ? 's' : ''} ({KEY_LABELS.ctrlT}{' '}
                 on placeholder to expand)

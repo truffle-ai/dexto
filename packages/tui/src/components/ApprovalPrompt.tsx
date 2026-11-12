@@ -6,7 +6,7 @@ import React, {
     useEffect,
     useMemo,
 } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import type {
     HostRuntimeContext,
     ToolDisplayData,
@@ -17,9 +17,12 @@ import { ApprovalType, isToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
+import { SignalDiff } from './renderers/SignalDiff.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { formatApprovalScope } from '../utils/approvalScope.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader, makeRelativePath } from '../utils/messageFormatting.js';
+import { DiffInsetContext } from './renderers/diff-shared.js';
+import { GateFrame, glyphText, tone, useCaps } from '../signal/index.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -55,6 +58,28 @@ interface ApprovalPromptProps {
     onCancel: () => void;
 }
 
+/** Keys for the Signal gate's option row. Plan review keeps its list and feedback input. */
+const OPTION_KEYS: Readonly<Partial<Record<SelectionOption, string>>> = {
+    yes: 'y',
+    'yes-session': 'a',
+    'yes-accept-edits': 'e',
+    no: 'n',
+};
+
+/** The gate's title: what the agent is waiting to do. */
+export function approvalGateTitle(type: string, toolName: string | undefined): string {
+    if (type === ApprovalType.COMMAND_APPROVAL || toolName === 'bash_exec') {
+        return 'NEEDS YOU · RUN A COMMAND';
+    }
+    if (toolName === 'plan_review') return 'NEEDS YOU · REVIEW THE PLAN';
+    if (toolName === 'edit_file') return 'NEEDS YOU · EDIT A FILE';
+    if (toolName === 'write_file') return 'NEEDS YOU · WRITE A FILE';
+    return 'NEEDS YOU · USE A TOOL';
+}
+
+/** Columns the gate's border and padding take. */
+const GATE_INSET = 4;
+
 type SelectionOption =
     | 'yes'
     | 'yes-session'
@@ -76,6 +101,10 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
         const isCommandApproval = approval.type === ApprovalType.COMMAND_APPROVAL;
         const isElicitation = approval.type === 'elicitation';
+        const { palette, glyphs } = useCaps();
+        const signal = palette === 'signal';
+        const { stdout } = useStdout();
+        const columns = stdout?.columns ?? 80;
 
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
@@ -142,6 +171,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Build the list of options based on approval type
         const options: Array<{ id: SelectionOption; label: string }> = [];
+        const chooseOption = (id: SelectionOption) => {
+            if (id === 'plan-approve' || id === 'yes') onApprove({});
+            else if (id === 'yes-session') onApprove({ rememberChoice: true });
+            else if (id === 'plan-approve-accept-edits' || id === 'yes-accept-edits') {
+                onApprove({ enableAcceptEditsMode: true });
+            } else if (id === 'no') onDeny();
+        };
 
         if (isPlanReview) {
             // Plan review - show plan-specific options (2 options + feedback input)
@@ -213,12 +249,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         return true; // Consume all input when feedback is selected
                     }
 
-                    if (key.upArrow) {
+                    if (key.upArrow || (signal && !isPlanReview && key.leftArrow)) {
                         setSelectedIndex((current) =>
                             current === 0 ? totalOptions - 1 : current - 1
                         );
                         return true;
-                    } else if (key.downArrow) {
+                    } else if (key.downArrow || (signal && !isPlanReview && key.rightArrow)) {
                         setSelectedIndex((current) =>
                             current === totalOptions - 1 ? 0 : current + 1
                         );
@@ -227,21 +263,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         const option = getCurrentOption();
                         if (!option) return false;
 
-                        // Plan review options
-                        if (option.id === 'plan-approve') {
-                            onApprove({});
-                        } else if (option.id === 'plan-approve-accept-edits') {
-                            onApprove({ enableAcceptEditsMode: true });
-                        } else if (option.id === 'yes') {
-                            onApprove({});
-                        } else if (option.id === 'yes-session') {
-                            onApprove({ rememberChoice: true });
-                        } else if (option.id === 'yes-accept-edits') {
-                            // Approve and enable "accept all edits" mode
-                            onApprove({ enableAcceptEditsMode: true });
-                        } else if (option.id === 'no') {
-                            onDeny();
-                        }
+                        chooseOption(option.id);
                         return true;
                     } else if (key.shift && key.tab && canAcceptEdits) {
                         // Shift+Tab on edit/write tool: approve and enable "accept all edits" mode
@@ -251,10 +273,20 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         onCancel();
                         return true;
                     }
+                    if (signal && !isPlanReview && !key.ctrl && !key.meta) {
+                        const shortcut = options.find(
+                            (option) => OPTION_KEYS[option.id] === input.toLowerCase()
+                        );
+                        if (shortcut) {
+                            chooseOption(shortcut.id);
+                            return true;
+                        }
+                    }
                     return false;
                 },
             }),
             [
+                signal,
                 isElicitation,
                 canAcceptEdits,
                 isPlanReview,
@@ -295,29 +327,29 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     return (
                         <Box flexDirection="column" marginBottom={1}>
                             <Box marginBottom={0}>
-                                <Text color="cyan" bold>
+                                <Text color={tone('teal')} bold>
                                     {displayPreview.title ?? 'Bash'}
                                 </Text>
                             </Box>
                             <Box
                                 flexDirection="column"
                                 borderStyle="round"
-                                borderColor="gray"
+                                borderColor={tone('dim')}
                                 paddingX={1}
                             >
                                 {displayPreview.command.split('\n').map((line, i) => (
-                                    <Text key={i} color="yellowBright" wrap="wrap">
+                                    <Text key={i} color={tone('amber')} wrap="wrap">
                                         {i === 0 ? '$ ' : '  '}
                                         {line}
                                     </Text>
                                 ))}
                                 {displayPreview.isBackground && (
-                                    <Text color="gray">(background)</Text>
+                                    <Text color={tone('dim')}>(background)</Text>
                                 )}
                             </Box>
                             {callDescription && (
                                 <Box marginTop={0}>
-                                    <Text color="gray">{callDescription}</Text>
+                                    <Text color={tone('dim')}>{callDescription}</Text>
                                 </Box>
                             )}
                         </Box>
@@ -330,7 +362,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     // Fallback for other file operations
                     return (
                         <Box marginBottom={1}>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 {displayPreview.operation === 'read' &&
                                     `Read ${displayPreview.lineCount ?? 'file'} lines`}
                                 {displayPreview.operation === 'write' &&
@@ -347,7 +379,83 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         const showHeaderBlock = isCommandApproval || !displayPreview;
 
-        return (
+        if (signal && !isPlanReview) {
+            const shellCommand =
+                displayPreview?.type === 'shell' ? displayPreview.command : (command ?? null);
+            const preview =
+                displayPreview?.type === 'shell' ? null : displayPreview?.type === 'diff' ? (
+                    <>
+                        <Text bold color={tone('hi')}>
+                            {makeRelativePath(displayPreview.filename)}{' '}
+                            <Text color={tone('add')}>+{displayPreview.additions}</Text>{' '}
+                            <Text color={tone('del')}>
+                                {glyphText(`−${displayPreview.deletions}`, glyphs)}
+                            </Text>
+                        </Text>
+                        <SignalDiff data={displayPreview} width={columns - GATE_INSET} />
+                    </>
+                ) : (
+                    renderPreview()
+                );
+            return (
+                <DiffInsetContext.Provider value={GATE_INSET}>
+                    <GateFrame
+                        title={approvalGateTitle(approval.type, toolName)}
+                        hint="←→ choose · ⏎ confirm · esc cancel"
+                    >
+                        {shellCommand !== null ? (
+                            shellCommand.split('\n').map((line, i) => (
+                                <Text key={i} bold color={tone('hi')}>
+                                    <Text color={tone('amber')}>{i === 0 ? '$ ' : '  '}</Text>
+                                    {line}
+                                </Text>
+                            ))
+                        ) : preview === null && formattedTool ? (
+                            <Text color={tone('hi')}>{formattedTool.header}</Text>
+                        ) : (
+                            preview
+                        )}
+                        {displayPreview?.type === 'shell' && displayPreview.isBackground && (
+                            <Text color={tone('dim')}>(background)</Text>
+                        )}
+                        {callDescription && <Text color={tone('dim')}>{callDescription}</Text>}
+                        <Box flexWrap="wrap" columnGap={3}>
+                            {options.map((option, index) => {
+                                const selected = index === selectedIndex;
+                                return (
+                                    <Box key={option.id}>
+                                        <Box flexShrink={0}>
+                                            <Text>
+                                                <Text bold color={tone('amber')}>
+                                                    {selected ? glyphText('› ', glyphs) : '  '}
+                                                </Text>
+                                                <Text
+                                                    bold
+                                                    color={tone('amber')}
+                                                    backgroundColor={tone('s2')}
+                                                >
+                                                    {` ${OPTION_KEYS[option.id] ?? ''} `}
+                                                </Text>{' '}
+                                            </Text>
+                                        </Box>
+                                        <Box flexShrink={1}>
+                                            <Text
+                                                bold={selected}
+                                                color={tone(selected ? 'hi' : 'fg')}
+                                            >
+                                                {option.label}
+                                            </Text>
+                                        </Box>
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                    </GateFrame>
+                </DiffInsetContext.Provider>
+            );
+        }
+
+        const prompt = (
             <Box paddingX={0} paddingY={0} flexDirection="column">
                 {/* Compact header with context (only when we don't have a rich preview) */}
                 {showHeaderBlock && (
@@ -355,7 +463,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         {isCommandApproval ? (
                             <>
                                 <Box flexDirection="row">
-                                    <Text color="yellowBright" bold>
+                                    <Text color={tone('amber')} bold>
                                         Confirm command:{' '}
                                     </Text>
                                 </Box>
@@ -364,11 +472,11 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                                         <Box
                                             flexDirection="column"
                                             borderStyle="round"
-                                            borderColor="gray"
+                                            borderColor={tone('dim')}
                                             paddingX={1}
                                         >
                                             {command.split('\n').map((line, i) => (
-                                                <Text key={i} color="red" wrap="wrap">
+                                                <Text key={i} color={tone('red')} wrap="wrap">
                                                     {line}
                                                 </Text>
                                             ))}
@@ -379,17 +487,17 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         ) : (
                             <>
                                 <Box flexDirection="row">
-                                    <Text color="yellowBright" bold>
+                                    <Text color={tone('amber')} bold>
                                         Confirm:{' '}
                                     </Text>
                                     {formattedTool && (
-                                        <Text color="cyan">{formattedTool.header}</Text>
+                                        <Text color={tone('teal')}>{formattedTool.header}</Text>
                                     )}
                                 </Box>
                                 {callDescription && (
                                     <Box flexDirection="row" marginTop={0}>
-                                        <Text color="gray">{'  '}</Text>
-                                        <Text color="gray">{callDescription}</Text>
+                                        <Text color={tone('dim')}>{'  '}</Text>
+                                        <Text color={tone('dim')}>{callDescription}</Text>
                                     </Box>
                                 )}
                             </>
@@ -409,12 +517,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         return (
                             <Box key={option.id}>
                                 {isSelected ? (
-                                    <Text color={isNo ? 'red' : 'green'} bold>
+                                    <Text color={isNo ? tone('red') : tone('add')} bold>
                                         {'  ▶ '}
                                         {option.label}
                                     </Text>
                                 ) : (
-                                    <Text color="gray">
+                                    <Text color={tone('dim')}>
                                         {'    '}
                                         {option.label}
                                     </Text>
@@ -429,24 +537,24 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             {selectedIndex === options.length ? (
                                 // Selected - show editable input
                                 <Box flexDirection="row">
-                                    <Text color="red" bold>
+                                    <Text color={tone('red')} bold>
                                         {'  ▶ '}
                                     </Text>
                                     {feedbackText ? (
-                                        <Text color="white">
+                                        <Text color={tone('hi')}>
                                             {feedbackText}
-                                            <Text color="cyan">▋</Text>
+                                            <Text color={tone('teal')}>▋</Text>
                                         </Text>
                                     ) : (
-                                        <Text color="gray">
+                                        <Text color={tone('dim')}>
                                             What changes would you like?
-                                            <Text color="cyan">▋</Text>
+                                            <Text color={tone('teal')}>▋</Text>
                                         </Text>
                                     )}
                                 </Box>
                             ) : (
                                 // Not selected - show placeholder
-                                <Text color="gray">
+                                <Text color={tone('dim')}>
                                     {'    '}
                                     {feedbackText || 'What changes would you like?'}
                                 </Text>
@@ -457,9 +565,18 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
                 {/* Compact instructions */}
                 <Box marginTop={0}>
-                    <Text color="gray">{'  '}↑↓ to select • Enter to confirm • Esc to cancel</Text>
+                    <Text color={tone('dim')}>
+                        {'  '}↑↓ to select • Enter to confirm • Esc to cancel
+                    </Text>
                 </Box>
             </Box>
+        );
+        return signal ? (
+            <DiffInsetContext.Provider value={GATE_INSET}>
+                <GateFrame title={approvalGateTitle(approval.type, toolName)}>{prompt}</GateFrame>
+            </DiffInsetContext.Provider>
+        ) : (
+            prompt
         );
     }
 );

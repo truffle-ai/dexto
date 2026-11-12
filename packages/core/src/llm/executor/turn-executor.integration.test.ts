@@ -1011,7 +1011,7 @@ describe('TurnExecutor Integration Tests', () => {
                 "["llm:chunk",{"chunkType":"text","content":"n"}]",
                 "["llm:chunk",{"chunkType":"text","content":"g"}]",
                 "["llm:chunk",{"chunkType":"text","content":"."}]",
-                "["llm:response",{"content":"Checking.","reasoning":"Hm.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":329,"finishReason":"tool-calls"}]",
+                "["llm:response",{"content":"Checking.","reasoning":"Hm.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":251,"finishReason":"tool-calls"}]",
                 "["llm:tool-call",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"args":{"value":"one"},"callId":"call-stream"}]",
                 "["llm:tool-result",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"callId":"call-stream","success":true,"sanitized":{"content":[{"type":"text","text":"tool done"}],"meta":{"toolName":"stream_tool","toolCallId":"call-stream","success":true}},"rawResult":"tool done"}]",
                 "["llm:chunk",{"chunkType":"text","content":"D"}]",
@@ -4586,6 +4586,28 @@ describe('TurnExecutor Integration Tests', () => {
 
             vi.mocked(streamText).mockImplementation(() => {
                 throw nonRetryableError;
+            });
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+        });
+
+        it('treats a 401 as final even when the provider marks it retryable', async () => {
+            const unauthorized = apiCallError({
+                message: 'Authentication required.',
+                statusCode: 401,
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw unauthorized;
             });
 
             const retryingHandler = vi.fn();

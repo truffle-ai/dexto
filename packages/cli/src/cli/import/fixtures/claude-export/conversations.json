@@ -1,0 +1,32 @@
+[
+  {
+    "uuid": "10000000-0000-4000-8000-000000000001",
+    "name": "Synthetic release planning",
+    "summary": "A fictional conversation.",
+    "created_at": "2026-11-01T12:00:00Z",
+    "updated_at": "2026-11-01T12:01:00Z",
+    "account": { "uuid": "30000000-0000-4000-8000-000000000001" },
+    "chat_messages": [
+      {
+        "uuid": "40000000-0000-4000-8000-000000000001",
+        "sender": "human",
+        "text": "Plan a release. password=synthetic-password",
+        "content": [{ "type": "text", "text": "Plan a release. password=synthetic-password" }],
+        "created_at": "2026-11-01T12:00:00Z",
+        "updated_at": "2026-11-01T12:00:00Z",
+        "attachments": [],
+        "files": []
+      },
+      {
+        "uuid": "40000000-0000-4000-8000-000000000002",
+        "sender": "assistant",
+        "text": "",
+        "content": [{ "type": "text", "text": "Start with the release checklist." }],
+        "created_at": "2026-11-01T12:01:00Z",
+        "updated_at": "2026-11-01T12:01:00Z",
+        "attachments": [],
+        "files": []
+      }
+    ]
+  }
+]

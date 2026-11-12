@@ -9,9 +9,10 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import type { QueuedMessage } from '@dexto/core';
 import { previewQueuedContent } from '../../utils/queuedComposerContent.js';
+import { actorMarginWidth, glyphText, tone, useCaps } from '../../signal/index.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -43,26 +44,46 @@ export function QueuedMessagesDisplay({
     label = 'queued',
     hint = '↑ to edit',
 }: QueuedMessagesDisplayProps) {
+    const { palette, glyphs } = useCaps();
+    const { stdout } = useStdout();
     if (messages.length === 0) return null;
+
+    if (palette === 'signal') {
+        return (
+            <Box flexDirection="column" marginLeft={actorMarginWidth(stdout?.columns ?? 80)}>
+                {messages.map((message) => (
+                    <Text key={message.id} wrap="truncate-end">
+                        <Text color={tone('amber')}>{glyphText('↳ ', glyphs)}</Text>
+                        <Text color={tone('fg')}>
+                            {truncateText(previewQueuedContent(message.content))}
+                        </Text>
+                    </Text>
+                ))}
+                <Text color={tone('amber')} wrap="truncate-end">
+                    {glyphText(`${label} · ${hint}`, glyphs)}
+                </Text>
+            </Box>
+        );
+    }
 
     return (
         <Box flexDirection="column" marginBottom={1}>
             {/* Header with count and keyboard hint */}
             <Box>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {messages.length} message{messages.length !== 1 ? 's' : ''} {label}
                 </Text>
-                <Text color="gray"> • </Text>
-                <Text color="gray">{hint}</Text>
+                <Text color={tone('dim')}> • </Text>
+                <Text color={tone('dim')}>{hint}</Text>
             </Box>
 
             {/* Messages list */}
             {messages.map((message, index) => (
                 <Box key={message.id} flexDirection="row">
                     {/* Arrow indicator - last message gets special indicator */}
-                    <Text color="gray">{index === messages.length - 1 ? '↳ ' : '│ '}</Text>
+                    <Text color={tone('dim')}>{index === messages.length - 1 ? '↳ ' : '│ '}</Text>
                     {/* Message preview */}
-                    <Text color="gray" italic>
+                    <Text color={tone('dim')} italic>
                         {truncateText(previewQueuedContent(message.content))}
                     </Text>
                 </Box>

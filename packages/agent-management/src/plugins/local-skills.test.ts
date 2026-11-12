@@ -29,6 +29,32 @@ describe('createLocalSkills', () => {
         await fs.rm(tempDir, { recursive: true, force: true });
     });
 
+    it("finds the person's synced Cloud Skills, after every local Skill of the same name", async () => {
+        const workspaceRoot = path.join(tempDir, 'workspace');
+        const writeSkill = async (root: string, name: string, body: string) => {
+            await fs.mkdir(path.join(root, name), { recursive: true });
+            await fs.writeFile(
+                path.join(root, name, 'SKILL.md'),
+                `---\nname: ${name}\ndescription: ${body}\n---\n${body}`
+            );
+        };
+        const cloud = path.join(process.env.HOME ?? '', '.dexto', 'cloud-skills');
+        await writeSkill(cloud, 'release-notes', 'From Cloud');
+        await writeSkill(cloud, 'review', 'From Cloud');
+        await writeSkill(
+            path.join(workspaceRoot, '.agents', 'skills'),
+            'review',
+            'From the project'
+        );
+
+        const skills = createLocalSkills({ workspaceRoot });
+
+        expect(await skills.list()).toEqual([
+            { name: 'review', description: 'From the project' },
+            { name: 'release-notes', description: 'From Cloud' },
+        ]);
+    });
+
     it('loads a configured legacy skill file without granting access to sibling files', async () => {
         const workspaceRoot = path.join(tempDir, 'workspace');
         const agentRoot = path.join(tempDir, 'installed-agent');

@@ -9,6 +9,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { McpServerStatus, McpConnectionStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 interface McpRemoveSelectorProps {
     isVisible: boolean;
@@ -95,25 +96,25 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
         const formatItem = (server: McpServerStatus, isSelected: boolean) => (
             <>
                 <Text>{getStatusIcon(server.status)} </Text>
-                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                     {server.name}
                 </Text>
                 <Text
                     color={
                         server.status === 'connected'
-                            ? 'green'
+                            ? tone('add')
                             : server.status === 'disconnected'
-                              ? 'gray'
+                              ? tone('dim')
                               : server.status === 'auth-required'
-                                ? 'yellow'
-                                : 'red'
+                                ? tone('amberDim')
+                                : tone('red')
                     }
                 >
                     {' '}
                     - {getStatusText(server.status)}
                 </Text>
                 {server.error && (
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {' '}
                         ({server.error.slice(0, 30)}
                         {server.error.length > 30 ? '...' : ''})
@@ -139,7 +140,7 @@ const McpRemoveSelector = forwardRef<McpRemoveSelectorHandle, McpRemoveSelectorP
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Remove MCP Server"
-                borderColor="red"
+                borderColor={tone('red')}
                 loadingMessage="Loading servers..."
                 emptyMessage="No MCP servers installed"
             />

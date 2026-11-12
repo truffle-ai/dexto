@@ -5,6 +5,7 @@
 import React from 'react';
 import type { StatsStyledData } from '../../../state/types.js';
 import { StyledBox, StyledSection, StyledRow } from './StyledBox.js';
+import { tone } from '../../../signal/index.js';
 
 interface StatsBoxProps {
     data: StatsStyledData;
@@ -49,10 +50,14 @@ export function StatsBox({ data }: StatsBoxProps) {
                 <StyledRow
                     label="Connected"
                     value={data.mcp.connected.toString()}
-                    valueColor="green"
+                    valueColor={tone('add')}
                 />
                 {data.mcp.failed > 0 && (
-                    <StyledRow label="Failed" value={data.mcp.failed.toString()} valueColor="red" />
+                    <StyledRow
+                        label="Failed"
+                        value={data.mcp.failed.toString()}
+                        valueColor={tone('red')}
+                    />
                 )}
                 <StyledRow label="Available Tools" value={data.mcp.toolCount.toString()} />
             </StyledSection>
@@ -77,7 +82,7 @@ export function StatsBox({ data }: StatsBoxProps) {
                         <StyledRow
                             label="Cache Read"
                             value={formatTokenCount(data.tokenUsage.cacheReadTokens)}
-                            valueColor="cyan"
+                            valueColor={tone('teal')}
                         />
                     )}
                     {data.tokenUsage.cacheWriteTokens > 0 && (
@@ -90,13 +95,13 @@ export function StatsBox({ data }: StatsBoxProps) {
                     <StyledRow
                         label="Total"
                         value={formatTokenCount(data.tokenUsage.totalTokens)}
-                        valueColor="blue"
+                        valueColor={tone('fg')}
                     />
                     {data.estimatedCost !== undefined && (
                         <StyledRow
                             label="Est. Cost"
                             value={formatCost(data.estimatedCost)}
-                            valueColor="green"
+                            valueColor={tone('add')}
                         />
                     )}
                 </StyledSection>

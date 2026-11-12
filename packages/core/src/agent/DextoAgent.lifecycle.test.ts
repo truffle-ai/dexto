@@ -726,6 +726,34 @@ describe('DextoAgent Lifecycle Management', () => {
             );
         });
 
+        test('deleteSession tells listeners the session is gone, once it is', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
+            mockServices.sessionManager.deleteSession = vi.fn().mockResolvedValue(undefined);
+            await agent.start();
+            const deleted: string[] = [];
+            agent.on('session:deleted', ({ sessionId }) => deleted.push(sessionId));
+
+            await agent.deleteSession('test-session-789');
+
+            expect(deleted).toEqual(['test-session-789']);
+        });
+
+        test('deleteSession tells no one when the delete fails', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            mockServices.toolManager.clearSessionAutoApproveTools = vi.fn();
+            mockServices.sessionManager.deleteSession = vi
+                .fn()
+                .mockRejectedValue(new Error('storage down'));
+            await agent.start();
+            const deleted: string[] = [];
+            agent.on('session:deleted', ({ sessionId }) => deleted.push(sessionId));
+
+            await expect(agent.deleteSession('test-session-790')).rejects.toThrow('storage down');
+
+            expect(deleted).toEqual([]);
+        });
+
         test('clearSessionAutoApproveTools should be called before session cleanup', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const callOrder: string[] = [];

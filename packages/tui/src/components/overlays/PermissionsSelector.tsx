@@ -6,6 +6,7 @@ import type { UIState } from '../../state/types.js';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { formatApprovalScope } from '../../utils/approvalScope.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 type PermissionMode = 'defaults' | 'edits' | 'auto';
 type PermissionOption =
@@ -111,15 +112,15 @@ export const PermissionsSelector = forwardRef<PermissionsSelectorHandle, Permiss
 
         return (
             <Box flexDirection="column">
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     Agent policy:{' '}
                     {agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode}
                 </Text>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     Mode applies to this TUI session. Remembered grants also apply when this
                     conversation resumes.
                 </Text>
-                {error && <Text color="red">{error}</Text>}
+                {error && <Text color={tone('red')}>{error}</Text>}
                 <BaseSelector
                     ref={selectorRef}
                     items={options}
@@ -133,14 +134,14 @@ export const PermissionsSelector = forwardRef<PermissionsSelectorHandle, Permiss
                     onClose={onClose}
                     title="Session permissions"
                     formatItem={(option, selected) => (
-                        <Text color={selected ? 'cyan' : 'white'}>
+                        <Text color={selected ? tone('teal') : tone('hi')}>
                             {option.kind === 'mode' && option.value === mode ? '● ' : '  '}
                             {option.label}
                         </Text>
                     )}
                 />
                 {grants.length === 0 && !isLoading && (
-                    <Text color="gray">No remembered user grants.</Text>
+                    <Text color={tone('dim')}>No remembered user grants.</Text>
                 )}
             </Box>
         );

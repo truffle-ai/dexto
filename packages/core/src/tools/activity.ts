@@ -171,22 +171,6 @@ export const TOOL_ACTIVITY = {
         'tasks'
     ),
     runAgent: activity('agent', 'Running agent', 'Ran agent', 'Ran', 'an agent', 'agents'),
-    checkTask: activity(
-        'task-check',
-        'Checking task',
-        'Checked task',
-        'Checked',
-        'a task',
-        'tasks'
-    ),
-    listTasks: activity(
-        'task-list',
-        'Listing tasks',
-        'Listed tasks',
-        'Listed',
-        'a task collection',
-        'task collections'
-    ),
     updateTasks: activity(
         'task',
         'Updating tasks',

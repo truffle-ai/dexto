@@ -1,5 +1,9 @@
-import chalk from 'chalk';
-import type { StyledOutput, SendMessageMarker } from '../services/CommandService.js';
+import { paint } from '../signal/index.js';
+import type {
+    StyledOutput,
+    SendMessageMarker,
+    HistoryReloadMarker,
+} from '../services/CommandService.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
 
 export interface CommandResult {
@@ -16,7 +20,12 @@ export interface CommandResult {
  * - StyledOutput: Styled output with structured data for rich rendering
  * - SendMessageMarker: Send text through normal streaming flow (for prompt commands)
  */
-export type CommandHandlerResult = boolean | string | StyledOutput | SendMessageMarker;
+export type CommandHandlerResult =
+    | boolean
+    | string
+    | StyledOutput
+    | SendMessageMarker
+    | HistoryReloadMarker;
 
 /**
  * Context passed to command handlers
@@ -157,19 +166,20 @@ export function getCommandSuggestions(partial: string, commands: CommandDefiniti
  * Formats help text for a command
  */
 export function formatCommandHelp(cmd: CommandDefinition, detailed: boolean = false): string {
-    let help = chalk.cyan(`/${cmd.name}`) + ' - ' + cmd.description;
+    let help = paint('teal')(`/${cmd.name}`) + ' - ' + cmd.description;
 
     if (detailed) {
-        help += '\n' + chalk.gray(`Usage: ${cmd.usage}`);
+        help += '\n' + paint('dim')(`Usage: ${cmd.usage}`);
 
         if (cmd.aliases && cmd.aliases.length > 0) {
-            help += '\n' + chalk.gray(`Aliases: ${cmd.aliases.map((a) => `/${a}`).join(', ')}`);
+            help += '\n' + paint('dim')(`Aliases: ${cmd.aliases.map((a) => `/${a}`).join(', ')}`);
         }
 
         if (cmd.subcommands && cmd.subcommands.length > 0) {
-            help += '\n' + chalk.gray('Subcommands:');
+            help += '\n' + paint('dim')('Subcommands:');
             for (const sub of cmd.subcommands) {
-                help += '\n  ' + chalk.cyan(`/${cmd.name} ${sub.name}`) + ' - ' + sub.description;
+                help +=
+                    '\n  ' + paint('teal')(`/${cmd.name} ${sub.name}`) + ' - ' + sub.description;
             }
         }
     }
@@ -181,7 +191,7 @@ export function formatCommandHelp(cmd: CommandDefinition, detailed: boolean = fa
  * Displays a formatted list of all available commands
  */
 export function displayAllCommands(commands: CommandDefinition[]): void {
-    console.log(chalk.bold.green('\n📋 Available Commands:\n'));
+    console.log(paint('add').bold('\n📋 Available Commands:\n'));
 
     // Define category order for consistent display
     const categoryOrder = [
@@ -216,7 +226,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
     for (const category of categoryOrder) {
         const cmds = categories[category];
         if (cmds && cmds.length > 0) {
-            console.log(chalk.bold.rgb(255, 165, 0)(`${category}:`));
+            console.log(paint('amber').bold(`${category}:`));
             for (const cmd of cmds) {
                 console.log('  ' + formatCommandHelp(cmd));
             }
@@ -227,7 +237,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
     // Display any uncategorized commands (fallback)
     for (const [category, cmds] of Object.entries(categories)) {
         if (!categoryOrder.includes(category) && cmds.length > 0) {
-            console.log(chalk.bold.rgb(255, 165, 0)(`${category}:`));
+            console.log(paint('amber').bold(`${category}:`));
             for (const cmd of cmds) {
                 console.log('  ' + formatCommandHelp(cmd));
             }
@@ -235,6 +245,8 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         }
     }
 
-    console.log(chalk.gray('💡 Tip: Use /help <command> for detailed help on any command'));
-    console.log(chalk.gray('💡 Tip: Type your message normally (without /) to chat with the AI\n'));
+    console.log(paint('dim')('💡 Tip: Use /help <command> for detailed help on any command'));
+    console.log(
+        paint('dim')('💡 Tip: Type your message normally (without /) to chat with the AI\n')
+    );
 }

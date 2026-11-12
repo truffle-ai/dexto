@@ -1937,6 +1937,8 @@ export class TurnExecutor {
         if (this.stepAbortController.signal.aborted) return false;
         if (error instanceof DextoRuntimeError) return error.code === LLMErrorCode.STREAM_STALLED;
         if (!APICallError.isInstance?.(error)) return false;
+        // A rejected credential stays rejected, whatever the provider says about retrying.
+        if (error.statusCode === 401) return false;
         return error.isRetryable;
     }
 

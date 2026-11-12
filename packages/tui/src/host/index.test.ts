@@ -1,56 +1,36 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-    performDeviceCodeLogin,
-    persistDeviceApiKeyLoginResult,
-    setTuiRuntimeServices,
-} from './index.js';
+import { currentSignIn, setTuiRuntimeServices, signIn, signOut } from './index.js';
 
-describe('TUI auth runtime services', () => {
+describe('TUI sign-in runtime services', () => {
     afterEach(() => {
         setTuiRuntimeServices({});
     });
 
-    it('uses host-provided API-key device login and persistence services', async () => {
-        const prompt = vi.fn();
-        const perform = vi.fn().mockResolvedValue({
-            dextoApiKey: 'dxt_full_key',
-            dextoKeyDisplay: 'dxt_abc...',
-            dextoKeyId: 'key-id',
-        });
-        const persist = vi.fn().mockResolvedValue({
-            keyId: 'key-id',
-            hasDextoApiKey: true,
-        });
-
+    it('signs in, says who, and signs out through the host', async () => {
+        const signal = new AbortController().signal;
+        const onNote = vi.fn();
+        const hostSignIn = vi.fn().mockResolvedValue('Signed in as ada@example.com in Acme.');
         setTuiRuntimeServices({
-            performDeviceCodeLogin: perform,
-            persistDeviceApiKeyLoginResult: persist,
+            currentSignIn: async () => 'ada@example.com in Acme',
+            signIn: hostSignIn,
+            signOut: async () => 'Logged out.',
         });
 
-        const loginResult = await performDeviceCodeLogin({
-            onPrompt: prompt,
-        });
-        const persisted = await persistDeviceApiKeyLoginResult(loginResult);
-
-        expect(perform).toHaveBeenCalledWith({ onPrompt: prompt });
-        expect(persist).toHaveBeenCalledWith({
-            dextoApiKey: 'dxt_full_key',
-            dextoKeyDisplay: 'dxt_abc...',
-            dextoKeyId: 'key-id',
-        });
-        expect(persisted).toEqual({
-            keyId: 'key-id',
-            hasDextoApiKey: true,
-        });
+        expect(await currentSignIn()).toBe('ada@example.com in Acme');
+        expect(await signIn({ signal, onNote })).toBe('Signed in as ada@example.com in Acme.');
+        expect(hostSignIn).toHaveBeenCalledWith({ signal, onNote });
+        expect(await signOut()).toBe('Logged out.');
     });
 
-    it('fails fast when API-key device login persistence is not provided by the host', async () => {
+    it('fails fast when the host provides no sign-in', async () => {
+        await expect(currentSignIn()).rejects.toThrow(
+            'TUI runtime services missing required method: currentSignIn'
+        );
         await expect(
-            persistDeviceApiKeyLoginResult({
-                dextoApiKey: 'dxt_full_key',
-                dextoKeyDisplay: 'dxt_abc...',
-                dextoKeyId: 'key-id',
-            })
-        ).rejects.toThrow('TUI runtime services missing required method');
+            signIn({ signal: new AbortController().signal, onNote: () => undefined })
+        ).rejects.toThrow('TUI runtime services missing required method: signIn');
+        await expect(signOut()).rejects.toThrow(
+            'TUI runtime services missing required method: signOut'
+        );
     });
 });

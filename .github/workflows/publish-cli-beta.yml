@@ -2,59 +2,128 @@
 #
 # It never touches `latest`, and main's release path (changesets-publish.yml) is unchanged.
 # dexto resolves its @dexto/* dependencies to exact versions when published, so the packages it
-# needs that changed since 1.14.4 publish as prereleases with it, also under `next`:
-# @dexto/agent-management, @dexto/tui and the new @dexto/cloud-client, plus the packages that depend
-# on @dexto/agent-management, so one copy is installed. @dexto/core and the rest
-# are unchanged since 1.14.4 and resolve to the versions already on npm.
+# needs publish as prereleases with it, also under `next`. scripts/cli-beta-packages.txt lists
+# them in dependency order, including core/storage (better-sqlite3 ~12.9.0: prebuilt for Node 20/22/24; Node 26 uses node:sqlite) and
+# every public dependent of the bumped packages, so none pulls stable core/storage back in.
+# All public workspace packages now join the beta; none retain a stale stable version.
 name: Publish dexto beta (manual)
 
 on:
-  workflow_dispatch:
-    inputs:
-      beta:
-        description: 'The beta number: 0 publishes dexto 2.0.0-beta.0'
-        required: true
+    pull_request:
+        branches: [cli-2.0]
+    workflow_dispatch:
+        inputs:
+            beta:
+                description: 'The beta number: 0 publishes dexto 2.0.0-beta.0'
+                required: true
+
+            publish:
+                description: Publish under next (release-owner authorization required)
+                type: boolean
+                default: false
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: publish-cli-beta
-  cancel-in-progress: false
+    group: cli-beta-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'manual' }}
+    cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.ref == 'refs/heads/cli-2.0'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: corepack enable
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
-      - run: pnpm install --frozen-lockfile
+    validate:
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/cli-2.0'
+        strategy:
+            matrix:
+                node: [20, 22, 24, 26]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - run: corepack enable
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ matrix.node }}
+                  cache: 'pnpm'
+                  registry-url: 'https://registry.npmjs.org'
+            - run: pnpm install --frozen-lockfile
+            - run: node --test scripts/cli-beta-registry.test.mjs
 
-      - name: Version the beta
-        env:
-          BETA: ${{ inputs.beta }}
-        run: |
-          set -euo pipefail
-          [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
-          for target in packages/cli:2.0.0 packages/agent-management:1.15.0 packages/tui:1.15.0 packages/cloud-client:1.15.0 packages/server:1.15.0 packages/analytics:1.15.0 packages/image-local:1.15.0 packages/image-logger-agent:1.15.0; do
-            VERSION="${target#*:}-beta.${BETA}" node -e 'const fs = require("fs"); const path = process.argv[1] + "/package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 4) + "\n");' "${target%%:*}"
-          done
+            - name: Version the beta
+              env:
+                  # Pull requests pack an unpublishable number: the pack refuses versions already on npm.
+                  BETA: ${{ inputs.beta || '999' }}
+              run: |
+                  set -euo pipefail
+                  [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
+                  node scripts/check-cli-beta-packages.mjs
+                  while IFS=: read -r -u 3 dir version; do
+                    VERSION="${version}-beta.${BETA}" node -e 'const fs = require("fs"); const path = process.argv[1] + "/package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 4) + "\n");' "$dir"
+                  done 3< scripts/cli-beta-packages.txt
 
-      - run: pnpm run build
+            - run: pnpm run build
 
-      # The token is only in this step, never during install or build.
-      - name: Publish under next
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          for dir in packages/cloud-client packages/agent-management packages/analytics packages/image-local packages/image-logger-agent packages/server packages/tui packages/cli; do
-            (cd "$dir" && pnpm publish --tag next --access public --no-git-checks)
-          done
-          pnpm view dexto dist-tags
+            - name: Pack and validate without publishing
+              run: node scripts/pack-cli-beta.mjs /tmp/cli-beta-artifacts
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: cli-beta-node-${{ matrix.node }}
+                  path: /tmp/cli-beta-artifacts
+
+    # The runners have compilers, so the validate install would quietly build better-sqlite3 from
+    # source. These slim images have none, as on a person's machine: Node.js 20, 22 and 24 must
+    # get better-sqlite3's prebuilt binary, and Node.js 26 (no 12.9 prebuild) must install without
+    # it and use node:sqlite. Each also checks chat sync is off by default and the held commands.
+    install-without-compiler:
+        needs: validate
+        strategy:
+            fail-fast: false
+            matrix:
+                node: [20, 22, 24, 26]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/download-artifact@v4
+              with:
+                  name: cli-beta-node-${{ matrix.node }}
+                  path: /tmp/cli-beta-artifacts
+            - name: Install the packed CLI in node:${{ matrix.node }}-bookworm-slim
+              env:
+                  BETA: ${{ inputs.beta || '999' }}
+                  IMAGE: node:${{ matrix.node }}-bookworm-slim
+              run: |
+                  set -euo pipefail
+                  cp scripts/test-beta-registry.mjs scripts/test-beta-runtime.mjs /tmp/cli-beta-artifacts/
+                  cp scripts/test-beta-install-check.sh /tmp/cli-beta-artifacts/check.sh
+                  docker run --rm -v /tmp/cli-beta-artifacts:/t:ro "$IMAGE" bash /t/check.sh "$BETA"
+
+    publish:
+        needs: [validate, install-without-compiler]
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/cli-2.0' && inputs.publish
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - run: corepack enable
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  registry-url: https://registry.npmjs.org
+            - uses: actions/download-artifact@v4
+              with:
+                  name: cli-beta-node-20
+                  path: /tmp/cli-beta-artifacts
+            - run: sha256sum --check SHA256SUMS
+              working-directory: /tmp/cli-beta-artifacts
+            # The token is only in this step, never during validation.
+            - name: Publish validated tarballs under next
+              env:
+                  BETA: ${{ inputs.beta }}
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  while IFS=: read -r -u 3 dir version; do
+                    name=$(node -p 'require("./" + process.argv[1] + "/package.json").name' "$dir")
+                    v="${version}-beta.${BETA}"
+                    NAME="$name" VERSION="$v" node --input-type=module -e 'import { isPublished } from "./scripts/cli-beta-registry.mjs"; if (await isPublished(process.env.NAME, process.env.VERSION)) throw new Error("Version already published");'
+                    file="${name#@}"
+                    pnpm publish "/tmp/cli-beta-artifacts/${file//\//-}-$v.tgz" --tag next --access public --no-git-checks
+                  done 3< scripts/cli-beta-packages.txt

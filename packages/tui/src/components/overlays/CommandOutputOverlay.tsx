@@ -5,6 +5,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
 import { HintBar } from '../shared/HintBar.js';
+import { tone } from '../../signal/index.js';
 
 export interface CommandOutputOverlayProps {
     isVisible: boolean;
@@ -83,7 +84,7 @@ export const CommandOutputOverlay = forwardRef<
     return (
         <Box flexDirection="column" width={columns}>
             <Box paddingX={0} paddingY={0}>
-                <Text color="cyan" bold wrap="truncate-end">
+                <Text color={tone('teal')} bold wrap="truncate-end">
                     {title}
                 </Text>
             </Box>

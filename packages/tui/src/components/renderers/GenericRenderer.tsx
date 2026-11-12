@@ -8,6 +8,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { ContentPart } from '@dexto/core';
+import { tone } from '../../signal/index.js';
 
 interface GenericRendererProps {
     /** Content parts from SanitizedToolResult */
@@ -40,7 +41,7 @@ export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps
     if (lines.length === 1 && lines[0]) {
         const line = lines[0];
         return (
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 {'  ⎿ '}
                 {line.slice(0, 80)}
                 {line.length > 80 ? '...' : ''}
@@ -50,18 +51,18 @@ export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps
 
     return (
         <Box flexDirection="column">
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 {'  ⎿ '}
                 {displayLines.length} lines
             </Text>
             {displayLines.map((line, i) => (
-                <Text key={i} color="gray" wrap="truncate">
+                <Text key={i} color={tone('dim')} wrap="truncate">
                     {'  ⎿ '}
                     {line}
                 </Text>
             ))}
             {truncated && (
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {'  ⎿ '}... {lines.length - maxLines} more lines
                 </Text>
             )}

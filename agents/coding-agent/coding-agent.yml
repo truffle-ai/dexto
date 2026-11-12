@@ -127,8 +127,6 @@ permissions:
       - plan_create    # Create plan without approval
       - plan_read      # Read plan without approval
       - plan_update    # Update plan without approval
-      - wait_for       # Wait for background tasks without approval
-      - check_task     # Check background tasks without approval
 
 # Compaction configuration - automatically summarizes conversation when context is full
 compaction:
@@ -243,6 +241,8 @@ prompts:
     file: "${{dexto.agent_dir}}/skills/code-review.md"
     # user-invocable: true (default) - appears as /code-review slash command
     # disable-model-invocation: false (default) - LLM can load via skill_load
+  - type: file
+    file: "${{dexto.agent_dir}}/skills/import-chats.md"
   - type: inline
     id: analyze-codebase
     title: "🔍 Analyze Codebase"

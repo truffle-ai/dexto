@@ -75,16 +75,10 @@ Default CLI behavior and mode selection:
 ```yaml
 defaults:
   defaultAgent: coding-agent  # Agent to use when none specified
-  defaultMode: web            # Run mode when --mode flag not specified
 ```
 
 **Fields:**
 - **defaultAgent** - Agent name to use when no `--agent` flag is provided
-- **defaultMode** - Run mode when no `--mode` flag is provided (default: `web`)
-  - `cli` - Interactive terminal mode
-  - `web` - Web UI mode (default)
-  - `server` - API server mode
-  - `mcp` - MCP server mode
 
 ### Setup Section
 
@@ -95,30 +89,9 @@ setup:
   completed: true  # Whether initial setup has run
 ```
 
-## Setup Command
+## Creating Preferences
 
-Create or update preferences:
-
-### Interactive Setup
-
-```bash
-dexto setup
-```
-
-Guides you through provider selection, model choice, and API key configuration.
-
-### Non-Interactive Setup
-
-```bash
-dexto setup --provider anthropic --model claude-sonnet-4-5-20250929
-```
-
-**Options:**
-- `--provider` - AI provider
-- `--model` - Model name
-- `--default-agent` - Default agent name
-- `--force` - Overwrite existing setup
-- `--interactive` - Enable/disable interactive mode
+Dexto 2.0 has no `dexto setup`. Edit `~/.dexto/preferences.yml` directly, or skip it: a provider key in the environment or `dexto login` is enough to start.
 
 ## How Preferences Work
 
@@ -127,7 +100,7 @@ dexto setup --provider anthropic --model claude-sonnet-4-5-20250929
 1. **Explicit agent specified** - Uses the specified agent
 2. **Project context** - Looks for project-local agents
 3. **Global CLI context** - Uses `defaults.defaultAgent`
-4. **No preferences** - Prompts to run `dexto setup`
+4. **No preferences** - Uses the bundled `coding-agent`
 
 ### Preference Injection
 
@@ -229,12 +202,6 @@ Edit `~/.dexto/preferences.yml` directly, ensuring:
 - API keys are environment variable references
 - Provider and model are compatible
 - All required fields present
-
-### Re-run Setup
-
-```bash
-dexto setup
-```
 
 ## See Also
 

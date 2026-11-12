@@ -1,0 +1,43 @@
+{
+  "name": "@dexto/cloud-client",
+  "version": "1.14.4",
+  "private": false,
+  "description": "Typed client for Dexto's public /v1 API, generated from its OpenAPI document",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.2",
+    "vitest": "^4.1.12"
+  },
+  "scripts": {
+    "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
+    "sync": "tsx scripts/sync-openapi.ts",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
+}

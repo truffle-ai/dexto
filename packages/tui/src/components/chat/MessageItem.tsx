@@ -34,9 +34,17 @@ import { ToolResultRenderer } from '../renderers/index.js';
 import { MarkdownText } from '../shared/MarkdownText.js';
 import { ToolIcon } from './ToolIcon.js';
 import {
+    formatDuration,
     formatToolResultPreview,
     stripAutomationTriggerTags,
 } from '../../utils/messageFormatting.js';
+import { tone, useCaps } from '../../signal/index.js';
+import {
+    SignalAgentMessage,
+    SignalNote,
+    SignalToolMessage,
+    SignalUserMessage,
+} from './SignalMessage.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -48,30 +56,6 @@ function stripPlanModeTags(content: string): string {
     const stripped = content.replace(/<plan-mode>[\s\S]*?<\/plan-mode>\s*/g, '');
     // Only trim if a tag was actually removed
     return stripped === content ? content : stripped.trim();
-}
-
-/**
- * Format milliseconds into a compact human-readable string
- * Examples: "1.2s", "1m 23s", "1h 2m"
- */
-function formatDuration(ms: number): string {
-    const seconds = Math.floor(ms / 1000);
-    const tenths = Math.floor((ms % 1000) / 100);
-
-    if (seconds < 60) {
-        return `${seconds}.${tenths}s`;
-    }
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (minutes < 60) {
-        return `${minutes}m ${remainingSeconds}s`;
-    }
-
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
 }
 
 function formatTime(timestamp: Date | string): string {
@@ -91,13 +75,13 @@ function getExternalTriggerColors(source: ExternalTriggerStyledData['source']): 
 } {
     switch (source) {
         case 'scheduler':
-            return { background: '#3A235A', foreground: 'white' };
+            return { background: tone('cloudBg'), foreground: tone('hi') };
         case 'a2a':
-            return { background: '#0E3B2E', foreground: 'white' };
+            return { background: tone('s1'), foreground: tone('hi') };
         case 'api':
-            return { background: '#1E3B5A', foreground: 'white' };
+            return { background: tone('sel'), foreground: tone('hi') };
         default:
-            return { background: 'gray', foreground: 'white' };
+            return { background: tone('s2'), foreground: tone('hi') };
     }
 }
 
@@ -164,6 +148,8 @@ interface MessageItemProps {
  */
 export const MessageItem = memo(
     ({ message, terminalWidth = 80, showReasoning = true }: MessageItemProps) => {
+        const signal = useCaps().palette === 'signal';
+
         // Check for styled message first
         if (message.styledType && message.styledData) {
             switch (message.styledType) {
@@ -184,6 +170,20 @@ export const MessageItem = memo(
                 case 'run-summary': {
                     const data = message.styledData as RunSummaryStyledData;
                     const durationStr = formatDuration(data.durationMs);
+                    if (signal) {
+                        const tokens =
+                            data.totalTokens >= 1000
+                                ? ` · ${(data.totalTokens / 1000).toFixed(1)}k tokens`
+                                : '';
+                        return (
+                            <SignalNote
+                                message={{
+                                    ...message,
+                                    content: `worked for ${durationStr}${tokens}`,
+                                }}
+                            />
+                        );
+                    }
                     // Only show tokens when >= 1000, using K notation
                     const tokensStr =
                         data.totalTokens >= 1000
@@ -191,7 +191,7 @@ export const MessageItem = memo(
                             : '';
                     return (
                         <Box marginTop={1} marginBottom={1} width={terminalWidth}>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 ─ Worked for {durationStr}
                                 {tokensStr} ─
                             </Text>
@@ -217,6 +217,13 @@ export const MessageItem = memo(
         // User message: '>' prefix with gray background
         // Strip plan-mode tags before display (plan instructions are for LLM, not user)
         // Properly wrap text accounting for prefix "> " (2 chars) and paddingX={1} (2 chars total)
+        if (signal && message.role === 'user') {
+            return (
+                <SignalUserMessage
+                    content={stripAutomationTriggerTags(stripPlanModeTags(message.content))}
+                />
+            );
+        }
         if (message.role === 'user') {
             const prefix = '> ';
             const paddingChars = 2; // paddingX={1} = 1 char on each side
@@ -231,11 +238,11 @@ export const MessageItem = memo(
 
             return (
                 <Box flexDirection="column" marginTop={1} marginBottom={0} width={terminalWidth}>
-                    <Box flexDirection="column" paddingX={1} backgroundColor="gray">
+                    <Box flexDirection="column" paddingX={1} backgroundColor={tone('s2')}>
                         {lines.map((line, i) => (
                             <Box key={i} flexDirection="row">
-                                <Text color="green">{i === 0 ? prefix : '  '}</Text>
-                                <Text color="white">{line}</Text>
+                                <Text color={tone('add')}>{i === 0 ? prefix : '  '}</Text>
+                                <Text color={tone('hi')}>{line}</Text>
                             </Box>
                         ))}
                     </Box>
@@ -247,12 +254,15 @@ export const MessageItem = memo(
         // IMPORTANT: width="100%" is required to prevent Ink layout failures on large content.
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
+        if (signal && message.role === 'assistant') {
+            return <SignalAgentMessage message={message} showReasoning={showReasoning} />;
+        }
         if (message.role === 'assistant') {
             const hasContent = message.content.trim().length > 0;
             const reasoningBlock =
                 showReasoning && message.reasoning ? (
                     <Box flexDirection="column" marginBottom={1}>
-                        <MarkdownText color="gray" bulletPrefix="⏺ ">
+                        <MarkdownText color={tone('dim')} bulletPrefix="⏺ ">
                             {message.reasoning}
                         </MarkdownText>
                     </Box>
@@ -285,6 +295,9 @@ export const MessageItem = memo(
         // - Running: green spinner + "Running..."
         // - Finished (success): green dot
         // - Finished (error): red dot
+        if (signal && message.role === 'tool') {
+            return <SignalToolMessage message={message} />;
+        }
         if (message.role === 'tool') {
             // Use structured renderers if display data is available
             const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
@@ -352,13 +365,13 @@ export const MessageItem = memo(
                     ))}
                     {subHeaderLine && (
                         <Box marginLeft={2}>
-                            <Text color="gray">{subHeaderLine}</Text>
+                            <Text color={tone('dim')}>{subHeaderLine}</Text>
                         </Box>
                     )}
                     {/* Sub-agent progress line - show when we have progress data */}
                     {subAgentProgress && isRunning && (
                         <Box marginLeft={2}>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 └─ {subAgentProgress.toolsCalled} tool
                                 {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called | Current:{' '}
                                 {subAgentProgress.currentTool}
@@ -381,7 +394,7 @@ export const MessageItem = memo(
                     ) : (
                         message.toolResult && (
                             <Box flexDirection="column">
-                                <Text color="gray">
+                                <Text color={tone('dim')}>
                                     ⎿ {formatToolResultPreview(message.toolResult)}
                                 </Text>
                             </Box>
@@ -403,10 +416,13 @@ export const MessageItem = memo(
                 );
             }
         }
+        if (signal) {
+            return <SignalNote message={message} />;
+        }
 
         return (
             <Box flexDirection="column" marginBottom={1} width={terminalWidth}>
-                <Text color="gray">{message.content}</Text>
+                <Text color={tone('dim')}>{message.content}</Text>
             </Box>
         );
     },
@@ -418,6 +434,8 @@ export const MessageItem = memo(
             prev.message.reasoning === next.message.reasoning &&
             prev.message.role === next.message.role &&
             prev.message.toolStatus === next.message.toolStatus &&
+            prev.message.toolOutcome === next.message.toolOutcome &&
+            prev.message.systemKind === next.message.systemKind &&
             prev.message.toolResult === next.message.toolResult &&
             prev.message.isStreaming === next.message.isStreaming &&
             prev.message.styledType === next.message.styledType &&

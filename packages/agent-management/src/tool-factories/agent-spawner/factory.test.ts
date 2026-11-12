@@ -38,6 +38,12 @@ describe('agentSpawnerToolsFactory', () => {
         allowSpawning: true,
     });
 
+    it('exposes the synchronous spawn tool', () => {
+        expect(agentSpawnerToolsFactory.create(config).map((tool) => tool.id)).toEqual([
+            'spawn_agent',
+        ]);
+    });
+
     it('throws when ToolExecutionContext.agent is missing', () => {
         const tools = agentSpawnerToolsFactory.create(config);
         const spawnTool = tools.find((tool) => tool.id === 'spawn_agent');
@@ -140,88 +146,5 @@ describe('agentSpawnerToolsFactory', () => {
         expect(description).toContain('explore-agent');
         expect(description).toContain('Workspace sub-agent');
         expect(description).not.toContain('review-agent');
-    });
-
-    it('preserves host runtime IDs when background tasks complete and trigger follow-up runs', async () => {
-        const tools = agentSpawnerToolsFactory.create(config);
-        const spawnTool = tools.find((tool) => tool.id === 'spawn_agent');
-        expect(spawnTool?.getDescription).toBeDefined();
-
-        const backgroundListeners = new Map<string, (...args: unknown[]) => void>();
-        const agent = {
-            config: { agentId: 'test-agent' },
-            getCurrentLLMConfig: () => ({
-                provider: 'openai',
-                model: 'gpt-4o-mini',
-            }),
-            getWorkspace: vi.fn(async () => undefined),
-            services: {
-                approvalManager: {},
-            },
-            emit: vi.fn(),
-            on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
-                backgroundListeners.set(event, listener);
-            }),
-            isSessionBusy: vi.fn().mockResolvedValue(false),
-            steer: vi.fn().mockResolvedValue({ queued: true, position: 1, id: 'queued-1' }),
-            generate: vi.fn().mockResolvedValue({}),
-        };
-
-        await spawnTool!.getDescription!({
-            logger: createMockLogger(),
-            agent: agent as unknown as ToolExecutionContext['agent'],
-            services: {
-                taskForker: null,
-            } as ToolExecutionContext['services'],
-        } as ToolExecutionContext);
-
-        const handleBackground = backgroundListeners.get('tool:background');
-        expect(handleBackground).toBeDefined();
-
-        let resolvePromise!: (value: string) => void;
-        const promise = new Promise<string>((resolve) => {
-            resolvePromise = resolve;
-        });
-        const hostRuntime = {
-            ids: {
-                runId: 'run-1',
-                attemptId: 'attempt-1',
-            },
-        };
-
-        handleBackground?.({
-            toolName: 'spawn_agent',
-            toolCallId: 'task-1',
-            sessionId: 'session-1',
-            description: 'Spawn agent',
-            promise,
-            hostRuntime,
-        });
-
-        resolvePromise('done');
-
-        await vi.waitFor(() => {
-            expect(agent.emit).toHaveBeenCalledWith('tool:background-completed', {
-                toolCallId: 'task-1',
-                sessionId: 'session-1',
-                hostRuntime,
-            });
-        });
-        await vi.waitFor(() => {
-            expect(agent.emit).toHaveBeenCalledWith(
-                'run:invoke',
-                expect.objectContaining({
-                    sessionId: 'session-1',
-                    source: 'external',
-                    metadata: { taskId: 'task-1' },
-                    hostRuntime,
-                })
-            );
-        });
-        await vi.waitFor(() => {
-            expect(agent.generate).toHaveBeenCalledWith(expect.any(Array), 'session-1', {
-                executionContext: hostRuntime,
-            });
-        });
     });
 });
