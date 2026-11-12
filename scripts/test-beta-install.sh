@@ -60,7 +60,7 @@ function scan(dir) {
         const file = path.join(child, 'package.json');
         if (fs.existsSync(file)) {
             const pkg = JSON.parse(fs.readFileSync(file));
-            if (pkg.name?.startsWith('@dexto/') && !['@dexto/llm', '@dexto/registry', '@dexto/client-sdk'].includes(pkg.name) && !pkg.version.endsWith(`-beta.${process.argv[3]}`)) {
+            if (pkg.name?.startsWith('@dexto/') && !pkg.version.endsWith(`-beta.${process.argv[3]}`)) {
                 throw new Error(`Stale workspace dependency: ${pkg.name}@${pkg.version}`);
             }
         }
