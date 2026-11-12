@@ -1,7 +1,7 @@
 // `cloud models`: every model call, text or media, as a model id and its input.
 
 import { CommandFailure } from '../../failure.js';
-import { requireConsent } from '../../interaction.js';
+import { requireConsent, shellWord } from '../../interaction.js';
 
 import { randomUUID } from 'node:crypto';
 import { unwrap, type CloudClient, type V1Response } from '@dexto/cloud-client';
@@ -272,7 +272,7 @@ async function runMedia(
         flag(input, 'yes'),
         `Running ${model} spends about $${estimate.amount_usd} of credits.`
     );
-    const saveTo = stringOption(input, 'save-to');
+    const saveTo = stringOption(input, 'save-to')?.replace(/^\.\//u, '');
     let generation = await unwrap(
         await client.POST('/v1/media/generations', {
             params: { header: { 'Idempotency-Key': randomUUID() } },
@@ -299,12 +299,23 @@ async function runMedia(
             `Run ${generation.id} failed: ${generation.error.message}`,
             null
         );
-    if (context.output.json) return context.output.record(generation);
+    const downloads = generation.resources
+        .filter((resource) => resource.file_id != null)
+        .map(
+            (resource, index) =>
+                `dexto cloud files download ${shellWord(resource.file_id ?? '')} ./download-${index + 1}`
+        );
+    if (context.output.json)
+        return context.output.record({
+            ...generation,
+            ...(downloads.length === 0 ? {} : { next_step: downloads.join('\n') }),
+        });
     context.runtime.writeOutput(`Run ${generation.id} ${generation.status}.\n`);
     for (const resource of generation.resources)
         context.runtime.writeOutput(
             `${resource.file_path ?? resource.filename ?? resource.id}${resource.url === null ? '' : `  ${resource.url}`}\n`
         );
+    for (const download of downloads) context.output.note(`Download: ${download}`);
 }
 
 /** The text catalog, the media catalog, or both (text first), as one list. */

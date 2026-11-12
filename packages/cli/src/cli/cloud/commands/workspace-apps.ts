@@ -100,7 +100,7 @@ export async function runWorkspaceApp(
         );
     }
     if (operationName === undefined || operationName.startsWith('-')) {
-        printOperations(context, appId, operations, commands);
+        printOperations(context, appId, operations, commands, help);
         return 0;
     }
     const operation = operations.find((each) => each.name === operationName);
@@ -461,9 +461,21 @@ function printOperations(
     context: CommandContext,
     appId: string,
     operations: readonly Operation[],
-    commands: readonly AppCommand[]
+    commands: readonly AppCommand[],
+    help: boolean
 ) {
-    if (context.output.json) return context.output.record({ commands, data: operations });
+    if (context.output.json)
+        return context.output.record({
+            commands,
+            data: help
+                ? operations.map(({ name, title, description, level }) => ({
+                      name,
+                      title,
+                      description,
+                      level,
+                  }))
+                : operations,
+        });
     if (operations.length > 0) printOperationTable(context, appId, operations);
     if (commands.length === 0) return;
     const width = Math.max(...commands.map((command) => command.usage.length));

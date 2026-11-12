@@ -10,7 +10,7 @@ export function registerSessionCommand({
 
     chatCommand
         .command('list')
-        .description("List this machine's chats")
+        .description("List this machine's chats. For cloud chats, run dexto workspace chat list.")
         .action(
             withAnalytics('chat list', async () => {
                 let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;

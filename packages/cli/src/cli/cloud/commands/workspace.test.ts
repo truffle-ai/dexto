@@ -70,6 +70,7 @@ describe('dexto workspace', () => {
     let profilesResponse: unknown;
     let followResponses: unknown[];
     let chatInspection: unknown;
+    let appScopes: Record<string, Record<string, string[]>>;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-ws-')), 'accounts');
@@ -102,6 +103,7 @@ describe('dexto workspace', () => {
         };
         followResponses = [];
         chatInspection = {};
+        appScopes = {};
         profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
         publishStatus = 200;
         publishProject = null;
@@ -127,7 +129,7 @@ describe('dexto workspace', () => {
             fetch: async (input, init) => {
                 const request = new globalThis.Request(input, init);
                 if (request.url.endsWith('/.well-known/oauth-protected-resource/mcp'))
-                    return Response.json({ resource: MCP, dexto_app_scopes: {} });
+                    return Response.json({ resource: MCP, dexto_app_scopes: appScopes });
                 if (request.url.startsWith('https://upload.example/')) {
                     uploads.push({
                         url: request.url,
@@ -220,6 +222,22 @@ describe('dexto workspace', () => {
                 }),
             signInForScope: async () => false,
         };
+    });
+
+    it('reports missing permissions for a hidden workspace tool', async () => {
+        appScopes = { projects: { dexto_project_create: ['projects:write'] } };
+        expect(
+            await runCloud(host, ['workspace', 'describe', 'dexto_project_create', '--json'])
+        ).toBe(3);
+        expect(stderr).toContain('needs_permission');
+        expect(stderr).toContain('projects:write');
+    });
+
+    it('shows a concise workspace app help list and leaves schemas to operation help', async () => {
+        expect(await runCloud(host, ['workspace', 'chat', '--help', '--json'])).toBe(0);
+        const result = JSON.parse(stdout);
+        expect(result.data.map((operation: { name: string }) => operation.name)).toContain('list');
+        expect(stdout).not.toContain('inputSchema');
     });
 
     const page = (outcome = 'done', cursor = 'chat-1:1') => ({

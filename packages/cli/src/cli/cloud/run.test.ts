@@ -155,6 +155,12 @@ describe('dexto cloud', () => {
         expect(stdout).toContain('sessions:write');
     });
 
+    it('distinguishes the model catalog from account-available chat models', async () => {
+        expect(await runCloud(host, ['models', 'list', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('workspace chat models');
+        expect(stdout).toContain('account');
+    });
+
     it('explains where model outputs are saved and how to download them', async () => {
         expect(await runCloud(host, ['cloud', 'models', 'run', '--help', '--json'])).toBe(0);
         expect(stdout).toContain('Cloud files');

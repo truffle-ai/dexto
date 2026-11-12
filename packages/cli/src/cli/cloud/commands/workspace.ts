@@ -5,6 +5,7 @@ import { requireConsent, rerunWith } from '../../interaction.js';
 
 import { z } from 'zod';
 import { unwrap } from '@dexto/cloud-client';
+import { readAppScopes } from '../app-scopes.js';
 
 import {
     argument,
@@ -126,10 +127,25 @@ const describe: Command = {
     async run(context, input) {
         const name = argument(input, 0, 'tool');
         const tool = (await listWorkspaceTools(context)).find((each) => each.name === name);
-        if (tool === undefined)
+        if (tool === undefined) {
+            const connection = await context.connection();
+            if (connection.kind === 'oauth') {
+                const apps = await readAppScopes(context.runtime, connection.login.appUrl);
+                const needed = [...apps.values()].flatMap((operations) => operations[name] ?? []);
+                const missing = [...new Set(needed)].filter(
+                    (scope) => !connection.login.scopes.includes(scope)
+                );
+                if (missing.length > 0)
+                    throw new MissingScopeFailure(
+                        context,
+                        missing.join(','),
+                        `Your sign-in can't use ${name} yet: it needs ${missing.join(', ')}.`
+                    );
+            }
             throw new UsageError(
                 `No workspace tool ${name}. List them with dexto workspace tools.`
             );
+        }
         if (context.output.json) return context.output.record(tool);
         context.runtime.writeOutput(
             `${tool.title ?? tool.name}\n\n${tool.description ?? ''}\n\nInput:\n${JSON.stringify(tool.inputSchema, null, 2)}\n`
