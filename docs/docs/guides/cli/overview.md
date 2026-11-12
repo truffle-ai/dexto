@@ -115,9 +115,6 @@ For script installs, upgrade the Dexto CLI with `dexto upgrade`. For npm install
 
 ```bash
 dexto upgrade
-
-# The newest prerelease instead
-dexto upgrade next
 ```
 
 **Options:**

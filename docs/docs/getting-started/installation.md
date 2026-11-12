@@ -43,7 +43,7 @@ irm https://dexto.ai/install.ps1 | iex
 Node.js 20 or later works; 22 is recommended. The installer needs npm, verifies the registry checksum, and installs without admin
 rights under `~/.dexto/cli`. Add its printed bin directory to PATH (`~/.local/bin` on Unix;
 `%USERPROFILE%\.dexto\bin` on Windows). Then run `dexto login --device` and `dexto whoami --json`.
-The default is `latest`; select `next` for the newest prerelease.
+The default is `latest`, the current release. `next` is the prerelease channel and can be older than `latest`.
 Use `dexto upgrade` to update a script install. Update npm installs with `npm install -g dexto`.
 
 On macOS and Linux, when `~/.local/bin` is not on PATH and a global npm `dexto` is (as when 1.x runs
