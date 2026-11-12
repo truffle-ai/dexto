@@ -1,5 +1,19 @@
 # @dexto/core
 
+## 1.18.0
+
+### Patch Changes
+
+- 9a75f3a: `npm install dexto` and the dexto.ai installer work without a compiler or Python on Node.js 20, 22, 24 and 26. better-sqlite3 12.9 ships prebuilt binaries for Node.js 20, 22 and 24, and is now optional for the CLI: where it cannot install, as on Node.js 26, `@dexto/storage` opens SQLite with the `node:sqlite` built into Node.js instead. `openSqlite` is exported for other SQLite readers.
+- 9a75f3a: `dexto` 2.0 drops the 1.x local-agent commands: `setup`, `connect`, `agents`, `which`, `init`, `create-app`, `init-app`, `image`, `create-image`, `plugin`, `mcp`, `search`, `--mode web|server|mcp` (with the embedded Web UI and the Docker server image), `--skip-setup`, `--no-auto-install`, `--image`, `--dev` and `--port`. The interactive chat, `dexto run`, `chat`, `upgrade`, `uninstall` and the cloud commands stay. The first start needs a provider key in the environment or `dexto login` (signed in, it starts on Dexto models) instead of opening setup. Hints in other packages no longer name the removed commands. packages/cli/CLI.md maps each removed command to its replacement.
+- 9a75f3a: `dexto run` reports a failure once: in `--json` and `--stream-json`, stdout carries only JSON and stderr only the JSON error, and in text mode the error prints once with the command that fixes it. A run with no provider key and no Dexto sign-in exits 3 (needs sign-in) and points to `dexto login`; `--model` without that provider's key also exits 3. Logs go to stderr, so the first use of a bundled agent no longer prints install lines before the JSON. An unknown command exits 2 and points to `dexto --help` instead of trying to start the chat. Text mode no longer echoes the reply on stderr.
+- 9a75f3a: Emit `session:deleted` after a chat is deleted, so a host can act on it (the CLI deletes the chat's synced copy).
+- 9a75f3a: A 401 from a model provider is final: it is never retried, even if the provider marks it retryable, and it surfaces as `llm_auth_failed`. For the Dexto gateway the message says to sign in again with `dexto login` or create a new API key.
+- 9a75f3a: Move `glob` from 12 to 14, `minimatch` from 10 to 11 and `@hono/node-server` from 1.19.17 to 2.1.5, so Dexto's own dependencies no longer carry their published advisories. The APIs Dexto calls are unchanged, and all three support the Node 20 floor Dexto already requires. The lockfile also moves the MCP SDK's `@hono/node-server` to 2.1.5, which its range already allows, so the Docker image and standalone binaries carry one patched copy. The WebUI is still served the same way.
+- 9a75f3a: Three string clean-ups no longer slow down badly on long runs of the same character: trimming trailing slashes from the Cloud API base URL, redacting credentials in a resource URI that is not a valid URL, and joining a multi-line tool argument onto one row.
+- 9a75f3a: Build, test and ship the Docker image and standalone binaries with `zod` 4.6.7 and `follow-redirects` 1.16.2 instead of `zod` 4.3.6 and `follow-redirects` 1.16.1, which have published advisories. The declared `zod` range is unchanged, so installs from npm already resolved a patched `zod`; this makes the repository's tests and bundled artifacts match what users get. The cancel-task route now declares its path parameter with `unknown().transform().pipe()` because `z.preprocess` no longer type-checks there.
+    - @dexto/llm@1.18.0
+
 ## 1.17.0
 
 ### Minor Changes

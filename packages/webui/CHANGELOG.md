@@ -1,5 +1,25 @@
 # @dexto/webui
 
+## 1.18.0
+
+### Patch Changes
+
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+    - @dexto/core@1.18.0
+    - @dexto/storage@1.18.0
+    - @dexto/agent-config@1.18.0
+    - @dexto/analytics@1.18.0
+    - @dexto/client-sdk@1.18.0
+    - @dexto/llm@1.18.0
+    - @dexto/registry@1.18.0
+
 ## 1.17.0
 
 ### Patch Changes
