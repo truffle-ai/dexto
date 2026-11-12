@@ -3,7 +3,7 @@
 # It never touches `latest`, and main's release path (changesets-publish.yml) is unchanged.
 # dexto resolves its @dexto/* dependencies to exact versions when published, so the packages it
 # needs publish as prereleases with it, also under `next`. scripts/cli-beta-packages.txt lists
-# them in dependency order, including core/storage (better-sqlite3 ~12.9.0 for Node 24) and
+# them in dependency order, including core/storage (better-sqlite3 ~12.11.1, prebuilt for Node 22, 24 and 26) and
 # every public dependent of the bumped packages, so none pulls stable core/storage back in.
 # All public workspace packages now join the beta; none retain a stale stable version.
 name: Publish dexto beta (manual)

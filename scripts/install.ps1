@@ -5,7 +5,7 @@
 #   & ([scriptblock]::Create((irm https://dexto.ai/install.ps1))) -Version next -Yes
 #
 # The Windows counterpart of scripts/install.sh, with the same contract.
-# Needs npm; Node.js 20 or later works, 22 is recommended. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
+# Needs npm and Node.js 20 or later; 22 or later installs without a compiler. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
 # after checking the downloaded tarball against the registry's sha512 integrity, then writes
 # %USERPROFILE%\.dexto\bin\dexto.cmd (or $env:DEXTO_INSTALL_DIR\dexto.cmd) to run it, adds that
 # directory to the user PATH, and records the install in %USERPROFILE%\.dexto\install.json, which
@@ -130,7 +130,7 @@ Environment:
   DEXTO_INSTALL_FORCE=1  Same as -Force
   DEXTO_NO_MODIFY_PATH=1 Same as -NoModifyPath
 
-For Dexto 2.0, set DEXTO_VERSION=next. The default latest is for 1.x upgrades.
+The default, latest, is the current release; set DEXTO_VERSION=next for the newest prerelease.
 After install and PATH setup: dexto login --device
 Then check your account: dexto whoami --json
 '@ | Write-Output
@@ -407,7 +407,9 @@ Then check your account: dexto whoami --json
         Write-Note $install.Stderr
     }
     if ($install.ExitCode -ne 0) {
-        Fail 'install_failed' "npm could not install $DextoPackage@$targetVersion." 'See the npm output above, then run the installer again.'
+        # Node.js 20 has no prebuilt SQLite binary, so npm builds it and needs a C++ compiler.
+        $installFix = if ($nodeMajor -lt 22) { "Upgrade to Node.js 22 or later (https://nodejs.org); Node.js $nodeMajor needs Python and a C++ compiler to build SQLite. Then run the installer again." } else { 'See the npm output above, then run the installer again.' }
+        Fail 'install_failed' "npm could not install $DextoPackage@$targetVersion." $installFix
     }
     $stagedCmd = Join-Path $state.StagingDir 'dexto.cmd'
     if (-not (Test-Path -LiteralPath $stagedCmd)) {

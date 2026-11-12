@@ -4,7 +4,7 @@
 #   curl -fsSL https://dexto.ai/install | sh -s -- --version next
 #   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0
 #
-# Needs npm; Node.js 20 or later works, 22 is recommended. It installs the `dexto` npm package into
+# Needs npm and Node.js 20 or later; 22 or later installs without a compiler. It installs the `dexto` npm package into
 # ~/.dexto/cli/<version>, after checking the downloaded tarball against the registry's sha512
 # integrity, then links it as ~/.local/bin/dexto (or $DEXTO_INSTALL_DIR/dexto) and records the
 # install in ~/.dexto/install.json, which `dexto upgrade` and `dexto uninstall` read.
@@ -48,7 +48,7 @@ Environment:
   DEXTO_INSTALL_DIR        Same as --install-dir
   DEXTO_INSTALL_FORCE=1    Same as --force
 
-For Dexto 2.0, select next. The default latest is for 1.x upgrades.
+The default, latest, is the current release; next is the newest prerelease.
 After install and PATH setup: dexto login --device
 Then check your account: dexto whoami --json
 
@@ -533,6 +533,10 @@ staging_dir="${cli_root}/.staging-${version}-$$"
 rm -rf "${staging_dir}"
 say "Installing into ${version_dir}..."
 if ! npm install --global --prefix "${staging_dir}" --no-audit --no-fund --loglevel=error "${tarball_path}" </dev/null >&2; then
+    # Node.js 20 has no prebuilt SQLite binary, so npm builds it and needs a C++ compiler.
+    if [ "${node_major}" -lt 22 ]; then
+        fail install_failed "npm could not install ${DEXTO_PACKAGE}@${version}." "Upgrade to Node.js 22 or later (https://nodejs.org); Node.js ${node_major} needs Python and a C++ compiler to build SQLite. Then run the installer again."
+    fi
     fail install_failed "npm could not install ${DEXTO_PACKAGE}@${version}." "See the npm output above, then run the installer again."
 fi
 if [ ! -x "${staging_dir}/bin/dexto" ]; then
