@@ -117,7 +117,11 @@ export interface LoginOptions {
     readonly apiKey: string | null;
 }
 
-export async function login(context: SignInContext, options: LoginOptions): Promise<void> {
+export async function login(
+    context: SignInContext,
+    options: LoginOptions,
+    beforeAuthorize?: SignInInput['beforeAuthorize']
+): Promise<void> {
     const named = options.profile ?? nonEmpty(context.environment.DEXTO_PROFILE);
     // --org names the profile and switches to it, unless --profile or DEXTO_PROFILE chose one.
     const switches = options.org !== null && named === null;
@@ -148,6 +152,7 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
                 ...((await context.chatSyncOn()) ? [CHAT_SYNC_SCOPE] : []),
             ]),
         ],
+        ...(beforeAuthorize === undefined ? {} : { beforeAuthorize }),
     };
     // A browser elsewhere can't reach this machine's loopback redirect, so use a code instead.
     const device = options.device || (options.browser && !context.canOpenBrowser);
@@ -471,6 +476,9 @@ export function safeSignInPrompt(prompt: SignInPrompt): SignInPrompt {
             prompt.verificationUriComplete === null
                 ? null
                 : safeText(prompt.verificationUriComplete),
+        organization: prompt.organization === null ? null : safeText(prompt.organization),
+        scopes: prompt.scopes.map(safeText),
+        computer: safeText(prompt.computer),
     };
 }
 

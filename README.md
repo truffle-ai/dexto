@@ -23,6 +23,8 @@ Success is exit 0 with your account identity. Signed-out account commands exit 3
 `dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
 configured model or credits. This check starts no model run.
 
+New users signing up with Google or GitHub receive a one-time $5 usage credit per verified email.
+
 <a href="https://dexto.ai">
   <div align="center">
     <picture>
