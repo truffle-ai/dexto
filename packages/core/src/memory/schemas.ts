@@ -7,6 +7,7 @@ import { z } from 'zod';
 const MAX_CONTENT_LENGTH = 10000; // 10k characters max per memory
 const MAX_TAG_LENGTH = 50;
 const MAX_TAGS = 10;
+const MAX_QUERY_LENGTH = 500;
 
 export const MemorySourceSchema = z.enum(['user', 'system']).describe('Source of the memory');
 
@@ -89,6 +90,15 @@ export const ListMemoriesOptionsSchema = z
         tags: z.array(z.string()).optional().describe('Filter by tags'),
         source: MemorySourceSchema.optional().describe('Filter by source'),
         pinned: z.boolean().optional().describe('Filter by pinned status'),
+        query: z
+            .string()
+            .trim()
+            .min(1, 'Search query cannot be empty')
+            .max(MAX_QUERY_LENGTH, `Search query cannot exceed ${MAX_QUERY_LENGTH} characters`)
+            .optional()
+            .describe(
+                'Case-insensitive keyword search over content and tags; all whitespace-separated terms must match'
+            ),
         limit: z.number().int().positive().optional().describe('Limit number of results'),
         offset: z.number().int().nonnegative().optional().describe('Skip first N results'),
     })

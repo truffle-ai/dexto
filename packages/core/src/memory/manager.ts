@@ -20,7 +20,7 @@ import { nanoid } from 'nanoid';
  * - Store and retrieve memories from the memory store
  * - Validate memory data
  * - Generate unique IDs for memories
- * - Filter and search memories
+ * - Filter memories and search them by keyword
  *
  * TODO: Expand to support multi-scope memories (user, agent, entity, session)
  * with namespaced keys (e.g., `memory:user:{userId}:item:{id}`) and
@@ -196,6 +196,15 @@ export class MemoryManager {
             // Filter by pinned status
             if (validatedOptions.pinned !== undefined) {
                 filtered = filtered.filter((m) => m.metadata?.pinned === validatedOptions.pinned);
+            }
+
+            // Filter by keyword query (every term must appear in content or tags)
+            if (validatedOptions.query) {
+                const terms = validatedOptions.query.toLowerCase().split(/\s+/);
+                filtered = filtered.filter((m) => {
+                    const haystack = [m.content, ...(m.tags ?? [])].join(' ').toLowerCase();
+                    return terms.every((term) => haystack.includes(term));
+                });
             }
 
             // Sort by updatedAt descending (most recent first)
