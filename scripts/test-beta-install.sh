@@ -22,71 +22,9 @@ while IFS=: read -r -u 3 dir version; do
     (cd "$dir" && pnpm pack --pack-destination "$artifacts/t") > "$artifacts/pack-${dir##*/}.log" 2>&1
 done 3< scripts/cli-beta-packages.txt
 cp scripts/test-beta-{registry,runtime}.mjs "$artifacts/t/"
-cat > "$artifacts/t/check.sh" <<'CHECK'
-set -euo pipefail
-beta=${1:?beta}
-echo "Node $(node -v), npm $(npm -v)"
-for tool in python python3 gcc g++ make; do
-    if command -v "$tool"; then echo "Unexpected build tool: $tool"; exit 1; fi
-done
-export HOME=/tmp/home npm_config_registry=http://127.0.0.1:4873
-export DEXTO_LLM_REGISTRY_DISABLE_FETCH=1
-mkdir -p "$HOME" /app
-node /t/test-beta-registry.mjs /t/*.tgz > /tmp/registry.log 2>&1 &
-registry_pid=$!
-trap 'kill "$registry_pid"' EXIT
-for attempt in $(seq 1 50); do
-    if grep -q 'registry ready' /tmp/registry.log; then break; fi
-    sleep 0.1
-done
-grep -q 'registry ready' /tmp/registry.log
-check_cli() {
-    local cli=$1 tree=$2
-    "$cli" --version
-    local rc=0
-    "$cli" whoami --json > /tmp/whoami.out 2>&1 || rc=$?
-    cat /tmp/whoami.out
-    [ "$rc" -eq 3 ]
-    cp /t/test-beta-runtime.mjs "$tree/beta-install-check.mjs"
-    node "$tree/beta-install-check.mjs"
-    # No stale beta-closure package or stable core/storage may appear anywhere in the tree.
-    node - "$tree" "$beta" <<'NODE'
-const fs = require('fs');
-const path = require('path');
-function scan(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        const child = path.join(dir, entry.name);
-        const file = path.join(child, 'package.json');
-        if (fs.existsSync(file)) {
-            const pkg = JSON.parse(fs.readFileSync(file));
-            if (pkg.name?.startsWith('@dexto/') && !pkg.version.endsWith(`-beta.${process.argv[3]}`)) {
-                throw new Error(`Stale workspace dependency: ${pkg.name}@${pkg.version}`);
-            }
-        }
-        scan(child);
-    }
-}
-scan(path.dirname(process.argv[2]));
-NODE
-}
-cd /app
-npm init -y > /dev/null
-# Install only dexto: all transitive beta dependencies must resolve from unchanged tarballs.
-npm install --no-audit --no-fund /t/dexto-[0-9]*.tgz > /tmp/local-install.log 2>&1 || { cat /tmp/local-install.log; exit 1; }
-check_cli /app/node_modules/.bin/dexto /app/node_modules/dexto
-echo 'LOCAL PASS (dexto tarball, transitive dependencies, signed-out CLI, storage SQLite read/write)'
-# Install the CLI as users do. Installing all tarballs as separate globals makes npm link sibling
-# workspace packages outside dexto, where they cannot see its optional peers. The fixture makes
-# every packed beta available without changing tarball dependency declarations.
-export npm_config_cache=/tmp/global-cache
-npm install -g --prefix /prefix --no-audit --no-fund dexto@next > /tmp/global-install.log 2>&1 || { cat /tmp/global-install.log; exit 1; }
-cd /tmp
-check_cli /prefix/bin/dexto /prefix/lib/node_modules/dexto
-echo 'GLOBAL PASS (dexto@next from packed registry, prefix install, signed-out CLI, storage SQLite read/write)'
-CHECK
+cp scripts/test-beta-install-check.sh "$artifacts/t/check.sh"
 failed=0
-for image in node:20-bookworm-slim node:22-bookworm-slim node:24-bookworm-slim; do
+for image in node:20-bookworm-slim node:22-bookworm-slim node:24-bookworm-slim node:26-bookworm-slim; do
     rc=0
     docker run --rm -v "$artifacts/t:/t:ro" "$image" bash /t/check.sh "$beta" > "$artifacts/${image//:/-}.log" 2>&1 || rc=$?
     cat "$artifacts/${image//:/-}.log"

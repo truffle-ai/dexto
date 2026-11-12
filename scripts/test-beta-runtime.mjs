@@ -1,9 +1,12 @@
 // Resolve from the installed CLI, including npm's nested global dependency layout.
+// EXPECT_SQLITE_DRIVER, when set, is the driver this Node.js must end up with: better-sqlite3 where
+// it has a prebuilt binary (Node.js 20, 22 and 24), node:sqlite where npm skipped it (Node.js 26).
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import console from 'node:console';
-import { SQLiteStore } from '@dexto/storage';
+import process from 'node:process';
+import { openSqlite, SQLiteStore } from '@dexto/storage';
 import { createLogger } from '@dexto/core';
 
 const logger = createLogger({
@@ -18,9 +21,25 @@ try {
 } finally {
     await store.disconnect();
 }
-for (const entry of [import.meta.resolve('@dexto/storage'), import.meta.resolve('@dexto/core')]) {
-    const require = createRequire(entry);
-    const pkg = JSON.parse(readFileSync(require.resolve('better-sqlite3/package.json'), 'utf8'));
-    assert.match(pkg.version, /^12\.9\./);
-    console.log(`SQLite through ${entry}: better-sqlite3 ${pkg.version} PASS`);
+const probe = await openSqlite('/tmp/beta-install.sqlite', {
+    readonly: true,
+    fileMustExist: true,
+    timeoutMs: 0,
+});
+const driver = probe.driver;
+probe.close();
+const expected = process.env.EXPECT_SQLITE_DRIVER;
+if (expected) assert.equal(driver, expected, `SQLite driver on Node.js ${process.versions.node}`);
+if (driver === 'better-sqlite3') {
+    for (const entry of [
+        import.meta.resolve('@dexto/storage'),
+        import.meta.resolve('@dexto/core'),
+    ]) {
+        const require = createRequire(entry);
+        const pkg = JSON.parse(
+            readFileSync(require.resolve('better-sqlite3/package.json'), 'utf8')
+        );
+        assert.match(pkg.version, /^12\.9\./);
+    }
 }
+console.log(`SQLite read/write on Node.js ${process.versions.node} through ${driver}: PASS`);

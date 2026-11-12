@@ -1,5 +1,6 @@
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
+import { HELD_COMMANDS } from '../../cloud/held-commands.js';
 
 export function registerSessionCommand({
     program,
@@ -90,7 +91,7 @@ export function registerSessionCommand({
         'browser-profiles': 'List your browser profiles for a cloud chat',
         move: 'Move a synced chat and its working tree to cloud or local',
         watch: 'Stay attached to a chat on its cloud computer',
-    }))
+    }).filter(([word]) => !HELD_COMMANDS.has(`chat ${word}`)))
         chatCommand
             .command(word)
             .description(description)
