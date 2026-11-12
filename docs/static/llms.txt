@@ -78,11 +78,10 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 
 ## Dexto 2.0 first result
 
-Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
-Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+Node.js 20 or later works; 22 is recommended. Use npm. Install once:
 
 ```sh
-npm install -g dexto@next
+npm install -g dexto
 ```
 
 If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
