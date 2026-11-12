@@ -85,3 +85,15 @@ export function getOpenRouterReasoningTarget(model: string): OpenRouterReasoning
 
     return { upstreamProvider: rule.upstreamProvider, modelId };
 }
+
+/**
+ * True when a gateway model ID routes to Anthropic (e.g. `anthropic/claude-opus-4.5` on
+ * `dexto-nova` or `openrouter`). Anthropic needs the tool-calling turn's signed thinking blocks
+ * back unchanged, which the gateway carries as `reasoning_details`.
+ */
+export function isOpenRouterAnthropicModel(provider: LLMProvider, model: string): boolean {
+    return (
+        isOpenRouterGatewayProvider(provider) &&
+        getOpenRouterReasoningTarget(model)?.upstreamProvider === 'anthropic'
+    );
+}

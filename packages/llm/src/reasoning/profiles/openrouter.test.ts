@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getOpenRouterReasoningTarget, isOpenRouterGatewayProvider } from './openrouter.js';
+import {
+    getOpenRouterReasoningTarget,
+    isOpenRouterAnthropicModel,
+    isOpenRouterGatewayProvider,
+} from './openrouter.js';
 
 describe('openrouter reasoning profile routing', () => {
     describe('isOpenRouterGatewayProvider', () => {
@@ -57,6 +61,23 @@ describe('openrouter reasoning profile routing', () => {
             expect(getOpenRouterReasoningTarget('x-ai/grok-3-mini')).toBeNull();
             expect(getOpenRouterReasoningTarget('x-ai/grok-4')).toBeNull();
             expect(getOpenRouterReasoningTarget('cohere/command-a')).toBeNull();
+        });
+    });
+
+    describe('isOpenRouterAnthropicModel', () => {
+        it('matches Claude models on gateway providers', () => {
+            expect(isOpenRouterAnthropicModel('dexto-nova', 'anthropic/claude-fable-5.2')).toBe(
+                true
+            );
+            expect(isOpenRouterAnthropicModel('openrouter', 'anthropic/claude-opus-4.5')).toBe(
+                true
+            );
+        });
+
+        it('does not match other upstreams or direct providers', () => {
+            expect(isOpenRouterAnthropicModel('dexto-nova', 'openai/gpt-5')).toBe(false);
+            expect(isOpenRouterAnthropicModel('openrouter', 'google/gemini-3-pro')).toBe(false);
+            expect(isOpenRouterAnthropicModel('anthropic', 'claude-opus-4-5')).toBe(false);
         });
     });
 });
