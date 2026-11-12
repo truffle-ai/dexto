@@ -98,13 +98,8 @@ function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningPr
         return nonCapableProfile();
     }
 
-    const variants =
-        nativeProfile.paradigm === 'adaptive-effort'
-            ? nativeProfile.variants.filter((variant) => variant.id !== 'max')
-            : nativeProfile.variants.map((variant) => ({ ...variant }));
-    const defaultVariant =
-        // Variants are ordered lowest to highest effort, so this picks the strongest gateway-safe fallback.
-        nativeProfile.defaultVariant === 'max' ? variants.at(-1)?.id : nativeProfile.defaultVariant;
+    const variants = nativeProfile.variants.map((variant) => ({ ...variant }));
+    const defaultVariant = nativeProfile.defaultVariant;
 
     return {
         ...nativeProfile,
