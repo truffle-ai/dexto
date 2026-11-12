@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { chatSyncStore, syncAllowed, type ChatSyncSettings } from './store.js';
+import { chatSyncStore, syncAllowed, syncIsOn, type ChatSyncSettings } from './store.js';
 
 const CLOUD_CHAT = '7f2a50dd-12f8-40e2-87cb-ecdbc589cb4c';
 
@@ -21,14 +21,55 @@ describe('chatSyncStore', () => {
         expect((await store.readSettings()).machineId).toBe(first.machineId);
     });
 
-    it('starts with sync on, no notice shown, and keeps one machine id', async () => {
+    it('starts with sync off, no notice shown, and keeps one machine id', async () => {
         const { store } = await freshStore();
 
         const first = await store.readSettings();
         const second = await store.readSettings();
 
-        expect(first).toMatchObject({ sync: 'on', noticeShownAt: null, projectsOff: [] });
+        expect(first).toMatchObject({
+            sync: 'off',
+            syncChosenAt: null,
+            noticeShownAt: null,
+            projectsOff: [],
+        });
+        expect(syncIsOn(first)).toBe(false);
         expect(second.machineId).toBe(first.machineId);
+    });
+
+    it("reads a beta's saved default of on as off, and keeps its opt-outs and private chats", async () => {
+        const { dir, store } = await freshStore();
+        await store.readSettings();
+        // 2.0 betas saved sync on by default, without the person choosing it.
+        const beta = {
+            machineId: '7f2a50dd-12f8-40e2-87cb-ecdbc589cb4c',
+            noticeShownAt: '2026-11-04T10:00:00.000Z',
+            sync: 'on',
+            projectsOff: ['/work/secret'],
+            privateChats: ['private-chat'],
+        };
+        await writeFile(path.join(dir, 'settings.json'), JSON.stringify(beta));
+
+        const settings = await store.readSettings();
+
+        expect(syncIsOn(settings)).toBe(false);
+        expect(settings).toMatchObject({
+            machineId: beta.machineId,
+            projectsOff: ['/work/secret'],
+            privateChats: ['private-chat'],
+        });
+    });
+
+    it('keeps sync on once the person turned it on themselves', async () => {
+        const { dir, store } = await freshStore();
+
+        await store.updateSettings((current) => ({
+            ...current,
+            sync: 'on',
+            syncChosenAt: '2026-11-12T10:00:00.000Z',
+        }));
+
+        expect(syncIsOn(await chatSyncStore(dir).readSettings())).toBe(true);
     });
 
     it('keeps its files readable only by this user', async () => {
@@ -103,6 +144,7 @@ describe('syncAllowed', () => {
         machineId: '7f2a50dd-12f8-40e2-87cb-ecdbc589cb4c',
         noticeShownAt: '2026-11-04T10:00:00.000Z',
         sync: 'on',
+        syncChosenAt: '2026-11-04T10:00:00.000Z',
         projectsOff: ['/work/secret-project'],
         privateChats: ['private-chat'],
     };
@@ -134,6 +176,13 @@ describe('syncAllowed', () => {
         ).toBe(false);
         expect(
             syncAllowed({ ...settings, sync: 'off' }, { id: 'c', cwd: '/work/app', parentIds: [] })
+        ).toBe(false);
+        // On only when the person chose it: a saved 'on' alone is a beta's default.
+        expect(
+            syncAllowed(
+                { ...settings, syncChosenAt: null },
+                { id: 'c', cwd: '/work/app', parentIds: [] }
+            )
         ).toBe(false);
     });
 });

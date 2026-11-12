@@ -206,7 +206,7 @@ export function signedInLines(signedIn: SignedIn, columns: number): string[] {
         line([
             span('dim', '  next: '),
             span('teal', 'dexto'),
-            span('dim', '  ·  chats sync to your dashboard from now on (/private, --no-sync)'),
+            span('dim', '  ·  chats stay on this machine until you run /sync on'),
         ]),
     ];
 }

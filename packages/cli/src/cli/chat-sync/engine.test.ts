@@ -132,7 +132,13 @@ function engine(server: ReturnType<typeof fakeServer>): ChatSync {
 
 beforeEach(async () => {
     store = chatSyncStore(path.join(await mkdtemp(path.join(tmpdir(), 'chat-sync-')), 'sync'));
-    await store.writeSettings({ ...(await store.readSettings()), noticeShownAt: 'shown' });
+    // Sync is off by default in 2.0; these tests are about a person who turned it on.
+    await store.writeSettings({
+        ...(await store.readSettings()),
+        noticeShownAt: 'shown',
+        sync: 'on',
+        syncChosenAt: 'chosen',
+    });
     chats = new Map();
     notes = [];
     now = Date.parse('2026-11-04T10:00:00.000Z');

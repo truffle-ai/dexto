@@ -14,8 +14,13 @@ const SettingsSchema = z
         machineId: z.uuid(),
         /** When the first-run notice was shown; nothing syncs before it is. */
         noticeShownAt: z.string().nullable(),
-        /** Sync is on unless the person turned it off everywhere. */
+        /** On or off everywhere; on counts only with `syncChosenAt` (see syncIsOn). */
         sync: z.enum(['on', 'off']),
+        /**
+         * When the person turned sync on with /sync on. 2.0 betas saved `sync: 'on'` by default
+         * without it, so their saved 'on' reads as off. Default on waits for 2.1 (DEXTO-2043).
+         */
+        syncChosenAt: z.string().nullable().default(null),
         /** Folders whose chats never sync, absolute; a chat in a folder inside one doesn't either. */
         projectsOff: z.array(z.string()),
         /** Local chats made private with /private: never synced, on any account. */
@@ -142,7 +147,8 @@ export function chatSyncStore(dir: string): ChatSyncStore {
         const settings: ChatSyncSettings = {
             machineId: randomUUID(),
             noticeShownAt: null,
-            sync: 'on',
+            sync: 'off',
+            syncChosenAt: null,
             projectsOff: [],
             privateChats: [],
         };
@@ -203,6 +209,11 @@ export function chatSyncStore(dir: string): ChatSyncStore {
     };
 }
 
+/** Sync is on everywhere: the person turned it on themselves. Off is the default. */
+export function syncIsOn(settings: ChatSyncSettings): boolean {
+    return settings.sync === 'on' && settings.syncChosenAt !== null;
+}
+
 /**
  * The settings say this chat may sync: sync on, its folder not opted out, neither it nor a chat it
  * was forked from private.
@@ -215,7 +226,7 @@ export function syncAllowed(
         readonly parentIds: readonly string[];
     }
 ): boolean {
-    if (settings.sync === 'off') return false;
+    if (!syncIsOn(settings)) return false;
     if ([chat.id, ...chat.parentIds].some((id) => settings.privateChats.includes(id))) return false;
     const cwd = chat.cwd;
     return cwd === null || !settings.projectsOff.some((folder) => isInside(cwd, folder));

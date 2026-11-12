@@ -9,7 +9,13 @@ import {
     type SyncConnection,
 } from './engine.js';
 import { firstRunNotice, REPLIES, statusText, USAGE, type SyncStatus } from './notices.js';
-import { isInside, syncAllowed, UnreadableSettingsError, type ChatSyncStore } from './store.js';
+import {
+    isInside,
+    syncAllowed,
+    syncIsOn,
+    UnreadableSettingsError,
+    type ChatSyncStore,
+} from './store.js';
 
 /** The scope a sign-in needs to sync chats; asked for at sign-in only while sync is on. */
 export const CHAT_SYNC_SCOPE = 'chats:sync';
@@ -83,7 +89,7 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
     async function noticeIfDue(): Promise<void> {
         if (noticeQueued) return;
         const settings = await deps.store.readSettings();
-        if (settings.noticeShownAt !== null || settings.sync === 'off') return;
+        if (settings.noticeShownAt !== null || !syncIsOn(settings)) return;
         const signIn = await deps.signIn();
         if (signIn.kind === 'signed_out') return;
         noticeQueued = true;
@@ -101,7 +107,7 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
 
     async function status(chatId: string | null): Promise<SyncStatus> {
         const settings = await deps.store.readSettings();
-        if (settings.sync === 'off') return { kind: 'off_everywhere' };
+        if (!syncIsOn(settings)) return { kind: 'off_everywhere' };
         const chat = chatId === null ? null : await deps.readChat(chatId);
         const ids = chat === null ? [] : [chat.id, ...chat.parentIds];
         if (ids.some((id) => settings.privateChats.includes(id))) return { kind: 'private' };
@@ -144,21 +150,29 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
             const folders = holding.length === 0 ? folder : holding.join(', ');
             reply = !on
                 ? REPLIES.projectOff(folder)
-                : settings.sync === 'off'
+                : !syncIsOn(settings)
                   ? REPLIES.projectOnStillOff(folders)
                   : REPLIES.projectOn(folders);
         } else {
-            await deps.store.updateSettings((current) => ({
-                ...current,
-                sync: on ? 'on' : 'off',
-            }));
+            let firstTime = false;
+            await deps.store.updateSettings((current) => {
+                firstTime = current.noticeShownAt === null;
+                return {
+                    ...current,
+                    sync: on ? 'on' : 'off',
+                    // Sync is off by default: on only counts as the person's own choice.
+                    syncChosenAt: on ? new Date(deps.now()).toISOString() : null,
+                };
+            });
             if (!on) return REPLIES.syncOff;
-            // Turning sync on is the person's own choice: no first-run notice after it.
+            // The person chose it: the first time, the reply says what syncs instead of a notice.
             await markNoticeShown(deps.store, deps.now());
-            reply =
-                (await deps.signIn()).kind === 'needs_login'
-                    ? REPLIES.syncOnNeedsLogin
-                    : REPLIES.syncOn;
+            const needsLogin = (await deps.signIn()).kind === 'needs_login';
+            reply = firstTime
+                ? firstRunNotice({ canSync: !needsLogin })
+                : needsLogin
+                  ? REPLIES.syncOnNeedsLogin
+                  : REPLIES.syncOn;
         }
         // The setting is saved: the reply doesn't wait for a whole chat to upload.
         if (on && chatId !== null) void quietly(engine.sync(chatId));

@@ -87,6 +87,74 @@ beforeEach(async () => {
     sent = [];
     finished = null;
     messages = [{ role: 'user', content: [{ type: 'text', text: 'hello' }], timestamp: 1 }];
+    // Sync is off by default in 2.0; these tests are about a person who turned it on.
+    await optIn();
+});
+
+async function optIn(): Promise<void> {
+    await store.updateSettings((current) => ({
+        ...current,
+        sync: 'on',
+        syncChosenAt: '2026-11-04T09:00:00.000Z',
+    }));
+}
+
+describe('chat sync off by default', () => {
+    beforeEach(async () => {
+        dir = path.join(await mkdtemp(path.join(tmpdir(), 'chat-sync-')), 'sync');
+        store = chatSyncStore(dir);
+    });
+
+    it('syncs nothing and shows no notice for someone signed in who never turned it on', async () => {
+        const sync = host();
+        const notices: string[] = [];
+        sync.onNotice((text) => notices.push(text));
+
+        await sync.start('s1');
+        await runFinished('s1');
+
+        expect(notices).toEqual([]);
+        expect(sent).toEqual([]);
+        expect(await sync.command('sync', [], 's1')).toBe(
+            'Chat sync is off for every chat. Turn it on with /sync on.'
+        );
+    });
+
+    it('turns on only when asked, says once what syncs, then syncs after each run', async () => {
+        const sync = host();
+        await sync.start('s1');
+
+        expect(await sync.command('sync', ['on'], 's1')).toBe(firstRunNotice({ canSync: true }));
+        await sync.engine.sync('s1');
+        expect(sent.map((request) => request.method)).toEqual(['POST']);
+        expect((await store.readSettings()).syncChosenAt).toBe('2026-11-04T10:00:00.000Z');
+
+        await sync.command('sync', ['off'], 's1');
+        expect(await sync.command('sync', ['on'], 's1')).toBe(
+            'Chat sync is on. Your chats sync to your Dexto Cloud account.'
+        );
+    });
+
+    it("keeps a beta's saved default of on off, until the person turns it on", async () => {
+        await store.readSettings();
+        await writeFile(
+            path.join(dir, 'settings.json'),
+            JSON.stringify({
+                machineId: '7f2a50dd-12f8-40e2-87cb-ecdbc589cb4c',
+                noticeShownAt: '2026-11-04T09:00:00.000Z',
+                sync: 'on',
+                projectsOff: [],
+                privateChats: [],
+            })
+        );
+        const sync = host();
+
+        await sync.start('s1');
+        await runFinished('s1');
+
+        expect(sent).toEqual([]);
+        expect(await sync.command('sync', [], 's1')).toMatch(/off for every chat/u);
+    });
 });
 
 describe('createChatSyncHost', () => {

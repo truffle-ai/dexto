@@ -196,19 +196,31 @@ describe('dexto cloud', () => {
         expect(JSON.parse(stdout)).toEqual(PROJECTS);
     });
 
-    it('chat hand-off is signed-out exit 3, prints one JSON error and never opens a local agent', async () => {
+    it.each([
+        [['chat', 'move', 'local-chat', '--to', 'cloud', '--json']],
+        [['connect', 'linear', '--json']],
+    ])('holds %j out of 2.0: usage exit 2, no request, no local agent', async (argv) => {
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
         host = {
             ...host,
             openLocalAgent: async () => {
-                throw new Error('must authenticate first');
+                throw new Error('a held command must not open a local agent');
             },
         };
-        expect(
-            await runCloud(host, ['chat', 'move', 'local-chat', '--to', 'cloud', '--json'])
-        ).toBe(3);
-        expect(JSON.parse(stderr).error.code).toBe('needs_sign_in');
+
+        expect(await runCloud(host, argv)).toBe(2);
         expect(stdout).toBe('');
         expect(requests).toHaveLength(0);
+    });
+
+    it('registers neither held command, and keeps their released neighbours', () => {
+        const registered = host.commands.map((command) => command.path.join(' '));
+
+        expect(registered).not.toContain('chat move');
+        expect(registered).not.toContain('connect');
+        expect(registered).toEqual(
+            expect.arrayContaining(['chat watch', 'connect claude', 'connect codex'])
+        );
     });
 
     it('needs a sign-in: exit 3 with the command that fixes it', async () => {
