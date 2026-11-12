@@ -111,7 +111,7 @@ export function nodeCloudHost(signal: AbortSignal): CloudHost {
                 overrides,
                 refresh: gateway.refresh,
             }),
-        signInForScope: async (overrides, scope) => {
+        signInForScopes: async (overrides, scopes) => {
             const { login } = await import('../commands/auth/sign-in-commands.js');
             // The sign-in's own words go to stderr: stdout is the command that runs again.
             const toStderr = (text: string) => runtime.writeError(`${text}\n`);
@@ -128,7 +128,7 @@ export function nodeCloudHost(signal: AbortSignal): CloudHost {
                     org: null,
                     device: false,
                     browser: true,
-                    scopes: [scope],
+                    scopes: [...scopes],
                     apiKey: null,
                 }
             );

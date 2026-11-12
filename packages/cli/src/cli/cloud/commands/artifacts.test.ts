@@ -138,7 +138,7 @@ describe('dexto workspace artifacts', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
 

@@ -110,7 +110,7 @@ describe('computer enrollment keys over the Dexto MCP', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
 

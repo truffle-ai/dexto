@@ -59,12 +59,15 @@ export class UsageError extends Error {
 
 /** A permission the sign-in lacks: signing in again for `scope` (one, or several comma-separated) fixes it. */
 export class MissingScopeFailure extends CommandFailure {
-    readonly scope: string;
+    /** Every permission the sign-in lacks, each its own OAuth scope. */
+    readonly scopes: readonly string[];
 
-    constructor(context: SignInContext, scope: string, message: string) {
-        super('needs_permission', message, signInCommand(context, scope));
+    constructor(context: SignInContext, scopes: readonly string[], message: string) {
+        if (scopes.length === 0)
+            throw new Error('A missing-scope failure names at least one scope.');
+        super('needs_permission', message, signInCommand(context, scopes));
         this.name = 'MissingScopeFailure';
-        this.scope = scope;
+        this.scopes = scopes;
     }
 }
 
@@ -205,10 +208,10 @@ export function signsInWithDevice(runtime: CloudRuntime): boolean {
 export type SignInContext = Pick<CommandContext, 'overrides' | 'runtime'>;
 
 /** How a cloud command signs in again, using its profile and terminal. */
-export function signInCommand(context: SignInContext, scope: string | null): string {
+export function signInCommand(context: SignInContext, scopes: readonly string[]): string {
     return loginCommand(
         { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
-        scope
+        scopes
     );
 }
 
@@ -218,7 +221,7 @@ export function signInCommand(context: SignInContext, scope: string | null): str
  */
 export function loginCommand(
     input: { readonly profile: string | null; readonly device: boolean },
-    scope: string | null
+    scopes: readonly string[]
 ): string {
     const profile = input.profile;
     return [
@@ -226,7 +229,7 @@ export function loginCommand(
         'login',
         ...(profile === null ? [] : ['--profile', profile]),
         ...(input.device ? ['--device'] : []),
-        ...(scope === null ? [] : ['--scope', scope]),
+        ...scopes.flatMap((scope) => ['--scope', scope]),
     ]
         .map(shellWord)
         .join(' ');

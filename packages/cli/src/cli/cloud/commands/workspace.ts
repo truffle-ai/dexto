@@ -138,7 +138,7 @@ const describe: Command = {
                 if (missing.length > 0)
                     throw new MissingScopeFailure(
                         context,
-                        missing.join(','),
+                        missing,
                         `Your sign-in can't use ${name} yet: it needs ${missing.join(', ')}.`
                     );
             }
@@ -241,7 +241,7 @@ function toolFailure(
     const scopes =
         isJsonObject(value) && Array.isArray(value.requiredScopes) ? value.requiredScopes : [];
     if (status === 'consent_required' && scopes.length > 0)
-        return new MissingScopeFailure(context, scopes.map(String).join(','), message);
+        return new MissingScopeFailure(context, scopes.map(String), message);
     return new CommandFailure('failed', message, null);
 }
 
@@ -290,7 +290,7 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
         throw new CommandFailure(
             'needs_sign_in',
             "Workspace tools act as you, so an API key can't use them. Sign in as yourself.",
-            signInCommand(context, null)
+            signInCommand(context, [])
         );
     const response = await context.runtime.fetch(connection.login.resource, {
         body: JSON.stringify({
@@ -311,7 +311,7 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
         throw new CommandFailure(
             'needs_sign_in',
             "Your sign-in can't reach the workspace. Sign in again to grant it.",
-            signInCommand(context, null)
+            signInCommand(context, [])
         );
     if (!response.ok) {
         const error: unknown = await response.json().catch(() => null);
@@ -348,7 +348,7 @@ function refusalFailure(
     if (scope !== undefined)
         return new MissingScopeFailure(
             context,
-            scope,
+            [scope],
             data.scopes !== undefined && data.scopes.length > 1
                 ? `This needs one of the ${data.scopes.join(', ')} permissions, which your sign-in doesn't have.`
                 : `This needs the ${scope} permission, which your sign-in doesn't have.`

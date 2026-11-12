@@ -220,7 +220,7 @@ describe('dexto workspace', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
 
@@ -231,6 +231,28 @@ describe('dexto workspace', () => {
         ).toBe(3);
         expect(stderr).toContain('needs_permission');
         expect(stderr).toContain('projects:write');
+    });
+
+    it('asks for each missing permission of a hidden tool as its own scope', async () => {
+        appScopes = { projects: { dexto_project_chat_move: ['projects:write', 'sessions:write'] } };
+        expect(
+            await runCloud(host, ['workspace', 'describe', 'dexto_project_chat_move', '--json'])
+        ).toBe(3);
+        const error = JSON.parse(stderr).error;
+        expect(error.fix).toContain('--scope projects:write --scope sessions:write');
+        expect(error.fix).not.toContain('projects:write,sessions:write');
+    });
+
+    it('grants each missing permission of a hidden tool when the person agrees', async () => {
+        appScopes = { projects: { dexto_project_chat_move: ['projects:write', 'sessions:write'] } };
+        const grant = vi.fn(async () => false);
+        host = {
+            ...host,
+            runtime: { ...host.runtime, prompt: vi.fn(async () => 'yes'), stdoutIsTerminal: true },
+            signInForScopes: grant,
+        };
+        expect(await runCloud(host, ['workspace', 'describe', 'dexto_project_chat_move'])).toBe(3);
+        expect(grant).toHaveBeenCalledWith(expect.anything(), ['projects:write', 'sessions:write']);
     });
 
     it('shows a concise workspace app help list and leaves schemas to operation help', async () => {
@@ -356,7 +378,7 @@ describe('dexto workspace', () => {
         let grants = 0;
         const waitingHost: CloudHost = {
             ...host,
-            signInForScope: async () => {
+            signInForScopes: async () => {
                 grants++;
                 return true;
             },
@@ -1206,11 +1228,11 @@ describe('dexto workspace', () => {
         const login = await dextoAccounts.readLogin(dir, 'default');
         if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
         await dextoAccounts.writeLogin(dir, 'default', { ...login, scopes: [] });
-        const granted: string[] = [];
+        const granted: (readonly string[])[] = [];
         host = {
             ...host,
             runtime: { ...host.runtime, prompt: async () => 'yes', stdoutIsTerminal: true },
-            signInForScope: async (_overrides, scopes) => {
+            signInForScopes: async (_overrides, scopes) => {
                 granted.push(scopes);
                 await dextoAccounts.writeLogin(dir, 'default', {
                     ...login,
@@ -1222,7 +1244,7 @@ describe('dexto workspace', () => {
         const file = path.join(path.dirname(dir), 'interactive.html');
         await writeFile(file, '<h1>hello</h1>');
         expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(0);
-        expect(granted).toEqual(['sites:write,cloud:write']);
+        expect(granted).toEqual([['sites:write', 'cloud:write']]);
     });
 
     it('creates a public Site without an extra confirmation flag', async () => {

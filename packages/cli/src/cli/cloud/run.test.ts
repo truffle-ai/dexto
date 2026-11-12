@@ -63,7 +63,7 @@ describe('dexto cloud', () => {
     let stderr: string;
     let requests: globalThis.Request[];
     let reply: (request: globalThis.Request) => Response;
-    let granted: string[];
+    let granted: (readonly string[])[];
     let host: CloudHost;
 
     beforeEach(async () => {
@@ -126,8 +126,8 @@ describe('dexto cloud', () => {
                     overrides,
                     refresh: async (login) => login,
                 }),
-            signInForScope: async (_overrides, scope) => {
-                granted.push(scope);
+            signInForScopes: async (_overrides, scopes) => {
+                granted.push(scopes);
                 return true;
             },
         };

@@ -95,7 +95,7 @@ const publish: Command = {
             throw new CommandFailure(
                 'needs_sign_in',
                 'Publishing files requires a workspace sign-in.',
-                signInCommand(context, null)
+                signInCommand(context, [])
             );
         if (connection.cloudProject === null)
             throw new CommandFailure(

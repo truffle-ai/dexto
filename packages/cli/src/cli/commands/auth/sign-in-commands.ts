@@ -319,7 +319,7 @@ export async function whoami(
                         !context.canOpenBrowser ||
                         isSshSession(context.environment),
                 },
-                null
+                []
             )
         );
     if (credential.kind === 'api_key') {

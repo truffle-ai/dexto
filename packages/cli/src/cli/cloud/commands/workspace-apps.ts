@@ -177,7 +177,7 @@ async function requireOperationScopes(
     if (missing.length > 0)
         throw new MissingScopeFailure(
             context,
-            missing.join(','),
+            missing,
             `Your sign-in can't use ${operationName === undefined ? appId : `${appId} ${operationName}`} yet: it needs ${missing.join(', ')}.`
         );
 }
@@ -194,7 +194,7 @@ async function requireScopes(
     if (missing.length > 0)
         throw new MissingScopeFailure(
             context,
-            missing.join(','),
+            missing,
             `Your sign-in can't ${what} yet: it needs ${missing.join(', ')}.`
         );
 }

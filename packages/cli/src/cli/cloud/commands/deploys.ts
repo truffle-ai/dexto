@@ -213,7 +213,7 @@ export async function requireLoginScopes(
     if (missing.length === 0) return;
     throw new MissingScopeFailure(
         context,
-        missing.join(','),
+        missing,
         missing.length === 1
             ? `This needs the ${missing[0]} permission, which your sign-in lacks.`
             : `This needs the ${missing.join(' and ')} permissions, which your sign-in lacks.`

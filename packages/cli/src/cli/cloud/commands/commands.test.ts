@@ -76,7 +76,7 @@ describe('cloud secrets, web and data-deletions', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
 
@@ -730,7 +730,7 @@ describe('cloud secrets, web and data-deletions', () => {
 
             expect(code).toBe(3);
             expect(JSON.parse(stderr).error.fix).toBe(
-                'dexto login --device --scope sites:write,cloud:write'
+                'dexto login --device --scope sites:write --scope cloud:write'
             );
             expect(ran).toHaveLength(0);
         });
