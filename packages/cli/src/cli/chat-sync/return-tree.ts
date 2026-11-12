@@ -1,17 +1,21 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 import {
     gitRepositoryRoot,
+    listTreeLfsPointers,
+    readBoundedObject,
     readLocalTreeCheckpoint,
     refuseSecretHistory,
+    verifyLfsObjects,
     type LocalTreeCheckpoint,
 } from './working-tree.js';
 import { isSecretPath } from './redaction.js';
 import { handOffGit, handOffDiffOptions } from './git.js';
 import { CommandFailure } from '../failure.js';
+import { installLfsObjects, isLfsEnvelope, unpackLfsEnvelope } from './lfs-envelope.js';
 
 const TreeCheckpoint = z
     .object({ branch: z.string(), head: z.string(), patchHash: z.string() })
@@ -89,10 +93,30 @@ export async function applyReturnedTree(
     const git = async (args: string[], directory = repository): Promise<string> =>
         (await handOffGit(directory, args)).toString();
     let added = false;
+    let carriedLfs: Map<string, Buffer> | null = null;
+    const verifyLfsTree = async (tree: string) => {
+        const pointers = await listTreeLfsPointers(repository, tree);
+        for (const file of pointers) {
+            if (carriedLfs?.get(file.oid)?.length !== file.size)
+                throw new Error(
+                    `The cloud handoff is missing LFS file ${JSON.stringify(file.name)} (${file.size} bytes).`
+                );
+        }
+        return pointers;
+    };
     try {
-        if (returned.bundle !== null) {
+        let returnedBundle = returned.bundle;
+        if (returnedBundle !== null && isLfsEnvelope(returnedBundle)) {
+            const envelope = unpackLfsEnvelope(returnedBundle);
+            carriedLfs = new Map(envelope.objects.map((object) => [object.oid, object.content]));
+            await verifyLfsObjects(repository, envelope.objects, true);
+            await installLfsObjects(repository, envelope.objects);
+            await verifyLfsObjects(repository, envelope.objects, false);
+            returnedBundle = envelope.bundle.length === 0 ? null : envelope.bundle;
+        }
+        if (returnedBundle !== null) {
             const bundle = path.join(folder, 'return.bundle');
-            await writeFile(bundle, returned.bundle, { mode: 0o600 });
+            await writeFile(bundle, returnedBundle, { mode: 0o600 });
             await git(['bundle', 'verify', bundle]);
             await git(['fetch', '--no-tags', bundle, returned.head]);
         }
@@ -104,12 +128,17 @@ export async function applyReturnedTree(
             );
         });
         await refuseSecretHistory(repository, `${baseline.head}..${returned.head}`);
+        // The cloud carries the objects of its patched tree only: an uncommitted deletion or
+        // replacement leaves a HEAD pointer without its object, so only the patched tree is
+        // verified, and HEAD is checked out as pointers whenever it has any.
+        const headHasLfs = (await listTreeLfsPointers(repository, returned.head)).length > 0;
         await handOffGit(repository, ['worktree', 'add', '--detach', checkout, returned.head], {
             ...process.env,
             GIT_LFS_SKIP_SMUDGE: '1',
         });
         added = true;
         const patchPath = path.join(folder, 'return.patch');
+        const patchNames: string[] = [];
         if (returned.patch !== null) {
             await writeFile(patchPath, returned.patch, { mode: 0o600 });
             const numstat = await git(['apply', '--numstat', '-z', patchPath], checkout);
@@ -119,10 +148,12 @@ export async function applyReturnedTree(
                     throw new Error(
                         `Cloud patch contains a refused path: ${JSON.stringify(name)}.`
                     );
+                patchNames.push(name);
             }
             await git(['apply', '--check', patchPath], checkout);
             await git(['apply', '--index', patchPath], checkout);
         }
+        const returnedPointers = await verifyLfsTree((await git(['write-tree'], checkout)).trim());
         // A crash can occur after Git succeeds but before the phase journal is saved.
         // Compare canonical diffs, including newly added files, before deciding it is drift.
         const current = await readLocalTreeCheckpoint(cwd);
@@ -172,8 +203,70 @@ export async function applyReturnedTree(
                 }
             }
             checkoutAttempted = true;
-            await git(['checkout', '--no-overwrite-ignore', '-B', baseline.branch, returned.head]);
+            if (carriedLfs === null && !headHasLfs)
+                await git([
+                    'checkout',
+                    '--no-overwrite-ignore',
+                    '-B',
+                    baseline.branch,
+                    returned.head,
+                ]);
+            else
+                await handOffGit(
+                    repository,
+                    ['checkout', '--no-overwrite-ignore', '-B', baseline.branch, returned.head],
+                    {
+                        ...process.env,
+                        GIT_LFS_SKIP_SMUDGE: '1',
+                    }
+                );
             if (returned.patch !== null) await git(['apply', patchPath]);
+            if (carriedLfs !== null) {
+                for (const name of patchNames) {
+                    const filePath = path.join(repository, name);
+                    const fileStat = await lstat(filePath).catch(() => null);
+                    if (fileStat === null || !fileStat.isFile() || fileStat.size > 1024) continue;
+                    const content = (await readFile(filePath)).toString();
+                    const pointer =
+                        /^version https:\/\/git-lfs\.github\.com\/spec\/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]{1,16})\r?\n$/u.exec(
+                            content
+                        );
+                    if (pointer === null) {
+                        if (content.startsWith('version https://git-lfs.github.com/spec/v1'))
+                            throw new Error('Invalid Git LFS pointer.');
+                        continue;
+                    }
+                    const object = carriedLfs.get(pointer[1] ?? '');
+                    if (object === undefined || object.length !== Number(pointer[2]))
+                        throw new Error(`Missing LFS object for ${JSON.stringify(name)}.`);
+                    await writeFile(filePath, object);
+                }
+                // Fill in only the patched tree's pointers: `git lfs checkout` would also restore
+                // files the patch deleted, since the patch leaves the index at HEAD.
+                for (const file of returnedPointers) {
+                    const filePath = path.resolve(repository, file.name);
+                    const relative = path.relative(repository, filePath);
+                    if (relative.startsWith('..' + path.sep) || path.isAbsolute(relative))
+                        throw new Error('Invalid LFS file path.');
+                    const object = carriedLfs.get(file.oid);
+                    if (object === undefined || !(await lstat(filePath)).isFile())
+                        throw new Error(
+                            `LFS file ${JSON.stringify(file.name)} (${file.size} bytes) could not be materialized.`
+                        );
+                    await writeFile(filePath, object);
+                    const info = await lstat(filePath);
+                    if (
+                        !info.isFile() ||
+                        info.size !== file.size ||
+                        !(await readBoundedObject(filePath, file.size)).equals(
+                            carriedLfs.get(file.oid) ?? Buffer.alloc(0)
+                        )
+                    )
+                        throw new Error(
+                            `LFS file ${JSON.stringify(file.name)} (${file.size} bytes) could not be materialized.`
+                        );
+                }
+            }
         } catch {
             try {
                 const backup = (await git(['stash', 'list', '--format=%gd\t%gs']))
