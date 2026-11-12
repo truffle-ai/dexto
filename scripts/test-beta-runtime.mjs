@@ -21,6 +21,6 @@ try {
 for (const entry of [import.meta.resolve('@dexto/storage'), import.meta.resolve('@dexto/core')]) {
     const require = createRequire(entry);
     const pkg = JSON.parse(readFileSync(require.resolve('better-sqlite3/package.json'), 'utf8'));
-    assert.match(pkg.version, /^12\.(1[0-9])\./);
+    assert.match(pkg.version, /^12\.9\./);
     console.log(`SQLite through ${entry}: better-sqlite3 ${pkg.version} PASS`);
 }

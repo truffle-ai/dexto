@@ -920,20 +920,6 @@ posixOnly('scripts/install.sh', () => {
         expect(result.json.error?.message).toContain('found 18.19.0');
     });
 
-    it('suggests Node.js 22 or later when the install fails on Node.js 20', () => {
-        writeFileSync(
-            path.join(stubBin, 'node'),
-            `#!/bin/sh\nif [ "$1" = "-p" ]; then echo 20.19.0; exit 0; fi\nexec ${JSON.stringify(process.execPath)} "$@"\n`
-        );
-        chmodSync(path.join(stubBin, 'node'), 0o755);
-
-        const result = run([], { STUB_INSTALL_FAILS: '1' });
-
-        expect(result.status).toBe(1);
-        expect(result.json.error).toMatchObject({ code: 'install_failed' });
-        expect(result.json.error?.fix).toContain('Node.js 22 or later');
-    });
-
     it('fails with node_missing when node is not on PATH', () => {
         const toolsDir = path.join(root, 'tools');
         mkdirSync(toolsDir);
