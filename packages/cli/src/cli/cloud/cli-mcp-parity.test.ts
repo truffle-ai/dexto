@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import inventory from '../../../cli-mcp-parity.json' with { type: 'json' };
-import { cloudCommands } from './host.js';
+import { builtCloudCommands } from './host.js';
 
 it('keeps the vendored parity inventory identical to the CLI inventory', () => {
     expect(readFileSync(new URL('./__parity__/cli-mcp-parity.json', import.meta.url), 'utf8')).toBe(
@@ -202,7 +202,8 @@ describe('CLI and MCP capability parity', () => {
             [...approvedLocalOnly].sort()
         );
         expect(inventory.localOnly.every((entry) => entry.registry === 'cloud')).toBe(true);
-        const registered = cloudCommands('/unused/parity-accounts', async () => {
+        // Held commands keep their inventory entries, so releasing one changes nothing here.
+        const registered = builtCloudCommands('/unused/parity-accounts', async () => {
             throw new Error('Parity inspection must not sign in.');
         }).map((command) => command.path.join(' '));
         const inventoried = [

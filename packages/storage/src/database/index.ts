@@ -29,4 +29,10 @@ export {
 // Export concrete implementations (for custom usage and external providers)
 export { MemoryDatabaseStore } from './memory-database-store.js';
 export { SQLiteStore } from './sqlite-store.js';
+export {
+    openSqlite,
+    type SqliteConnection,
+    type SqliteDriverName,
+    type SqliteOpenOptions,
+} from './sqlite-driver.js';
 export { PostgresStore } from './postgres-store.js';

@@ -26,7 +26,7 @@ exports[`Signal screens on 16-dark > 3 signed in, no project 1`] = `
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 16-dark > 4 browser, waiting 1`] = `
@@ -120,7 +120,7 @@ exports[`Signal screens on 16-dark > at 80 columns > 3 signed in 1`] = `
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, longer profile 1`] = `
@@ -135,7 +135,7 @@ exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, longer profile
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, other profile 1`] = `
@@ -151,7 +151,7 @@ exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, other profile 
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 16-dark > at 80 columns > 7 help 1`] = `
@@ -221,7 +221,7 @@ exports[`Signal screens on 16-dark > at 124 columns > 3 signed in 1`] = `
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers
   ␛[35m◆ ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, longer profile 1`] = `
@@ -235,7 +235,7 @@ exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, longer profil
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers
   ␛[35m◆ ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, other profile 1`] = `
@@ -250,7 +250,7 @@ exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, other profile
   ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers
   ␛[35m◆ ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 16-dark > at 124 columns > 7 help 1`] = `
@@ -312,7 +312,7 @@ exports[`Signal screens on 256-dark > 3 signed in, no project 1`] = `
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
-␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 256-dark > 4 browser, waiting 1`] = `
@@ -406,7 +406,7 @@ exports[`Signal screens on 256-dark > at 80 columns > 3 signed in 1`] = `
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
-␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, longer profile 1`] = `
@@ -421,7 +421,7 @@ exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, longer profil
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
-␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, other profile 1`] = `
@@ -437,7 +437,7 @@ exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, other profile
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
-␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 256-dark > at 80 columns > 7 help 1`] = `
@@ -507,7 +507,7 @@ exports[`Signal screens on 256-dark > at 124 columns > 3 signed in 1`] = `
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
-␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, longer profile 1`] = `
@@ -521,7 +521,7 @@ exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, longer profi
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
-␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, other profile 1`] = `
@@ -536,7 +536,7 @@ exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, other profil
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m
 ␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
 
-␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on 256-dark > at 124 columns > 7 help 1`] = `
@@ -595,7 +595,7 @@ exports[`Signal screens on ascii > 3 signed in, no project 1`] = `
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on ascii > 4 browser, waiting 1`] = `
@@ -688,7 +688,7 @@ exports[`Signal screens on ascii > at 80 columns > 3 signed in 1`] = `
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on ascii > at 80 columns > 3 signed in, longer profile 1`] = `
@@ -703,7 +703,7 @@ exports[`Signal screens on ascii > at 80 columns > 3 signed in, longer profile 1
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on ascii > at 80 columns > 3 signed in, other profile 1`] = `
@@ -719,7 +719,7 @@ exports[`Signal screens on ascii > at 80 columns > 3 signed in, other profile 1`
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on ascii > at 80 columns > 7 help 1`] = `
@@ -789,7 +789,7 @@ exports[`Signal screens on ascii > at 124 columns > 3 signed in 1`] = `
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers
   ␛[35m* ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on ascii > at 124 columns > 3 signed in, longer profile 1`] = `
@@ -803,7 +803,7 @@ exports[`Signal screens on ascii > at 124 columns > 3 signed in, longer profile 
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers
   ␛[35m* ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on ascii > at 124 columns > 3 signed in, other profile 1`] = `
@@ -818,7 +818,7 @@ exports[`Signal screens on ascii > at 124 columns > 3 signed in, other profile 1
   ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers
   ␛[35m* ␛[39mProjects
 
-␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on ascii > at 124 columns > 7 help 1`] = `
@@ -877,7 +877,7 @@ exports[`Signal screens on no-color > 3 signed in, no project 1`] = `
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
 
-  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+  next: dexto  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud"
 `;
 
 exports[`Signal screens on no-color > 4 browser, waiting 1`] = `
@@ -968,7 +968,7 @@ exports[`Signal screens on no-color > at 80 columns > 3 signed in 1`] = `
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
 
-  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+  next: dexto  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud"
 `;
 
 exports[`Signal screens on no-color > at 80 columns > 3 signed in, longer profile 1`] = `
@@ -983,7 +983,7 @@ exports[`Signal screens on no-color > at 80 columns > 3 signed in, longer profil
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
 
-  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+  next: dexto  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud"
 `;
 
 exports[`Signal screens on no-color > at 80 columns > 3 signed in, other profile 1`] = `
@@ -999,7 +999,7 @@ exports[`Signal screens on no-color > at 80 columns > 3 signed in, other profile
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
 
-  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+  next: dexto  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud"
 `;
 
 exports[`Signal screens on no-color > at 80 columns > 7 help 1`] = `
@@ -1064,7 +1064,7 @@ exports[`Signal screens on no-color > at 124 columns > 3 signed in 1`] = `
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers
   ◆ Projects
 
-  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+  next: dexto  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud"
 `;
 
 exports[`Signal screens on no-color > at 124 columns > 3 signed in, longer profile 1`] = `
@@ -1078,7 +1078,7 @@ exports[`Signal screens on no-color > at 124 columns > 3 signed in, longer profi
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers
   ◆ Projects
 
-  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+  next: dexto  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud"
 `;
 
 exports[`Signal screens on no-color > at 124 columns > 3 signed in, other profile 1`] = `
@@ -1093,7 +1093,7 @@ exports[`Signal screens on no-color > at 124 columns > 3 signed in, other profil
   ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers
   ◆ Projects
 
-  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+  next: dexto  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud"
 `;
 
 exports[`Signal screens on no-color > at 124 columns > 7 help 1`] = `
@@ -1155,7 +1155,7 @@ exports[`Signal screens on truecolor-dark > 3 signed in, no project 1`] = `
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
-␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-dark > 4 browser, waiting 1`] = `
@@ -1249,7 +1249,7 @@ exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in 1`] = `
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
-␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, longer profile 1`] = `
@@ -1264,7 +1264,7 @@ exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, longer 
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
-␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, other profile 1`] = `
@@ -1280,7 +1280,7 @@ exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, other p
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
-␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-dark > at 80 columns > 7 help 1`] = `
@@ -1350,7 +1350,7 @@ exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in 1`] = `
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
-␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, longer profile 1`] = `
@@ -1364,7 +1364,7 @@ exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, longer
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
-␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, other profile 1`] = `
@@ -1379,7 +1379,7 @@ exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, other 
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m
 ␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
 
-␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-dark > at 124 columns > 7 help 1`] = `
@@ -1441,7 +1441,7 @@ exports[`Signal screens on truecolor-light > 3 signed in, no project 1`] = `
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
-␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-light > 4 browser, waiting 1`] = `
@@ -1535,7 +1535,7 @@ exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in 1`] = `
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
-␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, longer profile 1`] = `
@@ -1550,7 +1550,7 @@ exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, longer
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
-␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, other profile 1`] = `
@@ -1566,7 +1566,7 @@ exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, other 
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
-␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-light > at 80 columns > 7 help 1`] = `
@@ -1636,7 +1636,7 @@ exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in 1`] = 
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
-␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, longer profile 1`] = `
@@ -1650,7 +1650,7 @@ exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, longe
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
-␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, other profile 1`] = `
@@ -1665,7 +1665,7 @@ exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, other
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m
 ␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
 
-␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chat sync is opt-in: /sync on saves chats to Dexto Cloud␛[39m"
 `;
 
 exports[`Signal screens on truecolor-light > at 124 columns > 7 help 1`] = `

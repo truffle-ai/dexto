@@ -78,10 +78,11 @@ export async function nodeSignInContext(io: SignInIo = terminalIo()): Promise<Si
         interactive: process.stdin.isTTY === true,
         chatSyncOn: async () => {
             const { nodeChatSyncStore } = await import('../../chat-sync/node.js');
+            const { syncIsOn } = await import('../../chat-sync/store.js');
             // Settings it can't read sync nothing, so the sign-in asks for no sync scope.
             return await nodeChatSyncStore()
                 .readSettings()
-                .then((settings) => settings.sync === 'on')
+                .then(syncIsOn)
                 .catch(() => false);
         },
         dexto: {

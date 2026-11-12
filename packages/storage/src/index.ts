@@ -47,6 +47,12 @@ export { RedisStore } from './cache/redis-store.js';
 
 export { MemoryDatabaseStore } from './database/memory-database-store.js';
 export { SQLiteStore } from './database/sqlite-store.js';
+export {
+    openSqlite,
+    type SqliteConnection,
+    type SqliteDriverName,
+    type SqliteOpenOptions,
+} from './database/sqlite-driver.js';
 export { PostgresStore } from './database/postgres-store.js';
 
 export { LocalBlobStore } from './blob/local-blob-store.js';

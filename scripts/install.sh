@@ -48,7 +48,7 @@ Environment:
   DEXTO_INSTALL_DIR        Same as --install-dir
   DEXTO_INSTALL_FORCE=1    Same as --force
 
-For Dexto 2.0, select next. The default latest is for 1.x upgrades.
+The default, latest, is the current release; next is the newest prerelease.
 After install and PATH setup: dexto login --device
 Then check your account: dexto whoami --json
 

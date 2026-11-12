@@ -243,9 +243,6 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.28.0
         version: 1.37.0
-      better-sqlite3:
-        specifier: ~12.9.0
-        version: 12.9.0
       boxen:
         specifier: ^7.1.1
         version: 7.1.1
@@ -298,6 +295,10 @@ importers:
       type-fest:
         specifier: ^4.26.1
         version: 4.41.0
+    optionalDependencies:
+      better-sqlite3:
+        specifier: ~12.9.0
+        version: 12.9.0
 
   packages/client-sdk:
     dependencies:

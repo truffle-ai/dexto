@@ -30,6 +30,7 @@ import { secretCommands } from './commands/secrets.js';
 import { webCommands } from './commands/web.js';
 import { workspaceCommands } from './commands/workspace.js';
 import { resolveConnection } from './connection.js';
+import { isHeld } from './held-commands.js';
 import type { CloudHost, Group } from './run.js';
 import { nodeCloudRuntime } from './runtime.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
@@ -54,8 +55,13 @@ export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
     ],
 };
 
-/** Every ported cloud command; `dir` is where sign-ins are saved. */
+/** Every released cloud command; `dir` is where sign-ins are saved. */
 export function cloudCommands(dir: string, signIn: SignInFor): readonly Command[] {
+    return builtCloudCommands(dir, signIn).filter((command) => !isHeld(command));
+}
+
+/** Every built cloud command, held ones included: for tests of commands held from a release. */
+export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Command[] {
     return [
         ...accountCommands(signIn, DEXTO_CREDITS_URL),
         ...projectCommands,

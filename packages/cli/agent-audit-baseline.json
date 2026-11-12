@@ -84,13 +84,6 @@
     "examples": false
   },
   {
-    "command": "chat move",
-    "json": true,
-    "dryRun": true,
-    "nonInteractiveFlag": true,
-    "examples": false
-  },
-  {
     "command": "chat outputs",
     "json": true,
     "dryRun": false,
@@ -589,13 +582,6 @@
   },
   {
     "command": "cloud sites list",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "connect",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,

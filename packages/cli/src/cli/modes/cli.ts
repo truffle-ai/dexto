@@ -7,6 +7,7 @@ import type { MainModeContext } from './context.js';
 import { applyWorkspaceToAgent } from '../../utils/workspace.js';
 import { nodeChatSyncStore } from '../chat-sync/node.js';
 import { nodeCloudHost } from '../cloud/host.js';
+import { HELD_COMMANDS } from '../cloud/held-commands.js';
 import { runCloud } from '../cloud/run.js';
 
 async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
@@ -242,60 +243,70 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     const store = nodeChatSyncStore();
                     for (const account of await store.listAccounts()) {
                         const saved = await store.readChat(account, id);
-                        if (saved?.status === 'paused')
+                        if (saved?.status !== 'paused') continue;
+                        // While hand-off is held, /local is not there to bring a chat back.
+                        if (HELD_COMMANDS.has('chat move'))
                             throw new Error(
-                                saved.reason === 'move_in_progress'
-                                    ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
-                                    : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                                `This chat continues on its cloud computer. Follow it with dexto chat watch ${id}, or start a new chat to keep working here.`
                             );
+                        throw new Error(
+                            saved.reason === 'move_in_progress'
+                                ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
+                                : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                        );
                     }
                 },
                 ...(chatSync !== null && {
-                    abortChatMove: () => {
-                        if (moveController === null || moveController.signal.aborted) return false;
-                        moveController.abort();
-                        return true;
-                    },
                     chatSync: { command: chatSync.command, onNotice: chatSync.onNotice },
-                    chatMove: async (to: 'cloud' | 'local', id: string) => {
-                        if (moveController !== null)
-                            throw new Error('Another hand-off is still running.');
-                        const controller = new AbortController();
-                        moveController = controller;
-                        const abort = () => controller.abort();
-                        process.once('SIGINT', abort);
-                        try {
-                            const host = nodeCloudHost(controller.signal);
-                            const lines: string[] = [];
-                            const runtime = {
-                                ...host.runtime,
-                                // Ink owns stdin; the slash command is the person's consent.
-                                prompt: null,
-                                stdoutIsTerminal: true,
-                                writeOutput: (text: string) => {
-                                    lines.push(text);
-                                },
-                                writeError: (text: string) => {
-                                    lines.push(text);
-                                },
-                            };
-                            const code = await runCloud(
-                                {
-                                    ...host,
-                                    runtime,
-                                    openLocalAgent: async () => agent,
-                                    syncLocalChat: (chatId) => chatSync.engine.sync(chatId),
-                                },
-                                ['chat', 'move', id, '--to', to, '--detach', '--yes', '--table']
-                            );
-                            if (code !== 0) throw new Error(lines.join('\n'));
-                            return lines.join('\n');
-                        } finally {
-                            process.removeListener('SIGINT', abort);
-                            moveController = null;
-                        }
-                    },
                 }),
+                // /cloud and /local are held with `dexto chat move`: without chatMove they are hidden.
+                ...(chatSync !== null &&
+                    !HELD_COMMANDS.has('chat move') && {
+                        abortChatMove: () => {
+                            if (moveController === null || moveController.signal.aborted)
+                                return false;
+                            moveController.abort();
+                            return true;
+                        },
+                        chatMove: async (to: 'cloud' | 'local', id: string) => {
+                            if (moveController !== null)
+                                throw new Error('Another hand-off is still running.');
+                            const controller = new AbortController();
+                            moveController = controller;
+                            const abort = () => controller.abort();
+                            process.once('SIGINT', abort);
+                            try {
+                                const host = nodeCloudHost(controller.signal);
+                                const lines: string[] = [];
+                                const runtime = {
+                                    ...host.runtime,
+                                    // Ink owns stdin; the slash command is the person's consent.
+                                    prompt: null,
+                                    stdoutIsTerminal: true,
+                                    writeOutput: (text: string) => {
+                                        lines.push(text);
+                                    },
+                                    writeError: (text: string) => {
+                                        lines.push(text);
+                                    },
+                                };
+                                const code = await runCloud(
+                                    {
+                                        ...host,
+                                        runtime,
+                                        openLocalAgent: async () => agent,
+                                        syncLocalChat: (chatId) => chatSync.engine.sync(chatId),
+                                    },
+                                    ['chat', 'move', id, '--to', to, '--detach', '--yes', '--table']
+                                );
+                                if (code !== 0) throw new Error(lines.join('\n'));
+                                return lines.join('\n');
+                            } finally {
+                                process.removeListener('SIGINT', abort);
+                                moveController = null;
+                            }
+                        },
+                    }),
             });
             void chatSync?.start(cliSessionId).catch(() => undefined);
 

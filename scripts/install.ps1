@@ -130,7 +130,7 @@ Environment:
   DEXTO_INSTALL_FORCE=1  Same as -Force
   DEXTO_NO_MODIFY_PATH=1 Same as -NoModifyPath
 
-For Dexto 2.0, set DEXTO_VERSION=next. The default latest is for 1.x upgrades.
+The default, latest, is the current release; set DEXTO_VERSION=next for the newest prerelease.
 After install and PATH setup: dexto login --device
 Then check your account: dexto whoami --json
 '@ | Write-Output

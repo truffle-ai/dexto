@@ -4,7 +4,7 @@ import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConnection } from '../connection.js';
-import { cloudCommands, CLOUD_GROUPS } from '../host.js';
+import { builtCloudCommands, CLOUD_GROUPS } from '../host.js';
 import { runCloud, type CloudHost } from '../run.js';
 import type { CloudRuntime } from '../runtime.js';
 const MCP = 'https://app.dexto.ai/mcp';
@@ -106,7 +106,8 @@ describe('subscription connections over MCP', () => {
             },
         };
         host = {
-            commands: cloudCommands(dir, unusedSignIn),
+            // The catalog connector is held from 2.0 but stays tested for its release.
+            commands: builtCloudCommands(dir, unusedSignIn),
             signIn: unusedSignIn,
             groups: CLOUD_GROUPS,
             runtime,

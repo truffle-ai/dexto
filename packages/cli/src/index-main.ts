@@ -112,6 +112,22 @@ import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 const FIRST_RUN_DEXTO_MODEL = 'anthropic/claude-haiku-4.5';
 
 const program = new Command();
+// Commander's own usage errors, such as `dexto chat bogus` or an unknown option, exit 2 like a
+// mistyped command (the output contract), not commander's 1. Set first: commands defined later
+// inherit it. Help, version and every other exit keep their code.
+const USAGE_ERRORS: ReadonlySet<string> = new Set([
+    'commander.unknownCommand',
+    'commander.unknownOption',
+    'commander.excessArguments',
+    'commander.missingArgument',
+    'commander.optionMissingArgument',
+    'commander.missingMandatoryOptionValue',
+    'commander.invalidArgument',
+    'commander.conflictingOption',
+]);
+program.exitOverride((error) => {
+    if (USAGE_ERRORS.has(error.code)) process.exit(2);
+});
 
 /** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */
 async function printFailure(

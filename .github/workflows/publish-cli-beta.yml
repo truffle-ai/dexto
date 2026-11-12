@@ -3,7 +3,7 @@
 # It never touches `latest`, and main's release path (changesets-publish.yml) is unchanged.
 # dexto resolves its @dexto/* dependencies to exact versions when published, so the packages it
 # needs publish as prereleases with it, also under `next`. scripts/cli-beta-packages.txt lists
-# them in dependency order, including core/storage (better-sqlite3 ~12.9.0 for Node 24) and
+# them in dependency order, including core/storage (better-sqlite3 ~12.9.0: prebuilt for Node 20/22/24; Node 26 uses node:sqlite) and
 # every public dependent of the bumped packages, so none pulls stable core/storage back in.
 # All public workspace packages now join the beta; none retain a stale stable version.
 name: Publish dexto beta (manual)
@@ -34,7 +34,7 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/cli-2.0'
         strategy:
             matrix:
-                node: [20, 22, 24]
+                node: [20, 22, 24, 26]
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -49,7 +49,8 @@ jobs:
 
             - name: Version the beta
               env:
-                  BETA: ${{ inputs.beta || '5' }}
+                  # Pull requests pack an unpublishable number: the pack refuses versions already on npm.
+                  BETA: ${{ inputs.beta || '999' }}
               run: |
                   set -euo pipefail
                   [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
@@ -68,8 +69,35 @@ jobs:
                   name: cli-beta-node-${{ matrix.node }}
                   path: /tmp/cli-beta-artifacts
 
-    publish:
+    # The runners have compilers, so the validate install would quietly build better-sqlite3 from
+    # source. These slim images have none, as on a person's machine: Node.js 20, 22 and 24 must
+    # get better-sqlite3's prebuilt binary, and Node.js 26 (no 12.9 prebuild) must install without
+    # it and use node:sqlite. Each also checks chat sync is off by default and the held commands.
+    install-without-compiler:
         needs: validate
+        strategy:
+            fail-fast: false
+            matrix:
+                node: [20, 22, 24, 26]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/download-artifact@v4
+              with:
+                  name: cli-beta-node-${{ matrix.node }}
+                  path: /tmp/cli-beta-artifacts
+            - name: Install the packed CLI in node:${{ matrix.node }}-bookworm-slim
+              env:
+                  BETA: ${{ inputs.beta || '999' }}
+                  IMAGE: node:${{ matrix.node }}-bookworm-slim
+              run: |
+                  set -euo pipefail
+                  cp scripts/test-beta-registry.mjs scripts/test-beta-runtime.mjs /tmp/cli-beta-artifacts/
+                  cp scripts/test-beta-install-check.sh /tmp/cli-beta-artifacts/check.sh
+                  docker run --rm -v /tmp/cli-beta-artifacts:/t:ro "$IMAGE" bash /t/check.sh "$BETA"
+
+    publish:
+        needs: [validate, install-without-compiler]
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/cli-2.0' && inputs.publish
         runs-on: ubuntu-latest
         steps:
