@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../state/types.js';
 import { backgroundFailure, finishedToolStep, toolOutput, toolStep } from './tool-step.js';
@@ -66,6 +67,15 @@ describe('toolStep', () => {
     it('reads a multi-line command on one row', () => {
         const step = toolStep(tool({ toolName: 'bash_exec', toolArgs: 'echo a\n  echo $(b)' }));
         expect(step.target).toBe('echo a echo $(b)');
+    });
+
+    it('drops blank lines and stays fast on long runs of whitespace', () => {
+        expect(
+            toolStep(tool({ toolName: 'bash_exec', toolArgs: ' echo a \n\n\t\n  echo b\n' })).target
+        ).toBe('echo a echo b');
+        const started = performance.now();
+        toolStep(tool({ toolName: 'bash_exec', toolArgs: `a${'\t'.repeat(50_000)}b` }));
+        expect(performance.now() - started).toBeLessThan(1_000);
     });
 
     it('sums up an edit, with hunks when there are several', () => {

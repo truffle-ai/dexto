@@ -70,7 +70,12 @@ function stepVerb(toolName: string): string {
 
 /** One row's worth of the call's arguments: a multi-line command reads on one line. */
 function stepTarget(toolName: string, toolArgs: string): string {
-    const args = toolArgs.replace(/\s*\n\s*/g, ' ').trim();
+    // Split rather than /\s*\n\s*/g, which is slow on long runs of whitespace.
+    const args = toolArgs
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '')
+        .join(' ');
     if (toolName.startsWith('mcp--')) {
         const [, server, ...name] = toolName.split('--');
         return [`${server ?? ''}.${name.join('--')}`, args].filter((part) => part !== '').join(' ');
