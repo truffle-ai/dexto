@@ -107,6 +107,7 @@ describe('chat import commands', () => {
                 values: { from: 'claude-code', 'dry-run': true },
             })
         ).toBe(0);
-        expect(dry.stdout()).toContain('first 6 left out');
+        // The fixture's 5 turns (one a compact summary) and 2,001 more keep the newest 1,999 and a note.
+        expect(dry.stdout()).toContain('first 7 left out');
     });
 });

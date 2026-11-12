@@ -556,4 +556,114 @@ describe('headless import', () => {
             command.run(context, { positionals: [], values: { select: 'all', yes: true } })
         ).rejects.toThrow(/not a folder/i);
     });
+
+    it("imports a Claude Code folder's memory notes and instructions into its Project, then its chats into it", async () => {
+        const home = await mkdtemp(path.join(tmpdir(), 'dexto-import-project-'));
+        const config = path.join(home, '.claude');
+        const sessions = path.join(config, 'projects', '-work-shop');
+        const folder = path.join(home, 'work', 'shop');
+        await mkdir(path.join(sessions, 'memory'), { recursive: true });
+        await mkdir(folder, { recursive: true });
+        await writeFile(path.join(sessions, 'memory', 'taste.md'), 'Prefer small PRs.');
+        await writeFile(path.join(folder, 'CLAUDE.local.md'), 'Use staging.');
+        const chat = {
+            id: 'claude-1',
+            source: 'claude-code' as const,
+            title: 'Shop',
+            cwd: folder,
+            gitBranch: null,
+            path: path.join(sessions, 'claude-1.jsonl'),
+            pullRequests: [],
+            repository: null,
+            startedAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            messages: [
+                { role: 'user' as const, text: 'hello', createdAt: '2026-01-01T00:00:00Z' },
+                { role: 'summary' as const, text: 'Recap.', createdAt: '2026-01-01T00:00:01Z' },
+            ],
+        };
+        const run = async (values: Record<string, string | boolean>) => {
+            vi.mocked(findLocalChats)
+                .mockResolvedValueOnce({ chats: [chat], notices: [] })
+                .mockResolvedValueOnce({ chats: [], notices: [] });
+            let output = '';
+            const runtime = {
+                ...nodeCloudRuntime(new AbortController().signal),
+                environment: { CLAUDE_CONFIG_DIR: config },
+                homeDirectory: home,
+                prompt: null,
+                writeOutput: (text: string) => {
+                    output += text;
+                },
+            };
+            const context: CommandContext = {
+                runtime,
+                output: createOutput(runtime, 'json'),
+                invocation: ['import'],
+                overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+                connection: async () => {
+                    throw new Error('unexpected authentication');
+                },
+                client: async () => {
+                    throw new Error('unexpected network');
+                },
+            };
+            const command = importCommands[0];
+            if (!command) throw new Error('missing import command');
+            const code = await command.run(context, { positionals: [], values });
+            return { code, report: JSON.parse(output) };
+        };
+
+        const dry = await run({ select: 'claude-code:claude-1', 'dry-run': true });
+        expect(dry.code).toBe(0);
+        expect(dry.report.projects).toEqual([
+            {
+                name: 'shop',
+                sessions: ['claude-code:claude-1'],
+                memories: 1,
+                instructions: true,
+                payload: {
+                    instructions: `## Imported from Claude Code\n\n### CLAUDE.local.md in ${folder}\n\nUse staging.`,
+                    memories: [{ name: 'taste.md', text: 'Prefer small PRs.' }],
+                    name: 'shop',
+                    sourceAgent: 'claude_code',
+                    sourceKey: expect.stringMatching(/^claude-code:folder:/u),
+                    sourcePath: folder,
+                },
+            },
+        ]);
+        expect(dry.report.sessions[0].payload.messages[1]).toMatchObject({ role: 'summary' });
+
+        vi.mocked(queryWorkspaceTool).mockClear();
+        vi.mocked(queryWorkspaceTool).mockResolvedValueOnce({
+            project: { id: 'project-1' },
+            savedMemories: 1,
+            status: 'imported',
+        });
+        const imported = await run({ select: 'claude-code:claude-1', yes: true });
+        expect(imported.code).toBe(0);
+        expect(vi.mocked(queryWorkspaceTool).mock.calls.map((call) => call[1])).toEqual([
+            'dexto_project_import',
+            'dexto_chat_import',
+        ]);
+        expect(vi.mocked(queryWorkspaceTool).mock.calls[1]?.[2]).toMatchObject({
+            chatProjectId: 'project-1',
+            sourceSessionId: 'claude-1',
+        });
+        expect(imported.report.projects).toEqual([
+            expect.objectContaining({ id: 'project-1', savedMemories: 1, status: 'imported' }),
+        ]);
+
+        vi.mocked(queryWorkspaceTool).mockClear();
+        vi.mocked(queryWorkspaceTool).mockRejectedValueOnce(
+            new CommandFailure('failed', 'project detail', null)
+        );
+        const projectFailed = await run({ select: 'claude-code:claude-1', yes: true });
+        expect(projectFailed.code).toBe(1);
+        expect(projectFailed.report.projects[0]).toMatchObject({ status: 'failed' });
+        expect(projectFailed.report.sessions[0]).toMatchObject({ status: 'imported' });
+        expect(vi.mocked(queryWorkspaceTool).mock.calls[1]?.[2]).not.toHaveProperty(
+            'chatProjectId'
+        );
+    });
 });
