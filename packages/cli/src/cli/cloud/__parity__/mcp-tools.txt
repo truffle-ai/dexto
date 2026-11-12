@@ -3166,6 +3166,21 @@
             "minLength": 1,
             "maxLength": 20000
           },
+          "sendAs": {
+            "default": "origin",
+            "description": "Default origin uses the verified Project identity where supported. user explicitly posts as the accountable person with Dexto attribution.",
+            "type": "string",
+            "enum": [
+              "origin",
+              "user"
+            ]
+          },
+          "requestKey": {
+            "description": "Stable key for this exact send. Reuse after a lost response; different content or sender mode conflicts.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
           "threadRootMessageId": {
             "type": "string",
             "format": "uuid",
@@ -7282,6 +7297,21 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 20000
+          },
+          "sendAs": {
+            "default": "origin",
+            "description": "Default origin uses the verified Project identity where supported. user explicitly posts as the accountable person with Dexto attribution.",
+            "type": "string",
+            "enum": [
+              "origin",
+              "user"
+            ]
+          },
+          "requestKey": {
+            "description": "Stable key for this exact send. Reuse after a lost response; different content or sender mode conflicts.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
           },
           "threadRootMessageId": {
             "type": "string",
