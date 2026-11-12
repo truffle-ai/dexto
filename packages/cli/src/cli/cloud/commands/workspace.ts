@@ -291,7 +291,7 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
         method: 'POST',
         signal: context.runtime.signal,
     });
-    if (response.status === 401 || response.status === 403)
+    if (response.status === 401)
         throw new CommandFailure(
             'needs_sign_in',
             "Your sign-in can't reach the workspace. Sign in again to grant it.",

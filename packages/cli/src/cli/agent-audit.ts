@@ -43,14 +43,14 @@ export function auditCommander(program: Command): AuditRow[] {
     return rows;
 }
 
-// JSON is an engine-wide option; cloud help currently has no examples. These are not per-command behavioral checks.
+// JSON is an engine-wide option; inspect examples declared by each cloud command.
 export function auditCloud(commands: readonly import('./cloud/command.js').Command[]): AuditRow[] {
     return commands.map((command) => ({
         command: command.path.join(' '),
         json: true,
         dryRun: 'dry-run' in (command.options ?? {}),
         nonInteractiveFlag: 'yes' in (command.options ?? {}),
-        examples: false,
+        examples: (command.examples?.length ?? 0) > 0,
     }));
 }
 
