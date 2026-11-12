@@ -1,3 +1,13 @@
+import path from 'node:path';
+
+import { z } from 'zod';
+
+import { claudeCodeFolder } from '../../import/claude-code.js';
+import {
+    projectFolder,
+    readClaudeCodeProject,
+    type ClaudeCodeProjectInput,
+} from '../../import/claude-code-knowledge.js';
 import { findLocalChats } from '../../import/local-chats.js';
 import { findPersonalSkills } from '../../import/personal-skills.js';
 import { redactSecrets, toImportInput } from '../../import/redaction.js';
@@ -14,6 +24,7 @@ import {
     type CommandInput,
 } from '../command.js';
 import { sendTranscript } from './import-client.js';
+import { queryWorkspaceTool } from './workspace.js';
 import {
     importPersonalSkill,
     personalSkillId,
@@ -43,6 +54,47 @@ const options = {
 
 function key(chat: LocalChat): string {
     return `${chat.source}:${chat.id}`;
+}
+
+const ProjectImportedSchema = z.object({
+    project: z.object({ id: z.string() }),
+    savedMemories: z.number(),
+    status: z.enum(['imported', 'already_imported']),
+});
+
+/** One Project per folder the chosen Claude Code chats ran in, holding its memory and instructions. */
+interface ProjectPlan {
+    readonly chats: readonly LocalChat[];
+    readonly input: ClaudeCodeProjectInput;
+}
+
+async function planClaudeCodeProjects(
+    context: CommandContext,
+    chats: readonly LocalChat[]
+): Promise<ProjectPlan[]> {
+    const byFolder = new Map<string, LocalChat[]>();
+    for (const chat of chats) {
+        const folder = chat.source === 'claude-code' ? projectFolder(chat) : null;
+        if (folder === null) continue;
+        byFolder.set(folder, [...(byFolder.get(folder) ?? []), chat]);
+    }
+    const { environment, homeDirectory } = context.runtime;
+    const configDir = path.dirname(claudeCodeFolder(environment, homeDirectory));
+    return await Promise.all(
+        [...byFolder].map(async ([folder, folderChats]) => ({
+            chats: folderChats,
+            input: await readClaudeCodeProject(folder, folderChats, configDir),
+        }))
+    );
+}
+
+function projectPreview(plan: ProjectPlan) {
+    return {
+        name: plan.input.name,
+        sessions: plan.chats.map(key),
+        memories: plan.input.memories?.length ?? 0,
+        instructions: plan.input.instructions !== undefined,
+    };
 }
 
 async function runImport(
@@ -135,6 +187,10 @@ async function runImport(
             return chat;
         });
     const planned = chosen.map((chat) => ({ chat, prepared: toImportInput(chat) }));
+    const projectPlans = await planClaudeCodeProjects(
+        context,
+        planned.flatMap(({ chat, prepared }) => (prepared.kind === 'ready' ? [chat] : []))
+    );
     const skillPlans = await Promise.all(
         chosenSkills.map(async (skill) => ({ skill, prepared: await preparePersonalSkill(skill) }))
     );
@@ -161,7 +217,12 @@ async function runImport(
             files: prepared.files,
             redactions: prepared.redactions,
         }));
-        context.output.result({ sessions, skills }, JSON.stringify({ sessions, skills }, null, 2));
+        const projects = projectPlans.map((plan) => ({
+            ...projectPreview(plan),
+            payload: plan.input,
+        }));
+        const report = { sessions, projects, skills };
+        context.output.result(report, JSON.stringify(report, null, 2));
         return planned.some(({ prepared }) => prepared.kind === 'skipped') ? 1 : 0;
     }
     if (planned.some(({ prepared }) => prepared.kind === 'skipped')) {
@@ -171,7 +232,7 @@ async function runImport(
     await requireConsent(
         context,
         flag(input, 'yes'),
-        `Upload ${chosen.length} locally redacted chats and ${chosenSkills.length} personal skills to Dexto?`
+        `Upload ${chosen.length} locally redacted chats, ${projectPlans.length} Projects with their Claude Code memory notes and instructions, and ${chosenSkills.length} personal skills to Dexto?`
     );
     if (skillPlans.length > 0) requireSkillProvenance();
     const reserved = new Set<string>();
@@ -181,11 +242,43 @@ async function runImport(
             ...item,
             slug: await selectPersonalSkillSlug(context, item.prepared, clash, reserved),
         });
+    // Projects first, so each chat goes into its folder's. A chat whose Project failed is still
+    // imported, on its own.
+    const projects = [];
+    const projectOf = new Map<LocalChat, string>();
+    for (const plan of projectPlans) {
+        try {
+            const imported = ProjectImportedSchema.parse(
+                await queryWorkspaceTool(context, 'dexto_project_import', plan.input)
+            );
+            for (const chat of plan.chats) projectOf.set(chat, imported.project.id);
+            projects.push({
+                ...projectPreview(plan),
+                id: imported.project.id,
+                status: imported.status,
+                savedMemories: imported.savedMemories,
+            });
+        } catch (error) {
+            if (
+                error instanceof CommandFailure &&
+                (error.kind === 'needs_sign_in' || error.kind === 'needs_permission')
+            )
+                throw error;
+            projects.push({ ...projectPreview(plan), status: 'failed', reason: 'Import failed.' });
+        }
+    }
     const results = [];
     for (const [index, { chat, prepared }] of planned.entries()) {
         if (prepared.kind !== 'ready') continue;
+        const chatProjectId = projectOf.get(chat);
         try {
-            const result = await sendTranscript(context, { kind: 'text', input: prepared.input });
+            const result = await sendTranscript(context, {
+                kind: 'text',
+                input: {
+                    ...prepared.input,
+                    ...(chatProjectId === undefined ? {} : { chatProjectId }),
+                },
+            });
             results.push({ id: key(chat), ...result });
         } catch (error) {
             if (
@@ -206,6 +299,7 @@ async function runImport(
                     });
                 const report = {
                     sessions: results,
+                    projects,
                     error: {
                         code: error.kind,
                         message: 'Sign-in or permission required.',
@@ -245,11 +339,10 @@ async function runImport(
             });
         }
     }
-    context.output.result(
-        { sessions: results, skills },
-        JSON.stringify({ sessions: results, skills }, null, 2)
-    );
+    const report = { sessions: results, projects, skills };
+    context.output.result(report, JSON.stringify(report, null, 2));
     return results.some((result) => result.status === 'failed') ||
+        projects.some((item) => item.status === 'failed') ||
         skills.some((item) => item.status === 'failed')
         ? 1
         : 0;

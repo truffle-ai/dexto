@@ -21,9 +21,14 @@ describe('Claude Code 2.1.316', () => {
         expect(chat?.title).toBe('Import titles from ai-title lines');
     });
 
-    it('leaves out the compact summary Claude Code writes as a user line', () => {
+    it('keeps the compact summary Claude Code writes as a user line as a summary, where it was made', () => {
         const userTexts = chat?.messages.filter((m) => m.role === 'user').map((m) => m.text);
         expect(userTexts).toEqual(['Make the importer read ai-title lines.', 'Now run the tests.']);
+        expect(chat?.messages[2]).toEqual({
+            createdAt: '2026-11-01T11:00:01.000Z',
+            role: 'summary',
+            text: 'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\nAnalysis: the user asked to read ai-title lines.',
+        });
     });
 
     it('keeps the turns, tool history and where it started, and drops bookkeeping lines', () => {
@@ -39,6 +44,7 @@ describe('Claude Code 2.1.316', () => {
         expect(chat?.messages.map((m) => m.role)).toEqual([
             'user',
             'assistant',
+            'summary',
             'user',
             'assistant',
         ]);

@@ -70,4 +70,22 @@ the local session root. `--from codex` reads local Codex sessions instead. These
 local commands import text transcripts; they do not copy local instruction files
 or memories.
 
+To carry a long-running Claude Code chat's memory as well, use `dexto import`:
+
+```sh
+dexto import list --json
+dexto import --select claude-code:<session-id> --dry-run --json
+dexto import --select claude-code:<session-id> --yes --json
+```
+
+It keeps each of Claude Code's compaction summaries where it was made, and the
+imported chat continues from the latest one. Each folder the chosen chats ran in
+(a worktree counts as its main checkout) becomes one Project, which the chats go
+into. The Project's memory holds the folder's Claude Code memory notes
+(`~/.claude/projects/<folder>/memory/*.md`, without the `MEMORY.md` index); its
+instructions hold your own `~/.claude/CLAUDE.md` and the folder's
+`CLAUDE.local.md`. A committed `CLAUDE.md` arrives with the repository. All of it
+is redacted locally, and the dry run's `projects` list shows exactly what is sent.
+Importing the folder again reuses its Project and replaces changed notes.
+
 Claude export instructions: [Export your Claude data](https://support.claude.com/en/articles/9450526-export-your-claude-data).
