@@ -137,6 +137,35 @@ describe('dexto cloud', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it('shows workspace help without signing in or making a request', async () => {
+        expect(await runCloud(host, ['workspace', '--help'])).toBe(0);
+        expect(stdout).toContain('workspace');
+        expect(requests).toHaveLength(0);
+    });
+
+    it('shows publish scopes and an example in JSON help', async () => {
+        expect(await runCloud(host, ['publish', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('sites:write');
+        expect(stdout).toContain('cloud:write');
+        expect(stdout).toContain('dexto publish ./dist --yes');
+    });
+
+    it('shows the scope needed to start a chat', async () => {
+        expect(await runCloud(host, ['chat', 'start', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('sessions:write');
+    });
+
+    it('explains where model outputs are saved and how to download them', async () => {
+        expect(await runCloud(host, ['cloud', 'models', 'run', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('Cloud files');
+        expect(stdout).toContain('cloud files download');
+    });
+
+    it('states the cloud API path restriction in help', async () => {
+        expect(await runCloud(host, ['cloud', 'api', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('only /v1/');
+    });
+
     it("lists projects as JSON with the sign-in's token and project", async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
 

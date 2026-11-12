@@ -196,6 +196,11 @@ async function runWorkspace(
     const args = globals.rest.slice(1);
     try {
         if (args.every((arg) => arg.startsWith('-'))) {
+            if (globals.help)
+                return printHelp(host.runtime, globals, workspaceHelp(host, null), {
+                    apps: null,
+                    ...groupHelpJson(host, ['workspace']),
+                });
             const apps = await listWorkspaceApps(context);
             return printHelp(host.runtime, globals, workspaceHelp(host, apps), {
                 apps,

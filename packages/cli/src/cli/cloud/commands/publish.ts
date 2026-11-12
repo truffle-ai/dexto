@@ -76,7 +76,8 @@ const publish: Command = {
         ...YES_OPTION,
     },
     path: ['publish'],
-    summary: 'Publish a file, folder or .zip as a Site; publishing the same name again updates it.',
+    summary:
+        'Publish a file, folder or .zip as a Site; publishing the same name again updates it. Requires sites:write and cloud:write. Example: dexto publish ./dist --yes',
     async run(context, input) {
         const parsedVisibility = z
             .enum(['private', 'unlisted', 'public'])
