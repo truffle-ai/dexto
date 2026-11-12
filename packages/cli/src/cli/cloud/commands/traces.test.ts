@@ -90,7 +90,7 @@ describe('trace and span', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
 

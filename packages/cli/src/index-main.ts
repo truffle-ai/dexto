@@ -975,7 +975,14 @@ program
 // 14) PARSE & EXECUTE
 // `dexto --help --json`: the commands and exit codes as JSON, for agents.
 // Internal inventory entry point for the repository build check.
-if (process.argv.slice(2).length === 1 && process.argv[2] === '--audit-agent-cli') {
+if (process.argv[2] === 'site') {
+    void withAnalytics('site', async () => {
+        await printFailure("Unknown command 'site'.", 'dexto publish --help', [
+            "Unknown command 'site'. To publish a Site, run: dexto publish --help",
+        ]);
+        safeExit('site', 2, 'unknown-command');
+    })();
+} else if (process.argv.slice(2).length === 1 && process.argv[2] === '--audit-agent-cli') {
     const [{ auditProgram }, { cloudCommands }] = await Promise.all([
         import('./cli/agent-audit.js'),
         import('./cli/cloud/host.js'),

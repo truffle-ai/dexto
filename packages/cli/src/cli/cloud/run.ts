@@ -49,7 +49,10 @@ export interface CloudHost {
     /** The sign-in context login, logout, whoami and accounts run in. */
     readonly signIn: SignInFor;
     /** Signs the profile in again asking for `scope`; true once it did. */
-    readonly signInForScope: (overrides: ConnectionOverrides, scope: string) => Promise<boolean>;
+    readonly signInForScopes: (
+        overrides: ConnectionOverrides,
+        scopes: readonly string[]
+    ) => Promise<boolean>;
 }
 
 export const GLOBAL_OPTIONS: Readonly<Record<string, OptionSpec>> = {
@@ -278,7 +281,7 @@ async function askToGrant(
             secret: false,
         })) ?? '';
     if (!/^y(es)?$/iu.test(answer.trim())) return false;
-    return await host.signInForScope(overrides, error.scope);
+    return await host.signInForScopes(overrides, error.scopes);
 }
 
 function contextFor(
@@ -293,7 +296,7 @@ function contextFor(
         throw new CommandFailure(
             'needs_sign_in',
             'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
-            signInCommand({ overrides, runtime: host.runtime }, null)
+            signInCommand({ overrides, runtime: host.runtime }, [])
         );
     };
     return {
@@ -326,7 +329,7 @@ function asMissingScope(context: SignInContext, error: unknown): unknown {
             ? details.scope
             : undefined;
     if (typeof scope !== 'string') return error;
-    return new MissingScopeFailure(context, scope, error.message);
+    return new MissingScopeFailure(context, [scope], error.message);
 }
 
 interface FailureReport {
@@ -399,7 +402,7 @@ function describeFailure(context: SignInContext, error: unknown): FailureReport 
             return report(
                 'needs_sign_in',
                 error.message,
-                signInCommand(context, null),
+                signInCommand(context, []),
                 error.code,
                 error.details
             );

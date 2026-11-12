@@ -90,7 +90,7 @@ describe('cloud output is safe at a terminal', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
 

@@ -92,7 +92,7 @@ export function v1Failure(context: SignInContext, status: number, text: string):
         // Not JSON: the status says enough.
     }
     if (status === 401)
-        return new CommandFailure('needs_sign_in', message, signInCommand(context, null));
+        return new CommandFailure('needs_sign_in', message, signInCommand(context, []));
     return new CommandFailure(
         status === 403
             ? 'needs_permission'
