@@ -5,14 +5,12 @@ sidebar_position: 5
 
 # Import Claude chats
 
-Use a Dexto 2.0 build with Claude export support. The currently published
-`2.0.0-beta.4` supports local Claude Code and Codex sessions only; the ZIP commands
-below require the next release after the import PR and its cloud contract land.
+Dexto 2.0 imports local Claude Code and Codex sessions, and Claude web exports (ZIP).
 
-1. Install the next CLI and check its version:
+1. Install the CLI and check its version:
 
     ```sh
-    pnpm add -g dexto@next
+    npm install -g dexto
     dexto --version
     ```
 
