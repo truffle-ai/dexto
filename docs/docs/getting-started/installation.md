@@ -8,11 +8,10 @@ This guide will walk you through installing the Dexto CLI and setting up your en
 
 ## 1. Install and check your account
 
-Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
-Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+Node.js 20 or later works; 22 is recommended. Use npm. Install once:
 
 ```sh
-npm install -g dexto@next
+npm install -g dexto
 ```
 
 If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
@@ -34,18 +33,18 @@ configured model or credits. This check starts no model run.
 ### Alternative: native installer
 
 ```sh
-curl -fsSL https://dexto.ai/install | sh -s -- --version next
+curl -fsSL https://dexto.ai/install | sh
 ```
 
 ```powershell
-$env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
+irm https://dexto.ai/install.ps1 | iex
 ```
 
 Node.js 20 or later works; 22 is recommended. The installer needs npm, verifies the registry checksum, and installs without admin
 rights under `~/.dexto/cli`. Add its printed bin directory to PATH (`~/.local/bin` on Unix;
 `%USERPROFILE%\.dexto\bin` on Windows). Then run `dexto login --device` and `dexto whoami --json`.
-The default is `latest` for 1.x upgrades; explicitly select `next` for 2.0.
-Use `dexto upgrade next` to update a script install. Update npm installs with `npm install -g dexto@next`.
+The default is `latest`, the current release. `next` is the prerelease channel and can be older than `latest`.
+Use `dexto upgrade` to update a script install. Update npm installs with `npm install -g dexto`.
 
 On macOS and Linux, when `~/.local/bin` is not on PATH and a global npm `dexto` is (as when 1.x runs
 `dexto upgrade`), the installer removes the npm `dexto` and links the command into that npm bin
@@ -66,7 +65,7 @@ dexto uninstall --purge
 
 ### PATH Troubleshooting
 
-For npm installs, update with `npm install -g dexto@next`. For script installs, use `dexto upgrade next`.
+For npm installs, update with `npm install -g dexto`. For script installs, use `dexto upgrade`.
 
 If your shell still resolves the wrong binary:
 

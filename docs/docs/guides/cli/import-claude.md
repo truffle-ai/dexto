@@ -5,26 +5,27 @@ sidebar_position: 5
 
 # Import Claude chats
 
-Use a Dexto 2.0 build with Claude export support. The currently published
-`2.0.0-beta.4` supports local Claude Code and Codex sessions only; the ZIP commands
-below require the next release after the import PR and its cloud contract land.
+Dexto 2.0 imports local Claude Code and Codex sessions, and Claude web exports (ZIP).
 
-1. Install the next CLI and check its version:
+1. Install the CLI and check its version:
 
     ```sh
-    pnpm add -g dexto@next
+    npm install -g dexto
     dexto --version
     ```
 
 2. Sign in as the person whose private chats and Projects will receive the import:
 
     ```sh
-    dexto login --device
+    dexto login --device --scope sessions:write --scope projects:write --scope drive:write
     dexto whoami --json
     ```
 
-    Give the person the displayed link and code. Wait for their approval; an agent
-    must not approve sign-in for them. API keys cannot import workspace chats.
+    Importing chats needs `sessions:write`; importing Projects and their knowledge
+    files also needs `projects:write` and `drive:write`. Asking for them here saves
+    a second approval at step 5. Give the person the displayed link and code. Wait
+    for their approval; an agent must not approve sign-in for them. API keys cannot
+    import workspace chats.
 
 3. For Claude web chats, open Claude **Settings → Privacy → Export data** and
    download the ZIP. Keep the ZIP on the local machine. List its chats and Projects:

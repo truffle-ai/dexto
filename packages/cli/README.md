@@ -1,10 +1,9 @@
 Dexto 2.0 CLI: manage your Dexto cloud agents, chats, sandboxes and Sites, and run AI agents in your terminal.
 
-Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
-Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+Node.js 20 or later works; 22 is recommended. Use npm. Install once:
 
 ```sh
-npm install -g dexto@next
+npm install -g dexto
 ```
 
 If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
@@ -122,14 +121,14 @@ The coding agent is just one example of what you can build. Create your own agen
 ### Install
 
 ```bash
-npm install -g dexto@next
+npm install -g dexto
 
 # Alternative: native installer (no sudo)
 # macOS / Linux / WSL
-curl -fsSL https://dexto.ai/install | sh -s -- --version next
+curl -fsSL https://dexto.ai/install | sh
 
 # Windows PowerShell
-$env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
+irm https://dexto.ai/install.ps1 | iex
 
 # Or build from source
 git clone https://github.com/truffle-ai/dexto.git

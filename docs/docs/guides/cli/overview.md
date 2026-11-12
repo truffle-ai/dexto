@@ -16,11 +16,10 @@ This guide covers the **CLI Tool** commands. For slash commands available during
 
 ## Install
 
-Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
-Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+Node.js 20 or later works; 22 is recommended. Use npm. Install once:
 
 ```sh
-npm install -g dexto@next
+npm install -g dexto
 ```
 
 If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
@@ -112,11 +111,10 @@ Signed in, every local session also gets the Dexto MCP as a server named `dexto`
 
 ### `upgrade` - Upgrade Dexto CLI
 
-For script installs, upgrade the Dexto CLI with `dexto upgrade next`. For npm installs, use `npm install -g dexto@next`.
+For script installs, upgrade the Dexto CLI with `dexto upgrade`. For npm installs, use `npm install -g dexto`.
 
 ```bash
-# Stay on the 2.0 beta channel
-dexto upgrade next
+dexto upgrade
 ```
 
 **Options:**
@@ -185,7 +183,22 @@ dexto chat import --all          # import every chat that local lists
 
 ### Removed in 2.0
 
-`setup`, `connect`, `agents`, `which`, `init`, `create-app`, `init-app`, `image`, `plugin`, `mcp`, `search` and `--mode web|server|mcp` are gone in 2.0. See [Removed in 2.0](https://github.com/truffle-ai/dexto/blob/HEAD/packages/cli/CLI.md#removed-in-20) for what replaces each.
+These 1.x local-agent commands are gone in 2.0:
+
+| 1.x | Use instead |
+| --- | --- |
+| `dexto setup`, `dexto connect` (1.x provider setup) | `dexto login`, or a provider key in an env var |
+| `dexto agents install\|list` | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
+| `dexto init skill` | `dexto skills push` / `dexto skills sync` |
+| `dexto mcp call\|tools` | `dexto workspace call` / `dexto workspace tools` |
+| `dexto search` | `dexto chat history` |
+| `dexto --mode web` | the Dexto dashboard |
+| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK |
+| `dexto --agent triage-agent` (bundled demo) | removed: it ran its sub-agents with `--mode mcp` |
+
+The rest of `agents`, `init` and `mcp`, plus `create-image`, `--image`, `--no-auto-install`, `--skip-setup`, `--dev` and `--port`, are removed without a replacement. 2.0's `dexto connect claude` and `dexto connect codex` are different, new commands: they sign Claude Code or Codex in on Dexto Cloud.
+
+To upgrade from 1.x, run `npm install -g dexto`, or `dexto upgrade` for a script install.
 
 ---
 
