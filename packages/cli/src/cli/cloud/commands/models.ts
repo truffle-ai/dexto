@@ -145,7 +145,7 @@ const run: Command = {
         },
         'save-to': {
             description:
-                "Keep a media run's outputs as project files: a path, or a prefix ending in /.",
+                "Keep a media run's outputs in Cloud files: a project file path or folder prefix ending in /, not a local path. Download with dexto cloud files download <file_id> <local_path>.",
             type: 'string',
             valueName: 'PATH',
         },
