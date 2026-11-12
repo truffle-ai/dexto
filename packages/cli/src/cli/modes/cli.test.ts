@@ -130,6 +130,11 @@ describe('runCliMode', () => {
         const guard = services.assertLocalChat;
         if (guard === undefined) throw new Error('Missing local ownership guard');
         await expect(guard('cloud-owned-chat')).rejects.toThrow('cloud computer');
+        // While hand-off is held, the way out is chat watch, never the held /local.
+        if (HELD_COMMANDS.has('chat move'))
+            await expect(guard('cloud-owned-chat')).rejects.toThrow(
+                /dexto chat watch cloud-owned-chat(?!.*\/local)/u
+            );
         expect(services.chatSync).toBeUndefined();
         expect(stream).not.toHaveBeenCalled();
         expect(startSync).not.toHaveBeenCalled();

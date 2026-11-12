@@ -135,6 +135,21 @@ describe('chat sync off by default', () => {
         );
     });
 
+    it('says a sign-in is needed when turned on while signed out, and syncs nothing yet', async () => {
+        signIn = 'signed_out';
+        const sync = host();
+        await sync.start('s1');
+
+        const reply = await sync.command('sync', ['on'], 's1');
+
+        expect(reply).toMatch(/^Chat sync is on\./u);
+        expect(reply).toMatch(/not signed in to Dexto\. Run \/login to start syncing/u);
+        // Let the upload the reply started finish while still signed out.
+        await sync.engine.sync('s1');
+        await runFinished('s1');
+        expect(sent).toEqual([]);
+    });
+
     it("keeps a beta's saved default of on off, until the person turns it on", async () => {
         await store.readSettings();
         await writeFile(

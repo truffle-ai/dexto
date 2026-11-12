@@ -162,7 +162,7 @@ export async function readCodexThreads(home: string): Promise<CodexThread[] | nu
     try {
         // better-sqlite3, or the SQLite built into Node.js where it did not install.
         const { openSqlite } = await import('@dexto/storage');
-        const db = await openSqlite(file, { fileMustExist: true, readonly: true, timeoutMs: 0 });
+        const db = await openSqlite(file, { fileMustExist: true, readonly: true, timeoutMs: 5000 });
         try {
             rows = ThreadRowsSchema.parse(
                 db

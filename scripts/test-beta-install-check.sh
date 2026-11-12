@@ -44,7 +44,8 @@ check_cli() {
         rc=0
         # shellcheck disable=SC2086
         "$cli" $held --json > /tmp/held.out 2>&1 || rc=$?
-        [ "$rc" -eq 2 ] || { cat /tmp/held.out; echo "dexto $held should be unknown (exit 2), got $rc"; exit 1; }
+        [ "$rc" -eq 2 ] && grep -qi 'unknown command' /tmp/held.out || {
+            cat /tmp/held.out; echo "dexto $held should be an unknown command (exit 2), got $rc"; exit 1; }
     done
     echo 'HELD COMMANDS: chat move and connect <connector> are not registered'
     # No stale beta-closure package or stable core/storage may appear anywhere in the tree.

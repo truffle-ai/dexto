@@ -85,6 +85,7 @@ export const USAGE = {
 
 export const REPLIES = {
     syncOn: 'Chat sync is on. Your chats sync to your Dexto Cloud account.',
+    syncOnSignedOut: 'You are not signed in to Dexto. Run /login to start syncing.',
     syncOnNeedsLogin:
         'Chat sync is on. Your sign-in is from before chat sync: run /login once to let chats sync.',
     syncOff:

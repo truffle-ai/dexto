@@ -167,12 +167,15 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
             if (!on) return REPLIES.syncOff;
             // The person chose it: the first time, the reply says what syncs instead of a notice.
             await markNoticeShown(deps.store, deps.now());
-            const needsLogin = (await deps.signIn()).kind === 'needs_login';
+            const signInKind = (await deps.signIn()).kind;
+            const needsLogin = signInKind === 'needs_login';
             reply = firstTime
                 ? firstRunNotice({ canSync: !needsLogin })
                 : needsLogin
                   ? REPLIES.syncOnNeedsLogin
                   : REPLIES.syncOn;
+            // Nothing syncs until the person signs in: say so instead of implying it does.
+            if (signInKind === 'signed_out') reply = `${reply}\n\n${REPLIES.syncOnSignedOut}`;
         }
         // The setting is saved: the reply doesn't wait for a whole chat to upload.
         if (on && chatId !== null) void quietly(engine.sync(chatId));

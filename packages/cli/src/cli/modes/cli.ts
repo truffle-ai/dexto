@@ -243,12 +243,17 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     const store = nodeChatSyncStore();
                     for (const account of await store.listAccounts()) {
                         const saved = await store.readChat(account, id);
-                        if (saved?.status === 'paused')
+                        if (saved?.status !== 'paused') continue;
+                        // While hand-off is held, /local is not there to bring a chat back.
+                        if (HELD_COMMANDS.has('chat move'))
                             throw new Error(
-                                saved.reason === 'move_in_progress'
-                                    ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
-                                    : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                                `This chat continues on its cloud computer. Follow it with dexto chat watch ${id}, or start a new chat to keep working here.`
                             );
+                        throw new Error(
+                            saved.reason === 'move_in_progress'
+                                ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
+                                : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                        );
                     }
                 },
                 ...(chatSync !== null && {

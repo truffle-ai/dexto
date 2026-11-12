@@ -88,6 +88,31 @@ describe.each(['better-sqlite3', 'node:sqlite'] as const)('%s', (driver) => {
     );
 
     it.skipIf(driver === 'node:sqlite' && nodeMajor < 22)(
+        'nests transactions: an inner failure rolls back only the inner work',
+        async () => {
+            const db = await connect(driver, path.join(dir, 'nested.sqlite'), WRITE);
+            db.exec('CREATE TABLE items (n INTEGER)');
+            const insert = db.prepare('INSERT INTO items (n) VALUES (?)');
+
+            db.transaction(() => {
+                insert.run(1);
+                expect(() =>
+                    db.transaction(() => {
+                        insert.run(2);
+                        throw new Error('inner');
+                    })()
+                ).toThrow('inner');
+                db.transaction(() => insert.run(3))();
+            })();
+
+            expect(db.prepare('SELECT n FROM items ORDER BY n').all()).toEqual([
+                { n: 1 },
+                { n: 3 },
+            ]);
+        }
+    );
+
+    it.skipIf(driver === 'node:sqlite' && nodeMajor < 22)(
         'refuses a missing file when it must exist, without creating it',
         async () => {
             const file = path.join(dir, 'missing.sqlite');

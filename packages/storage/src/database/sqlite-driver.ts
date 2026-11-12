@@ -116,6 +116,8 @@ async function loadNodeSqlite(): Promise<Open | null> {
             throw StorageError.connectionFailed(`SQLite database file not found: ${file}`);
         const db = new DatabaseSync(file, { readOnly: options.readonly });
         db.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.trunc(options.timeoutMs))}`);
+        // Savepoints nest like better-sqlite3's transactions: the outermost one is the transaction.
+        let depth = 0;
         return {
             driver: 'node:sqlite',
             exec: (sql) => db.exec(sql),
@@ -123,14 +125,23 @@ async function loadNodeSqlite(): Promise<Open | null> {
             transaction:
                 <T>(work: () => T) =>
                 (): T => {
-                    db.exec('BEGIN');
+                    const name = `dexto_tx_${depth}`;
+                    db.exec(`SAVEPOINT ${name}`);
+                    depth += 1;
                     try {
                         const result = work();
-                        db.exec('COMMIT');
+                        db.exec(`RELEASE ${name}`);
                         return result;
                     } catch (error) {
-                        db.exec('ROLLBACK');
+                        try {
+                            db.exec(`ROLLBACK TO ${name}`);
+                            db.exec(`RELEASE ${name}`);
+                        } catch {
+                            // SQLite already rolled back (I/O error, full disk): keep the cause.
+                        }
                         throw error;
+                    } finally {
+                        depth -= 1;
                     }
                 },
             close: () => db.close(),
