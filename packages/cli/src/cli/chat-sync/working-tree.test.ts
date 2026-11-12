@@ -79,6 +79,95 @@ it.each([12, 256 * 1024 * 1024 + 1])(
     }
 );
 
+/** A local LFS repository and a cloud clone that committed cloud.bin, for return tests. */
+async function cloudLfsReturn() {
+    const cwd = await repository();
+    await run('git', ['lfs', 'install', '--local', '--skip-repo'], { cwd });
+    await run('git', ['lfs', 'track', '*.bin'], { cwd });
+    const original = Buffer.from('original local file\n');
+    await writeFile(path.join(cwd, 'original.bin'), original);
+    await run('git', ['add', '.gitattributes', 'original.bin'], { cwd });
+    await run('git', ['commit', '-m', 'initial LFS object'], { cwd });
+    const baseline = await readLocalTreeCheckpoint(cwd);
+    const cloud = await mkdtemp(path.join(tmpdir(), 'chat-move-cloud-'));
+    folders.push(cloud);
+    await run('git', ['clone', '--no-local', cwd, cloud], {
+        env: { ...process.env, GIT_LFS_SKIP_SMUDGE: '1' },
+    });
+    await run('git', ['config', 'user.email', 'test@example.invalid'], { cwd: cloud });
+    await run('git', ['config', 'user.name', 'Test'], { cwd: cloud });
+    await run('git', ['lfs', 'install', '--local', '--skip-repo'], { cwd: cloud });
+    await writeFile(path.join(cloud, 'original.bin'), original);
+    await writeFile(path.join(cloud, 'cloud.bin'), Buffer.from('committed in cloud\n'));
+    await run('git', ['add', 'original.bin', 'cloud.bin'], { cwd: cloud });
+    await run('git', ['commit', '-m', 'cloud LFS object'], { cwd: cloud });
+    const head = (await run('git', ['rev-parse', 'HEAD'], { cwd: cloud })).stdout.trim();
+    const bundlePath = path.join(cloud, 'return.bundle');
+    await run('git', ['bundle', 'create', bundlePath, 'HEAD'], { cwd: cloud });
+    const object = (content: Buffer) => ({
+        oid: createHash('sha256').update(content).digest('hex'),
+        content,
+    });
+    return { cwd, cloud, baseline, head, bundlePath, original, object };
+}
+
+/** The cloud's uncommitted changes as the exporter sends them: `git diff --binary HEAD`. */
+async function cloudPatch(cloud: string): Promise<Buffer> {
+    const { stdout } = await run('git', ['diff', '--binary', 'HEAD'], {
+        cwd: cloud,
+        encoding: 'buffer',
+    });
+    return stdout;
+}
+
+it('returns a cloud-uncommitted LFS deletion without the deleted object', async () => {
+    const { cwd, cloud, baseline, head, bundlePath, original, object } = await cloudLfsReturn();
+    await rm(path.join(cloud, 'cloud.bin'));
+    // The exporter carries only the objects of the final, patched tree.
+    const bundle = packLfsEnvelope(await readFile(bundlePath), [object(original)]);
+    await applyReturnedTree(cwd, baseline, {
+        branch: baseline.branch,
+        head,
+        bundle,
+        patch: await cloudPatch(cloud),
+    });
+    await expect(readFile(path.join(cwd, 'cloud.bin'))).rejects.toThrow();
+    expect(await readFile(path.join(cwd, 'original.bin'))).toEqual(original);
+});
+
+it('returns a raw bundle when the cloud deleted every LFS file without committing', async () => {
+    const { cwd, cloud, baseline, head, bundlePath } = await cloudLfsReturn();
+    await rm(path.join(cloud, 'cloud.bin'));
+    await rm(path.join(cloud, 'original.bin'));
+    // No LFS objects remain in the patched tree, so the exporter sends the plain bundle.
+    await applyReturnedTree(cwd, baseline, {
+        branch: baseline.branch,
+        head,
+        bundle: await readFile(bundlePath),
+        patch: await cloudPatch(cloud),
+    });
+    await expect(readFile(path.join(cwd, 'cloud.bin'))).rejects.toThrow();
+    await expect(readFile(path.join(cwd, 'original.bin'))).rejects.toThrow();
+});
+
+it('returns a cloud-uncommitted LFS replacement without the replaced object', async () => {
+    const { cwd, cloud, baseline, head, bundlePath, original, object } = await cloudLfsReturn();
+    const replaced = Buffer.from('replaced in cloud, not committed\n');
+    await writeFile(path.join(cloud, 'cloud.bin'), replaced);
+    const bundle = packLfsEnvelope(await readFile(bundlePath), [
+        object(original),
+        object(replaced),
+    ]);
+    await applyReturnedTree(cwd, baseline, {
+        branch: baseline.branch,
+        head,
+        bundle,
+        patch: await cloudPatch(cloud),
+    });
+    expect(await readFile(path.join(cwd, 'cloud.bin'))).toEqual(replaced);
+    expect(await readFile(path.join(cwd, 'original.bin'))).toEqual(original);
+});
+
 it('returns a cloud-created LFS object into a separate local store', async () => {
     const cwd = await repository();
     await run('git', ['lfs', 'install', '--local', '--skip-repo'], { cwd });

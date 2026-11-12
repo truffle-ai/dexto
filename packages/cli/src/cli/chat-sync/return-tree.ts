@@ -128,7 +128,10 @@ export async function applyReturnedTree(
             );
         });
         await refuseSecretHistory(repository, `${baseline.head}..${returned.head}`);
-        await verifyLfsTree(returned.head);
+        // The cloud carries the objects of its patched tree only: an uncommitted deletion or
+        // replacement leaves a HEAD pointer without its object, so only the patched tree is
+        // verified, and HEAD is checked out as pointers whenever it has any.
+        const headHasLfs = (await listTreeLfsPointers(repository, returned.head)).length > 0;
         await handOffGit(repository, ['worktree', 'add', '--detach', checkout, returned.head], {
             ...process.env,
             GIT_LFS_SKIP_SMUDGE: '1',
@@ -200,7 +203,7 @@ export async function applyReturnedTree(
                 }
             }
             checkoutAttempted = true;
-            if (carriedLfs === null)
+            if (carriedLfs === null && !headHasLfs)
                 await git([
                     'checkout',
                     '--no-overwrite-ignore',
@@ -238,12 +241,19 @@ export async function applyReturnedTree(
                         throw new Error(`Missing LFS object for ${JSON.stringify(name)}.`);
                     await writeFile(filePath, object);
                 }
-                await git(['lfs', 'checkout']);
+                // Fill in only the patched tree's pointers: `git lfs checkout` would also restore
+                // files the patch deleted, since the patch leaves the index at HEAD.
                 for (const file of returnedPointers) {
                     const filePath = path.resolve(repository, file.name);
                     const relative = path.relative(repository, filePath);
                     if (relative.startsWith('..' + path.sep) || path.isAbsolute(relative))
                         throw new Error('Invalid LFS file path.');
+                    const object = carriedLfs.get(file.oid);
+                    if (object === undefined || !(await lstat(filePath)).isFile())
+                        throw new Error(
+                            `LFS file ${JSON.stringify(file.name)} (${file.size} bytes) could not be materialized.`
+                        );
+                    await writeFile(filePath, object);
                     const info = await lstat(filePath);
                     if (
                         !info.isFile() ||
