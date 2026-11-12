@@ -14931,11 +14931,6 @@ export interface operations {
             };
         };
     };
-                    /**
-                     * @description Declare support for the v1 Git LFS object envelope.
-                     * @constant
-                     */
-                    lfsObjects?: "v1";
     deleteSyncedChat: {
         parameters: {
             query?: never;
@@ -14955,11 +14950,6 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @constant */
-                    /**
-                     * @description Declare support for the v1 Git LFS object envelope.
-                     * @constant
-                     */
-                    lfsObjects?: "v1";
                         deleted: true;
                         /** Format: uuid */
                         id: string;
@@ -15076,6 +15066,11 @@ export interface operations {
                 "application/json": {
                     /** @constant */
                     to: "cloud";
+                    /**
+                     * @description Declare support for the v1 Git LFS object envelope.
+                     * @constant
+                     */
+                    lfsObjects?: "v1";
                     working_tree: {
                         branch: string;
                         /** @description A Git bundle or v1 LFS envelope. The bundle and patch together are at most 256 MiB. */
@@ -15095,6 +15090,11 @@ export interface operations {
                 } | {
                     /** @constant */
                     to: "local";
+                    /**
+                     * @description Declare support for the v1 Git LFS object envelope.
+                     * @constant
+                     */
+                    lfsObjects?: "v1";
                 };
             };
         };
@@ -15179,7 +15179,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15356,7 +15356,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15533,7 +15533,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15710,7 +15710,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15887,7 +15887,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
