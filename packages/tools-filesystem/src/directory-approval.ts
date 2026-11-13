@@ -87,13 +87,13 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
     needsApproval: (
         input: z.output<TSchema>,
         context: ToolExecutionContext
-    ) => Promise<string | boolean>;
+    ) => Promise<string | false>;
 } {
     return {
         async needsApproval(
             input: z.output<TSchema>,
             context: ToolExecutionContext
-        ): Promise<string | boolean> {
+        ): Promise<string | false> {
             const resolvedFileSystemService = await options.getFileSystemService(context);
             const lexicalPaths = options.resolvePaths(input, resolvedFileSystemService);
             // Approve the directory the operation really lands in. Validation compares
@@ -110,12 +110,16 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                                   : path.dirname(canonicalPath),
                       };
 
-            // Inside the configured roots, reads never ask and writes and edits ask without a
-            // directory key: the Asks you mode asks before changing workspace files, Full access
-            // settles it, and the TUI's "accept edits" can approve it. Outside the roots every
-            // operation asks with a directory key, so a session approval covers that directory.
-            if (await resolvedFileSystemService.isPathWithinConfigAllowed(paths.path)) {
-                return options.operation !== 'read';
+            // Reads inside the configured roots never ask. Writes and edits always return a key, so
+            // the Asks you mode asks before changing workspace files too; Full access settles the
+            // key without asking.
+            if (options.operation === 'read') {
+                const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(
+                    paths.path
+                );
+                if (isAllowed) {
+                    return false;
+                }
             }
 
             const approvalManager = context.services?.approval;

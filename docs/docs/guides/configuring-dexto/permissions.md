@@ -76,7 +76,7 @@ CLI: `dexto --permissions-mode full-access` (or the `--auto-approve` / `--bypass
 Use `/permissions` in a local terminal chat to choose an approval mode and inspect or revoke remembered permissions:
 
 - **Agent defaults** follows your agent configuration and remembered grants.
-- **Accept edits for this session** approves file edits automatically.
+- **Accept edits for this session** approves file edits inside the workspace automatically. Edits outside it still ask.
 - **Full access for this session** approves tool and command requests automatically, while preserving disabled tools and requests that always require approval.
 
 These TUI modes reset when switching conversations. They do not change your agent YAML or global preferences.

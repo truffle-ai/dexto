@@ -20,6 +20,7 @@
  * - Flattened: setMessages and setPendingMessages are sibling calls, processed in order
  */
 
+import { realpathSync } from 'node:fs';
 import type React from 'react';
 import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
 import { createDebugLogger } from '../utils/debugLog.js';
@@ -31,6 +32,7 @@ import { checkForSplit } from '../utils/streamSplitter.js';
 import { backgroundFailure } from '../utils/tool-step.js';
 import { formatToolHeader } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
+import { isEditInWorkspace } from '../utils/approvalScope.js';
 import { captureAnalytics } from '../host/index.js';
 import chalk from 'chalk';
 
@@ -1217,7 +1219,10 @@ export async function processStream(
                         // Type is narrowed - metadata is now ToolApprovalMetadata
                         const { toolName, approvalKey } = event.metadata;
 
-                        if (approvalKey === undefined && isAutoApprovableInEditMode(toolName)) {
+                        if (
+                            isAutoApprovableInEditMode(toolName) &&
+                            isEditInWorkspace(approvalKey, realpathSync(process.cwd()))
+                        ) {
                             // Auto-approve immediately - emit response and let tool:running handle status
                             eventBus.emit('approval:response', {
                                 approvalId: event.approvalId,

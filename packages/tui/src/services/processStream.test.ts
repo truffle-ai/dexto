@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { realpathSync } from 'node:fs';
 import type React from 'react';
 import { LLMErrorCode, type QueuedMessage, type StreamingEvent } from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
@@ -208,6 +209,19 @@ describe('processStream (reasoning)', () => {
                 },
                 {
                     name: 'approval:request',
+                    approvalId: 'workspace-keyed-edit',
+                    type: 'tool_approval',
+                    sessionId: 'test-session',
+                    timestamp: new Date(),
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-3',
+                        args: {},
+                        approvalKey: `directory:${realpathSync(process.cwd())}:operation:write`,
+                    },
+                },
+                {
+                    name: 'approval:request',
                     approvalId: 'outside-edit',
                     type: 'tool_approval',
                     sessionId: 'test-session',
@@ -216,7 +230,7 @@ describe('processStream (reasoning)', () => {
                         toolName: 'edit_file',
                         toolCallId: 'call-2',
                         args: {},
-                        approvalKey: 'directory:/outside:operation:edit',
+                        approvalKey: 'directory:/outside-dexto-workspace:operation:edit',
                     },
                 },
             ]),
@@ -231,6 +245,10 @@ describe('processStream (reasoning)', () => {
         expect(emit).toHaveBeenCalledWith(
             'approval:response',
             expect.objectContaining({ approvalId: 'workspace-edit', status: 'approved' })
+        );
+        expect(emit).toHaveBeenCalledWith(
+            'approval:response',
+            expect.objectContaining({ approvalId: 'workspace-keyed-edit', status: 'approved' })
         );
         expect(emit).not.toHaveBeenCalledWith(
             'approval:response',
