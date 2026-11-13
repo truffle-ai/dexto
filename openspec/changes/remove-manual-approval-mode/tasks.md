@@ -7,7 +7,7 @@
 
 ## 2. Asks you asks before edits
 
-- [x] 2.1 Filesystem write/edit tools return a directory approval key inside the workspace; test that Asks you prompts before a file edit and a shell command and Full access does not.
+- [x] 2.1 Filesystem write/edit tools ask (without a directory key) inside the workspace, so "accept edits" still settles them; test that Asks you prompts before a file edit and a shell command and Full access does not.
 
 ## 3. Interfaces
 
