@@ -249,6 +249,12 @@ export interface UserMessage extends MessageBase {
     role: 'user';
     /** User input content as array of content parts */
     content: ContentPart[];
+
+    /**
+     * Timestamp when this message's media was withheld from model input because a provider
+     * rejected a request that carried it. Its media is sent as text placeholders from then on.
+     */
+    mediaWithheldAt?: number;
 }
 
 /**
@@ -342,6 +348,12 @@ export interface ToolMessage extends MessageBase {
      * Present when the tool result has been summarized to save context space.
      */
     compactedAt?: number;
+
+    /**
+     * Timestamp when this message's media was withheld from model input because a provider
+     * rejected a request that carried it. Its media is sent as text placeholders from then on.
+     */
+    mediaWithheldAt?: number;
 
     /**
      * Structured display data for tool-specific rendering (diffs, shell output, etc.)

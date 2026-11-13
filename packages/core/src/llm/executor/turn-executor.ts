@@ -69,6 +69,7 @@ import {
     isRejectedCredential,
     mapProviderError as mapCoreProviderError,
 } from './provider-error.js';
+import { isRejectedModelRequest, withholdRequestMedia } from './withheld-media.js';
 import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
@@ -1840,15 +1841,36 @@ export class TurnExecutor {
     private async runModelStepWithRetry(request: ModelStepRequest): Promise<StreamProcessorResult> {
         let failedAttempts = 0;
         let emptyResponseRetries = 0;
+        let attemptRequest = request;
+        // 'retried' once a rejected request went again without its media, until it succeeds.
+        let media: 'sent' | 'retried' | 'withheld' = 'sent';
         for (;;) {
             const historyLengthBefore = await this.contextManager.countModelMessages();
 
             let result: StreamProcessorResult;
             try {
-                result = await this.runModelStep(request);
+                result = await this.runModelStep(attemptRequest);
             } catch (error) {
                 const historyLengthAfter = await this.contextManager.countModelMessages();
                 const historyLengthChanged = historyLengthAfter !== historyLengthBefore;
+
+                // A rejected request that carried media is tried once more without it: the media
+                // is the likeliest cause, and the same history would fail every later turn too.
+                const withoutMedia =
+                    media === 'sent' &&
+                    !historyLengthChanged &&
+                    !this.stepAbortController.signal.aborted &&
+                    isRejectedModelRequest(error)
+                        ? withholdRequestMedia(attemptRequest.messages)
+                        : null;
+                if (withoutMedia !== null) {
+                    media = 'retried';
+                    attemptRequest = { ...attemptRequest, messages: withoutMedia };
+                    this.logger.warn('Retrying a rejected model request without its media', {
+                        error: this.mapProviderError(error),
+                    });
+                    continue;
+                }
 
                 if (
                     !this.canRetryModelRequest(error, historyLengthChanged) ||
@@ -1875,6 +1897,14 @@ export class TurnExecutor {
                     error: mappedError,
                 });
                 continue;
+            }
+
+            if (media === 'retried' && result.finishReason !== 'cancelled') {
+                media = 'withheld';
+                // The provider took the request once its media was gone: keep it out of every
+                // later request of this session.
+                const withheldCount = await this.contextManager.withholdModelMedia();
+                this.logger.warn('Withheld media the model provider rejected', { withheldCount });
             }
 
             if (!isEmptyModelResponse(result)) {

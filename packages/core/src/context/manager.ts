@@ -2,7 +2,13 @@ import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import type { LLMContext } from '@dexto/llm';
-import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
+import type {
+    InternalMessage,
+    AssistantMessage,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
+} from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -139,8 +145,8 @@ export class ContextManager<TMessage = unknown> {
         return getResourceKind(mimeType);
     }
 
-    private static hasRetainableMedia(message: InternalMessage): boolean {
-        if (!Array.isArray(message.content)) {
+    private static hasRetainableMedia(message: UserMessage | ToolMessage): boolean {
+        if (message.mediaWithheldAt !== undefined || !Array.isArray(message.content)) {
             return false;
         }
 
@@ -810,6 +816,27 @@ export class ContextManager<TMessage = unknown> {
             );
         }
 
+        return markedCount;
+    }
+
+    /**
+     * Withholds the media of every message that would still send it to the model, after a
+     * provider rejected a request that carried it. From then on the media goes as text
+     * placeholders, so one bad image or file cannot fail every later turn of the session.
+     *
+     * @returns Number of messages marked
+     */
+    async withholdModelMedia(): Promise<number> {
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
+        const timestamp = Date.now();
+        let markedCount = 0;
+        for (const message of history) {
+            if (!isUserMessage(message) && !isToolMessage(message)) continue;
+            if (!ContextManager.hasRetainableMedia(message)) continue;
+            message.mediaWithheldAt = timestamp;
+            await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
+            markedCount++;
+        }
         return markedCount;
     }
 
