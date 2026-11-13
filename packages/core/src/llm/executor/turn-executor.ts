@@ -66,6 +66,7 @@ import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
 import {
     extractProviderErrorDetails,
+    isRejectedCredential,
     mapProviderError as mapCoreProviderError,
 } from './provider-error.js';
 import { isEmptyModelResponse } from './empty-response.js';
@@ -1938,7 +1939,7 @@ export class TurnExecutor {
         if (error instanceof DextoRuntimeError) return error.code === LLMErrorCode.STREAM_STALLED;
         if (!APICallError.isInstance?.(error)) return false;
         // A rejected credential stays rejected, whatever the provider says about retrying.
-        if (error.statusCode === 401) return false;
+        if (isRejectedCredential(error)) return false;
         return error.isRetryable;
     }
 
