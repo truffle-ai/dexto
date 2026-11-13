@@ -37,7 +37,8 @@ the person's agreement).
     ```
 
     Each session comes back `imported` or `already_imported` (it was imported before; nothing was
-    added), with `chatId` and `url`.
+    added), with `chatId` and `url`. Imports keep which model answered each turn, and continuing an imported chat uses that model (connect ChatGPT with `dexto connect codex` to continue Codex chats on your ChatGPT plan). A `continuation` field names the
+    Dexto model the chat continues on.
 
 6. **Report** each chat's `url`, and any session that was `skipped` or `failed` with its `reason`.
 
