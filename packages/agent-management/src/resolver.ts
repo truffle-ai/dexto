@@ -97,7 +97,7 @@ async function resolveAgentByName(agentId: string, autoInstall: boolean): Promis
     // Auto-install from bundled if available
     if (autoInstall) {
         try {
-            logger.info(`Auto-installing agent '${agentId}' from bundled registry`);
+            logger.debug(`Auto-installing agent '${agentId}' from bundled registry`);
             const configPath = await installBundledAgent(agentId);
             return configPath;
         } catch (error) {

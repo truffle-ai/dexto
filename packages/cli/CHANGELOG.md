@@ -1,5 +1,94 @@
 # dexto
 
+## 2.0.1
+
+### Patch Changes
+
+- 5f5de06: `dexto chat move` carries Git LFS objects with the hand-off and names any missing or oversized LFS file.
+- 4387e50: Improve CLI discovery: workspace tool and app help, model availability, where saved media files go, and pointers from mistyped site and local chat commands.
+- f51944b: The README and CLI guide install Dexto 2.0 from npm `latest`.
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+    - @dexto/agent-config@1.18.1
+    - @dexto/agent-management@1.18.1
+    - @dexto/analytics@1.18.1
+    - @dexto/client-sdk@1.18.1
+    - @dexto/image-local@1.18.1
+    - @dexto/image-logger-agent@1.18.1
+    - @dexto/storage@1.18.1
+    - @dexto/tui@1.18.1
+    - @dexto/llm@1.18.1
+    - @dexto/cloud-client@1.18.1
+    - @dexto/registry@1.18.1
+
+## 2.0.0
+
+### Major Changes
+
+- 9a75f3a: dexto 2.0: one CLI for local agents and Dexto Cloud.
+    - `dexto login` signs you in with your browser or a device code, with profiles (`--org`, `--profile`, `dexto accounts`), `dexto whoami` and `dexto logout`. 1.x's saved API key and `dexto-cloud` sign-ins carry over once; `DEXTO_API_KEY` and `--api-key` still work. `dexto auth …` is gone.
+    - Dexto models run on your sign-in and bill your organization's credits in a Cloud project; `dexto models list` and `dexto billing` read it, and the status line shows your credits. Signed in, every local session gets the Dexto MCP.
+    - `dexto cloud …` builds in Dexto Cloud (projects, agents, automations, files, sandboxes, secrets, sites, functions, models, search, fetch, data deletions, api); `dexto workspace`, `dexto find`, `dexto publish`, `dexto profile` and `dexto skills push` use your workspace.
+    - One output contract: JSON when stdout isn't a terminal, failures as `{"error":{"code","message","fix"}}` on stderr, exit codes 0–6, and `dexto --help --json`. `dexto run` takes `--json` and `--stream-json` instead of `--format`.
+    - `dexto session …` is `dexto chat …`; `dexto chat local|import` bring Claude Code and Codex chats into Dexto.
+    - Removed: `dexto deploy` and `--cloud-agent` (use `dexto cloud sites|functions deploy`). `dexto trace` and `dexto span` now read `/v1/traces`.
+
+    See packages/cli/RELEASE-NOTES-2.0.md.
+
+### Minor Changes
+
+- 9a75f3a: Chats in the interactive CLI can sync to the signed-in person's Dexto Cloud account, redacted. Sync is off until you turn it on with `/sync on`, which says what syncs before anything does. `/sync` shows or changes sync (`/sync off`, `/sync on project`, `/sync off project`), `/private` keeps a chat on this machine and deletes its cloud copy, and `dexto chat delete` deletes the cloud copy too. Signing in asks for the `chats:sync` scope only while sync is on. A 2.0 beta's saved default of sync on now reads as off; run `/sync on` to keep syncing.
+- 9a75f3a: Add `dexto workspace computers keys list|create|revoke` to manage computer enrollment keys from the terminal, so a script or agent can enroll machines it provisions (cloud VMs, CI runners) as connected computers without a browser. `create` prints the key once, with the `dexto-daemon connect` command to run on the machine.
+- 9a75f3a: `dexto` 2.0 drops the 1.x local-agent commands: `setup`, `connect`, `agents`, `which`, `init`, `create-app`, `init-app`, `image`, `create-image`, `plugin`, `mcp`, `search`, `--mode web|server|mcp` (with the embedded Web UI and the Docker server image), `--skip-setup`, `--no-auto-install`, `--image`, `--dev` and `--port`. The interactive chat, `dexto run`, `chat`, `upgrade`, `uninstall` and the cloud commands stay. The first start needs a provider key in the environment or `dexto login` (signed in, it starts on Dexto models) instead of opening setup. Hints in other packages no longer name the removed commands. packages/cli/CLI.md maps each removed command to its replacement.
+- 9a75f3a: Add `dexto projects` to manage Dexto Projects from the terminal: `list`, `get`, `create`, `update`, `delete`, `move` (a chat into or out of a Project), `start` (a Project chat from a brief) and `run` (message the Project's coordinator). Every command takes `--json`; commands that change something ask first, or take `--yes`.
+- 9a75f3a: Add `dexto review`, which reviews the current branch's changes (committed since it left its base, uncommitted and untracked) with the bundled code-review skill and prints the review. It follows `dexto run`'s output and exit codes: `--json`, `--stream-json` or `--text`, and with no changes it prints "Nothing to review." and exits 0 without starting an agent. `--base` picks the branch to compare against (default: the upstream, else main) and `--focus` names an area to look at hardest.
+- 9a75f3a: `dexto trace list`, `dexto trace view <run_id>` and `dexto span list <run_id>` are back, on Dexto's public `/v1/traces` API: 1.x's filters (`--period`, `--status`, `--session`, `--name`, `--sort`, `--limit`) under the 2.0 output contract (tables at a terminal, JSON with `--json` or when piped). `dexto trace <run_id>` is now `dexto trace view <run_id>`, and the JSON is the `/v1/traces` objects rather than 1.x's `{ traces }`, `{ trace }` and `{ spans }`. The client covers the run trace operations.
+- 9a75f3a: A signed-in person's Dexto Skills library joins local skill discovery:
+    - `dexto`: each session syncs the library into `~/.dexto/cloud-skills` (only Skills whose files changed download; Skills that left the library are removed; offline keeps the last copy with one warning; with no person signed in the copy is removed). `dexto skills sync` syncs on demand. `--api-key -` reads the key from stdin, and `--api-key` with no value asks for it. The coding agent ships an `import-chats` skill for `dexto chat local` and `dexto chat import`.
+    - `@dexto/agent-management`: `~/.dexto/cloud-skills` is the last standalone skill root, with source `cloud`, so a local Skill of the same name wins. `getStandaloneSkillPaths` is exported.
+    - `@dexto/cloud-client`: `GET /v1/skills` and `GET /v1/skills/{skill_id}/bundle`.
+
+### Patch Changes
+
+- 9a75f3a: `npm install dexto` and the dexto.ai installer work without a compiler or Python on Node.js 20, 22, 24 and 26. better-sqlite3 12.9 ships prebuilt binaries for Node.js 20, 22 and 24, and is now optional for the CLI: where it cannot install, as on Node.js 26, `@dexto/storage` opens SQLite with the `node:sqlite` built into Node.js instead. `openSqlite` is exported for other SQLite readers.
+- 9a75f3a: Preserve workspace tool errors and make chat-follow retry deadlines and network error handling more precise.
+- 9a75f3a: `dexto run` reports a failure once: in `--json` and `--stream-json`, stdout carries only JSON and stderr only the JSON error, and in text mode the error prints once with the command that fixes it. A run with no provider key and no Dexto sign-in exits 3 (needs sign-in) and points to `dexto login`; `--model` without that provider's key also exits 3. Logs go to stderr, so the first use of a bundled agent no longer prints install lines before the JSON. An unknown command exits 2 and points to `dexto --help` instead of trying to start the chat. Text mode no longer echoes the reply on stderr.
+- 9a75f3a: `dexto login` ends on the Dexto app's sign-in page, in light or dark, instead of a bare localhost page. When you deny access or the authorization server returns an error, the page now says so; the old page said "Signed in" even then. A failure after the redirect, such as the token exchange, still shows only in the terminal.
+- 9a75f3a: A mistyped subcommand or option, such as `dexto chat bogus` or an unknown flag, exits 2 (usage) like a mistyped command, instead of 1.
+- 9a75f3a: `dexto uninstall` also removes `~/.dexto/cli`, where the dexto.ai/install scripts put the CLI package.
+- 9a75f3a: Move `glob` from 12 to 14, `minimatch` from 10 to 11 and `@hono/node-server` from 1.19.17 to 2.1.5, so Dexto's own dependencies no longer carry their published advisories. The APIs Dexto calls are unchanged, and all three support the Node 20 floor Dexto already requires. The lockfile also moves the MCP SDK's `@hono/node-server` to 2.1.5, which its range already allows, so the Docker image and standalone binaries carry one patched copy. The WebUI is still served the same way.
+- 9a75f3a: `dexto publish` shows its progress on stderr, a line per step: packing the files, uploading and publishing. Before, it printed nothing until the link.
+- 9a75f3a: With `DEXTO_PALETTE=signal`, the first run, `dexto login` (browser and `--device`), `whoami`, errors, `--help` and the update notice use the Signal look. Without it, output is unchanged. `@dexto/agent-management` sign-in now hands the CLI a prompt to show (`SignInPrompt`) and says why a sign-in ended (`SignInEnded`).
+- 9a75f3a: Build, test and ship the Docker image and standalone binaries with `zod` 4.6.7 and `follow-redirects` 1.16.2 instead of `zod` 4.3.6 and `follow-redirects` 1.16.1, which have published advisories. The declared `zod` range is unchanged, so installs from npm already resolved a patched `zod`; this makes the repository's tests and bundled artifacts match what users get. The cancel-task route now declares its path parameter with `unknown().transform().pipe()` because `z.preprocess` no longer type-checks there.
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+    - @dexto/core@1.18.0
+    - @dexto/storage@1.18.0
+    - @dexto/tui@1.18.0
+    - @dexto/agent-management@1.18.0
+    - @dexto/cloud-client@1.18.0
+    - @dexto/image-local@1.18.0
+    - @dexto/agent-config@1.18.0
+    - @dexto/analytics@1.18.0
+    - @dexto/client-sdk@1.18.0
+    - @dexto/image-logger-agent@1.18.0
+    - @dexto/llm@1.18.0
+    - @dexto/registry@1.18.0
+
 ## 1.17.0
 
 ### Minor Changes

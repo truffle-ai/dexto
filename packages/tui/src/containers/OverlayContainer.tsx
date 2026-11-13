@@ -87,6 +87,7 @@ import ChatGPTUsageCapOverlay, {
 import InsufficientCreditsOverlay, {
     type InsufficientCreditsOverlayHandle,
 } from '../components/overlays/InsufficientCreditsOverlay.js';
+import { approvedResponseData } from '../utils/approval-response.js';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
 import {
@@ -163,7 +164,6 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import { canUseDextoProvider, captureAnalytics } from '../host/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
-import { refreshDextoNovaAuthAfterLogin } from '../utils/dexto-auth-refresh.js';
 
 function isLLMProvider(value: unknown): value is LLMProvider {
     if (typeof value !== 'string') return false;
@@ -480,10 +480,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     status: ApprovalStatus.APPROVED,
                     sessionId: approval.sessionId,
                     hostRuntime: approval.hostRuntime,
-                    data: {
-                        rememberChoice: options.rememberChoice,
-                        formData: options.formData,
-                    },
+                    data: approvedResponseData(approval.type, options),
                 });
 
                 completeApproval();
@@ -577,7 +574,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 // Session-only switch (default is set via explicit action)
 
-                // Pre-check: Dexto Nova provider requires OAuth login AND API key
+                // Pre-check: Dexto models need a sign-in that may spend credits, or DEXTO_API_KEY
                 // Check BEFORE closing the overlay so user can pick a different model
                 if (provider === 'dexto-nova') {
                     try {
@@ -589,7 +586,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     id: generateMessageId('system'),
                                     role: 'system',
                                     content:
-                                        'Cannot switch to Dexto Nova model - authentication required. Run /login to authenticate.',
+                                        'Dexto models need a sign-in that may spend credits. Run dexto login --scope cloud:write, or pick another model.',
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -602,7 +599,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `Failed to verify Dexto Nova auth: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to check the Dexto sign-in: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -920,6 +917,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({
                 ...prev,
                 activeOverlay: 'none',
+                insufficientCredits: null,
+            }));
+        }, [setUi]);
+
+        const handleInsufficientCreditsChooseOwnModel = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'model-selector',
                 insufficientCredits: null,
             }));
         }, [setUi]);
@@ -1493,59 +1498,36 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         const handleLoginDone = useCallback(
             (outcome: LoginOverlayOutcome) => {
-                void (async () => {
-                    handleClose();
+                handleClose();
 
-                    if (outcome.outcome === 'closed') {
-                        return;
-                    }
+                if (outcome.outcome === 'closed') {
+                    return;
+                }
 
-                    if (outcome.outcome === 'cancelled') {
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: 'Login cancelled.',
-                                timestamp: new Date(),
-                            },
-                        ]);
-                        return;
-                    }
-
-                    let refreshWarning: string | null = null;
-                    if (outcome.hasDextoApiKey) {
-                        try {
-                            await refreshDextoNovaAuthAfterLogin(agent, session.id || undefined);
-                        } catch (error) {
-                            refreshWarning = `Logged in, but failed to refresh the active Dexto Nova session: ${
-                                error instanceof Error ? error.message : String(error)
-                            }`;
-                        }
-                    }
-
-                    const userLabel = outcome.email ? ` as ${outcome.email}` : '';
-                    const keyLine = outcome.hasDextoApiKey
-                        ? `🔑 DEXTO_API_KEY ready${outcome.keyId ? ` (Key ID: ${outcome.keyId})` : ''}`
-                        : '⚠️ Failed to provision DEXTO_API_KEY (you can still use your own API keys)';
-                    const content = [
-                        `✅ Logged in${userLabel}`,
-                        keyLine,
-                        ...(refreshWarning ? [`⚠️ ${refreshWarning}`] : []),
-                    ].join('\n');
-
+                if (outcome.outcome === 'cancelled') {
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content,
+                            content: 'Sign-in cancelled.',
                             timestamp: new Date(),
                         },
                     ]);
-                })();
+                    return;
+                }
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: outcome.summary,
+                        timestamp: new Date(),
+                    },
+                ]);
             },
-            [agent, handleClose, session.id, setMessages]
+            [handleClose, setMessages]
         );
 
         const handleLogoutDone = useCallback(
@@ -1570,7 +1552,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 }
 
                 const warning = outcome.wasUsingDextoCredits
-                    ? '\n\nNext steps:\n• Run `/login` to log back in\n• Or run `dexto setup` to configure a different provider'
+                    ? '\n\nNext steps:\n• Run `/login` to log back in\n• Or set a provider key to use a different provider'
                     : '';
 
                 setMessages((prev) => [
@@ -1578,7 +1560,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     {
                         id: generateMessageId('system'),
                         role: 'system',
-                        content: `✅ Successfully logged out${warning}`,
+                        content: `${outcome.summary}${warning}`,
                         timestamp: new Date(),
                     },
                 ]);
@@ -3143,6 +3125,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             initialBalanceUsd={ui.insufficientCredits.balanceUsd}
                             onResolved={handleInsufficientCreditsResolved}
                             onClose={handleInsufficientCreditsClose}
+                            onChooseOwnModel={handleInsufficientCreditsChooseOwnModel}
                         />
                     </Box>
                 )}

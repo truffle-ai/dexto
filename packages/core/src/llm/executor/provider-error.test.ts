@@ -2,9 +2,80 @@ import { describe, expect, it } from 'vitest';
 import { APICallError, UnsupportedFunctionalityError } from 'ai';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
-import { mapProviderError } from './provider-error.js';
+import { HostRetryableModelRequestError, mapProviderError } from './provider-error.js';
 
 describe('mapProviderError', () => {
+    it('tells a Dexto gateway user to sign in again on a 401, without a retry', () => {
+        const mapped = mapProviderError({
+            error: new APICallError({
+                message: 'Authentication required.',
+                statusCode: 401,
+                responseHeaders: {},
+                responseBody:
+                    '{"error":{"code":"credential_expired","message":"Sign in again (dexto login) or create a new API key."}}',
+                url: 'https://app.dexto.ai/v1/chat/completions',
+                requestBodyValues: {},
+            }),
+            provider: 'dexto-nova',
+            model: 'openai/gpt-5.4',
+            sessionId: 'session-401',
+        });
+
+        expect(mapped).toBeInstanceOf(DextoRuntimeError);
+        expect(mapped).toMatchObject({
+            code: LLMErrorCode.AUTH_FAILED,
+            retryDisposition: 'non_retryable',
+        });
+        expect(mapped.message).toContain('dexto login');
+        expect(mapped).toMatchObject({ recovery: expect.stringContaining('dexto login') });
+    });
+
+    it('keeps a 401 the host can renew retryable instead of asking the user to sign in', () => {
+        const mapped = mapProviderError({
+            error: new HostRetryableModelRequestError({
+                message: 'Host classified model request failure as retryable',
+                statusCode: 401,
+                responseHeaders: {},
+                responseBody: '{"error":{"code":"credential_expired","message":"expired"}}',
+                url: 'https://app.dexto.ai/v1/chat/completions',
+                requestBodyValues: {},
+                isRetryable: true,
+            }),
+            provider: 'dexto-nova',
+            model: 'openai/gpt-5.4',
+            sessionId: 'session-401-host',
+        });
+
+        expect(mapped).toMatchObject({
+            code: LLMErrorCode.GENERATION_FAILED,
+            retryDisposition: 'retryable',
+        });
+        expect(mapped.message).not.toContain('dexto login');
+    });
+
+    it('names the provider and its key on a 401 from any other provider', () => {
+        const mapped = mapProviderError({
+            error: new APICallError({
+                message: 'Incorrect API key provided',
+                statusCode: 401,
+                responseHeaders: {},
+                responseBody: '{"error":{"message":"Incorrect API key provided"}}',
+                url: 'https://api.openai.com/v1/chat/completions',
+                requestBodyValues: {},
+            }),
+            provider: 'openai',
+            model: 'gpt-5.4',
+            sessionId: 'session-401-openai',
+        });
+
+        expect(mapped).toMatchObject({
+            code: LLMErrorCode.AUTH_FAILED,
+            retryDisposition: 'non_retryable',
+        });
+        expect(mapped.message).toContain('openai');
+        expect(mapped.message).not.toContain('dexto login');
+    });
+
     it('does not retry deterministic unsupported functionality failures', () => {
         const mapped = mapProviderError({
             error: new UnsupportedFunctionalityError({

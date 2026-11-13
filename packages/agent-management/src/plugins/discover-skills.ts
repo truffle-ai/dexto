@@ -9,6 +9,7 @@
  * skills/ (legacy project root, still discovered for compatibility)
  * .dexto/skills/ (legacy project/user root, still discovered for compatibility)
  * ~/.agents/skills/
+ * ~/.dexto/cloud-skills/ (the signed-in person's Cloud Skills, synced by the CLI)
  * └── skill-name/
  *     ├── SKILL.md          (required - skill instructions)
  *     ├── handlers/         (optional - workflow helper files)
@@ -33,8 +34,8 @@ export interface DiscoveredSkill {
     path: string;
     /** Absolute path to the SKILL.md file */
     skillFile: string;
-    /** Source location */
-    source: 'user' | 'project';
+    /** Source location: the project, the person's own folders, or their synced Cloud library */
+    source: 'user' | 'project' | 'cloud';
     /**
      * Reserved for future discovery metadata.
      */
@@ -46,6 +47,8 @@ export interface StandaloneSkillPaths {
     user: string;
     legacyProject: readonly string[];
     legacyUser: readonly string[];
+    /** The person's Cloud Skills, synced by `dexto skills sync`; any local Skill of the same name wins. */
+    cloud: string;
 }
 
 /**
@@ -60,6 +63,7 @@ export function getStandaloneSkillPaths(projectPath?: string): StandaloneSkillPa
         user: path.join(homeDir, '.agents', 'skills'),
         legacyProject: [path.join(cwd, 'skills'), path.join(cwd, '.dexto', 'skills')],
         legacyUser: [path.join(homeDir, '.dexto', 'skills')],
+        cloud: path.join(homeDir, '.dexto', 'cloud-skills'),
     };
 }
 
@@ -69,6 +73,7 @@ export function getStandaloneSkillPaths(projectPath?: string): StandaloneSkillPa
  * Search Locations:
  * 1. <projectRoot>/.agents/skills/*  (project)
  * 2. ~/.agents/skills/*              (user)
+ * 3. ~/.dexto/cloud-skills/*         (cloud)
  *
  * @param projectPath Optional project path (defaults to cwd)
  * @returns Array of discovered skills
@@ -94,7 +99,7 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
     /**
      * Scans a skills directory and adds valid skills to the list
      */
-    const scanSkillsDir = (dir: string, source: 'project' | 'user'): void => {
+    const scanSkillsDir = (dir: string, source: DiscoveredSkill['source']): void => {
         if (!existsSync(dir)) return;
 
         try {
@@ -135,6 +140,8 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
         scanSkillsDir(legacyRoot, 'user');
     }
 
+    scanSkillsDir(skillPaths.cloud, 'cloud');
+
     return skills;
 }
 
@@ -151,5 +158,6 @@ export function getSkillSearchPaths(projectPath?: string): string[] {
         ...skillPaths.legacyProject,
         skillPaths.user,
         ...skillPaths.legacyUser,
+        skillPaths.cloud,
     ];
 }

@@ -1,22 +1,11 @@
-import React, {
-    forwardRef,
-    useCallback,
-    useEffect,
-    useImperativeHandle,
-    useRef,
-    useState,
-} from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import {
-    loadAuth,
-    removeAuth,
-    removeDextoApiKeyFromEnv,
-    isUsingDextoCredits,
-} from '../../host/index.js';
+import { currentSignIn, isUsingDextoCredits, signOut } from '../../host/index.js';
+import { tone } from '../../signal/index.js';
 
 export type LogoutOverlayOutcome =
-    | { outcome: 'success'; wasUsingDextoCredits: boolean }
+    | { outcome: 'success'; summary: string; wasUsingDextoCredits: boolean }
     | { outcome: 'cancelled' }
     | { outcome: 'closed' };
 
@@ -39,25 +28,14 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
     const [userLabel, setUserLabel] = useState<string | null>(null);
     const [usingDextoCredits, setUsingDextoCredits] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const provisionedApiKeyRef = useRef<string | null>(null);
 
     const performLogout = useCallback(async () => {
         setError(null);
         setStep('logging-out');
 
         try {
-            const auth = await loadAuth();
-            if (auth?.dextoApiKey && auth.dextoApiKeySource === 'provisioned') {
-                provisionedApiKeyRef.current = auth.dextoApiKey;
-            }
-
-            await removeAuth();
-
-            if (provisionedApiKeyRef.current) {
-                await removeDextoApiKeyFromEnv({ expectedValue: provisionedApiKeyRef.current });
-            }
-
-            onDone({ outcome: 'success', wasUsingDextoCredits: usingDextoCredits });
+            const summary = await signOut();
+            onDone({ outcome: 'success', summary, wasUsingDextoCredits: usingDextoCredits });
         } catch (err) {
             setStep('error');
             setError(err instanceof Error ? err.message : String(err));
@@ -67,7 +45,6 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
     useEffect(() => {
         if (!isVisible) return;
         let cancelled = false;
-        provisionedApiKeyRef.current = null;
 
         setStep('checking');
         setUserLabel(null);
@@ -76,18 +53,18 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
         void (async () => {
             try {
-                const auth = await loadAuth();
+                const signedInAs = await currentSignIn();
                 if (cancelled) return;
-                if (!auth) {
+                if (signedInAs === null) {
                     setStep('not-authenticated');
                     return;
                 }
 
-                setUserLabel(auth.email || auth.userId || 'user');
+                setUserLabel(signedInAs);
             } catch {
                 if (!cancelled) {
                     setStep('error');
-                    setError('Failed to load authentication state');
+                    setError('Failed to read the sign-in');
                 }
                 return;
             }
@@ -147,33 +124,33 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="cyan"
+            borderColor={tone('teal')}
             paddingX={1}
             marginTop={1}
         >
             <Box marginBottom={1}>
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     Logout
                 </Text>
             </Box>
 
             {step === 'not-authenticated' ? (
                 <Box marginBottom={1}>
-                    <Text color="yellow">ℹ️ Not currently logged in</Text>
+                    <Text color={tone('amberDim')}>Not signed in</Text>
                 </Box>
             ) : (
                 <Box marginBottom={1}>
-                    <Text color="gray">Account: </Text>
+                    <Text color={tone('dim')}>Account: </Text>
                     <Text>{userLabel ?? '...'}</Text>
                 </Box>
             )}
 
             {usingDextoCredits && step !== 'not-authenticated' && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="yellow">
-                        ⚠️ You are configured to use Dexto Nova credits (provider: Dexto Nova).
+                    <Text color={tone('amberDim')}>
+                        ⚠️ You are configured to use Dexto models, which run on this sign-in.
                     </Text>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         After logout, you will need to run `/login` to authenticate again, or `dexto
                         setup` to configure a different provider.
                     </Text>
@@ -182,18 +159,18 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
             {step === 'logging-out' && (
                 <Box marginBottom={1}>
-                    <Text color="gray">Logging out...</Text>
+                    <Text color={tone('dim')}>Logging out...</Text>
                 </Box>
             )}
 
             {error && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="red">Error: {error}</Text>
+                    <Text color={tone('red')}>Error: {error}</Text>
                 </Box>
             )}
 
             <Box>
-                <Text color="gray" dimColor>
+                <Text color={tone('dim')} dimColor>
                     {hint}
                 </Text>
             </Box>

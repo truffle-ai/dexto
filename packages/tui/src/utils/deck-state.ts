@@ -1,0 +1,161 @@
+/**
+ * What the Signal deck shows, worked out from the CLI's own state. Pure, so each rule is
+ * tested on its own; `useDeckState` gathers the inputs.
+ */
+import type { DeckCredits, DeckMode } from '../signal/index.js';
+import type { OverlayType } from '../state/types.js';
+import { getOverlayPresentation } from './overlayPresentation.js';
+
+export interface DeckActivity {
+    isProcessing: boolean;
+    isCancelling: boolean;
+    isThinking: boolean;
+    isCompacting: boolean;
+    /** An approval or a question is waiting on the user. */
+    awaitingUser: boolean;
+    /** A tool call is executing. */
+    toolRunning: boolean;
+    /** Steer messages waiting for the current step to finish. */
+    steerCount: number;
+    /** The last run ended on an error. Cleared when the next run starts. */
+    lastRunFailed: boolean;
+}
+
+/** Highest first: what needs the user, then what the agent is doing. */
+export function deckMode(a: DeckActivity): DeckMode {
+    if (a.awaitingUser) return 'wait';
+    // Before the idle check: Escape clears isProcessing as it sets isCancelling.
+    if (a.isCancelling) return 'stop';
+    if (!a.isProcessing) return a.lastRunFailed ? 'fault' : 'idle';
+    if (a.steerCount > 0) return 'steer';
+    if (a.isThinking) return 'think';
+    if (a.toolRunning || a.isCompacting) return 'tool';
+    return 'stream';
+}
+
+export interface DeckReadoutInput {
+    /** Formatted elapsed time of the run, or of the wait. */
+    elapsed: string;
+    /** Formatted token count; '' when too small to show. */
+    tokens: string;
+    compacting: boolean;
+    steerCount: number;
+    /** "plan mode", "accept edits", "full access"; null in the default mode. */
+    permission: string | null;
+    /** The reasoning variant beside the model ("high"); null when the model has none. */
+    reasoning: string | null;
+    /** ChatGPT plan usage in short form ("cap 95%"), when it is worth showing. */
+    rateLimitHint: string | null;
+}
+
+function join(parts: ReadonlyArray<string | null>): string | null {
+    const kept = parts.filter((p): p is string => p !== null && p !== '');
+    return kept.length > 0 ? kept.join(' · ') : null;
+}
+
+export function deckReadout(mode: DeckMode, r: DeckReadoutInput): string | null {
+    switch (mode) {
+        case 'wait':
+            return `paused ${r.elapsed}`;
+        case 'steer':
+            return join([
+                r.permission,
+                `${r.steerCount} steer${r.steerCount === 1 ? '' : 's'} queued`,
+            ]);
+        case 'stop':
+            return 'stopping';
+        case 'think':
+        case 'stream':
+        case 'tool':
+        case 'cloud':
+            // Shift+Tab still changes the policy mid-run, and the next tool call follows it.
+            return join([r.permission, r.compacting ? 'compacting' : r.tokens, r.elapsed]);
+        default:
+            // Most important first, since a narrow readout truncates from the end.
+            return join([
+                r.permission,
+                r.rateLimitHint,
+                r.reasoning === null ? null : `r:${r.reasoning}`,
+            ]);
+    }
+}
+
+/** "dexto/…" for Dexto credits, "provider/model" for an own key. */
+export function deckModelId(provider: string | null, model: string): string {
+    if (provider === null) return model;
+    return `${provider === 'dexto-nova' ? 'dexto' : provider}/${model}`;
+}
+
+export interface DeckCreditsInput {
+    signedIn: boolean;
+    /** Current balance in USD, null when not known. */
+    balance: number | null;
+    /** Balance when the current or last turn started, to show what it spent. */
+    turnStartBalance: number | null;
+}
+
+export function deckCredits(c: DeckCreditsInput): DeckCredits {
+    if (!c.signedIn) return { kind: 'signed-out' };
+    if (c.balance === null) return { kind: 'signed-in' };
+    if (c.balance <= 0) return { kind: 'out' };
+    const spent =
+        c.turnStartBalance === null ? 0 : Math.round((c.turnStartBalance - c.balance) * 100) / 100;
+    return { kind: 'balance', balance: c.balance, spend: spent > 0 ? spent : null };
+}
+
+/**
+ * Whether the turn's spend baseline survives a session id change. The first turn creates its
+ * session after it starts, so null to an id is the same turn; anything else is a real switch.
+ */
+export function keepsTurnSpend(previous: string | null, next: string | null): boolean {
+    return previous === null && next !== null;
+}
+
+/** The balance a turn's spend is measured from, and what it was worked out from. */
+export interface TurnBaseline {
+    sessionId: string | null;
+    /** Who is signed in; null when no one is. */
+    account: string | null;
+    isProcessing: boolean;
+    balance: number | null;
+}
+
+/** Cleared by a session switch or an account change; set when a turn starts. */
+export function nextTurnBaseline(prev: TurnBaseline, now: TurnBaseline): TurnBaseline {
+    const switched =
+        prev.sessionId !== now.sessionId && !keepsTurnSpend(prev.sessionId, now.sessionId);
+    let balance = switched || prev.account !== now.account ? null : prev.balance;
+    if (now.isProcessing && !prev.isProcessing) balance = now.balance;
+    return { ...now, balance };
+}
+
+/** Focused overlays size themselves to the screen, so the deck's rows would overflow it. */
+export function deckCollapsed(activeOverlay: OverlayType): boolean {
+    return getOverlayPresentation(activeOverlay, null) === 'focus';
+}
+
+export interface PermissionInput {
+    isShellMode: boolean;
+    planModeActive: boolean;
+    autoApproveEdits: boolean;
+    bypassPermissions: boolean;
+    /** The agent's configured permissions mode, under any session override. */
+    configuredMode: string;
+}
+
+/**
+ * The approval policy in force, for the idle readout; null when Dexto asks you (asks-you). The session
+ * mode (Shift+Tab) comes first. Full access is always named when it applies: the session
+ * flags don't narrow an agent configured for Full access.
+ */
+export function permissionLabel(p: PermissionInput): string | null {
+    const session = p.isShellMode
+        ? 'shell mode'
+        : p.planModeActive
+          ? 'plan mode'
+          : p.autoApproveEdits
+            ? 'accept edits'
+            : null;
+    const auto = p.bypassPermissions || p.configuredMode === 'full-access';
+    return join([session, auto ? 'full access' : null]);
+}

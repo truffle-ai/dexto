@@ -14,6 +14,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { TodoItem, TodoStatus } from '../state/types.js';
+import { tone } from '../signal/index.js';
 
 interface TodoPanelProps {
     todos: TodoItem[];
@@ -29,12 +30,12 @@ interface TodoPanelProps {
 function getStatusIndicator(status: TodoStatus): { icon: string; color: string } {
     switch (status) {
         case 'completed':
-            return { icon: '✓', color: 'green' };
+            return { icon: '✓', color: tone('add') };
         case 'in_progress':
-            return { icon: '●', color: 'yellow' };
+            return { icon: '●', color: tone('amberDim') };
         case 'pending':
         default:
-            return { icon: '○', color: 'gray' };
+            return { icon: '○', color: tone('dim') };
     }
 }
 
@@ -69,20 +70,20 @@ export function TodoPanel({ todos, isExpanded, isProcessing = false }: TodoPanel
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="gray"
+                borderColor={tone('dim')}
                 paddingX={1}
                 marginX={1}
                 marginBottom={1}
             >
                 {/* Header */}
                 <Box>
-                    <Text bold color="cyan">
+                    <Text bold color={tone('teal')}>
                         📋 Todo{' '}
                     </Text>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         ({completedCount}/{totalCount})
                     </Text>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         {' '}
                         · ctrl+t to hide todo list
                     </Text>
@@ -99,7 +100,13 @@ export function TodoPanel({ todos, isExpanded, isProcessing = false }: TodoPanel
                             <Box key={todo.id}>
                                 <Text color={color}>{icon} </Text>
                                 <Text
-                                    color={isCompleted ? 'gray' : isInProgress ? 'white' : 'gray'}
+                                    color={
+                                        isCompleted
+                                            ? tone('dim')
+                                            : isInProgress
+                                              ? tone('hi')
+                                              : tone('dim')
+                                    }
                                     strikethrough={isCompleted}
                                     dimColor={!isInProgress && !isCompleted}
                                 >
@@ -124,8 +131,8 @@ export function TodoPanel({ todos, isExpanded, isProcessing = false }: TodoPanel
         return (
             <Box paddingX={1} marginBottom={1}>
                 <Box marginLeft={2}>
-                    <Text color="gray">⎿ </Text>
-                    <Text color="gray">{currentTask.activeForm}</Text>
+                    <Text color={tone('dim')}>⎿ </Text>
+                    <Text color={tone('dim')}>{currentTask.activeForm}</Text>
                 </Box>
             </Box>
         );
@@ -143,11 +150,19 @@ export function TodoPanel({ todos, isExpanded, isProcessing = false }: TodoPanel
                 return (
                     <Box key={todo.id} marginLeft={2}>
                         {/* Tree connector for first item, space for others */}
-                        <Text color="gray">{isFirst ? '⎿  ' : '   '}</Text>
-                        <Text color={isCompleted ? 'green' : isInProgress ? 'yellow' : 'white'}>
+                        <Text color={tone('dim')}>{isFirst ? '⎿  ' : '   '}</Text>
+                        <Text
+                            color={
+                                isCompleted
+                                    ? tone('add')
+                                    : isInProgress
+                                      ? tone('amberDim')
+                                      : tone('hi')
+                            }
+                        >
                             {checkbox}{' '}
                         </Text>
-                        <Text color={isCompleted ? 'gray' : 'white'} dimColor={isCompleted}>
+                        <Text color={isCompleted ? tone('dim') : tone('hi')} dimColor={isCompleted}>
                             {todo.content}
                         </Text>
                     </Box>

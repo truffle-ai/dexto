@@ -7,4 +7,4 @@ export {
     isCommandDefinitionSupported,
 } from './agent-backend.js';
 
-export { setTuiRuntimeServices, type TuiRuntimeServices } from './host/index.js';
+export { setTuiRuntimeServices, type TuiChatSync, type TuiRuntimeServices } from './host/index.js';

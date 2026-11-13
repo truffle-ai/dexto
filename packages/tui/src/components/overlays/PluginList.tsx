@@ -15,6 +15,7 @@ import { Box, Text } from 'ink';
 import { listInstalledPlugins, type ListedPlugin } from '@dexto/agent-management';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 interface PluginListProps {
     isVisible: boolean;
@@ -89,9 +90,11 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
         if (item.type === 'back') {
             return (
                 <Box>
-                    <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
-                    <Text color="gray">← </Text>
-                    <Text color={isSelected ? 'white' : 'gray'}>Back to menu</Text>
+                    <Text color={isSelected ? tone('teal') : tone('dim')}>
+                        {isSelected ? '▸ ' : '  '}
+                    </Text>
+                    <Text color={tone('dim')}>← </Text>
+                    <Text color={isSelected ? tone('hi') : tone('dim')}>Back to menu</Text>
                 </Box>
             );
         }
@@ -103,16 +106,18 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
         return (
             <Box flexDirection="column">
                 <Box>
-                    <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
-                    <Text color={isSelected ? 'white' : 'gray'}>📦 </Text>
-                    <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                    <Text color={isSelected ? tone('teal') : tone('dim')}>
+                        {isSelected ? '▸ ' : '  '}
+                    </Text>
+                    <Text color={isSelected ? tone('hi') : tone('dim')}>📦 </Text>
+                    <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                         {plugin.name}
                     </Text>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         @{version}
                     </Text>
                     {scopeBadge && (
-                        <Text color="yellow" dimColor>
+                        <Text color={tone('amberDim')} dimColor>
                             {scopeBadge}
                         </Text>
                     )}
@@ -120,12 +125,12 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
                 {/* Show description and path only when selected */}
                 {isSelected && plugin.description && (
                     <Box marginLeft={4}>
-                        <Text color="gray">{plugin.description}</Text>
+                        <Text color={tone('dim')}>{plugin.description}</Text>
                     </Box>
                 )}
                 {isSelected && (
                     <Box marginLeft={4}>
-                        <Text color="gray" dimColor>
+                        <Text color={tone('dim')} dimColor>
                             {plugin.path}
                         </Text>
                     </Box>
@@ -158,7 +163,7 @@ const PluginList = forwardRef<PluginListHandle, PluginListProps>(function Plugin
             onClose={onClose}
             formatItem={formatItem}
             title={title}
-            borderColor="cyan"
+            borderColor={tone('teal')}
             emptyMessage="No plugins installed. Browse the marketplace to find plugins."
         />
     );

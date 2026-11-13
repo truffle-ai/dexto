@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { tone } from '../../../../signal/index.js';
 
 interface SetupInfoBannerProps {
     /** Banner title */
@@ -26,9 +27,9 @@ export function SetupInfoBanner({
 }: SetupInfoBannerProps): React.ReactElement {
     return (
         <Box flexDirection="column" marginBottom={1}>
-            <Text color="blue">ℹ {title}</Text>
-            <Text color="gray">{description}</Text>
-            {docsUrl && <Text color="gray">Setup guide: {docsUrl}</Text>}
+            <Text color={tone('fg')}>ℹ {title}</Text>
+            <Text color={tone('dim')}>{description}</Text>
+            {docsUrl && <Text color={tone('dim')}>Setup guide: {docsUrl}</Text>}
         </Box>
     );
 }

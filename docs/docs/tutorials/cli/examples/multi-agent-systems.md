@@ -4,6 +4,8 @@ sidebar_position: 3
 
 # Building Multi-Agent Systems
 
+Web/server mode in this tutorial is 1.x-only; install the `latest` channel, not the 2.0 `next` channel.
+
 Learn how to build multi-agent systems where Dexto agents can communicate with each other using the Model Context Protocol (MCP). This powerful pattern enables specialized agents to collaborate and delegate tasks to each other.
 
 ## Overview
@@ -363,10 +365,10 @@ pm2 start ecosystem.config.js
 
 ```dockerfile
 # Dockerfile
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN apk add --no-cache curl bash && curl -fsSL https://dexto.ai/install | bash
+RUN apk add --no-cache curl && curl -fsSL https://dexto.ai/install | sh -s -- --version latest
 ENV PATH="/root/.local/bin:${PATH}"
 COPY . .
 CMD ["dexto", "--mode", "web", "--port", "3000"]

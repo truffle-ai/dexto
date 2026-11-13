@@ -55,15 +55,6 @@
       "source": "product-name-researcher/",
       "main": "product-name-researcher.yml"
     },
-    "triage-agent": {
-      "id": "triage-agent",
-      "name": "Triage Agent",
-      "description": "Customer support triage system",
-      "author": "Truffle AI",
-      "tags": ["support", "triage", "routing", "multi-agent"],
-      "source": "triage-demo/",
-      "main": "triage-agent.yml"
-    },
     "nano-banana-agent": {
       "id": "nano-banana-agent",
       "name": "Nano Banana Agent",

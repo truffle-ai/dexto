@@ -25,6 +25,7 @@ import {
 import { logger } from '@dexto/core';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type MarketplaceBrowserAction =
     | { type: 'add-marketplace' }
@@ -301,9 +302,11 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                           : 'Back to menu';
                 return (
                     <Box>
-                        <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
-                        <Text color="gray">← </Text>
-                        <Text color={isSelected ? 'white' : 'gray'}>{label}</Text>
+                        <Text color={isSelected ? tone('teal') : tone('dim')}>
+                            {isSelected ? '▸ ' : '  '}
+                        </Text>
+                        <Text color={tone('dim')}>← </Text>
+                        <Text color={isSelected ? tone('hi') : tone('dim')}>{label}</Text>
                     </Box>
                 );
             }
@@ -313,17 +316,17 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 return (
                     <Box flexDirection="column">
                         <Box>
-                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                            <Text color={isSelected ? tone('teal') : tone('dim')}>
                                 {isSelected ? '▸ ' : '  '}
                             </Text>
                             <Text>{item.icon} </Text>
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                            <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                                 {item.label}
                             </Text>
                         </Box>
                         {isSelected && (
                             <Box marginLeft={4}>
-                                <Text color="gray" dimColor>
+                                <Text color={tone('dim')} dimColor>
                                     {item.description}
                                 </Text>
                             </Box>
@@ -336,9 +339,13 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
             if (item.type === 'add-new') {
                 return (
                     <Box>
-                        <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
-                        <Text color={isSelected ? 'green' : 'gray'}>+ </Text>
-                        <Text color={isSelected ? 'green' : 'gray'}>Add custom marketplace</Text>
+                        <Text color={isSelected ? tone('teal') : tone('dim')}>
+                            {isSelected ? '▸ ' : '  '}
+                        </Text>
+                        <Text color={isSelected ? tone('add') : tone('dim')}>+ </Text>
+                        <Text color={isSelected ? tone('add') : tone('dim')}>
+                            Add custom marketplace
+                        </Text>
                     </Box>
                 );
             }
@@ -349,18 +356,18 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 return (
                     <Box flexDirection="column">
                         <Box>
-                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                            <Text color={isSelected ? tone('teal') : tone('dim')}>
                                 {isSelected ? '▸ ' : '  '}
                             </Text>
                             <Text>{icon} </Text>
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                            <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                                 {item.name}
                             </Text>
-                            <Text color="yellow"> (not installed)</Text>
+                            <Text color={tone('amberDim')}> (not installed)</Text>
                         </Box>
                         {isSelected && (
                             <Box marginLeft={4}>
-                                <Text color="gray" dimColor>
+                                <Text color={tone('dim')} dimColor>
                                     {item.sourceValue}
                                 </Text>
                             </Box>
@@ -377,21 +384,21 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 return (
                     <Box flexDirection="column">
                         <Box>
-                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                            <Text color={isSelected ? tone('teal') : tone('dim')}>
                                 {isSelected ? '▸ ' : '  '}
                             </Text>
                             <Text>{icon} </Text>
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                            <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                                 {m.name}
                             </Text>
-                            <Text color="gray" dimColor>
+                            <Text color={tone('dim')} dimColor>
                                 {' '}
                                 ({item.pluginCount} plugins)
                             </Text>
                         </Box>
                         {isSelected && (
                             <Box marginLeft={4}>
-                                <Text color="gray" dimColor>
+                                <Text color={tone('dim')} dimColor>
                                     {m.source.value}
                                 </Text>
                             </Box>
@@ -402,23 +409,25 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
 
             // Plugin item
             const p = item.plugin;
-            const statusBadge = item.isInstalled ? <Text color="green"> ✓</Text> : null;
+            const statusBadge = item.isInstalled ? <Text color={tone('add')}> ✓</Text> : null;
 
             return (
                 <Box flexDirection="column">
                     <Box>
-                        <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
-                        <Text color={isSelected ? 'white' : 'gray'}>📦 </Text>
-                        <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                        <Text color={isSelected ? tone('teal') : tone('dim')}>
+                            {isSelected ? '▸ ' : '  '}
+                        </Text>
+                        <Text color={isSelected ? tone('hi') : tone('dim')}>📦 </Text>
+                        <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                             {p.name}
                         </Text>
                         {p.version && (
-                            <Text color="gray" dimColor>
+                            <Text color={tone('dim')} dimColor>
                                 @{p.version}
                             </Text>
                         )}
                         {p.category && (
-                            <Text color="magenta" dimColor>
+                            <Text color={tone('faint')} dimColor>
                                 {' '}
                                 [{p.category}]
                             </Text>
@@ -427,12 +436,12 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                     </Box>
                     {isSelected && p.description && (
                         <Box marginLeft={4}>
-                            <Text color="gray">{p.description}</Text>
+                            <Text color={tone('dim')}>{p.description}</Text>
                         </Box>
                     )}
                     {isSelected && item.isInstalled && (
                         <Box marginLeft={4}>
-                            <Text color="gray" dimColor>
+                            <Text color={tone('dim')} dimColor>
                                 Already installed
                             </Text>
                         </Box>
@@ -546,7 +555,7 @@ const MarketplaceBrowser = forwardRef<MarketplaceBrowserHandle, MarketplaceBrows
                 onClose={onClose}
                 formatItem={formatItem}
                 title={getTitle()}
-                borderColor="green"
+                borderColor={tone('add')}
                 emptyMessage={getEmptyMessage()}
                 loadingMessage={isInstalling ? 'Installing...' : 'Loading...'}
             />

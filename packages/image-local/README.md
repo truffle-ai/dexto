@@ -17,11 +17,7 @@ This package default-exports a typed `DextoImage` (no side effects, no registrie
 
 ## CLI usage
 
-Install the image into the Dexto image store, then reference it from YAML:
-
-```bash
-dexto image install @dexto/image-local
-```
+The Dexto CLI ships with this image; reference it from YAML:
 
 ```yaml
 # agents/my-agent.yml

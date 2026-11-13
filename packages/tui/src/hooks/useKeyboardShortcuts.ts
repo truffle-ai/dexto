@@ -6,6 +6,7 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { useInput, useApp } from 'ink';
+import { getTuiRuntimeServices } from '../host/index.js';
 import type { CLIAction } from '../state/actions.js';
 import type { CLIState } from '../state/types.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
@@ -67,6 +68,7 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
             // Ctrl+C: Exit only (with double-press safety)
             // Use Escape to cancel processing
             if (key.ctrl && inputChar === 'c') {
+                if (getTuiRuntimeServices().abortChatMove?.() === true) return;
                 if (state.ui.exitWarningShown) {
                     // Second Ctrl+C within timeout - actually exit
                     exit();

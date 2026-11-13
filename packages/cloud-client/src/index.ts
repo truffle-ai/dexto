@@ -1,0 +1,160 @@
+// A typed client for Dexto's public /v1 API, from the OpenAPI document it serves (DEXTO-2033).
+
+import createClient from 'openapi-fetch';
+import type { paths } from './generated/v1.js';
+
+export type { paths } from './generated/v1.js';
+
+const DEXTO_CLOUD_PROJECT_HEADER = 'Dexto-Cloud-Project';
+
+export interface CloudClientOptions {
+    /** Such as `https://api.dexto.ai`. */
+    readonly apiBaseUrl: string;
+    /** An API key, or a function asked before every request for a person's fresh access token. */
+    readonly token: string | (() => Promise<string>);
+    /** The Cloud project a person's token acts in; null for a key, which acts in its own. */
+    readonly cloudProject: string | null;
+    readonly fetch?: typeof globalThis.fetch;
+}
+
+export type CloudClient = ReturnType<typeof createClient<paths>>;
+
+/** `url` without trailing slashes; a loop, not /\/+$/, which is slow on long runs of '/'. */
+function withoutTrailingSlashes(url: string): string {
+    let end = url.length;
+    while (end > 0 && url[end - 1] === '/') end -= 1;
+    return url.slice(0, end);
+}
+
+export function createCloudClient(options: CloudClientOptions): CloudClient {
+    const client = createClient<paths>({
+        baseUrl: withoutTrailingSlashes(options.apiBaseUrl),
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+    });
+    client.use({
+        async onRequest({ request }) {
+            const token = typeof options.token === 'string' ? options.token : await options.token();
+            request.headers.set('authorization', `Bearer ${token}`);
+            if (options.cloudProject !== null)
+                request.headers.set(DEXTO_CLOUD_PROJECT_HEADER, options.cloudProject);
+            return request;
+        },
+    });
+    return client;
+}
+
+/** A refusal from Dexto, from its `{ error: { code, message, requestId, retryable } }` envelope. */
+export class CloudApiError extends Error {
+    readonly status: number;
+    readonly code: string;
+    readonly requestId: string | null;
+    readonly retryable: boolean;
+    readonly details: unknown;
+    /** How long the response's `Retry-After` asks to wait; null when it names no wait. */
+    readonly retryAfterSeconds: number | null;
+
+    constructor(input: {
+        status: number;
+        code: string;
+        message: string;
+        requestId: string | null;
+        retryable: boolean;
+        details: unknown;
+        retryAfterSeconds: number | null;
+    }) {
+        super(input.message);
+        this.name = 'CloudApiError';
+        this.status = input.status;
+        this.code = input.code;
+        this.requestId = input.requestId;
+        this.retryable = input.retryable;
+        this.details = input.details;
+        this.retryAfterSeconds = input.retryAfterSeconds;
+    }
+}
+
+/** The response's data, or a CloudApiError for Dexto's error envelope. */
+export async function unwrap<Data>(result: {
+    data?: Data;
+    error?: unknown;
+    response: Response;
+}): Promise<Data> {
+    if (result.error === undefined) {
+        if (result.data === undefined) throw errorFor(result.response, null);
+        return result.data;
+    }
+    throw errorFor(result.response, result.error);
+}
+
+function errorFor(response: Response, body: unknown): CloudApiError {
+    const status = response.status;
+    const envelope = readEnvelope(body);
+    return new CloudApiError({
+        status,
+        code: envelope?.code ?? `http_${status}`,
+        message: envelope?.message ?? `Dexto answered HTTP ${status}.`,
+        requestId: envelope?.requestId ?? null,
+        retryable: envelope?.retryable ?? status >= 500,
+        details: envelope?.details,
+        retryAfterSeconds: retryAfterSeconds(response.headers.get('retry-after')),
+    });
+}
+
+/** `Retry-After` as delay-seconds or an HTTP date, in whole seconds from now. */
+function retryAfterSeconds(header: string | null): number | null {
+    if (header === null) return null;
+    const value = header.trim();
+    if (/^\d+$/u.test(value)) return Number(value);
+    // An HTTP date, such as `Wed, 21 Oct 2026 07:28:00 GMT`.
+    if (!/^[A-Za-z]{3}, /u.test(value)) return null;
+    const at = Date.parse(value);
+    if (Number.isNaN(at)) return null;
+    return Math.max(0, Math.ceil((at - Date.now()) / 1000));
+}
+
+function readEnvelope(body: unknown): {
+    code: string;
+    message: string;
+    requestId: string | null;
+    retryable: boolean;
+    details: unknown;
+} | null {
+    if (typeof body !== 'object' || body === null || !('error' in body)) return null;
+    const error: unknown = body.error;
+    if (typeof error !== 'object' || error === null) return null;
+    const field = (name: string): unknown => (name in error ? Reflect.get(error, name) : undefined);
+    const code = field('code');
+    const message = field('message');
+    if (typeof code !== 'string' || typeof message !== 'string') return null;
+    const requestId = field('requestId');
+    const retryable = field('retryable');
+    return {
+        code,
+        message,
+        requestId: typeof requestId === 'string' ? requestId : null,
+        retryable: retryable === true,
+        details: field('details'),
+    };
+}
+
+type Method = 'get' | 'put' | 'post' | 'patch' | 'delete';
+
+type JsonOf<Response> = Response extends { content: { 'application/json': infer Json } }
+    ? Json
+    : never;
+
+/** The JSON a /v1 operation answers with when it succeeds, such as `V1Response<'/v1/secrets', 'get'>`. */
+export type V1Response<
+    Path extends keyof paths,
+    M extends Method & keyof paths[Path],
+> = paths[Path][M] extends { responses: infer Responses }
+    ? JsonOf<Responses[200 & keyof Responses]> | JsonOf<Responses[201 & keyof Responses]>
+    : never;
+
+/** The JSON body a /v1 operation takes, such as `V1Body<'/v1/secrets', 'post'>`. */
+export type V1Body<
+    Path extends keyof paths,
+    M extends Method & keyof paths[Path],
+> = paths[Path][M] extends { requestBody?: { content: { 'application/json': infer Body } } }
+    ? Body
+    : never;

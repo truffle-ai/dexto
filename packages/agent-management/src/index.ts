@@ -116,11 +116,7 @@ export {
 export { walkUpDirectories } from './utils/fs-walk.js';
 export { updateEnvFile } from './utils/env-file.js';
 export { isDextoAuthEnabled } from './utils/feature-flags.js';
-export {
-    isDextoAuthenticated,
-    getDextoApiKeyFromAuth,
-    canUseDextoProvider,
-} from './utils/dexto-auth.js';
+export { isDextoAuthenticated, canUseDextoProvider } from './utils/dexto-auth.js';
 
 // Config management utilities
 export {
@@ -157,6 +153,9 @@ export {
     getPrimaryApiKeyEnvVar,
     PROVIDER_API_KEY_MAP,
 } from './utils/api-key-resolver.js';
+
+// Signing in to Dexto (profiles under ~/.dexto/accounts)
+export { dextoAccounts, dextoSignIn, dextoCloud, dextoGateway, dextoMcp } from './auth/index.js';
 
 // Model provider auth method definitions
 export {
@@ -284,6 +283,7 @@ export {
     // Discovery
     discoverClaudeCodePlugins,
     discoverStandaloneSkills,
+    getStandaloneSkillPaths,
     getPluginSearchPaths,
     // Loading
     loadClaudeCodePlugin,

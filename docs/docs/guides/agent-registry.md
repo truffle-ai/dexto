@@ -14,17 +14,9 @@ Want to add your Agent to this registry? Check out our [Community Contribution G
 ## Quick Start
 
 ```bash
-# List all available agents
-dexto agents list
-
-# Install an agent
-dexto agents install <agent-name>
-
-# Use an installed agent
+# Use a bundled agent; the first use installs it under ~/.dexto/agents
 dexto --agent <agent-name>
 ```
-
-For detailed installation instructions, see the [Installing Custom Agents guide](./installing-custom-agents).
 
 ---
 
@@ -45,7 +37,6 @@ For detailed installation instructions, see the [Installing Custom Agents guide]
 | [GitHub Agent](#-github-agent) | DevOps | GitHub operations, PR analysis | OpenAI GPT-5 Mini |
 | [Workflow Builder Agent](#-workflow-builder-agent) | Automation | n8n workflow automation | OpenAI GPT-5 Mini |
 | [Product Researcher](#-product-researcher) | Research | Product naming, branding research | Anthropic Claude Sonnet 4.5 |
-| [Triage Agent](#-triage-agent) | Multi-Agent | Customer support routing | OpenAI GPT-5 |
 | [Gaming Agent](#-gaming-agent) | Entertainment | GameBoy games, Pokemon | Anthropic Claude Sonnet 4.5 |
 | [Default Agent](#%EF%B8%8F-default-agent) | General Purpose | General tasks, file operations | Any |
 
@@ -440,39 +431,6 @@ dexto --agent product-researcher "Suggest names for a sustainable fashion startu
 
 ---
 
-### Multi-Agent Systems
-
-#### 🎯 Triage Agent
-
-**ID:** `triage-agent`
-**Best For:** Customer support routing, multi-agent coordination
-
-Demonstration of a multi-agent customer support triage system that routes queries to specialized agents.
-
-**System Architecture:**
-- **Triage Agent** (Main) – Routes queries to specialized agents
-- **Technical Support Agent** – Handles technical issues
-- **Billing Agent** – Manages billing and payment queries
-- **Product Info Agent** – Answers product-related questions
-- **Escalation Agent** – Handles complex cases requiring human intervention
-
-**Key Features:**
-- Intelligent query routing
-- Multi-agent coordination
-- Specialized domain handling
-- Escalation workflows
-
-**Example Use:**
-```bash
-dexto --agent triage-agent "I need help with my billing"
-```
-
-**Recommended LLM:** OpenAI GPT-5
-
-**Tutorial:** [Building Multi-Agent Systems](../tutorials/cli/examples/building-triage-system.md)
-
----
-
 ### Entertainment
 
 #### 🎮 Gaming Agent
@@ -534,21 +492,6 @@ dexto --agent default-agent
 
 ## Installation & Usage
 
-### Installing Agents
-
-```bash
-# Install single agent
-dexto agents install nano-banana-agent
-
-# Install multiple agents
-dexto agents install podcast-agent music-agent coding-agent
-
-# Install all agents
-dexto agents install --all
-```
-
-Installation copies bundled agent files without modifying them with global LLM preferences. The CLI applies your configured LLM preferences when starting an agent, so reinstalling does not change that selection.
-
 ### Using Installed Agents
 
 ```bash
@@ -557,19 +500,6 @@ dexto --agent coding-agent
 
 # Auto-install and use (if not installed)
 dexto -a podcast-agent "Generate a podcast intro"
-```
-
-### Managing Agents
-
-```bash
-# List installed agents
-dexto agents list --installed
-
-# Find agent location
-dexto which nano-banana-agent
-
-# Uninstall agent
-dexto agents uninstall music-agent
 ```
 
 ### Setting Default Agent
@@ -596,7 +526,6 @@ defaults:
 | github-agent | DevOps | Claude/GPT | GITHUB_TOKEN |
 | workflow-builder-agent | Automation | GPT | N8N_MCP_URL, N8N_MCP_TOKEN |
 | product-researcher | Research | Claude/GPT | - |
-| triage-agent | Multi-Agent | Claude/GPT | - |
 | gaming-agent | Entertainment | Claude (Vision) | ROM files |
 | coding-agent | Development | Any | Pre-installed |
 | explore-agent | Development | Claude Haiku | - |
@@ -625,7 +554,6 @@ defaults:
 - **Workflows:** Use `workflow-builder-agent` for n8n automation and integrations
 
 ### For Complex Systems
-- **Multi-Agent:** Use `triage-agent` as a template for building agent coordination systems
 
 ### For Entertainment
 - **Gaming:** Use `gaming-agent` to play GameBoy games like Pokemon
@@ -635,10 +563,7 @@ defaults:
 Most agents require API keys for their LLM providers:
 
 ```bash
-# Run setup to configure keys
-dexto setup
-
-# Or add to ~/.dexto/.env
+# Add to ~/.dexto/.env, or run dexto login to use Dexto models
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_GENERATIVE_AI_API_KEY=...
@@ -661,8 +586,6 @@ Pre-installed status is available for high-quality, well-documented agents that 
 
 ## Next Steps
 
-- **Get Started:** Follow the [Install Your First Agent tutorial](../getting-started/install-first-agent-tutorial.mdx)
-- **Install Guide:** Learn more about [installing custom agents](./installing-custom-agents)
 - **Create Your Own:** Build custom agents with the [Configuration Guide](./configuring-dexto/agent-yml.md)
 - **Examples:** Explore [examples and demos](/examples/intro)
 - **Tutorials:** Deep-dive into agent-specific tutorials in the [tutorials section](../tutorials)

@@ -91,4 +91,3 @@ Before adding a new MCP server to your agent, explore its capabilities in the pl
 - [MCP Overview](/docs/mcp/overview)
 - [MCP Configuration](/docs/guides/configuring-dexto/mcpConfiguration)
 - [Building MCP Servers](https://modelcontextprotocol.io/)
-- [Web UI Guide](/docs/guides/web-ui)

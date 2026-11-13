@@ -1,0 +1,15 @@
+{"timestamp": "2026-11-02T08:00:00.000Z", "type": "session_meta", "payload": {"id": "019a4f2e-7c3d-7e10-9b8a-2f6d4c1e0a77", "session_id": "019a4f2e-7c3d-7e10-9b8a-2f6d4c1e0a77", "timestamp": "2026-11-02T08:00:00.000Z", "cwd": "/Users/dev/Projects/dexto", "originator": "codex_cli_rs", "cli_version": "0.165.0", "source": "cli", "model_provider": "openai", "history_mode": "paginated", "base_instructions": {"text": "You are Codex."}, "git": {"commit_hash": "abc123", "branch": "main", "repository_url": "git@github.com:truffle-ai/dexto.git"}}}
+{"timestamp": "2026-11-02T08:00:00.100Z", "type": "turn_context", "payload": {"cwd": "/Users/dev/Projects/dexto", "model": "gpt-5.5"}}
+{"timestamp": "2026-11-02T08:00:00.200Z", "type": "response_item", "payload": {"type": "message", "role": "developer", "content": [{"type": "input_text", "text": "<permissions instructions>sandboxed</permissions instructions>"}]}}
+{"timestamp": "2026-11-02T08:00:00.300Z", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "<environment_context><cwd>/Users/dev/Projects/dexto</cwd></environment_context>"}]}}
+{"timestamp": "2026-11-02T08:00:01.000Z", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "List the import commands."}]}}
+{"timestamp": "2026-11-02T08:00:01.100Z", "type": "event_msg", "payload": {"type": "task_started", "turn_id": "t1"}}
+{"timestamp": "2026-11-02T08:00:02.000Z", "type": "response_item", "payload": {"type": "reasoning", "summary": [], "encrypted_content": "x"}}
+{"timestamp": "2026-11-02T08:00:03.000Z", "type": "response_item", "payload": {"type": "custom_tool_call", "call_id": "c1", "name": "apply_patch", "input": "*** Begin Patch\n*** End Patch", "status": "completed"}}
+{"timestamp": "2026-11-02T08:00:04.000Z", "type": "response_item", "payload": {"type": "custom_tool_call_output", "call_id": "c1", "output": "Done."}}
+{"timestamp": "2026-11-02T08:00:04.500Z", "type": "event_msg", "payload": {"type": "item_completed", "item": {"id": "i1"}}}
+{"timestamp": "2026-11-02T08:00:04.600Z", "type": "token_usage_record", "input_tokens": 10}
+{"timestamp": "2026-11-02T08:00:05.000Z", "type": "compacted", "payload": {"message": "Summary of the work so far.", "replacement_history": [], "window_number": 2}}
+{"timestamp": "2026-11-02T08:00:05.100Z", "type": "world_state", "cwd": "/Users/dev/Projects/dexto"}
+{"timestamp": "2026-11-02T08:00:06.000Z", "type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "There are two: chat local and chat import."}]}}
+{"timestamp": "2026-11-02T08:00:06.100Z", "type": "event_msg", "payload": {"type": "task_complete", "turn_id": "t1"}}

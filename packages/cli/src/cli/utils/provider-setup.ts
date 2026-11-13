@@ -1,14 +1,8 @@
 // packages/cli/src/cli/utils/provider-setup.ts
 
-import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import open from 'open';
-import {
-    type LLMProvider,
-    LLM_PROVIDERS,
-    LLM_REGISTRY,
-    getDefaultModelForProvider,
-} from '@dexto/llm';
+import { type LLMProvider, LLM_PROVIDERS } from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar } from '@dexto/agent-management';
 
 /**
@@ -40,7 +34,7 @@ interface ProviderOption {
  * not a user-selectable provider. When logged into Dexto, requests are
  * automatically routed through the Dexto gateway.
  */
-export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
+const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
     google: {
         value: 'google',
         label: 'Google Gemini',
@@ -185,124 +179,10 @@ export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
 };
 
 /**
- * Get providers organized by category
- */
-function getProvidersByCategory(): Record<ProviderCategory, ProviderOption[]> {
-    const categories: Record<ProviderCategory, ProviderOption[]> = {
-        recommended: [],
-        local: [],
-        cloud: [],
-        gateway: [],
-        enterprise: [],
-    };
-
-    for (const provider of LLM_PROVIDERS) {
-        const option = PROVIDER_REGISTRY[provider];
-        if (option) {
-            categories[option.category].push(option);
-        }
-    }
-
-    return categories;
-}
-
-/**
- * Build provider selection options with categories
- */
-function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint: string }> {
-    const categories = getProvidersByCategory();
-    const options: Array<{ value: LLMProvider; label: string; hint: string }> = [];
-
-    // Recommended (free) providers first
-    if (categories.recommended.length > 0) {
-        for (const p of categories.recommended) {
-            options.push({
-                value: p.value,
-                label: `${chalk.green('●')} ${p.label}`,
-                hint: `${p.hint} ${chalk.green('(free)')}`,
-            });
-        }
-    }
-
-    // Local providers - run AI on your machine
-    if (categories.local.length > 0) {
-        for (const p of categories.local) {
-            options.push({
-                value: p.value,
-                label: `${chalk.cyan('●')} ${p.label}`,
-                hint: `${p.hint} ${chalk.cyan('(local)')}`,
-            });
-        }
-    }
-
-    // Cloud providers
-    if (categories.cloud.length > 0) {
-        for (const p of categories.cloud) {
-            options.push({
-                value: p.value,
-                label: `${chalk.blue('●')} ${p.label}`,
-                hint: p.hint,
-            });
-        }
-    }
-
-    // Gateway providers
-    if (categories.gateway.length > 0) {
-        for (const p of categories.gateway) {
-            const suffix = p.requiresBaseURL ? chalk.gray(' (requires URL)') : '';
-            options.push({
-                value: p.value,
-                label: `${chalk.rgb(255, 165, 0)('●')} ${p.label}`,
-                hint: `${p.hint}${suffix}`,
-            });
-        }
-    }
-
-    // Enterprise providers
-    if (categories.enterprise.length > 0) {
-        for (const p of categories.enterprise) {
-            options.push({
-                value: p.value,
-                label: `${chalk.cyan('●')} ${p.label}`,
-                hint: p.hint,
-            });
-        }
-    }
-
-    return options;
-}
-
-/**
- * Interactive provider selection with back option.
- * @returns Selected provider, '_back' if back selected, or null if cancelled
- */
-export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
-    const options = buildProviderOptions();
-
-    const choice = await p.select({
-        message: 'Choose your AI provider',
-        options: [
-            ...options,
-            {
-                value: '_back' as const,
-                label: chalk.gray('← Back'),
-                hint: 'Return to previous menu',
-            },
-        ],
-    });
-
-    if (p.isCancel(choice)) {
-        return null;
-    }
-
-    return choice as LLMProvider | '_back';
-}
-
-/**
  * Get provider display name
  */
 export function getProviderDisplayName(provider: LLMProvider | string): string {
-    if (provider === 'dexto-nova') return 'Dexto Nova';
+    if (provider === 'dexto-nova') return 'Dexto';
     if (isLLMProvider(provider)) {
         return PROVIDER_REGISTRY[provider]?.label || provider;
     }
@@ -318,20 +198,6 @@ function isLLMProvider(value: string): value is LLMProvider {
  */
 export function getProviderInfo(provider: LLMProvider): ProviderOption | undefined {
     return PROVIDER_REGISTRY[provider];
-}
-
-/**
- * Legacy PROVIDER_OPTIONS for backwards compatibility with init-app
- */
-export const PROVIDER_OPTIONS = buildProviderOptions();
-
-/**
- * Get API key format hint for a provider
- */
-export function getApiKeyFormatHint(provider: LLMProvider): string | null {
-    const info = PROVIDER_REGISTRY[provider];
-    if (!info?.apiKeyPrefix) return null;
-    return `Key should start with "${info.apiKeyPrefix}"`;
 }
 
 /**
@@ -419,30 +285,6 @@ export async function openApiKeyUrl(provider: LLMProvider): Promise<boolean> {
     } catch {
         return false;
     }
-}
-
-/**
- * Check if provider requires a base URL
- */
-export function providerRequiresBaseURL(provider: LLMProvider): boolean {
-    return PROVIDER_REGISTRY[provider]?.requiresBaseURL === true;
-}
-
-/**
- * Get default model for provider, with fallback for custom providers
- */
-export function getDefaultModel(provider: LLMProvider): string {
-    const defaultModel = getDefaultModelForProvider(provider);
-    if (defaultModel) return defaultModel;
-
-    // Fallback for providers without a default (custom providers)
-    const providerInfo = LLM_REGISTRY[provider];
-    if (providerInfo?.models && providerInfo.models.length > 0) {
-        return providerInfo.models[0]!.name;
-    }
-
-    // For providers that accept any model, return empty to prompt user
-    return '';
 }
 
 /**

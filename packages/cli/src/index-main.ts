@@ -3,7 +3,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Command, Option } from 'commander';
 import * as p from '@clack/prompts';
-import chalk from 'chalk';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 import type { UpdateInfo } from './cli/utils/version-check.js';
 import { handleHeadlessApproval } from './cli/approval/headless-approval-handler.js';
@@ -54,7 +53,12 @@ const cliVersion = resolveCliVersion();
 process.env.DEXTO_CLI_VERSION = cliVersion;
 
 import { logger, startLlmRegistryAutoUpdate, DextoAgent, isPath } from '@dexto/core';
-import { getAllSupportedModels, getProviderFromModel, type LLMProvider } from '@dexto/llm';
+import {
+    LLM_PROVIDERS,
+    getAllSupportedModels,
+    getProviderFromModel,
+    type LLMProvider,
+} from '@dexto/llm';
 import {
     applyImageDefaults,
     cleanNullValues,
@@ -74,10 +78,14 @@ import {
     findDextoProjectRoot,
     globalPreferencesExist,
     loadGlobalPreferences,
+    saveGlobalPreferences,
+    createInitialPreferences,
     resolveBundledScript,
     enrichAgentConfig,
     isDextoAuthEnabled,
     createModelAuthResolver,
+    dextoGateway,
+    dextoMcp,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
 } from '@dexto/agent-management';
@@ -89,50 +97,95 @@ import {
     applyStartupLLMFallback,
     applyUserPreferences,
 } from './config/cli-overrides.js';
+import { CommandFailure } from './cli/failure.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
+import { registerReviewCommand } from './cli/commands/review/register.js';
+import { gitIn, readBundledReviewSkill } from './cli/commands/review/review.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
-import { registerSearchCommand } from './cli/commands/search/register.js';
-import { registerAuthCommand } from './cli/commands/auth/register.js';
-import { registerBillingCommand } from './cli/commands/billing/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
-import { registerMcpCommand } from './cli/commands/mcp/register.js';
-import { registerImageCommand } from './cli/commands/image/register.js';
-import { registerPluginCommand } from './cli/commands/plugin/register.js';
-import { registerAgentsCommand } from './cli/commands/agents/register.js';
-import { registerDeployCommand } from './cli/commands/deploy/register.js';
-import { registerSpanCommand } from './cli/commands/span/register.js';
-import { registerTraceCommand } from './cli/commands/trace/register.js';
-import { registerInitCommand } from './cli/commands/init.js';
+import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
-import type { MainModeOptions } from './cli/modes/context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
-import type { CreateAppOptions } from './cli/commands/create-app.js';
-import type { CLISetupOptionsInput } from './cli/commands/setup.js';
-import type { ConnectCommandOptions } from './cli/commands/connect.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 
-const program = new Command();
+/** What a signed-in first run starts on: the model 1.x setup recommended for Dexto models. */
+const FIRST_RUN_DEXTO_MODEL = 'anthropic/claude-haiku-4.5';
 
-let dextoApiKeyBootstrapped = false;
+const program = new Command();
+// Commander's own usage errors, such as `dexto chat bogus` or an unknown option, exit 2 like a
+// mistyped command (the output contract), not commander's 1. Set first: commands defined later
+// inherit it. Help, version and every other exit keep their code.
+const USAGE_ERRORS: ReadonlySet<string> = new Set([
+    'commander.unknownCommand',
+    'commander.unknownOption',
+    'commander.excessArguments',
+    'commander.missingArgument',
+    'commander.optionMissingArgument',
+    'commander.missingMandatoryOptionValue',
+    'commander.invalidArgument',
+    'commander.conflictingOption',
+]);
+program.exitOverride((error) => {
+    if (USAGE_ERRORS.has(error.code)) process.exit(2);
+});
+
+/** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */
+async function printFailure(
+    message: string,
+    fix: string | null,
+    legacy: readonly string[],
+    details: string | null = null
+): Promise<void> {
+    const { printFault } = await import('./cli/screens/fault.js');
+    printFault({ message, details, fix }, legacy);
+}
+
+/**
+ * Before the first chat with no provider key and no sign-in: the Signal first-run screen, or the
+ * emoji lines it replaces, pointing at `dexto login`.
+ */
+async function printSignInFirst(): Promise<void> {
+    if (process.env.DEXTO_PALETTE !== 'signal') {
+        await printFailure('Sign in or set a provider key to start Dexto.', 'dexto login', [
+            '❌ Sign in or set a provider key to start Dexto.',
+            '💡 Run `dexto login` to use Dexto models, or set a provider key such as ANTHROPIC_API_KEY.',
+        ]);
+        return;
+    }
+    const { firstRunLines, readFirstRunFacts } = await import('./cli/screens/first-run.js');
+    const facts = await readFirstRunFacts(cliVersion, null);
+    process.stdout.write(`${firstRunLines(facts).join('\n')}\n`);
+}
+
+// Signal help (DEXTO_PALETTE=signal) for the root and every command added below, which copy it.
+if (process.env.DEXTO_PALETTE === 'signal') {
+    const { commanderHelpLines, rootHelpLines } = await import('./cli/screens/help.js');
+    program.configureHelp({
+        formatHelp: (command, helper) =>
+            `${(command === program ? rootHelpLines(program, helper, cliVersion) : commanderHelpLines(command, helper)).join('\n')}\n`,
+    });
+}
+
+let earlierSignInsCarriedOver = false;
+let cloudSkillsSynced = false;
 let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
 let llmRegistryAutoUpdateStarted = false;
 
-async function ensureDextoApiKeyBootstrap(): Promise<void> {
-    if (dextoApiKeyBootstrapped) {
-        return;
-    }
-    if (!isDextoAuthEnabled()) {
-        dextoApiKeyBootstrapped = true;
-        return;
-    }
-    const { getDextoApiKey } = await import('./cli/auth/index.js');
-    const dextoApiKey = await getDextoApiKey();
-    if (dextoApiKey) {
-        process.env.DEXTO_API_KEY = dextoApiKey;
-    }
-    dextoApiKeyBootstrapped = true;
+async function ensureDextoSignInsCarriedOver(): Promise<void> {
+    if (earlierSignInsCarriedOver) return;
+    const { carryOverEarlierSignIns } = await import('./cli/commands/auth/sign-in-context.js');
+    await carryOverEarlierSignIns();
+    earlierSignInsCarriedOver = true;
+}
+
+/** Puts the person's Dexto Skills library where the session's skill discovery finds it. */
+async function syncCloudSkillsOnce(): Promise<void> {
+    if (cloudSkillsSynced) return;
+    cloudSkillsSynced = true;
+    const { syncCloudSkillsAtStart } = await import('./cli/cloud/skills-sync.js');
+    await syncCloudSkillsAtStart();
 }
 
 async function getVersionCheckResult(): Promise<UpdateInfo | null> {
@@ -154,15 +207,12 @@ function ensureLlmRegistryAutoUpdateStarted(): void {
 // 1) GLOBAL OPTIONS
 program
     .name('dexto')
-    .description('AI-powered CLI and WebUI for interacting with MCP servers.')
     .version(cliVersion, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
-    .option('--cloud-agent <id>', 'Connect the interactive CLI to a deployed cloud agent by ID')
     .option('-p, --prompt <text>', 'Start the interactive CLI and immediately run the prompt')
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
-    .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .addOption(
         new Option(
@@ -179,165 +229,14 @@ program
         'Select Full access permissions (alias for --permissions-mode full-access)'
     )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
-    .option('-c, --continue', 'Continue most recent session (CLI mode)')
-    .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
-    .option(
-        '--mode <mode>',
-        'The application in which dexto should talk to you - web | cli | server | mcp',
-        'cli'
-    )
-    .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
-    .option(
-        '--host <host>',
-        'bind address for web/server mode (default: 127.0.0.1; a non-loopback host requires DEXTO_SERVER_API_KEY)'
-    )
-    .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
-    .option(
-        '--image <package>',
-        'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
-    )
-    .option(
-        '--dev',
-        '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
-    )
+    .option('-c, --continue', 'Continue most recent session')
+    .option('-r, --resume <sessionId>', 'Resume a session by ID')
     .enablePositionalOptions();
-
-// 2) `create-app` SUB-COMMAND
-program
-    .command('create-app [name]')
-    .description('Create a Dexto application (CLI, web, bot, etc.)')
-    .option('--from-image <package>', 'Use existing image (e.g., @dexto/image-local)')
-    .option('--type <type>', 'App type: script, webapp (default: script)')
-    .action(
-        withAnalytics('create-app', async (name?: string, options?: CreateAppOptions) => {
-            try {
-                p.intro(chalk.inverse('Create Dexto App'));
-
-                // Create the app project structure (fully self-contained)
-                const { createDextoProject } = await import('./cli/commands/create-app.js');
-                await createDextoProject(name, options);
-
-                p.outro(chalk.greenBright('Dexto app created successfully!'));
-                safeExit('create-app', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto create-app command failed: ${err}`);
-                safeExit('create-app', 1, 'error');
-            }
-        })
-    );
-
-registerImageCommand({ program });
-registerDeployCommand({ program });
-registerSpanCommand({ program });
-registerTraceCommand({ program });
-registerInitCommand({ program });
-
-// 4) `init-app` SUB-COMMAND
-program
-    .command('init-app')
-    .description('Initialize an existing Typescript app with Dexto')
-    .action(
-        withAnalytics('init-app', async () => {
-            const { checkForFileInCurrentDirectory, FileNotFoundError } = await import(
-                './cli/utils/package-mgmt.js'
-            );
-            try {
-                // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
-                await checkForFileInCurrentDirectory('package.json');
-                await checkForFileInCurrentDirectory('tsconfig.json');
-
-                // start intro
-                p.intro(chalk.inverse('Dexto Init App'));
-                const { getUserInputToInitDextoApp, initDexto, postInitDexto } = await import(
-                    './cli/commands/init-app.js'
-                );
-                const userInput = await getUserInputToInitDextoApp();
-                try {
-                    const { capture } = await import('./analytics/index.js');
-                    capture('dexto_init', {
-                        provider: userInput.llmProvider,
-                        providedKey: Boolean(userInput.llmApiKey),
-                    });
-                } catch {
-                    // Analytics failures should not block CLI execution.
-                }
-                await initDexto(
-                    userInput.directory,
-                    userInput.createExampleFile,
-                    userInput.llmProvider,
-                    userInput.llmApiKey
-                );
-                p.outro(chalk.greenBright('Dexto app initialized successfully!'));
-
-                // add notes for users to get started with their new initialized Dexto project
-                await postInitDexto(userInput.directory);
-                safeExit('init-app', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                // if the package.json or tsconfig.json is not found, we give instructions to create a new project
-                if (err instanceof FileNotFoundError) {
-                    console.error(`❌ ${err.message} Run "dexto create-app" to create a new app`);
-                    safeExit('init-app', 1, 'file-not-found');
-                }
-                console.error(`❌ Initialization failed: ${err}`);
-                safeExit('init-app', 1, 'error');
-            }
-        })
-    );
-
-// 5) `setup` SUB-COMMAND
-program
-    .command('setup')
-    .description('Configure global Dexto preferences')
-    .option('--provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
-    .option('--model <model>', 'Model name (uses provider default if not specified)')
-    .option('--default-agent <agent>', 'Default agent name (default: coding-agent)')
-    .option('--no-interactive', 'Skip interactive prompts and API key setup')
-    .option('--force', 'Overwrite existing setup without confirmation')
-    .action(
-        withAnalytics('setup', async (options: CLISetupOptionsInput) => {
-            try {
-                const { handleSetupCommand } = await import('./cli/commands/setup.js');
-                await handleSetupCommand(options);
-                safeExit('setup', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(
-                    `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
-                );
-                safeExit('setup', 1, 'error');
-            }
-        })
-    );
-
-program
-    .command('connect')
-    .description('Connect a model provider auth method')
-    .option('--provider <provider>', 'Model provider id')
-    .option('--method <method>', 'Auth method id')
-    .option('--action <action>', 'Existing profile action: use, replace, or delete')
-    .option('--no-interactive', 'Require provider and method flags')
-    .action(
-        withAnalytics('connect', async (options: ConnectCommandOptions) => {
-            try {
-                const { handleConnectCommand } = await import('./cli/commands/connect.js');
-                await handleConnectCommand(options);
-                safeExit('connect', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto connect command failed: ${err}`);
-                safeExit('connect', 1, 'error');
-            }
-        })
-    );
-
-registerAgentsCommand({ program });
 
 // 7) `upgrade` SUB-COMMAND
 program
     .command('upgrade [version]')
-    .description('Upgrade Dexto CLI (auto-migrates npm installs to native)')
+    .description('Upgrade dexto, or install a given version')
     .option('--dry-run', 'Print commands without executing them')
     .option('--force', 'Force reinstall during upgrade')
     .action(
@@ -350,7 +249,9 @@ program
                     safeExit('upgrade', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto upgrade command failed: ${err}`);
+                    await printFailure(`dexto upgrade command failed: ${err}`, null, [
+                        `❌ dexto upgrade command failed: ${err}`,
+                    ]);
                     safeExit('upgrade', 1, 'error');
                 }
             }
@@ -360,7 +261,7 @@ program
 // 8) `uninstall` SUB-COMMAND (CLI self uninstall)
 program
     .command('uninstall')
-    .description('Uninstall the Dexto CLI binary (does not uninstall agents)')
+    .description('Remove dexto from this machine')
     .option('--purge', 'Also remove ~/.dexto completely')
     .option('--dry-run', 'Print actions without deleting files')
     .action(
@@ -371,37 +272,19 @@ program
                 safeExit('uninstall', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto uninstall command failed: ${err}`);
+                await printFailure(`dexto uninstall command failed: ${err}`, null, [
+                    `❌ dexto uninstall command failed: ${err}`,
+                ]);
                 safeExit('uninstall', 1, 'error');
             }
         })
     );
 
-// 9) `which` SUB-COMMAND
-program
-    .command('which <agent>')
-    .description('Show the path to an agent')
-    .action(
-        withAnalytics('which', async (agent: string) => {
-            try {
-                const { handleWhichCommand } = await import('./cli/commands/which.js');
-                await handleWhichCommand(agent);
-                safeExit('which', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto which command failed: ${err}`);
-                safeExit('which', 1, 'error');
-            }
-        })
-    );
-
-registerPluginCommand({ program });
-
 // Printed to stderr so headless JSON output and MCP stdio stay clean.
 function printPermissionsModeDeprecation(config: AgentConfig): void {
     const warning = getPermissionsModeDeprecationWarning(config);
     if (warning !== null) {
-        console.warn(chalk.yellow(`⚠️  ${warning}`));
+        console.warn(`⚠️  ${warning}`);
     }
 }
 
@@ -412,7 +295,8 @@ async function bootstrapAgentFromGlobalOpts(options: {
 }) {
     const { mode, modelOverride } = options;
     const isHeadlessRun = mode === 'headless-run';
-    await ensureDextoApiKeyBootstrap();
+    await ensureDextoSignInsCarriedOver();
+    await syncCloudSkillsOnce();
     await ensureImageImporterConfigured();
     const globalOpts = program.opts();
     const effectiveModel = modelOverride ?? globalOpts.model;
@@ -431,16 +315,17 @@ async function bootstrapAgentFromGlobalOpts(options: {
         inferredProvider = getProviderFromModel(effectiveModel);
         const apiKey = resolveApiKeyForProvider(inferredProvider);
         if (!apiKey) {
-            const envVar = getPrimaryApiKeyEnvVar(inferredProvider);
-            throw new Error(
-                `Missing API key for provider '${inferredProvider}' - please set $${envVar}`
+            throw new CommandFailure(
+                'needs_sign_in',
+                `Set ${getPrimaryApiKeyEnvVar(inferredProvider)} to use ${effectiveModel}.`,
+                null
             );
         }
 
         inferredApiKey = apiKey;
     }
 
-    const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
+    const resolvedPath = await resolveAgentPath(globalOpts.agent);
     const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, {
@@ -457,9 +342,8 @@ async function bootstrapAgentFromGlobalOpts(options: {
     }
 
     // Load image first to apply defaults and resolve DI services
-    // Priority: CLI flag > Agent config > Environment variable > Default
+    // Priority: Agent config > Environment variable > Default
     const imageName =
-        globalOpts.image || // --image flag
         mergedConfig.image || // image field in agent config
         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
         '@dexto/image-local'; // Default for convenience
@@ -468,14 +352,14 @@ async function bootstrapAgentFromGlobalOpts(options: {
     try {
         image = await loadImage(imageName);
     } catch (err) {
-        console.error(`❌ Failed to load image '${imageName}'`);
-        if (err instanceof Error) {
-            console.error(err.message);
-        }
-        console.error(`💡 Install it with: dexto image install ${imageName}`);
+        // `dexto run` reports its own failure, once.
         if (isHeadlessRun) {
             throw new Error(`Failed to load image '${imageName}'`, { cause: err });
         }
+        await printFailure(`Failed to load image '${imageName}'`, null, [
+            `❌ Failed to load image '${imageName}'`,
+            ...(err instanceof Error ? [err.message] : []),
+        ]);
         safeExit('bootstrap', 1, 'image-load-failed');
     }
 
@@ -488,6 +372,11 @@ async function bootstrapAgentFromGlobalOpts(options: {
         logLevel: isHeadlessRun ? 'error' : 'info',
         workspaceRoot,
     });
+    // Signed in: the session gets the Dexto MCP's tools beside the person's own servers.
+    enrichedConfig.mcpServers = dextoMcp.withDextoMcpServer(
+        enrichedConfig.mcpServers,
+        await dextoMcp.dextoMcpServer(dextoGateway.defaultDextoGatewayOptions())
+    );
 
     if (isHeadlessRun) {
         // Force silent transport in headless mode even when agent config defines logger settings.
@@ -516,6 +405,10 @@ async function bootstrapAgentFromGlobalOpts(options: {
             hostContext: { workspaceRoot },
             overrides: {
                 authResolver: createModelAuthResolver(),
+                mcpAuthProviderFactory: dextoMcp.withDextoMcpAuth(
+                    null,
+                    dextoGateway.defaultDextoGatewayOptions()
+                ),
             },
         })
     );
@@ -538,55 +431,48 @@ async function bootstrapAgentFromGlobalOpts(options: {
     return agent;
 }
 
-// 11) Runtime commands (`run`, `session`, `search`, `auth`, `billing`)
+// 11) Runtime commands (`run`, `chat`) and the cloud commands
 const runtimeCommandContext = {
     program,
     cliVersion,
     bootstrapAgentFromGlobalOpts,
 };
 registerRunCommand(runtimeCommandContext);
+registerReviewCommand(runtimeCommandContext, {
+    git: gitIn(process.cwd()),
+    readSkill: readBundledReviewSkill,
+});
 registerSessionCommand(runtimeCommandContext);
-registerSearchCommand(runtimeCommandContext);
-registerAuthCommand(runtimeCommandContext);
-registerBillingCommand(runtimeCommandContext);
 registerCloudCommand(program);
-registerMcpCommand({ program });
 
-// 13) Main dexto CLI - Interactive (CLI) or run in other modes (--mode web/server/mcp)
+// 13) Main dexto CLI - the interactive chat
 program
-    // Main customer facing description
     .description(
-        'Dexto CLI - AI-powered assistant with session management.\n\n' +
-            'Basic Usage:\n' +
-            '  dexto or dexto --mode cli  Start interactive CLI (default)\n' +
-            '  dexto --mode web         Start web UI\n' +
-            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n' +
-            '  dexto run "query"        Run one-off headless task\n\n' +
-            'Session Management Commands:\n' +
-            '  dexto session list              List all sessions\n' +
-            '  dexto session history [id]      Show session history\n' +
-            '  dexto session delete <id>       Delete a session\n' +
-            '  dexto search <query>            Search across sessions\n' +
-            '    Options: --session <id>, --role <user|assistant>, --limit <n>\n\n' +
-            'Agent Selection:\n' +
-            '  dexto --agent coding-agent       Use installed agent by name\n' +
-            '  dexto --agent ./my-agent.yml     Use agent from file path\n' +
-            '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
-            'Permissions:\n' +
-            '  dexto --permissions-mode asks-you     Asks you before file edits and shell commands\n' +
-            '  dexto --permissions-mode full-access  Full access: run tools without asking\n' +
-            '  dexto --auto-approve                  Alias for --permissions-mode full-access\n' +
-            '  dexto --bypass-permissions            Alias for --permissions-mode full-access\n\n' +
-            'Advanced Modes:\n' +
-            '  dexto --mode server      Run as API server\n' +
-            '  dexto --mode mcp         Run as MCP server\n\n' +
+        'Dexto CLI: your agent harness, local and cloud.\n\n' +
+            'Examples:\n' +
+            '  dexto                   Start the interactive chat here\n' +
+            '  dexto -p "query"        Start the chat and run the prompt\n' +
+            '  dexto -c | -r <id>      Continue the latest chat, or resume one\n' +
+            '  dexto -a ./agent.yml    Use an agent file\n' +
+            '  dexto run "query"       Run one headless task\n' +
+            "  dexto chat list         This machine's chats\n" +
+            '  dexto login             Sign in for Dexto models and the cloud commands\n\n' +
             'Docs: https://cli.dexto.ai'
     )
     .action(
         withAnalytics(
             'main',
             async () => {
-                await ensureDextoApiKeyBootstrap();
+                // The chat takes no words: a stray word is a mistyped command, not a prompt.
+                const [stray] = program.args;
+                if (stray !== undefined) {
+                    await printFailure(`Unknown command '${stray}'.`, 'dexto --help', [
+                        `Unknown command '${stray}'. Run: dexto --help`,
+                    ]);
+                    safeExit('main', 2, 'unknown-command');
+                }
+                await ensureDextoSignInsCarriedOver();
+                await syncCloudSkillsOnce();
                 await ensureImageImporterConfigured();
                 ensureLlmRegistryAutoUpdateStarted();
 
@@ -600,37 +486,13 @@ program
                 const opts = program.opts();
                 const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
 
-                // Set dev mode early to use local repo agents instead of ~/.dexto
-                if (opts.dev) {
-                    process.env.DEXTO_DEV_MODE = 'true';
-                }
-
-                // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
-                // If --mode was not explicitly provided on CLI, use defaultMode from preferences
-                const modeSource = program.getOptionValueSource('mode');
-                const explicitModeProvided = modeSource === 'cli';
-                if (!explicitModeProvided) {
-                    try {
-                        if (globalPreferencesExist()) {
-                            const preferences = await loadGlobalPreferences();
-                            if (preferences.defaults?.defaultMode) {
-                                opts.mode = preferences.defaults.defaultMode;
-                                logger.debug(`Using default mode from preferences: ${opts.mode}`);
-                            }
-                        }
-                    } catch (error) {
-                        // Silently fall back to hardcoded default if preferences loading fails
-                        logger.debug(
-                            `Failed to load default mode from preferences: ${error instanceof Error ? error.message : String(error)}`
-                        );
-                    }
-                }
-
                 const initialPrompt = opts.prompt !== undefined ? String(opts.prompt) : undefined;
 
                 if (initialPrompt !== undefined && initialPrompt.trim() === '') {
-                    console.error(
-                        '❌ Prompt cannot be empty. Provide a non-empty prompt with -p/--prompt.'
+                    await printFailure(
+                        'Prompt cannot be empty. Provide a non-empty prompt with -p/--prompt.',
+                        null,
+                        ['❌ Prompt cannot be empty. Provide a non-empty prompt with -p/--prompt.']
                     );
                     safeExit('main', 1, 'empty-prompt');
                 }
@@ -638,60 +500,26 @@ program
                 // Note: Agent selection must be passed via -a/--agent. We no longer interpret
                 // the first positional argument as an agent name to avoid ambiguity with prompts.
 
-                // ——— FORCE CLI MODE FOR PROMPT/SESSION FLAGS ———
-                // If a prompt or session flag was provided, force CLI mode.
-                const modeForcedByChatFlags = Boolean(
-                    initialPrompt || opts.continue || opts.resume || opts.cloudAgent
-                );
-                if (modeForcedByChatFlags && opts.mode !== 'cli') {
-                    console.error(
-                        `ℹ️  Forcing CLI mode due to --prompt/--continue/--resume/--cloud-agent.`
-                    );
-                    console.error(`   Original mode: ${opts.mode} → Overridden to: cli`);
-                    opts.mode = 'cli';
-                }
-
                 // The interactive CLI requires a TTY (Ink uses stdin for keypress input).
-                if (opts.mode === 'cli' && !process.stdin.isTTY) {
-                    console.error('❌ Interactive CLI requires a TTY.');
-                    console.error(
-                        '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.'
-                    );
+                if (!process.stdin.isTTY) {
+                    await printFailure('Interactive CLI requires a TTY.', 'dexto run "<prompt>"', [
+                        '❌ Interactive CLI requires a TTY.',
+                        '💡 For non-interactive runs, use `dexto run "<prompt>"`.',
+                    ]);
                     safeExit('main', 1, 'no-tty');
-                }
-
-                if (opts.cloudAgent) {
-                    if (opts.agent) {
-                        console.error(
-                            '❌ `--agent` and `--cloud-agent` are mutually exclusive. Use one chat target at a time.'
-                        );
-                        safeExit('main', 1, 'cloud-agent-conflict');
-                    }
-
-                    try {
-                        const { startCloudChatCli } = await import('./cli/cloud-chat.js');
-                        await startCloudChatCli({
-                            cloudAgentId: String(opts.cloudAgent),
-                            ...(initialPrompt ? { initialPrompt } : {}),
-                            ...(opts.resume ? { resume: String(opts.resume) } : {}),
-                            ...(opts.continue ? { continueMostRecent: true } : {}),
-                        });
-                        safeExit('main', 0);
-                    } catch (err) {
-                        if (err instanceof ExitSignal) throw err;
-                        console.error(`❌ Cloud chat failed: ${err}`);
-                        safeExit('main', 1, 'cloud-chat-error');
-                    }
                 }
 
                 // ——— Infer provider & API key from model ———
                 if (opts.model) {
                     if (opts.model.includes('/')) {
-                        console.error(
-                            `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`
-                        );
-                        console.error(
-                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`
+                        await printFailure(
+                            `Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`,
+                            null,
+                            [
+                                `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`,
+                                `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`,
+                            ],
+                            'This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).'
                         );
                         safeExit('main', 1, 'ambiguous-model');
                     }
@@ -700,16 +528,25 @@ program
                     try {
                         provider = getProviderFromModel(opts.model);
                     } catch (err) {
-                        console.error(`❌ ${(err as Error).message}`);
-                        console.error(`Supported models: ${getAllSupportedModels().join(', ')}`);
+                        const supported = `Supported models: ${getAllSupportedModels().join(', ')}`;
+                        await printFailure(
+                            `${(err as Error).message}`,
+                            null,
+                            [`❌ ${(err as Error).message}`, supported],
+                            supported
+                        );
                         safeExit('main', 1, 'invalid-model');
                     }
 
                     const apiKey = resolveApiKeyForProvider(provider);
                     if (!apiKey) {
                         const envVar = getPrimaryApiKeyEnvVar(provider);
-                        console.error(
-                            `❌ Missing API key for provider '${provider}' - please set $${envVar}`
+                        await printFailure(
+                            `Missing API key for provider '${provider}' - please set $${envVar}`,
+                            null,
+                            [
+                                `❌ Missing API key for provider '${provider}' - please set $${envVar}`,
+                            ]
                         );
                         safeExit('main', 1, 'missing-api-key');
                     }
@@ -729,55 +566,29 @@ program
                 let image: DextoImage;
                 let imageName: string;
 
-                // Determine validation mode early - used throughout config loading and agent creation
-                // Use relaxed validation for interactive modes (web/cli) where users can configure later
-                // Use strict validation for non-interactive modes (server/mcp) that need full config upfront
-                let isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
-                const shouldCheckSetupState =
-                    !opts.skipSetup && !(opts.agent && isPath(opts.agent));
-                let setupRequired = false;
-
-                if (shouldCheckSetupState) {
-                    const { requiresSetup } = await import('./cli/utils/setup-utils.js');
-                    setupRequired = await requiresSetup();
-                }
-
-                const canRunInteractiveSetup = isInteractiveMode && opts.interactive !== false;
-
-                if (setupRequired && !canRunInteractiveSetup) {
-                    console.error('❌ Setup required before starting in this mode.');
-                    console.error(
-                        '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.'
-                    );
-                    safeExit('main', 1, 'setup-required-non-interactive');
-                }
-
-                const shouldRunSetupBeforeStartup =
-                    setupRequired && canRunInteractiveSetup && !opts.provider && !opts.model;
-
-                if (shouldRunSetupBeforeStartup) {
-                    const { handleSetupCommand } = await import('./cli/commands/setup.js');
-                    await handleSetupCommand({
-                        interactive: true,
-                        defaultMode: opts.mode === 'cli' ? 'cli' : undefined,
-                    });
-
-                    if (!explicitModeProvided && !modeForcedByChatFlags) {
-                        const preferences = await loadGlobalPreferences();
-                        if (preferences.defaults.defaultMode) {
-                            opts.mode = preferences.defaults.defaultMode;
-                        }
-                        isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
+                // First run (no saved model choice, no --model): a provider key in the environment
+                // or the Dexto sign-in starts the chat; otherwise point the person to `dexto login`.
+                const firstRun =
+                    !opts.model &&
+                    !(opts.agent && isPath(opts.agent)) &&
+                    (await (await import('./cli/utils/setup-utils.js')).requiresSetup());
+                const hasProviderKey = LLM_PROVIDERS.some((provider) =>
+                    resolveApiKeyForProvider(provider)?.trim()
+                );
+                let useDextoModels = false;
+                if (firstRun && isDextoAuthEnabled() && !hasProviderKey) {
+                    const { canUseDextoProvider } = await import('./cli/utils/dexto-setup.js');
+                    if (!(await canUseDextoProvider())) {
+                        await printSignInFirst();
+                        safeExit('main', 1, 'sign-in-required');
                     }
+                    useDextoModels = true;
                 }
 
                 try {
                     // Case 1: File path - skip all validation and setup
                     if (opts.agent && isPath(opts.agent)) {
-                        resolvedPath = await resolveAgentPath(
-                            opts.agent,
-                            opts.autoInstall !== false
-                        );
+                        resolvedPath = await resolveAgentPath(opts.agent);
                     }
                     // Cases 2 & 3: Default agent or registry agent
                     else {
@@ -793,15 +604,20 @@ program
 
                                 // Check if agent exists in bundled registry
                                 if (!(opts.agent in bundledRegistry.agents)) {
-                                    console.error(`❌ Agent '${opts.agent}' not found in registry`);
-
-                                    // Show available agents
                                     const available = Object.keys(bundledRegistry.agents);
-                                    if (available.length > 0) {
-                                        console.log(`📋 Available agents: ${available.join(', ')}`);
-                                    } else {
-                                        console.log('📋 No agents available in registry');
-                                    }
+                                    const listed =
+                                        available.length > 0
+                                            ? `Available agents: ${available.join(', ')}`
+                                            : 'No agents available in registry';
+                                    await printFailure(
+                                        `Agent '${opts.agent}' not found in registry`,
+                                        null,
+                                        [`❌ Agent '${opts.agent}' not found in registry`],
+                                        listed
+                                    );
+                                    // Before Signal the list went to stdout; Signal shows it in the fault.
+                                    if (process.env.DEXTO_PALETTE !== 'signal')
+                                        console.log(`📋 ${listed}`);
                                     safeExit('main', 1, 'agent-not-in-registry');
                                     return;
                                 }
@@ -816,17 +632,14 @@ program
                         // Resolve the configured agent after setup has been established for
                         // interactive startup. This keeps provider selection generic instead of
                         // letting bundled agent defaults decide first-run behavior.
-                        resolvedPath = await resolveAgentPath(
-                            opts.agent,
-                            opts.autoInstall !== false
-                        );
+                        resolvedPath = await resolveAgentPath(opts.agent);
 
                         if (opts.interactive !== false) {
                             const {
                                 getBundledSyncTargetForAgentPath,
                                 shouldPromptForSync,
-                                handleSyncAgentsCommand,
-                            } = await import('./cli/commands/agents/sync.js');
+                                syncBundledAgent,
+                            } = await import('./cli/utils/bundled-agent-sync.js');
                             const syncTarget = getBundledSyncTargetForAgentPath(resolvedPath);
 
                             if (syncTarget && (await shouldPromptForSync(resolvedPath))) {
@@ -836,11 +649,7 @@ program
                                 });
 
                                 if (!p.isCancel(shouldSync) && shouldSync) {
-                                    await handleSyncAgentsCommand({
-                                        force: true,
-                                        quiet: true,
-                                        agentIds: [syncTarget.agentId],
-                                    });
+                                    await syncBundledAgent(syncTarget.agentId);
                                 }
                             }
                         }
@@ -872,8 +681,9 @@ program
                     // Check if user is configured for Dexto credits but not authenticated
                     // This can happen if user logged out after setting up with Dexto
                     // Now that preferences apply to ALL agents, we check for any agent
-                    // Only run this check when Dexto auth feature is enabled
-                    if (isDextoAuthEnabled()) {
+                    // Only run this check when Dexto auth feature is enabled. An explicit --model
+                    // (with that provider's key in the environment) starts without the sign-in.
+                    if (isDextoAuthEnabled() && !opts.model) {
                         const { checkDextoAuthState } = await import(
                             './cli/utils/dexto-auth-check.js'
                         );
@@ -884,32 +694,21 @@ program
 
                         if (!authCheck.shouldContinue) {
                             if (authCheck.action === 'login') {
-                                // User wants to log in - run login flow then restart
-                                const { handleLoginCommand } = await import(
-                                    './cli/commands/auth/login.js'
-                                );
-                                await handleLoginCommand();
-
-                                // Verify key was actually provisioned (provisionKeys silently catches errors)
-                                const { canUseDextoProvider } = await import(
+                                const { canUseDextoProvider, signInForDextoModels } = await import(
                                     './cli/utils/dexto-setup.js'
                                 );
+                                await signInForDextoModels();
                                 if (!(await canUseDextoProvider())) {
-                                    console.error(
-                                        '\n❌ API key provisioning failed. Please try again or run `dexto setup` to use a different provider.\n'
+                                    await printFailure(
+                                        "Signed in, but Dexto models can't run yet: allow spending credits when asked",
+                                        'dexto login',
+                                        [
+                                            "\n❌ Signed in, but Dexto models can't run yet: allow spending credits when asked, or set a provider key to use a different provider.\n",
+                                        ]
                                     );
-                                    safeExit('main', 1, 'dexto-key-provisioning-failed');
+                                    safeExit('main', 1, 'dexto-models-not-ready');
                                 }
                                 // After login, continue with startup (preferences unchanged, now authenticated)
-                            } else if (authCheck.action === 'setup') {
-                                // User wants to configure different provider - run setup
-                                const { handleSetupCommand } = await import(
-                                    './cli/commands/setup.js'
-                                );
-                                await handleSetupCommand({ interactive: true, force: true });
-                                // Reload preferences after setup
-                                preferences = await loadGlobalPreferences();
-                                hasCompletedSetup = preferences.setup.completed;
                             } else {
                                 // User cancelled
                                 safeExit('main', 0, 'dexto-auth-check-cancelled');
@@ -972,8 +771,10 @@ program
                         hasExplicitApiKeyOverride: Boolean(opts.apiKey),
                     });
 
+                    // An explicit --model wins over the saved model choice.
                     if (
                         hasCompletedSetup &&
+                        !opts.model &&
                         preferences?.llm?.provider &&
                         preferences?.llm?.model
                     ) {
@@ -984,14 +785,40 @@ program
                         });
                     }
 
+                    // Signed in with no saved model choice: start on the model 1.x setup recommended.
+                    if (useDextoModels) {
+                        mergedConfig.llm.provider = 'dexto-nova';
+                        mergedConfig.llm.model = FIRST_RUN_DEXTO_MODEL;
+                        mergedConfig.llm.apiKey = '$DEXTO_API_KEY';
+                        delete mergedConfig.llm.baseURL;
+                    }
+
+                    // 1.x setup saved preferences on the first run, and /model and /sounds update
+                    // that file, so save the model this chat starts on. Only an env-var reference
+                    // to the key is stored, never the key.
+                    if (firstRun && (useDextoModels || hasProviderKey)) {
+                        const { provider, model } = mergedConfig.llm;
+                        const apiKeyVar = useDextoModels
+                            ? 'DEXTO_API_KEY'
+                            : resolveApiKeyForProvider(provider)
+                              ? getPrimaryApiKeyEnvVar(provider)
+                              : undefined;
+                        await saveGlobalPreferences(
+                            createInitialPreferences({
+                                provider,
+                                model,
+                                ...(apiKeyVar === undefined ? {} : { apiKeyVar }),
+                            })
+                        );
+                    }
+
                     // Clean up null values from config (can happen from YAML files with explicit nulls)
                     // This prevents "Expected string, received null" errors for optional fields
                     const cleanedConfig = cleanNullValues(mergedConfig);
 
                     // Load image first to apply defaults and resolve DI services
-                    // Priority: CLI flag > Agent config > Environment variable > Default
+                    // Priority: Agent config > Environment variable > Default
                     imageName =
-                        opts.image || // --image flag
                         cleanedConfig.image || // image field in agent config
                         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
                         '@dexto/image-local'; // Default for convenience
@@ -1000,12 +827,11 @@ program
                         image = await loadImage(imageName);
                         logger.debug(`Loaded image: ${imageName}`);
                     } catch (err) {
-                        console.error(`❌ Failed to load image '${imageName}'`);
-                        if (err instanceof Error) {
-                            console.error(err.message);
-                            logger.debug(`Image load error: ${err.message}`);
-                        }
-                        console.error(`💡 Install it with: dexto image install ${imageName}`);
+                        if (err instanceof Error) logger.debug(`Image load error: ${err.message}`);
+                        await printFailure(`Failed to load image '${imageName}'`, null, [
+                            `❌ Failed to load image '${imageName}'`,
+                            ...(err instanceof Error ? [err.message] : []),
+                        ]);
                         safeExit('main', 1, 'image-load-failed');
                     }
 
@@ -1016,26 +842,29 @@ program
 
                     // Enrich config with per-agent paths BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
-                    // Interactive CLI mode: only log to file (console would interfere with chat UI)
-                    const isInteractiveCli = opts.mode === 'cli';
+                    // Interactive CLI: only log to file (console would interfere with chat UI)
                     const enrichedConfig = enrichAgentConfig(
                         configWithImageDefaults,
                         resolvedPath,
                         {
-                            isInteractiveCli,
+                            isInteractiveCli: true,
                             logLevel: 'info', // CLI uses info-level logging for visibility
                             workspaceRoot,
                         }
                     );
+                    // Signed in: the session gets the Dexto MCP's tools beside the person's own servers.
+                    enrichedConfig.mcpServers = dextoMcp.withDextoMcpServer(
+                        enrichedConfig.mcpServers,
+                        await dextoMcp.dextoMcpServer(dextoGateway.defaultDextoGatewayOptions())
+                    );
 
-                    // Validate enriched config + preflight credentials.
-                    // - Interactive modes (web/cli): warn and continue when credentials are missing
-                    // - Headless modes (server/mcp): treat missing credentials as errors
+                    // Validate enriched config + preflight credentials; the interactive CLI warns
+                    // and continues when credentials are missing.
                     const validationResult = await validateAgentConfig(
                         enrichedConfig,
                         opts.interactive !== false,
                         {
-                            credentialPolicy: isInteractiveMode ? 'warn' : 'error',
+                            credentialPolicy: 'warn',
                             agentPath: resolvedPath,
                         }
                     );
@@ -1057,66 +886,30 @@ program
                     }
 
                     // Validate that if config specifies an image, it matches what was loaded
-                    // Skip this check if user explicitly provided --image flag (intentional override)
                     // Note: Image was already loaded earlier before enrichment
-                    if (
-                        !opts.image &&
-                        validatedConfig.image &&
-                        validatedConfig.image !== imageName
-                    ) {
-                        console.error(
-                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
-                        );
-                        console.error(
-                            `💡 Either remove 'image' from config or ensure it matches the loaded image`
+                    if (validatedConfig.image && validatedConfig.image !== imageName) {
+                        await printFailure(
+                            `Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`,
+                            null,
+                            [
+                                `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`,
+                                `💡 Either remove 'image' from config or ensure it matches the loaded image`,
+                            ]
                         );
                         safeExit('main', 1, 'image-mismatch');
                     }
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Config loading failed completely
-                    console.error(`❌ Failed to load configuration: ${err}`);
+                    await printFailure(`Failed to load configuration: ${err}`, null, [
+                        `❌ Failed to load configuration: ${err}`,
+                    ]);
                     safeExit('main', 1, 'config-load-failed');
-                }
-
-                // ——— VALIDATE APPROVAL MODE COMPATIBILITY ———
-                // Check if approval handler is needed (Asks you OR elicitation enabled)
-                const needsHandler =
-                    validatedConfig.permissions.mode === 'asks-you' ||
-                    validatedConfig.elicitation.enabled;
-
-                if (needsHandler) {
-                    // Only web, server, and interactive CLI support approval handlers
-                    // TODO: Add approval support for other modes:
-                    // - Discord: Could use Discord message buttons/reactions for approval UI
-                    // - Telegram: Could use Telegram inline keyboards for approval prompts
-                    // - MCP: Could implement callback-based approval mechanism in MCP protocol
-                    const supportedModes = ['web', 'server', 'cli'];
-                    if (!supportedModes.includes(opts.mode)) {
-                        console.error(
-                            `❌ The Asks you permissions mode and elicitation are not supported in "${opts.mode}" mode.`
-                        );
-                        console.error(
-                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
-                                ', '
-                            )}`
-                        );
-                        console.error(
-                            '💡 Run `dexto --permissions-mode full-access` or configure your agent to skip approvals when running non-interactively.'
-                        );
-                        console.error('   permissions.mode: full-access');
-                        console.error('   elicitation.enabled: false');
-                        safeExit('main', 1, 'approval-unsupported-mode');
-                    }
                 }
 
                 // ——— CREATE AGENT ———
                 let agent: DextoAgent;
-                let derivedAgentId: string;
                 try {
-                    // Set run mode for tool approval provider
-                    process.env.DEXTO_RUN_MODE = opts.mode;
-
                     // Apply --strict flag to all server configs
                     if (opts.strict && validatedConfig.mcpServers) {
                         for (const [_serverName, serverConfig] of Object.entries(
@@ -1129,20 +922,18 @@ program
 
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    // isInteractiveMode is already defined above for validateAgentConfig
                     const { createFileSessionLoggerFactory } = await import(
                         './utils/session-logger-factory.js'
                     );
                     const sessionLoggerFactory = createFileSessionLoggerFactory();
 
-                    const mcpAuthProviderFactory =
-                        opts.mode === 'cli'
-                            ? (
-                                  await import('./cli/mcp/oauth-factory.js')
-                              ).createMcpAuthProviderFactory({
-                                  logger,
-                              })
-                            : null;
+                    // The Dexto MCP authorizes with the sign-in; other servers use their own OAuth.
+                    const mcpAuthProviderFactory = dextoMcp.withDextoMcpAuth(
+                        (await import('./cli/mcp/oauth-factory.js')).createMcpAuthProviderFactory({
+                            logger,
+                        }),
+                        dextoGateway.defaultDextoGatewayOptions()
+                    );
 
                     const services = await resolveServicesFromConfig(validatedConfig, image, {
                         workspaceRoot,
@@ -1161,53 +952,60 @@ program
                             },
                         })
                     );
-
-                    // Start the agent (initialize async services)
-                    // - web/server modes: initializeHonoApi will set approval handler and start the agent
-                    // - cli mode: handles its own approval setup in the case block
-                    // - other modes: start immediately (no approval support)
-                    if (opts.mode !== 'web' && opts.mode !== 'server' && opts.mode !== 'cli') {
-                        await agent.start();
-                        await (
-                            await import('./utils/workspace.js')
-                        ).applyWorkspaceToAgent(agent, workspaceRoot);
-                    }
-
-                    // Derive a concise agent ID for display purposes (used by API/UI)
-                    // Prefer agentCard.name, otherwise extract from filename
-                    derivedAgentId =
-                        validatedConfig.agentCard?.name ||
-                        path.basename(resolvedPath, path.extname(resolvedPath));
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Ensure config errors are shown to user, not hidden in logs
-                    console.error(`❌ Configuration Error: ${(err as Error).message}`);
+                    await printFailure(`Configuration Error: ${(err as Error).message}`, null, [
+                        `❌ Configuration Error: ${(err as Error).message}`,
+                    ]);
                     safeExit('main', 1, 'config-error');
                 }
 
-                const { dispatchMainMode } = await import('./cli/modes/dispatch.js');
-                const mainModeOpts: MainModeOptions = {
-                    mode: opts.mode,
-                    port: opts.port,
-                    host: opts.host,
-                    resume: opts.resume,
-                    continue: opts.continue,
-                    bypassPermissions: opts.bypassPermissions,
-                };
-                await dispatchMainMode({
-                    agent,
-                    opts: mainModeOpts,
-                    workspaceRoot,
-                    validatedConfig,
-                    resolvedPath,
-                    derivedAgentId,
-                    initialPrompt,
-                    getVersionCheckResult,
-                });
+                const { runCliMode } = await import('./cli/modes/cli.js');
+                try {
+                    await runCliMode({
+                        agent,
+                        opts: {
+                            resume: opts.resume,
+                            continue: opts.continue,
+                            bypassPermissions: opts.bypassPermissions,
+                        },
+                        workspaceRoot,
+                        validatedConfig,
+                        resolvedPath,
+                        initialPrompt,
+                        getVersionCheckResult,
+                    });
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    const message = err instanceof Error ? err.message : String(err);
+                    console.error(`❌ Failed to start the interactive CLI: ${message}`);
+                    safeExit('main', 1, 'mode-startup-failed');
+                }
             },
             { timeoutMs: 0 }
         )
     );
 
 // 14) PARSE & EXECUTE
-program.parseAsync(process.argv);
+// `dexto --help --json`: the commands and exit codes as JSON, for agents.
+// Internal inventory entry point for the repository build check.
+if (process.argv[2] === 'site') {
+    void withAnalytics('site', async () => {
+        await printFailure("Unknown command 'site'.", 'dexto publish --help', [
+            "Unknown command 'site'. To publish a Site, run: dexto publish --help",
+        ]);
+        safeExit('site', 2, 'unknown-command');
+    })();
+} else if (process.argv.slice(2).length === 1 && process.argv[2] === '--audit-agent-cli') {
+    const [{ auditProgram }, { cloudCommands }] = await Promise.all([
+        import('./cli/agent-audit.js'),
+        import('./cli/cloud/host.js'),
+    ]);
+    const commands = cloudCommands('', async () => {
+        throw new Error('Audit cannot sign in');
+    });
+    process.stdout.write(`${JSON.stringify(auditProgram(program, commands), null, 2)}\n`);
+} else if (isRootJsonHelp(process.argv.slice(2)))
+    process.stdout.write(`${JSON.stringify(rootHelpJson(program), null, 2)}\n`);
+else program.parseAsync(process.argv);

@@ -88,9 +88,6 @@ function createSetters({
         promptAddWizard: null,
         autoApproveEdits: false,
         todoExpanded: true,
-        backgroundTasksRunning: 0,
-        backgroundTasksExpanded: false,
-        backgroundTasks: [],
         chatgptRateLimitStatus: null,
         insufficientCredits: null,
         planModeActive: false,
@@ -538,6 +535,46 @@ describe('processStream (reasoning)', () => {
         expect(assistantMessages[1]?.reasoning).toBeUndefined();
     });
 
+    it('reports a fatal error once when the stream rethrows it', async () => {
+        const { getMessages, setters } = createSetters();
+        const error = new Error('Provider error 500');
+        async function* failing(): AsyncGenerator<StreamingEvent> {
+            yield { name: 'llm:error', sessionId: 'test-session', error };
+            throw new Error('Provider error 500');
+        }
+
+        await processStream(failing(), setters, {
+            useStreaming: true,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() },
+        });
+
+        const faults = getMessages().filter((each) => each.content.includes('Provider error 500'));
+        expect(faults).toHaveLength(1);
+        expect(faults[0]?.systemKind).toBe('fault');
+    });
+
+    it('still reports a stream failure nothing has reported', async () => {
+        const { getMessages, setters } = createSetters();
+        async function* failing(): AsyncGenerator<StreamingEvent> {
+            yield* [];
+            throw new Error('socket closed');
+        }
+
+        await processStream(failing(), setters, {
+            useStreaming: true,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() },
+        });
+
+        expect(getMessages().at(-1)).toMatchObject({
+            content: 'Stream error: socket closed',
+            systemKind: 'fault',
+        });
+    });
+
     it('shows the billing recovery overlay for insufficient credits', async () => {
         const { getMessages, getUi, setters } = createSetters();
 
@@ -570,7 +607,7 @@ describe('processStream (reasoning)', () => {
         expect(ui.isProcessing).toBe(false);
 
         const latestMessage = getMessages().at(-1);
-        expect(latestMessage?.content).toContain('Out of Dexto Nova credits');
+        expect(latestMessage?.content).toContain('Out of Dexto credits');
         expect(latestMessage?.content).not.toContain('Error:');
     });
 
@@ -627,5 +664,26 @@ describe('processStream (reasoning)', () => {
                 cacheWriteCostUsd: 0,
             })
         );
+    });
+});
+
+describe('processStream (stop)', () => {
+    it('clears the stop state when a cancelled run ends its stream', async () => {
+        const { setters, getUi } = createSetters();
+        // What Escape leaves behind; agent.cancel() then ends the iterator without run:complete.
+        setters.setUi((prev) => ({ ...prev, isProcessing: false, isCancelling: true }));
+
+        await processStream(
+            eventStream([{ name: 'llm:thinking', sessionId: 'test-session' }]),
+            setters,
+            {
+                useStreaming: true,
+                autoApproveEditsRef: { current: false },
+                bypassPermissionsRef: { current: false },
+                eventBus: { emit: vi.fn() },
+            }
+        );
+
+        expect(getUi().isCancelling).toBe(false);
     });
 });

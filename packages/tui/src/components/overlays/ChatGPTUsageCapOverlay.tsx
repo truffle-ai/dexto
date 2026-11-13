@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import type { CodexRateLimitSnapshot } from '@dexto/core';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { getChatGPTRateLimitHint } from '../../utils/chatgpt-rate-limit.js';
+import { tone } from '../../signal/index.js';
 
 export interface ChatGPTUsageCapOverlayProps {
     isVisible: boolean;
@@ -71,24 +72,24 @@ const ChatGPTUsageCapOverlay = forwardRef<
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="yellow"
+            borderColor={tone('amberDim')}
             paddingX={1}
             marginTop={1}
         >
             <Box marginBottom={1}>
-                <Text bold color="yellowBright">
+                <Text bold color={tone('amber')}>
                     ChatGPT usage cap reached
                 </Text>
             </Box>
 
             {status && (
                 <Box marginBottom={1}>
-                    <Text color="gray">{getChatGPTRateLimitHint(status)}</Text>
+                    <Text color={tone('dim')}>{getChatGPTRateLimitHint(status)}</Text>
                 </Box>
             )}
 
             <Box flexDirection="column" marginBottom={1}>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {currentModelDisplayName} is currently running through ChatGPT Login.
                 </Text>
                 <Text>{actionLabel}</Text>
@@ -96,7 +97,7 @@ const ChatGPTUsageCapOverlay = forwardRef<
 
             {usedDefaultFallback && (
                 <Box marginBottom={1}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         The current ChatGPT model is not available through the OpenAI API path, so
                         Dexto will use {fallbackModelDisplayName} for this session.
                     </Text>
@@ -104,7 +105,7 @@ const ChatGPTUsageCapOverlay = forwardRef<
             )}
 
             <Box>
-                <Text color="gray">Enter to continue • Esc to dismiss</Text>
+                <Text color={tone('dim')}>Enter to continue • Esc to dismiss</Text>
             </Box>
         </Box>
     );

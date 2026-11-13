@@ -8,6 +8,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { ShellDisplayData } from '@dexto/core';
+import { tone } from '../../signal/index.js';
 
 interface ShellRendererProps {
     /** Shell display data from tool result */
@@ -31,20 +32,20 @@ export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
 
     return (
         <Box flexDirection="column">
-            {data.isBackground && <Text color="gray">{'    '}(background)</Text>}
+            {data.isBackground && <Text color={tone('dim')}>{'    '}(background)</Text>}
 
             {outputLines.length === 0 ? (
-                <Text color="gray">{'    '}(No output)</Text>
+                <Text color={tone('dim')}>{'    '}(No output)</Text>
             ) : (
                 <>
                     {displayLines.map((line, i) => (
-                        <Text key={i} color="gray" wrap="truncate">
+                        <Text key={i} color={tone('dim')} wrap="truncate">
                             {'    '}
                             {line}
                         </Text>
                     ))}
                     {truncatedCount > 0 && (
-                        <Text color="gray">
+                        <Text color={tone('dim')}>
                             {'    '}+{truncatedCount} lines
                         </Text>
                     )}
@@ -52,7 +53,7 @@ export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
             )}
 
             {data.exitCode !== 0 && (
-                <Text color="red">
+                <Text color={tone('red')}>
                     {'    '}exit code: {data.exitCode}
                 </Text>
             )}

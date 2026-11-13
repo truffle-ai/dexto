@@ -12,55 +12,59 @@ dexto run "summarize this repository"
 echo "summarize this repository" | dexto run
 ```
 
-The default `text` format writes the final assistant response to stdout. Startup information, tool activity, and diagnostics go to stderr. Exit code `0` means a final response was produced without a fatal error; task failures exit with `1`.
+At a terminal, `dexto run` prints the final reply. When stdout isn't a terminal (a pipe, a file, or an agent reading it), it prints one JSON result instead. `--text`, `--json` and `--stream-json` choose explicitly; pass only one. In text mode, startup information and tool activity go to stderr and only the reply reaches stdout. In `--json` and `--stream-json`, stdout carries only JSON and stderr carries only a failure's JSON error.
 
-## JSON results
+Exit codes are the same for every `dexto` command: `0` done, `1` failed, `2` usage (such as an empty prompt), `3` needs sign-in or permission, `4` needs confirmation, `5` not found, `6` waiting on a person.
+
+## JSON result
 
 ```bash
-dexto run "summarize this repository" --format json > result.json
+dexto run "summarize this repository" --json > result.json
 ```
 
-JSON mode writes one result object:
+`--json` writes one result object:
 
 ```json
 {
-    "version": 1,
+    "type": "result",
     "status": "completed",
-    "sessionId": "example-session",
+    "session_id": "example-session",
     "content": "Repository summary",
-    "totalTokens": 42
+    "total_tokens": 42,
+    "permission_denials": []
 }
 ```
 
-`totalTokens` is present when usage is available. Failed results have `status: "failed"` and an `error` message. A failure before session creation omits `sessionId`. A fatal error after a response can include both `content` and `error`; check `status` and the process exit code before treating the result as successful.
+`total_tokens` is present when usage is available. A failed result has `status: "failed"` and `error: { "code", "message", "fix" }`, where `code` is `usage`, `needs_sign_in` (no provider key and no Dexto sign-in; exit 3) or `failed`, and `fix`, when present, is the command that fixes it; the same `{"error": …}` also goes to stderr. A failure before the session starts has no `session_id`. A fatal error after a reply can carry both `content` and `error`, so check `status` and the exit code before treating the result as a success.
 
-## JSONL events
+## Streaming events
 
 ```bash
-dexto run "summarize this repository" --format jsonl > events.jsonl
+dexto run "summarize this repository" --stream-json > events.jsonl
 ```
 
-Each stdout line is a version-1 JSON object. Selected streaming events use these types:
+`--stream-json` writes one JSON object per line as the run goes:
 
-| Type            | Fields                                                       |
-| --------------- | ------------------------------------------------------------ |
-| `message_delta` | `content`                                                    |
-| `tool_call`     | `toolName`, `args`, optional `callId`                        |
-| `tool_result`   | `toolName`, `success`, optional `callId` and failure `error` |
-| `response`      | `content`                                                    |
-| `warning`       | `errors`                                                     |
-| `run_error`     | `recoverable`, `error`                                       |
-| `approval_required` | `approvalId`, `approvalType`, `message`, optional `sessionId`; tool requests include `toolName` and `toolCallId`, command requests include `toolName` |
+| Type                | Fields                                                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `message_delta`     | `content`                                                                                                             |
+| `message_reset`     | `reason`: drop the deltas since the last response                                                                     |
+| `tool_call`         | `tool_name`, `args`, optional `call_id`                                                                               |
+| `tool_result`       | `tool_name`, `success`, optional `call_id` and failure `error`                                                        |
+| `response`          | `content`                                                                                                             |
+| `warning`           | `errors`                                                                                                              |
+| `run_error`         | `recoverable`, `error`                                                                                                |
+| `approval_required` | `approval_id`, `approval_type`, `message`, optional `session_id`; tool requests add `tool_name` and `tool_call_id`    |
 
-Exactly one terminal `complete` or `error` object follows normal task execution. It includes final `content` when available, optional `sessionId` and `totalTokens`, and an `error` message on failure. Use that terminal object as the task outcome: recoverable stream errors and failed tool calls can be followed by a successful completion.
+It ends with exactly one `result` object, the same as `--json` writes. Use it as the run's outcome: recoverable errors and failed tool calls can come before a successful result.
 
 ```json
-{"version":1,"type":"message_delta","content":"Repository "}
-{"version":1,"type":"response","content":"Repository summary"}
-{"version":1,"type":"complete","sessionId":"example-session","content":"Repository summary"}
+{"type":"message_delta","content":"Repository "}
+{"type":"response","content":"Repository summary"}
+{"type":"result","status":"completed","session_id":"example-session","content":"Repository summary","permission_denials":[]}
 ```
 
-Unsupported output formats fail during argument parsing before an agent starts. Process termination, broken output pipes, and argument-parser errors do not promise a terminal object.
+A process killed mid-run, a broken output pipe or an argument-parser error doesn't promise a `result`.
 
 ## Permissions
 
@@ -68,10 +72,10 @@ Local TUI and headless tasks use the same configured Core permission policy. Wit
 
 ```bash
 dexto --permissions-mode asks-you
-dexto --permissions-mode asks-you run "inspect this repository" --format json
+dexto --permissions-mode asks-you run "inspect this repository" --json
 dexto --permissions-mode full-access run "format this repository"
 ```
 
 `--auto-approve` and `--bypass-permissions` are aliases for selecting `full-access`. Combining either alias with explicit `asks-you` is an error. The deprecated values `manual` and `auto-approve` still work for one release and print a warning naming the new value. These options do not bypass mandatory approvals or alter Core allow rules. The TUI footer shows configured approvals separately from temporary session shortcuts.
 
-Headless tasks disable interactive elicitation and cannot collect approvals. When Core requires approval, the operation is denied immediately and the agent can recover and continue to task completion. Text reports `[APPROVAL_REQUIRED]` on stderr. JSON includes an `approvalRequired` array, and JSONL emits `approval_required` records plus the array in its terminal result. These records identify unavailable approval; a completed response does not mean the blocked action executed. Review the task in the TUI when approval is needed. No new task limit is imposed.
+Headless tasks disable interactive elicitation and cannot collect approvals. When Core requires approval, the operation is denied immediately and the agent can recover and continue to task completion. Text reports `[APPROVAL_REQUIRED]` on stderr. The result lists each refused approval in `permission_denials`, and `--stream-json` also emits an `approval_required` event for each. These records identify unavailable approval; a completed response does not mean the blocked action executed. Review the task in the TUI when approval is needed. No new task limit is imposed.

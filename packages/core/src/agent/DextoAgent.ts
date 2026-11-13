@@ -1814,7 +1814,8 @@ export class DextoAgent {
         this.ensureStarted();
         // Clear session-level auto-approve tools to prevent memory leak
         this.toolManager.clearSessionAutoApproveTools(sessionId);
-        return this.sessionManager.deleteSession(sessionId);
+        await this.sessionManager.deleteSession(sessionId);
+        this.agentEventBus.emit('session:deleted', { sessionId });
     }
 
     /**

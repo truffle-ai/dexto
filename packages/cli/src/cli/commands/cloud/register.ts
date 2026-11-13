@@ -1,46 +1,55 @@
 import type { Command } from 'commander';
 import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
-import type { CloudDiscoveryCommand, CloudDiscoveryOptions } from './discovery.js';
 
-async function discover(
-    command: CloudDiscoveryCommand,
-    options: CloudDiscoveryOptions
-): Promise<void> {
-    const { runCloudDiscovery } = await import('./discovery.js');
-    const exitCode = await runCloudDiscovery(command, options);
-    safeExit(`cloud ${command.command}`, exitCode);
-}
+/** The top-level words the cloud command engine owns, and what each is for. */
+const ENGINE_WORDS = {
+    import: 'Import local Claude Code and Codex chats',
+    connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
+    connections: 'List, inspect and disconnect model subscriptions',
+    login: 'Sign in to Dexto with your browser or a device code, or save an API key for CI',
+    logout: 'End the sign-in on the server and forget it here',
+    whoami: 'Show who Dexto commands act as',
+    accounts: 'List, switch and remove saved sign-ins, one per account and organization',
+    models: 'Models Dexto serves on your sign-in',
+    billing: "Show the organization's credit balance and recent spending",
+    cloud: 'Build in Dexto Cloud: projects, agents, files, sandboxes and more',
+    projects:
+        'Your Dexto Projects: list and change them, message their coordinators, start their chats',
+    workspace: 'Use your Dexto workspace as yourself: its apps and tools, over the Dexto MCP',
+    find: 'Find the command for something you want to do in Dexto',
+    publish: 'Publish a file, folder or .zip as a link anyone with it can open',
+    profile: 'Show and change your Dexto profile: handle, name, bio and who can see it',
+    skills: 'Push a local Skill to your Dexto Skills library, or sync the library to this computer',
+    trace: "List your run traces and show one run's trace from Dexto",
+    span: "List one run's spans from Dexto",
+} as const;
 
+/**
+ * These words run on the cloud command engine, which reads its own arguments and global options
+ * (--json, --api-key, --profile, --project). Analytics records only the command name, never its
+ * arguments, which can hold a key.
+ */
 export function registerCloudCommand(program: Command): void {
-    const cloud = program.command('cloud').description('Discover Dexto Cloud capabilities');
-    const sources = cloud.command('sources').description('List available capability sources');
-    const search = cloud.command('search <query>').description('Find capabilities by name or task');
-    const describe = cloud
-        .command('describe <path>')
-        .description('Show capability schemas and availability');
-    for (const command of [sources, search, describe]) {
-        command
-            .option('--json', 'Emit machine-readable JSON')
-            .option('--platform-url <origin>', 'Use a Cloud application origin');
-    }
-    for (const command of [sources, search]) {
-        command
-            .option('--limit <count>', 'Page size (1–100; default 20)')
-            .option('--offset <count>', 'Page offset (default 0)');
-    }
-    sources.action(
-        withAnalytics('cloud sources', (options: CloudDiscoveryOptions) =>
-            discover({ command: 'sources' }, options)
-        )
-    );
-    search.action(
-        withAnalytics('cloud search', (query: string, options: CloudDiscoveryOptions) =>
-            discover({ command: 'search', query }, options)
-        )
-    );
-    describe.action(
-        withAnalytics('cloud describe', (path: string, options: CloudDiscoveryOptions) =>
-            discover({ command: 'describe', path }, options)
-        )
-    );
+    for (const [word, description] of Object.entries(ENGINE_WORDS))
+        program
+            .command(word)
+            .description(description)
+            .helpOption(false)
+            .passThroughOptions()
+            .allowUnknownOption()
+            .allowExcessArguments()
+            .argument('[args...]')
+            .action(async (args: string[]) => {
+                await withAnalytics(word, async () => {
+                    const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
+                        import('../../cloud/run.js'),
+                        import('../../cloud/host.js'),
+                    ]);
+                    const code = await runCloud(nodeCloudHost(new AbortController().signal), [
+                        word,
+                        ...args,
+                    ]);
+                    safeExit(word, code);
+                })();
+            });
 }

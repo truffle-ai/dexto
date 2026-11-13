@@ -4,6 +4,17 @@ import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { ErrorRetryDisposition } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 
+/**
+ * A failed model request that the host's request auth classified as retryable, such as a gateway
+ * credential that expired and that the host renews on the next attempt.
+ */
+export class HostRetryableModelRequestError extends APICallError {}
+
+/** A 401 is final, unless the host owns the credential and said the next attempt can succeed. */
+export function isRejectedCredential(error: APICallError): boolean {
+    return error.statusCode === 401 && !(error instanceof HostRetryableModelRequestError);
+}
+
 const INSUFFICIENT_CREDITS_BALANCE_PATTERN =
     /Insufficient credits\. Balance: \$(-?\d+(?:\.\d+)?)\./;
 
@@ -281,7 +292,10 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
     const details = extractProviderErrorDetails(input);
     const status = input.error.statusCode;
     const message = providerMessage(details, input.error.message);
-    const code = errorCodeForStatus(status, details);
+    const rejectedCredential = isRejectedCredential(input.error);
+    const code = rejectedCredential
+        ? LLMErrorCode.AUTH_FAILED
+        : errorCodeForStatus(status, details);
     const type = errorTypeForStatus(status);
     const retryDisposition = retryDispositionForProviderError(details);
 
@@ -303,6 +317,24 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
             'Run `dexto billing` to check your balance',
             undefined,
             retryDisposition
+        );
+    }
+
+    if (rejectedCredential) {
+        const dexto = input.provider === 'dexto-nova';
+        return new DextoRuntimeError(
+            code,
+            ErrorScope.LLM,
+            type,
+            dexto
+                ? 'Dexto rejected your credentials (401). Sign in again with `dexto login` or create a new API key.'
+                : `${input.provider} rejected the API key (401). Check the key and try again.`,
+            buildContext(input, details),
+            dexto
+                ? 'Run `dexto login` to sign in again'
+                : `Set a valid API key for ${input.provider}`,
+            undefined,
+            'non_retryable'
         );
     }
 

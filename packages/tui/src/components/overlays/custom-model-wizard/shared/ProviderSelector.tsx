@@ -7,6 +7,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { CustomModelProvider } from '@dexto/agent-management';
 import { getProviderLabel, getAvailableProviders } from '../provider-config.js';
+import { tone } from '../../../../signal/index.js';
 
 interface ProviderSelectorProps {
     /** Currently highlighted provider index */
@@ -28,12 +29,12 @@ export function ProviderSelector({
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="green"
+            borderColor={tone('add')}
             paddingX={1}
             marginTop={1}
         >
             <Box marginBottom={1}>
-                <Text bold color="green">
+                <Text bold color={tone('add')}>
                     {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
                 </Text>
             </Box>
@@ -44,7 +45,7 @@ export function ProviderSelector({
                 {providers.map((provider, index) => (
                     <Box key={provider}>
                         <Text
-                            color={index === selectedIndex ? 'cyan' : 'gray'}
+                            color={index === selectedIndex ? tone('teal') : tone('dim')}
                             bold={index === selectedIndex}
                         >
                             {index === selectedIndex ? '❯ ' : '  '}
@@ -55,7 +56,7 @@ export function ProviderSelector({
             </Box>
 
             <Box marginTop={1}>
-                <Text color="gray">↑↓ navigate • Enter select • Esc cancel</Text>
+                <Text color={tone('dim')}>↑↓ navigate • Enter select • Esc cancel</Text>
             </Box>
         </Box>
     );

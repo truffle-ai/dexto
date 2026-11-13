@@ -29,6 +29,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
+import { getTuiRuntimeServices } from '../host/index.js';
 
 interface UseAgentEventsProps {
     agent: TuiAgentBackend;
@@ -93,6 +94,20 @@ export function useAgentEvents({
 
         // Increase listener limit for safety (added more for external trigger events)
         setMaxListeners(25, signal);
+
+        // What chat sync needs the person to know, such as the first-run notice.
+        const stopNotices = getTuiRuntimeServices().chatSync?.onNotice((text) => {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system' as const,
+                    content: text,
+                    timestamp: new Date(),
+                },
+            ]);
+        });
+        if (stopNotices !== undefined) signal.addEventListener('abort', stopNotices);
 
         const syncQueue = (sessionId: string, queue: 'steer' | 'follow-up'): void => {
             const getMessages =
@@ -163,96 +178,6 @@ export function useAgentEvents({
                         ? { activeOverlay: 'chatgpt-usage-cap' as const }
                         : {}),
                 }));
-            },
-            { signal }
-        );
-
-        agent.on(
-            'service:event',
-            (payload) => {
-                if (payload.service !== 'orchestration' || payload.event !== 'tasks-updated') {
-                    return;
-                }
-                if (payload.sessionId && payload.sessionId !== currentSessionId) {
-                    return;
-                }
-
-                const data = payload.data as {
-                    tasks?: Array<{
-                        taskId: string;
-                        status: 'running' | 'completed' | 'failed' | 'cancelled';
-                        description?: string;
-                        toolName?: string;
-                    }>;
-                    runningCount?: number;
-                };
-
-                if (data.tasks) {
-                    setUi((prev) => {
-                        const runningCount =
-                            typeof data.runningCount === 'number'
-                                ? data.runningCount
-                                : prev.backgroundTasksRunning;
-                        return {
-                            ...prev,
-                            backgroundTasks: data.tasks ?? prev.backgroundTasks,
-                            backgroundTasksRunning: runningCount,
-                        };
-                    });
-                } else if (typeof data.runningCount === 'number') {
-                    setUi((prev) => ({
-                        ...prev,
-                        backgroundTasksRunning: data.runningCount ?? prev.backgroundTasksRunning,
-                    }));
-                }
-            },
-            { signal }
-        );
-
-        agent.on(
-            'tool:background',
-            (payload) => {
-                if (payload.sessionId !== currentSessionId) {
-                    return;
-                }
-                const messageId = `tool-${payload.toolCallId}`;
-                setMessages((prev) =>
-                    prev.map((message) => {
-                        if (message.id !== messageId) {
-                            return message;
-                        }
-                        return {
-                            ...message,
-                            toolStatus: 'running',
-                            toolResult: 'Background task started',
-                            isBackground: true,
-                        };
-                    })
-                );
-            },
-            { signal }
-        );
-
-        agent.on(
-            'tool:background-completed',
-            (payload) => {
-                if (payload.sessionId !== currentSessionId) {
-                    return;
-                }
-                const messageId = `tool-${payload.toolCallId}`;
-                setMessages((prev) =>
-                    prev.map((message) => {
-                        if (message.id !== messageId) {
-                            return message;
-                        }
-                        return {
-                            ...message,
-                            toolStatus: 'finished',
-                            toolResult: 'Background task completed',
-                            isBackground: true,
-                        };
-                    })
-                );
             },
             { signal }
         );
@@ -599,6 +524,7 @@ export function useAgentEvents({
                 setUi((prev) => ({
                     ...prev,
                     isProcessing: false,
+                    isCancelling: false,
                     isThinking: false,
                 }));
 

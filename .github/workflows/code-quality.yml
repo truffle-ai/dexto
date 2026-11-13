@@ -2,7 +2,7 @@ name: Code Quality Check
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, cli-2.0 ]
   push:
     branches: [ main ]
 

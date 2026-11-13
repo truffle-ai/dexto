@@ -7,6 +7,7 @@ import { Text } from 'ink';
 import type { ToolStatus } from '../../state/types.js';
 import { useAnimationTick } from '../../hooks/useAnimationTick.js';
 import { BRAILLE_SPINNER_FRAMES } from '../../constants/spinnerFrames.js';
+import { tone } from '../../signal/index.js';
 
 interface ToolIconProps {
     status: ToolStatus;
@@ -25,13 +26,13 @@ export function ToolIcon({ status, isError }: ToolIconProps) {
 
     // Pending: static gray dot (tool call received, checking approval)
     if (status === 'pending') {
-        return <Text color="gray">● </Text>;
+        return <Text color={tone('dim')}>● </Text>;
     }
 
     // Pending approval: static yellowBright dot (waiting for user)
     if (status === 'pending_approval') {
         return (
-            <Text color="yellowBright" bold>
+            <Text color={tone('amber')} bold>
                 ●{' '}
             </Text>
         );
@@ -41,14 +42,14 @@ export function ToolIcon({ status, isError }: ToolIconProps) {
         // Error state: red dot
         if (isError) {
             return (
-                <Text color="red" bold>
+                <Text color={tone('red')} bold>
                     ●{' '}
                 </Text>
             );
         }
         // Success state: green dot
         return (
-            <Text color="green" bold>
+            <Text color={tone('add')} bold>
                 ●{' '}
             </Text>
         );
@@ -56,7 +57,7 @@ export function ToolIcon({ status, isError }: ToolIconProps) {
 
     // Running state with spinner
     return (
-        <Text color="green" bold>
+        <Text color={tone('add')} bold>
             {BRAILLE_SPINNER_FRAMES[frame]}{' '}
         </Text>
     );

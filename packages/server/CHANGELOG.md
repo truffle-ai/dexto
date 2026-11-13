@@ -1,5 +1,46 @@
 # @dexto/server
 
+## 1.18.1
+
+### Patch Changes
+
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+    - @dexto/agent-config@1.18.1
+    - @dexto/agent-management@1.18.1
+    - @dexto/image-local@1.18.1
+    - @dexto/storage@1.18.1
+    - @dexto/tools-scheduler@1.18.1
+    - @dexto/llm@1.18.1
+
+## 1.18.0
+
+### Patch Changes
+
+- 9a75f3a: Move `glob` from 12 to 14, `minimatch` from 10 to 11 and `@hono/node-server` from 1.19.17 to 2.1.5, so Dexto's own dependencies no longer carry their published advisories. The APIs Dexto calls are unchanged, and all three support the Node 20 floor Dexto already requires. The lockfile also moves the MCP SDK's `@hono/node-server` to 2.1.5, which its range already allows, so the Docker image and standalone binaries carry one patched copy. The WebUI is still served the same way.
+- 0d955d5: Limit HTTP request bodies to 64 MiB
+- 9a75f3a: Build, test and ship the Docker image and standalone binaries with `zod` 4.6.7 and `follow-redirects` 1.16.2 instead of `zod` 4.3.6 and `follow-redirects` 1.16.1, which have published advisories. The declared `zod` range is unchanged, so installs from npm already resolved a patched `zod`; this makes the repository's tests and bundled artifacts match what users get. The cancel-task route now declares its path parameter with `unknown().transform().pipe()` because `z.preprocess` no longer type-checks there.
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+    - @dexto/core@1.18.0
+    - @dexto/storage@1.18.0
+    - @dexto/agent-management@1.18.0
+    - @dexto/image-local@1.18.0
+    - @dexto/agent-config@1.18.0
+    - @dexto/tools-scheduler@1.18.0
+    - @dexto/llm@1.18.0
+
 ## 1.17.0
 
 ### Minor Changes

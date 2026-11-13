@@ -37,6 +37,8 @@ import { useStreaming } from './hooks/useStreaming.js';
 
 // Utils
 import { getStartupInfo } from './utils/messageFormatting.js';
+import { keepScrollbackOnResize } from './utils/resize-reflow.js';
+import { detectBackgroundTheme, getCaps, paint } from './signal/index.js';
 
 // Rendering mode: true = alternate buffer with VirtualizedList, false = Static pattern
 // Toggle this to switch between modes for testing
@@ -281,6 +283,16 @@ export async function startInkCliRefactored(
     // Import exit handler before render to avoid race condition
     const { registerExitHandler } = await import('./interactive-commands/exit-handler.js');
 
+    // Ask the terminal for its background before Ink takes stdin (Signal palette only).
+    await detectBackgroundTheme({ stdin: process.stdin, stdout: process.stdout });
+
+    // Signal, inline mode: a resize redraws the live region in place instead of clearing the
+    // terminal and reprinting the transcript, so scrollback survives.
+    const keptScrollback =
+        !USE_ALTERNATE_BUFFER && getCaps().palette === 'signal'
+            ? keepScrollbackOnResize(process.stdout)
+            : null;
+
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
@@ -293,6 +305,7 @@ export async function startInkCliRefactored(
         />,
         {
             exitOnCtrlC: false,
+            ...(keptScrollback ? { stdout: keptScrollback.stdout } : {}),
             alternateBuffer: USE_ALTERNATE_BUFFER,
             // Incremental rendering works better with VirtualizedList
             // Static pattern doesn't need it (and may work better without)
@@ -304,6 +317,7 @@ export async function startInkCliRefactored(
     registerExitHandler(() => inkApp.unmount());
 
     await inkApp.waitUntilExit();
+    keptScrollback?.dispose();
 
     // Disable bracketed paste mode to restore normal terminal behavior
     disableBracketedPaste();
@@ -317,72 +331,72 @@ export async function startInkCliRefactored(
         // This creates a clean slate showing only the exit command and summary
         process.stdout.write('\n'.repeat(1));
 
-        process.stdout.write(chalk.bold.cyan('📊 Session Summary') + '\n');
+        process.stdout.write(paint('teal').bold('📊 Session Summary') + '\n');
         process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
 
         // Session ID
         if (exitStats.sessionId) {
-            process.stdout.write(chalk.gray(`  Session ID:  ${exitStats.sessionId}`) + '\n');
+            process.stdout.write(paint('dim')(`  Session ID:  ${exitStats.sessionId}`) + '\n');
         }
 
         // Duration
         if (exitStats.duration) {
-            process.stdout.write(chalk.gray(`  Duration:    ${exitStats.duration}`) + '\n');
+            process.stdout.write(paint('dim')(`  Duration:    ${exitStats.duration}`) + '\n');
         }
 
         // Message count
         if (exitStats.messageCount.total > 0) {
             process.stdout.write(
-                chalk.gray(
+                paint('dim')(
                     `  Messages:    ${exitStats.messageCount.total} total (${exitStats.messageCount.user} user, ${exitStats.messageCount.assistant} assistant)`
                 ) + '\n'
             );
         }
         // Multi-model breakdown (if multiple models were used)
         if (exitStats.modelStats && exitStats.modelStats.length > 1) {
-            process.stdout.write(chalk.gray('\n  Models Used:') + '\n');
+            process.stdout.write(paint('dim')('\n  Models Used:') + '\n');
 
             for (const modelStat of exitStats.modelStats) {
                 const modelLabel = `${modelStat.model} (${modelStat.messageCount} msgs)`;
-                process.stdout.write(chalk.gray(`    • ${modelLabel}`) + '\n');
+                process.stdout.write(paint('dim')(`    • ${modelLabel}`) + '\n');
 
                 if (exitStats.tokenUsage) {
                     // Detailed token breakdown per model
                     const tokens = modelStat.tokenUsage;
                     process.stdout.write(
-                        chalk.gray(
+                        paint('dim')(
                             `      Input tokens:       ${tokens.inputTokens.toLocaleString()}`
                         ) + '\n'
                     );
                     process.stdout.write(
-                        chalk.gray(
+                        paint('dim')(
                             `      Output tokens:      ${tokens.outputTokens.toLocaleString()}`
                         ) + '\n'
                     );
                     process.stdout.write(
-                        chalk.gray(
+                        paint('dim')(
                             `      Reasoning tokens:   ${tokens.reasoningTokens.toLocaleString()}`
                         ) + '\n'
                     );
                     process.stdout.write(
-                        chalk.gray(
+                        paint('dim')(
                             `      Cache read tokens:  ${tokens.cacheReadTokens.toLocaleString()}`
                         ) + '\n'
                     );
                     process.stdout.write(
-                        chalk.gray(
+                        paint('dim')(
                             `      Cache write tokens: ${tokens.cacheWriteTokens.toLocaleString()}`
                         ) + '\n'
                     );
                     process.stdout.write(
-                        chalk.gray(
+                        paint('dim')(
                             `      Total tokens:       ${tokens.totalTokens.toLocaleString()}`
                         ) + '\n'
                     );
 
                     if (modelStat.estimatedCost !== undefined) {
                         process.stdout.write(
-                            chalk.gray(
+                            paint('dim')(
                                 `      Cost:               ${formatCost(modelStat.estimatedCost)}`
                             ) + '\n'
                         );
@@ -392,8 +406,8 @@ export async function startInkCliRefactored(
         }
 
         if (exitStats.usageNote) {
-            process.stdout.write(chalk.gray('\n  Usage:') + '\n');
-            process.stdout.write(chalk.gray(`    ${exitStats.usageNote}`) + '\n');
+            process.stdout.write(paint('dim')('\n  Usage:') + '\n');
+            process.stdout.write(paint('dim')(`    ${exitStats.usageNote}`) + '\n');
         }
 
         // Token usage - label depends on whether multi-model was shown
@@ -418,33 +432,33 @@ export async function startInkCliRefactored(
                 exitStats.modelStats && exitStats.modelStats.length > 1
                     ? '\n  Total Token Usage:'
                     : '\n  Token Usage:';
-            process.stdout.write(chalk.gray(tokenSectionLabel) + '\n');
+            process.stdout.write(paint('dim')(tokenSectionLabel) + '\n');
             process.stdout.write(
-                chalk.gray(`    Input tokens:       ${inputTokens.toLocaleString()}`) + '\n'
+                paint('dim')(`    Input tokens:       ${inputTokens.toLocaleString()}`) + '\n'
             );
             process.stdout.write(
-                chalk.gray(`    Output tokens:      ${outputTokens.toLocaleString()}`) + '\n'
+                paint('dim')(`    Output tokens:      ${outputTokens.toLocaleString()}`) + '\n'
             );
             process.stdout.write(
-                chalk.gray(`    Reasoning tokens:   ${reasoningTokens.toLocaleString()}`) + '\n'
+                paint('dim')(`    Reasoning tokens:   ${reasoningTokens.toLocaleString()}`) + '\n'
             );
             const cacheReadLabel =
                 cacheReadTokens > 0
                     ? `${cacheReadTokens.toLocaleString()} (💰 ${cacheSavingsPercent}% savings)`
                     : cacheReadTokens.toLocaleString();
-            process.stdout.write(chalk.gray(`    Cache read tokens:  ${cacheReadLabel}`) + '\n');
+            process.stdout.write(paint('dim')(`    Cache read tokens:  ${cacheReadLabel}`) + '\n');
             process.stdout.write(
-                chalk.gray(`    Cache write tokens: ${cacheWriteTokens.toLocaleString()}`) + '\n'
+                paint('dim')(`    Cache write tokens: ${cacheWriteTokens.toLocaleString()}`) + '\n'
             );
             process.stdout.write(
-                chalk.gray(`    Total tokens:       ${totalTokens.toLocaleString()}`) + '\n'
+                paint('dim')(`    Total tokens:       ${totalTokens.toLocaleString()}`) + '\n'
             );
         }
 
         // Estimated cost
         if (exitStats.estimatedCost !== undefined) {
             process.stdout.write(
-                chalk.green(`\n  Estimated Cost: ${formatCost(exitStats.estimatedCost)}`) + '\n'
+                paint('add')(`\n  Estimated Cost: ${formatCost(exitStats.estimatedCost)}`) + '\n'
             );
         }
 
@@ -452,5 +466,5 @@ export async function startInkCliRefactored(
     }
 
     process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
-    process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting Dexto CLI. Goodbye!') + '\n');
+    process.stdout.write('\n' + paint('amber')('Exiting Dexto CLI. Goodbye!') + '\n');
 }

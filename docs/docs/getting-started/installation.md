@@ -6,45 +6,57 @@ sidebar_position: 2
 
 This guide will walk you through installing the Dexto CLI and setting up your environment so you can start running agents.
 
-## Prerequisites
+## 1. Install and check your account
 
-- No runtime dependency is required for native install.
-- [Node.js](https://nodejs.org/en/download) >= 20.0.0 is only required if you build from source.
+Node.js 20 or later works; 22 is recommended. Use npm. Install once:
 
-**Optional:** An LLM API Key (not required for local models)
-- [Get a Gemini Key](https://aistudio.google.com/apikey) (free option available)
-- [Get a Groq Key](https://console.groq.com/keys) (free option available)
-- [Get an OpenAI Key](https://platform.openai.com/api-keys)
-- [Get a Claude Key](https://console.anthropic.com/settings/keys)
+```sh
+npm install -g dexto
+```
 
-## 1. Install Dexto
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
 
-Install Dexto using the native installer:
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
+Do not approve sign-in on their behalf. Check the first account result:
 
-```bash
-# macOS / Linux / WSL
-curl -fsSL https://dexto.ai/install | bash
+```sh
+dexto whoami --json
+```
 
-# Windows PowerShell
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.
+
+### Alternative: native installer
+
+```sh
+curl -fsSL https://dexto.ai/install | sh
+```
+
+```powershell
 irm https://dexto.ai/install.ps1 | iex
 ```
 
-This adds the `dexto` command to your system and writes install metadata to `~/.dexto/install.json`.
+Node.js 20 or later works; 22 is recommended. The installer needs npm, verifies the registry checksum, and installs without admin
+rights under `~/.dexto/cli`. Add its printed bin directory to PATH (`~/.local/bin` on Unix;
+`%USERPROFILE%\.dexto\bin` on Windows). Then run `dexto login --device` and `dexto whoami --json`.
+The default is `latest`, the current release. `next` is the prerelease channel and can be older than `latest`.
+Use `dexto upgrade` to update a script install. Update npm installs with `npm install -g dexto`.
 
-### Upgrade
-
-```bash
-# latest
-dexto upgrade
-
-# pinned
-dexto upgrade 1.6.8
-```
+On macOS and Linux, when `~/.local/bin` is not on PATH and a global npm `dexto` is (as when 1.x runs
+`dexto upgrade`), the installer removes the npm `dexto` and links the command into that npm bin
+directory instead, so `dexto` keeps working. If it cannot remove the npm `dexto`, it leaves it alone and
+links into `~/.local/bin`. Because npm owns that directory, a later `npm install -g dexto` may replace
+the link, and `npm uninstall -g dexto` may remove it. If `dexto` stops working after either, run the
+installer again.
 
 ### Uninstall CLI
 
 ```bash
-# default: remove CLI binary only
+# default: remove the CLI and keep your settings in ~/.dexto
 dexto uninstall
 
 # remove ~/.dexto too
@@ -53,7 +65,7 @@ dexto uninstall --purge
 
 ### PATH Troubleshooting
 
-If you had an older npm global install, `dexto upgrade` automatically migrates it to native.
+For npm installs, update with `npm install -g dexto`. For script installs, use `dexto upgrade`.
 
 If your shell still resolves the wrong binary:
 
@@ -61,32 +73,16 @@ If your shell still resolves the wrong binary:
 which -a dexto
 ```
 
-Remove stale entries and run `dexto upgrade` again.
+Remove stale entries, then repeat the update command for your install method.
 
-## 2. Run Setup
+## 2. Choose a Model
 
-```bash
-dexto
-```
+`dexto` needs a model before the first chat. Either:
 
-This triggers the first-time setup wizard.
+- **Sign in** with `dexto login` to use Dexto models on your organization's credits, or
+- **Set a provider key** in your environment or `~/.dexto/.env`, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY`.
 
-### Quick Start (Recommended)
-
-1. **Choose setup type** → Select "Get started now"
-2. **Pick provider** → Gemini (free), Groq (fast), or Local
-3. **Get API key** → Browser opens, or paste existing key
-4. **Confirm mode** → Press Enter for Terminal (default)
-
-Done! You're ready to chat.
-
-### Custom Setup
-
-1. **Choose "Choose my own provider"**
-2. **Browse providers** → OpenAI, Anthropic, local models, gateways
-3. **Select model** → Pick from available models
-4. **Configure API key** → Browser, paste, or skip
-5. **Choose default mode** → Terminal, Browser, or API Server
+With neither, `dexto` points you to `dexto login`. Switch models anytime with `/model` in the interactive CLI.
 
 ### Supported Providers
 
@@ -98,50 +94,14 @@ Done! You're ready to chat.
 | **Gateways** | OpenRouter, Glama, LiteLLM, OpenAI-Compatible |
 | **Enterprise** | Google Vertex AI, AWS Bedrock |
 
-### Modes Explained
-
-| Mode | Flag | Description | Best For |
-|------|------|-------------|----------|
-| **Terminal** | `--mode cli` | Interactive CLI in your terminal | Quick tasks, coding |
-| **Browser** | `--mode web` | Web UI at localhost:3000 | Long conversations |
-| **API Server** | `--mode server` | REST API on port 3001 | Integrations, apps |
-
 ## 3. Start Using Dexto
 
-After setup, Dexto launches in your selected default mode.
-
 ```bash
-# Run with your default mode
+# Start the interactive CLI
 dexto
 
-# Override with a specific mode
-dexto --mode cli
-dexto --mode web
-dexto --mode server
-
-# One-shot commands (auto-uses CLI mode)
-dexto "say hello"
-dexto -p "list files in this directory"
-```
-
-## Reconfigure Anytime
-
-```bash
-# Open settings menu
-dexto setup
-
-# Force re-run full setup
-dexto setup --force
-```
-
-### Non-Interactive Setup
-
-For automation or CI environments:
-
-```bash
-dexto setup --provider google --model gemini-2.5-pro
-dexto setup --provider ollama --model llama3.2
-dexto setup --quick-start
+# Run one headless task
+dexto run "say hello"
 ```
 
 :::tip CLI reference

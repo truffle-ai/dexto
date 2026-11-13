@@ -3,12 +3,12 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [[
-    "dexto",
     "@dexto/core",
     "@dexto/storage",
     "@dexto/llm",
     "@dexto/agent-config",
     "@dexto/client-sdk",
+    "@dexto/cloud-client",
     "@dexto/agent-management",
     "@dexto/analytics",
     "@dexto/registry",
@@ -24,7 +24,6 @@
     "@dexto/tools-plan",
     "@dexto/tools-scheduler",
     "@dexto/tools-lifecycle",
-    "@dexto/orchestration",
     "@dexto/tui"
   ]],
   "linked": [],

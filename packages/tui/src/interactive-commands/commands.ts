@@ -42,6 +42,12 @@ import { promptCommands } from './prompt-commands.js';
 import { skillCommands } from './skill-commands.js';
 import { documentationCommands } from './documentation-commands.js';
 import { connectCommand, loginCommand, logoutCommand } from './auth/index.js';
+import {
+    chatSyncAvailable,
+    privateCommand,
+    syncCommand,
+    moveCommands,
+} from './chat-sync-commands.js';
 
 /**
  * Complete list of all available CLI commands.
@@ -102,6 +108,11 @@ const baseCommands: CommandDefinition[] = [
 
     // Model provider auth
     connectCommand,
+
+    // Chat sync to Dexto Cloud, when the host syncs chats
+    syncCommand,
+    privateCommand,
+    ...moveCommands,
 ];
 
 // Add help command that can see all commands
@@ -196,5 +207,7 @@ export function getAllCommands(): CommandDefinition[] {
 }
 
 export function getAvailableCommands(agent: TuiAgentBackend): CommandDefinition[] {
-    return CLI_COMMANDS.filter((command) => isCommandDefinitionSupported(agent, command));
+    return CLI_COMMANDS.filter(
+        (command) => isCommandDefinitionSupported(agent, command) && chatSyncAvailable(command)
+    );
 }

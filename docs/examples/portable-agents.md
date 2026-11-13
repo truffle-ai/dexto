@@ -59,6 +59,5 @@ Then in Cursor, the Podcast Agent's tools become available as native MCP tools.
 
 ## Learn More
 
-- [Expose Dexto as MCP Server](/docs/mcp/dexto-as-mcp-server)
 - [Agent Configuration](/docs/guides/configuring-dexto/overview)
 - [MCP Overview](/docs/mcp/overview)

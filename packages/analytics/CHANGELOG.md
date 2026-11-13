@@ -1,5 +1,33 @@
 # @dexto/analytics
 
+## 1.18.1
+
+### Patch Changes
+
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+    - @dexto/agent-management@1.18.1
+
+## 1.18.0
+
+### Patch Changes
+
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+    - @dexto/core@1.18.0
+    - @dexto/agent-management@1.18.0
+
 ## 1.17.0
 
 ### Patch Changes

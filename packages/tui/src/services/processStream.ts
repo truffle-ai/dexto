@@ -28,7 +28,8 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
+import { backgroundFailure } from '../utils/tool-step.js';
+import { formatToolHeader } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { captureAnalytics } from '../host/index.js';
 import chalk from 'chalk';
@@ -47,6 +48,12 @@ function buildErrorContent(error: unknown, prefix: string): string {
     }
 
     return errorContent;
+}
+
+function isReportedError(error: unknown, reported: ReadonlySet<unknown>): boolean {
+    if (reported.has(error)) return true;
+    if (!(error instanceof Error)) return false;
+    return [...reported].some((each) => each instanceof Error && each.message === error.message);
 }
 
 function getErrorCode(error: unknown): string | null {
@@ -87,10 +94,10 @@ function extractInsufficientCreditsBalance(error: unknown): number | null {
 
 function buildInsufficientCreditsContent(balance: number | null): string {
     if (balance === null) {
-        return 'Out of Dexto Nova credits.\nUse the billing prompt to top up and retry your request.';
+        return 'Out of Dexto credits.\nUse the billing prompt to top up and retry your request.';
     }
 
-    return `Out of Dexto Nova credits. Current balance: $${balance.toFixed(2)}.\nUse the billing prompt to top up and retry your request.`;
+    return `Out of Dexto credits. Current balance: $${balance.toFixed(2)}.\nUse the billing prompt to top up and retry your request.`;
 }
 
 /**
@@ -212,6 +219,7 @@ export async function processStream(
     // Link approval IDs to tool call IDs so we can finalize tool UI when an approval
     // is cancelled/denied (otherwise tool messages can remain stuck in "Waiting...").
     const approvalIdToToolCallId = new Map<string, string>();
+    const reportedErrors = new Set<unknown>();
 
     // Track streaming state (synchronous, not React state)
     const state: StreamState = {
@@ -747,9 +755,6 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
-                    if (shouldHideTool(event.toolName)) {
-                        break;
-                    }
                     debug.log('TOOL-CALL: state check', {
                         toolName: event.toolName,
                         hasMessageId: !!state.messageId,
@@ -855,7 +860,7 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Format tool header using shared utility
-                    const { header: toolContent } = formatToolHeader({
+                    const { header: toolContent, argsFormatted: toolArgs } = formatToolHeader({
                         toolName: event.toolName,
                         args: (event.args as Record<string, unknown>) || {},
                         ...(event.presentationSnapshot !== undefined && {
@@ -882,6 +887,8 @@ export async function processStream(
                         role: 'tool',
                         content: finalToolContent,
                         timestamp: new Date(),
+                        toolName: event.toolName,
+                        toolArgs,
                         toolStatus: 'pending',
                     });
 
@@ -895,9 +902,6 @@ export async function processStream(
                 }
 
                 case 'llm:tool-result': {
-                    if (shouldHideTool(event.toolName)) {
-                        break;
-                    }
                     // Extract structured display data and content from sanitized result
                     const sanitized = event.sanitized as SanitizedToolResult | undefined;
                     const toolDisplayData = sanitized?.meta?.display;
@@ -952,6 +956,9 @@ export async function processStream(
                             toolResult: resultPreview,
                             toolStatus: 'finished',
                             isError: !event.success,
+                            ...backgroundFailure(event.toolName, event.rawResult),
+                            ...(!event.success &&
+                                event.error !== undefined && { toolFailureText: event.error }),
                             ...(toolDisplayData && { toolDisplayData }),
                             ...(toolContent && { toolContent }),
                         });
@@ -987,6 +994,7 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
+                    reportedErrors.add(event.error);
                     const insufficientCredits =
                         getErrorCode(event.error) === LLMErrorCode.INSUFFICIENT_CREDITS;
                     const insufficientCreditsBalance = insufficientCredits
@@ -1004,6 +1012,7 @@ export async function processStream(
                             role: 'system',
                             content: errorContent,
                             timestamp: new Date(),
+                            systemKind: 'fault',
                         },
                     ]);
 
@@ -1294,6 +1303,8 @@ export async function processStream(
                                 toolStatus: 'finished',
                                 toolResult: 'Cancelled',
                                 isError: true,
+                                toolOutcome:
+                                    event.status === ApprovalStatus.DENIED ? 'denied' : 'cancelled',
                             });
                         }
                     }
@@ -1432,6 +1443,10 @@ export async function processStream(
                     break;
             }
         }
+
+        // agent.cancel() ends the iterator without run:complete, so clear the stop that
+        // Escape started here. Only isCancelling: a new run may already be processing.
+        setUi((prev) => (prev.isCancelling ? { ...prev, isCancelling: false } : prev));
     } catch (error) {
         // Handle iterator errors (e.g., aborted)
         if (error instanceof Error && error.name === 'AbortError') {
@@ -1447,17 +1462,21 @@ export async function processStream(
             // Unexpected error, show to user
             clearPending();
 
-            const errorContent = buildErrorContent(error, 'Stream error: ');
+            // The stream rethrows a fatal llm:error it has already reported.
+            if (!isReportedError(error, reportedErrors)) {
+                const errorContent = buildErrorContent(error, 'Stream error: ');
 
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: generateMessageId('error'),
-                    role: 'system',
-                    content: errorContent,
-                    timestamp: new Date(),
-                },
-            ]);
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('error'),
+                        role: 'system',
+                        content: errorContent,
+                        timestamp: new Date(),
+                        systemKind: 'fault',
+                    },
+                ]);
+            }
             setUi((prev) => ({
                 ...prev,
                 isProcessing: false,

@@ -30,8 +30,8 @@ import { QUEUE_EDIT_SHORTCUTS, QueuedMessagesDisplay } from '../chat/QueuedMessa
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
+import { DeckArea } from '../DeckArea.js';
 import { TodoPanel } from '../TodoPanel.js';
-import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 import {
     VirtualizedList,
     SCROLL_TO_ITEM_END,
@@ -42,6 +42,7 @@ import {
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
 import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
+import { tone, useCaps } from '../../signal/index.js';
 
 // Union type for virtualized list items: header or message
 type ListItem = { type: 'header' } | { type: 'message'; message: Message };
@@ -124,6 +125,8 @@ export function AlternateBufferCLI({
 
     // Get current git branch name
     const branchName = useGitBranch();
+    // The Signal look replaces the status bar and footer with the deck.
+    const signal = useCaps().palette === 'signal';
 
     // Register the VirtualizedList as scrollable so ScrollProvider can handle mouse scroll
     const getScrollState = useCallback(() => {
@@ -301,6 +304,37 @@ export function AlternateBufferCLI({
 
     const hideChrome = shouldHideStatusChrome(ui.activeOverlay, approval);
 
+    const inputArea = (
+        <InputContainer
+            ref={inputContainerRef}
+            buffer={buffer}
+            input={input}
+            ui={ui}
+            session={session}
+            initialPrompt={initialPrompt}
+            isHydratingHistory={isHydratingHistory}
+            approval={approval}
+            steerMessages={steerMessages}
+            queuedMessages={queuedMessages}
+            setInput={setInput}
+            setUi={setUi}
+            setSession={setSession}
+            setMessages={setMessages}
+            setPendingMessages={setPendingMessages}
+            setDequeuedBuffer={setDequeuedBuffer}
+            setSteerMessages={setSteerMessages}
+            setQueuedMessages={setQueuedMessages}
+            setApproval={setApproval}
+            setApprovalQueue={setApprovalQueue}
+            setTodos={setTodos}
+            agent={agent}
+            inputService={inputService}
+            onKeyboardScroll={handleKeyboardScroll}
+            useStreaming={useStreaming}
+            configFilePath={configFilePath}
+        />
+    );
+
     return (
         <Box flexDirection="column" height={terminalHeight}>
             {/* Content area - VirtualizedList */}
@@ -320,26 +354,21 @@ export function AlternateBufferCLI({
             <Box flexDirection="column" flexShrink={0}>
                 {!hideChrome && (
                     <>
-                        <StatusBar
-                            agent={agent}
-                            isProcessing={ui.isProcessing}
-                            isThinking={ui.isThinking}
-                            isCompacting={ui.isCompacting}
-                            approvalQueueCount={approvalQueue.length}
-                            copyModeEnabled={ui.copyModeEnabled}
-                            isAwaitingApproval={approval !== null}
-                            todoExpanded={ui.todoExpanded}
-                            hasTodos={todos.some((t) => t.status !== 'completed')}
-                            planModeActive={ui.planModeActive}
-                            autoApproveEdits={ui.autoApproveEdits}
-                            backgroundTasksRunning={ui.backgroundTasksRunning}
-                        />
-
-                        <BackgroundTasksPanel
-                            tasks={ui.backgroundTasks}
-                            isExpanded={ui.backgroundTasksExpanded}
-                            isProcessing={ui.isProcessing}
-                        />
+                        {(!signal || ui.copyModeEnabled) && (
+                            <StatusBar
+                                agent={agent}
+                                isProcessing={ui.isProcessing}
+                                isThinking={ui.isThinking}
+                                isCompacting={ui.isCompacting}
+                                approvalQueueCount={approvalQueue.length}
+                                copyModeEnabled={ui.copyModeEnabled}
+                                isAwaitingApproval={approval !== null}
+                                todoExpanded={ui.todoExpanded}
+                                hasTodos={todos.some((t) => t.status !== 'completed')}
+                                planModeActive={ui.planModeActive}
+                                autoApproveEdits={ui.autoApproveEdits}
+                            />
+                        )}
 
                         <TodoPanel
                             todos={todos}
@@ -349,7 +378,7 @@ export function AlternateBufferCLI({
 
                         {selectionHintVisible && (
                             <Box paddingX={1}>
-                                <Text color="yellowBright">
+                                <Text color={tone('amber')}>
                                     💡 Tip: Hold Option (⌥) and click to select text, or press
                                     Ctrl+S to toggle copy mode
                                 </Text>
@@ -369,34 +398,25 @@ export function AlternateBufferCLI({
                     </>
                 )}
 
-                <InputContainer
-                    ref={inputContainerRef}
-                    buffer={buffer}
-                    input={input}
-                    ui={ui}
-                    session={session}
-                    initialPrompt={initialPrompt}
-                    isHydratingHistory={isHydratingHistory}
-                    approval={approval}
-                    steerMessages={steerMessages}
-                    queuedMessages={queuedMessages}
-                    setInput={setInput}
-                    setUi={setUi}
-                    setSession={setSession}
-                    setMessages={setMessages}
-                    setPendingMessages={setPendingMessages}
-                    setDequeuedBuffer={setDequeuedBuffer}
-                    setSteerMessages={setSteerMessages}
-                    setQueuedMessages={setQueuedMessages}
-                    setApproval={setApproval}
-                    setApprovalQueue={setApprovalQueue}
-                    setTodos={setTodos}
-                    agent={agent}
-                    inputService={inputService}
-                    onKeyboardScroll={handleKeyboardScroll}
-                    useStreaming={useStreaming}
-                    configFilePath={configFilePath}
-                />
+                {signal ? (
+                    <DeckArea
+                        agent={agent}
+                        sessionId={session.id}
+                        modelName={session.modelName}
+                        ui={ui}
+                        approval={approval}
+                        pendingMessages={pendingMessages}
+                        steerCount={steerMessages.length}
+                        branch={branchName ?? null}
+                        cwd={process.cwd()}
+                        isShellMode={buffer.text.startsWith('!')}
+                        chatgptRateLimitStatus={ui.chatgptRateLimitStatus}
+                    >
+                        {inputArea}
+                    </DeckArea>
+                ) : (
+                    inputArea
+                )}
 
                 <OverlayContainer
                     ref={overlayContainerRef}
@@ -420,15 +440,15 @@ export function AlternateBufferCLI({
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
                 {!hideChrome && ui.exitWarningShown && (
                     <Box paddingX={1}>
-                        <Text color="yellowBright" bold>
+                        <Text color={tone('amber')} bold>
                             ⚠ Press Ctrl+C again to exit
                         </Text>
-                        <Text color="gray"> (or press any key to cancel)</Text>
+                        <Text color={tone('dim')}> (or press any key to cancel)</Text>
                     </Box>
                 )}
 
                 {/* Footer status line */}
-                {!hideChrome && (
+                {!signal && !hideChrome && (
                     <Footer
                         agent={agent}
                         sessionId={session.id}

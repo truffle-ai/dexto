@@ -2,17 +2,13 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
 import { z } from 'zod';
 
-const {
-    mockSelect,
-    mockIsCancel,
-    mockHandleSyncAgentsCommand,
-    mockGetBundledSyncTargetForAgentPath,
-} = vi.hoisted(() => ({
-    mockSelect: vi.fn(),
-    mockIsCancel: vi.fn(() => false),
-    mockHandleSyncAgentsCommand: vi.fn(),
-    mockGetBundledSyncTargetForAgentPath: vi.fn(),
-}));
+const { mockSelect, mockIsCancel, mockSyncBundledAgent, mockGetBundledSyncTargetForAgentPath } =
+    vi.hoisted(() => ({
+        mockSelect: vi.fn(),
+        mockIsCancel: vi.fn(() => false),
+        mockSyncBundledAgent: vi.fn(),
+        mockGetBundledSyncTargetForAgentPath: vi.fn(),
+    }));
 let validateAgentConfig: typeof import('./config-validation.js').validateAgentConfig;
 
 vi.mock('@clack/prompts', () => ({
@@ -26,8 +22,8 @@ vi.mock('@clack/prompts', () => ({
     },
 }));
 
-vi.mock('../commands/agents/sync.js', () => ({
-    handleSyncAgentsCommand: mockHandleSyncAgentsCommand,
+vi.mock('./bundled-agent-sync.js', () => ({
+    syncBundledAgent: mockSyncBundledAgent,
     getBundledSyncTargetForAgentPath: mockGetBundledSyncTargetForAgentPath,
 }));
 
@@ -150,7 +146,7 @@ describe('validateAgentConfig', () => {
                 skipped: true,
             })
         );
-        expect(mockHandleSyncAgentsCommand).not.toHaveBeenCalled();
+        expect(mockSyncBundledAgent).not.toHaveBeenCalled();
     });
 
     it('offers sync when the active config is a bundled installed agent', async () => {

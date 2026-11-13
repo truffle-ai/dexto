@@ -9,6 +9,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 type ExportFormat = 'markdown' | 'json';
 
@@ -393,13 +394,13 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="cyan"
+            borderColor={tone('teal')}
             paddingX={1}
             marginTop={1}
         >
             {/* Header */}
             <Box marginBottom={1}>
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     📤 Export Conversation
                 </Text>
             </Box>
@@ -409,15 +410,17 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                 <Box flexDirection="column">
                     <Text>Select export format:</Text>
                     <Box marginTop={1} flexDirection="column">
-                        <Text {...(selectedIndex === 0 ? { color: 'cyan' } : {})}>
+                        <Text {...(selectedIndex === 0 ? { color: tone('teal') } : {})}>
                             {selectedIndex === 0 ? '❯ ' : '  '}Markdown (.md) - Human readable
                         </Text>
-                        <Text {...(selectedIndex === 1 ? { color: 'cyan' } : {})}>
+                        <Text {...(selectedIndex === 1 ? { color: tone('teal') } : {})}>
                             {selectedIndex === 1 ? '❯ ' : '  '}JSON (.json) - Structured data
                         </Text>
                     </Box>
                     <Box marginTop={1}>
-                        <Text color="gray">↑↓ to select • Enter to continue • Esc to cancel</Text>
+                        <Text color={tone('dim')}>
+                            ↑↓ to select • Enter to continue • Esc to cancel
+                        </Text>
                     </Box>
                 </Box>
             )}
@@ -427,15 +430,17 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                 <Box flexDirection="column">
                     <Text>Include tool calls and results?</Text>
                     <Box marginTop={1} flexDirection="column">
-                        <Text {...(selectedIndex === 0 ? { color: 'cyan' } : {})}>
+                        <Text {...(selectedIndex === 0 ? { color: tone('teal') } : {})}>
                             {selectedIndex === 0 ? '❯ ' : '  '}Yes - Include all tool interactions
                         </Text>
-                        <Text {...(selectedIndex === 1 ? { color: 'cyan' } : {})}>
+                        <Text {...(selectedIndex === 1 ? { color: tone('teal') } : {})}>
                             {selectedIndex === 1 ? '❯ ' : '  '}No - Only user and assistant messages
                         </Text>
                     </Box>
                     <Box marginTop={1}>
-                        <Text color="gray">↑↓ to select • Enter to continue • Esc to cancel</Text>
+                        <Text color={tone('dim')}>
+                            ↑↓ to select • Enter to continue • Esc to cancel
+                        </Text>
                     </Box>
                 </Box>
             )}
@@ -445,12 +450,12 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                 <Box flexDirection="column">
                     <Text>Filename:</Text>
                     <Box marginTop={1}>
-                        <Text color="cyan">&gt; </Text>
+                        <Text color={tone('teal')}>&gt; </Text>
                         <Text>{filenameInput}</Text>
-                        <Text color="cyan">_</Text>
+                        <Text color={tone('teal')}>_</Text>
                     </Box>
                     <Box marginTop={1}>
-                        <Text color="gray">Enter to continue • Esc to cancel</Text>
+                        <Text color={tone('dim')}>Enter to continue • Esc to cancel</Text>
                     </Box>
                 </Box>
             )}
@@ -460,30 +465,32 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
                 <Box flexDirection="column">
                     <Text>Export with these settings?</Text>
                     <Box marginTop={1} flexDirection="column" marginLeft={2}>
-                        <Text color="gray">
+                        <Text color={tone('dim')}>
                             Format:{' '}
-                            <Text color="white">
+                            <Text color={tone('hi')}>
                                 {options.format === 'markdown' ? 'Markdown' : 'JSON'}
                             </Text>
                         </Text>
-                        <Text color="gray">
+                        <Text color={tone('dim')}>
                             Tool calls:{' '}
-                            <Text color="white">{options.includeToolCalls ? 'Yes' : 'No'}</Text>
+                            <Text color={tone('hi')}>
+                                {options.includeToolCalls ? 'Yes' : 'No'}
+                            </Text>
                         </Text>
-                        <Text color="gray">
-                            File: <Text color="white">{filenameInput}</Text>
+                        <Text color={tone('dim')}>
+                            File: <Text color={tone('hi')}>{filenameInput}</Text>
                         </Text>
                     </Box>
                     <Box marginTop={1} flexDirection="column">
-                        <Text {...(selectedIndex === 0 ? { color: 'green' } : {})}>
+                        <Text {...(selectedIndex === 0 ? { color: tone('add') } : {})}>
                             {selectedIndex === 0 ? '❯ ' : '  '}Export
                         </Text>
-                        <Text {...(selectedIndex === 1 ? { color: 'red' } : {})}>
+                        <Text {...(selectedIndex === 1 ? { color: tone('red') } : {})}>
                             {selectedIndex === 1 ? '❯ ' : '  '}Cancel
                         </Text>
                     </Box>
                     <Box marginTop={1}>
-                        <Text color="gray">↑↓ to select • Enter to confirm</Text>
+                        <Text color={tone('dim')}>↑↓ to select • Enter to confirm</Text>
                     </Box>
                 </Box>
             )}
@@ -491,20 +498,20 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
             {/* Exporting state */}
             {step === 'exporting' && (
                 <Box flexDirection="column">
-                    <Text color="yellow">Exporting...</Text>
+                    <Text color={tone('amberDim')}>Exporting...</Text>
                 </Box>
             )}
 
             {/* Done state */}
             {step === 'done' && exportResult?.success && (
                 <Box flexDirection="column">
-                    <Text color="green">✓ Exported successfully!</Text>
+                    <Text color={tone('add')}>✓ Exported successfully!</Text>
                     <Box marginTop={1}>
-                        <Text color="gray">Saved to: </Text>
+                        <Text color={tone('dim')}>Saved to: </Text>
                         <Text>{exportResult.path}</Text>
                     </Box>
                     <Box marginTop={1}>
-                        <Text color="gray">Press Enter or Esc to close</Text>
+                        <Text color={tone('dim')}>Press Enter or Esc to close</Text>
                     </Box>
                 </Box>
             )}
@@ -512,12 +519,12 @@ const ExportWizard = forwardRef<ExportWizardHandle, ExportWizardProps>(function 
             {/* Error state */}
             {step === 'error' && (
                 <Box flexDirection="column">
-                    <Text color="red">✗ Export failed</Text>
+                    <Text color={tone('red')}>✗ Export failed</Text>
                     <Box marginTop={1}>
-                        <Text color="red">{exportResult?.error}</Text>
+                        <Text color={tone('red')}>{exportResult?.error}</Text>
                     </Box>
                     <Box marginTop={1}>
-                        <Text color="gray">Press Enter or Esc to close</Text>
+                        <Text color={tone('dim')}>Press Enter or Esc to close</Text>
                     </Box>
                 </Box>
             )}

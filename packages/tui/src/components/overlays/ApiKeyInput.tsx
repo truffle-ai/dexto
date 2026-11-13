@@ -14,6 +14,7 @@ import {
     isValidApiKeyFormat,
     getProviderInstructions,
 } from '../../host/index.js';
+import { tone } from '../../signal/index.js';
 
 export interface ApiKeyInputProps {
     isVisible: boolean;
@@ -132,13 +133,13 @@ const ApiKeyInput = forwardRef<ApiKeyInputHandle, ApiKeyInputProps>(function Api
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="cyan"
+            borderColor={tone('teal')}
             paddingX={1}
             marginTop={1}
         >
             {/* Header */}
             <Box marginBottom={1}>
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     API Key Required for {providerName}
                 </Text>
             </Box>
@@ -146,15 +147,15 @@ const ApiKeyInput = forwardRef<ApiKeyInputHandle, ApiKeyInputProps>(function Api
             {/* Instructions */}
             {instructions && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="gray">{instructions.content}</Text>
+                    <Text color={tone('dim')}>{instructions.content}</Text>
                 </Box>
             )}
 
             {/* Env var hint */}
             <Box marginBottom={1}>
-                <Text color="gray">This key will be saved to </Text>
-                <Text color="yellowBright">{envVar}</Text>
-                <Text color="gray"> in your .env file</Text>
+                <Text color={tone('dim')}>This key will be saved to </Text>
+                <Text color={tone('amber')}>{envVar}</Text>
+                <Text color={tone('dim')}> in your .env file</Text>
             </Box>
 
             {/* Input prompt */}
@@ -164,28 +165,28 @@ const ApiKeyInput = forwardRef<ApiKeyInputHandle, ApiKeyInputProps>(function Api
 
             {/* Input field (masked) */}
             <Box marginTop={1}>
-                <Text color="cyan">&gt; </Text>
+                <Text color={tone('teal')}>&gt; </Text>
                 <Text>{maskedKey}</Text>
-                {!isSaving && <Text color="cyan">_</Text>}
+                {!isSaving && <Text color={tone('teal')}>_</Text>}
             </Box>
 
             {/* Saving indicator */}
             {isSaving && (
                 <Box marginTop={1}>
-                    <Text color="yellowBright">Saving API key...</Text>
+                    <Text color={tone('amber')}>Saving API key...</Text>
                 </Box>
             )}
 
             {/* Error message */}
             {error && (
                 <Box marginTop={1}>
-                    <Text color="red">{error}</Text>
+                    <Text color={tone('red')}>{error}</Text>
                 </Box>
             )}
 
             {/* Help text */}
             <Box marginTop={1}>
-                <Text color="gray">Enter to save • Esc to cancel</Text>
+                <Text color={tone('dim')}>Enter to save • Esc to cancel</Text>
             </Box>
         </Box>
     );

@@ -17,7 +17,7 @@ A database agent that can:
 
 ## Prerequisites
 
-- Node.js 18+ installed
+- Node.js 20 or later works; 22 is recommended
 - SQLite3 installed on your system
 - OpenAI API key (or other LLM provider)
 - Basic understanding of SQL and databases

@@ -7,6 +7,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallbac
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { PromptAddScope } from '../../state/types.js';
+import { tone } from '../../signal/index.js';
 
 export interface NewPromptData {
     name: string;
@@ -215,16 +216,16 @@ const PromptAddWizard = forwardRef<PromptAddWizardHandle, PromptAddWizardProps>(
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="yellowBright"
+                borderColor={tone('amber')}
                 paddingX={1}
                 marginTop={1}
             >
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text bold color="yellowBright">
+                    <Text bold color={tone('amber')}>
                         Add {scopeLabel} Prompt
                     </Text>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {' '}
                         (Step {currentStep + 1}/{WIZARD_STEPS.length})
                     </Text>
@@ -233,18 +234,18 @@ const PromptAddWizard = forwardRef<PromptAddWizardHandle, PromptAddWizardProps>(
                 {/* Current step prompt */}
                 <Box flexDirection="column">
                     <Text bold>{currentStepConfig.label}:</Text>
-                    <Text color="gray">{currentStepConfig.placeholder}</Text>
+                    <Text color={tone('dim')}>{currentStepConfig.placeholder}</Text>
                 </Box>
 
                 {/* Input field */}
                 <Box marginTop={1} flexDirection="column">
                     <Box>
-                        <Text color="cyan">&gt; </Text>
+                        <Text color={tone('teal')}>&gt; </Text>
                         <Text>{currentInput}</Text>
-                        <Text color="cyan">_</Text>
+                        <Text color={tone('teal')}>_</Text>
                     </Box>
                     {currentStepConfig.multiline && (
-                        <Text color="gray" italic>
+                        <Text color={tone('dim')} italic>
                             (Shift+Enter for newline)
                         </Text>
                     )}
@@ -253,13 +254,13 @@ const PromptAddWizard = forwardRef<PromptAddWizardHandle, PromptAddWizardProps>(
                 {/* Error message */}
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
+                        <Text color={tone('red')}>{error}</Text>
                     </Box>
                 )}
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         Enter to continue • Esc to {currentStep > 0 ? 'go back' : 'cancel'}
                     </Text>
                 </Box>

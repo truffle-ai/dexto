@@ -1,28 +1,29 @@
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
+import { HELD_COMMANDS } from '../../cloud/held-commands.js';
 
 export function registerSessionCommand({
     program,
     bootstrapAgentFromGlobalOpts,
 }: RuntimeCommandRegisterContext): void {
-    const sessionCommand = program.command('session').description('Manage chat sessions');
+    const chatCommand = program.command('chat').description('Your local and cloud chats');
 
-    sessionCommand
+    chatCommand
         .command('list')
-        .description('List all sessions')
+        .description("List this machine's chats. For cloud chats, run dexto workspace chat list.")
         .action(
-            withAnalytics('session list', async () => {
+            withAnalytics('chat list', async () => {
                 let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
                     agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionListCommand } = await import('../session-commands.js');
                     await handleSessionListCommand(agent);
-                    safeExit('session list', 0);
+                    safeExit('chat list', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto session list command failed: ${err}`);
-                    safeExit('session list', 1, 'error');
+                    console.error(`❌ dexto chat list command failed: ${err}`);
+                    safeExit('chat list', 1, 'error');
                 } finally {
                     if (agent) {
                         await agent.stop().catch(() => {});
@@ -31,23 +32,23 @@ export function registerSessionCommand({
             })
         );
 
-    sessionCommand
+    chatCommand
         .command('history')
-        .description('Show session history')
-        .argument('[sessionId]', 'Session ID (defaults to current session)')
+        .description("Show a chat's messages")
+        .argument('[sessionId]', 'The chat (default: the current one)')
         .action(
-            withAnalytics('session history', async (sessionId: string) => {
+            withAnalytics('chat history', async (sessionId: string) => {
                 let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
                     agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionHistoryCommand } = await import('../session-commands.js');
                     await handleSessionHistoryCommand(agent, sessionId);
-                    safeExit('session history', 0);
+                    safeExit('chat history', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto session history command failed: ${err}`);
-                    safeExit('session history', 1, 'error');
+                    console.error(`❌ dexto chat history command failed: ${err}`);
+                    safeExit('chat history', 1, 'error');
                 } finally {
                     if (agent) {
                         await agent.stop().catch(() => {});
@@ -56,23 +57,23 @@ export function registerSessionCommand({
             })
         );
 
-    sessionCommand
+    chatCommand
         .command('delete')
-        .description('Delete a session')
-        .argument('<sessionId>', 'Session ID to delete')
+        .description('Delete a chat')
+        .argument('<sessionId>', 'The chat to delete')
         .action(
-            withAnalytics('session delete', async (sessionId: string) => {
+            withAnalytics('chat delete', async (sessionId: string) => {
                 let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
                     agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionDeleteCommand } = await import('../session-commands.js');
                     await handleSessionDeleteCommand(agent, sessionId);
-                    safeExit('session delete', 0);
+                    safeExit('chat delete', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto session delete command failed: ${err}`);
-                    safeExit('session delete', 1, 'error');
+                    console.error(`❌ dexto chat delete command failed: ${err}`);
+                    safeExit('chat delete', 1, 'error');
                 } finally {
                     if (agent) {
                         await agent.stop().catch(() => {});
@@ -80,4 +81,58 @@ export function registerSessionCommand({
                 }
             })
         );
+
+    // The cloud command engine owns these verbs and their options; analytics records only names.
+    for (const [word, description] of Object.entries({
+        local: 'List Claude Code and Codex chats on this machine that Dexto can import',
+        import: 'Import Claude Code or Codex chats into Dexto',
+        start: 'Start a cloud chat on your chosen connected computer and browser profile',
+        computers: 'List your connected computers for a cloud chat',
+        'browser-profiles': 'List your browser profiles for a cloud chat',
+        move: 'Move a synced chat and its working tree to cloud or local',
+        watch: 'Stay attached to a chat on its cloud computer',
+    }).filter(([word]) => !HELD_COMMANDS.has(`chat ${word}`)))
+        chatCommand
+            .command(word)
+            .description(description)
+            .helpOption(false)
+            .passThroughOptions()
+            .allowUnknownOption()
+            .allowExcessArguments()
+            .argument('[args...]')
+            .action(async (args: string[]) => {
+                await withAnalytics(`chat ${word}`, async () => {
+                    const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
+                        import('../../cloud/run.js'),
+                        import('../../cloud/host.js'),
+                    ]);
+                    const controller = new AbortController();
+                    const stop = () => controller.abort();
+                    process.once('SIGINT', stop);
+                    const local: {
+                        agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null;
+                    } = { agent: null };
+                    const cloudHost = nodeCloudHost(controller.signal);
+                    const host =
+                        word === 'move'
+                            ? {
+                                  ...cloudHost,
+                                  openLocalAgent: async () => {
+                                      local.agent ??= await bootstrapAgentFromGlobalOpts({
+                                          mode: 'non-interactive',
+                                      });
+                                      return local.agent;
+                                  },
+                              }
+                            : cloudHost;
+                    let code: number;
+                    try {
+                        code = await runCloud(host, ['chat', word, ...args]);
+                    } finally {
+                        process.removeListener('SIGINT', stop);
+                        if (local.agent !== null) await local.agent.stop();
+                    }
+                    safeExit(`chat ${word}`, code);
+                })();
+            });
 }

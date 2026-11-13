@@ -11,6 +11,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'rea
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone, type Role } from '../../signal/index.js';
 
 interface ContextStatsOverlayProps {
     isVisible: boolean;
@@ -66,13 +67,13 @@ const BREAKDOWN_ITEMS: BreakdownItem[] = [
     'autoCompactBuffer',
 ];
 
-// Colors for each breakdown category
-const ITEM_COLORS: Record<BreakdownItem, string> = {
-    systemPrompt: 'cyan',
-    tools: 'yellow',
-    messages: 'blue',
-    freeSpace: 'gray',
-    autoCompactBuffer: 'magenta',
+// Colour role for each breakdown category
+const ITEM_ROLES: Record<BreakdownItem, Role> = {
+    systemPrompt: 'teal',
+    tools: 'amberDim',
+    messages: 'fg',
+    freeSpace: 'dim',
+    autoCompactBuffer: 'faint',
 };
 
 /**
@@ -147,29 +148,39 @@ function createStackedBar(
     if (sysWidth > 0) {
         segments.push({
             char: '█',
-            color: ITEM_COLORS.systemPrompt,
+            color: tone(ITEM_ROLES.systemPrompt),
             width: sysWidth,
             item: 'systemPrompt',
         });
     }
     if (toolsWidth > 0) {
-        segments.push({ char: '█', color: ITEM_COLORS.tools, width: toolsWidth, item: 'tools' });
+        segments.push({
+            char: '█',
+            color: tone(ITEM_ROLES.tools),
+            width: toolsWidth,
+            item: 'tools',
+        });
     }
     if (msgsWidth > 0) {
         segments.push({
             char: '█',
-            color: ITEM_COLORS.messages,
+            color: tone(ITEM_ROLES.messages),
             width: msgsWidth,
             item: 'messages',
         });
     }
     if (adjustedFreeWidth > 0) {
-        segments.push({ char: '░', color: 'gray', width: adjustedFreeWidth, item: 'freeSpace' });
+        segments.push({
+            char: '░',
+            color: tone('dim'),
+            width: adjustedFreeWidth,
+            item: 'freeSpace',
+        });
     }
     if (reservedWidth > 0) {
         segments.push({
             char: '▒',
-            color: ITEM_COLORS.autoCompactBuffer,
+            color: tone(ITEM_ROLES.autoCompactBuffer),
             width: reservedWidth,
             item: 'autoCompactBuffer',
         });
@@ -279,14 +290,14 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="cyan"
+                    borderColor={tone('teal')}
                     paddingX={2}
                     paddingY={1}
                 >
-                    <Text color="cyan" bold>
+                    <Text color={tone('teal')} bold>
                         📊 Context Usage
                     </Text>
-                    <Text color="gray">Loading...</Text>
+                    <Text color={tone('dim')}>Loading...</Text>
                 </Box>
             );
         }
@@ -297,16 +308,16 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="red"
+                    borderColor={tone('red')}
                     paddingX={2}
                     paddingY={1}
                 >
-                    <Text color="red" bold>
+                    <Text color={tone('red')} bold>
                         Error
                     </Text>
-                    <Text color="gray">{error}</Text>
+                    <Text color={tone('dim')}>{error}</Text>
                     <Box marginTop={1}>
-                        <Text color="gray" dimColor>
+                        <Text color={tone('dim')} dimColor>
                             Press Esc to close
                         </Text>
                     </Box>
@@ -362,22 +373,22 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             const isSelected = selectedIndex === index;
             const prefix = isLast ? '└─' : '├─';
             const expandIcon = expandable ? (isToolsExpanded ? '▼' : '▶') : ' ';
-            const itemColor = ITEM_COLORS[item];
+            const itemColor = tone(ITEM_ROLES[item]);
             // Use different characters for different types
             const indicator = item === 'freeSpace' ? '░' : item === 'autoCompactBuffer' ? '▒' : '█';
 
             return (
                 <Box key={item}>
-                    <Text color={isSelected ? 'white' : 'gray'}>{prefix} </Text>
+                    <Text color={isSelected ? tone('hi') : tone('dim')}>{prefix} </Text>
                     <Text color={itemColor} bold={isSelected}>
                         {indicator}
                     </Text>
-                    <Text color={isSelected ? 'white' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? tone('hi') : tone('dim')} bold={isSelected}>
                         {' '}
                         {expandIcon} {label}: {formatTokens(tokens)} ({pct(tokens)})
                     </Text>
                     {isSelected && expandable && (
-                        <Text color="gray" dimColor>
+                        <Text color={tone('dim')} dimColor>
                             {' '}
                             (Enter to {isToolsExpanded ? 'collapse' : 'expand'})
                         </Text>
@@ -397,16 +408,16 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="cyan"
+                borderColor={tone('teal')}
                 paddingX={2}
                 paddingY={1}
             >
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text color="cyan" bold>
+                    <Text color={tone('teal')} bold>
                         📊 Context Usage
                     </Text>
-                    <Text color="gray"> - {stats.modelDisplayName}</Text>
+                    <Text color={tone('dim')}> - {stats.modelDisplayName}</Text>
                 </Box>
 
                 {/* Arrow indicator above the bar */}
@@ -414,7 +425,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     {barSegments.map((segment, idx) => {
                         const isHighlighted = BREAKDOWN_ITEMS[selectedIndex] === segment.item;
                         return (
-                            <Text key={idx} color="white">
+                            <Text key={idx} color={tone('hi')}>
                                 {isHighlighted
                                     ? '▼'.repeat(segment.width)
                                     : ' '.repeat(segment.width)}
@@ -434,17 +445,17 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
                 {/* Token summary */}
                 <Box marginBottom={1}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {tokenDisplay} / {formatTokens(totalTokenSpace)} tokens
                     </Text>
-                    <Text color="gray"> • </Text>
+                    <Text color={tone('dim')}> • </Text>
                     <Text
                         color={
                             stats.usagePercent > 80
-                                ? 'red'
+                                ? tone('red')
                                 : stats.usagePercent > 60
-                                  ? 'yellow'
-                                  : 'green'
+                                  ? tone('amberDim')
+                                  : tone('add')
                         }
                     >
                         {stats.usagePercent}% used
@@ -453,7 +464,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
                 {/* Breakdown */}
                 <Box flexDirection="column">
-                    <Text color="white">Breakdown:</Text>
+                    <Text color={tone('hi')}>Breakdown:</Text>
                     {renderRow(
                         0,
                         'systemPrompt',
@@ -474,16 +485,16 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
                     {isToolsExpanded && (
                         <Box flexDirection="column" marginLeft={4}>
                             {stats.breakdown.tools.perTool.length === 0 ? (
-                                <Text color="gray" dimColor>
+                                <Text color={tone('dim')} dimColor>
                                     No tools registered
                                 </Text>
                             ) : (
                                 [...stats.breakdown.tools.perTool]
                                     .sort((a, b) => b.tokens - a.tokens)
                                     .map((tool, idx, arr) => (
-                                        <Text key={tool.name} color="gray" dimColor>
+                                        <Text key={tool.name} color={tone('dim')} dimColor>
                                             {idx === arr.length - 1 ? '└─' : '├─'}{' '}
-                                            <Text color="yellow" dimColor>
+                                            <Text color={tone('amberDim')} dimColor>
                                                 {tool.name}
                                             </Text>
                                             : {formatTokens(tool.tokens)} ({pct(tool.tokens)})
@@ -508,20 +519,24 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
                 {/* Additional stats */}
                 <Box marginTop={1} flexDirection="column">
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         Messages: {stats.filteredMessageCount} visible ({stats.messageCount} total)
                     </Text>
 
                     {stats.prunedToolCount > 0 && (
-                        <Text color="yellow">🗑️ {stats.prunedToolCount} tool output(s) pruned</Text>
+                        <Text color={tone('amberDim')}>
+                            🗑️ {stats.prunedToolCount} tool output(s) pruned
+                        </Text>
                     )}
 
                     {stats.hasSummary && (
-                        <Text color="blue">📦 Context has been compacted (summary present)</Text>
+                        <Text color={tone('fg')}>
+                            📦 Context has been compacted (summary present)
+                        </Text>
                     )}
 
                     {stats.usagePercent > 100 && (
-                        <Text color="yellow">
+                        <Text color={tone('amberDim')}>
                             💡 Use /compact to manually compact, or send a message to trigger
                             auto-compaction
                         </Text>
@@ -530,7 +545,7 @@ const ContextStatsOverlay = forwardRef<ContextStatsOverlayHandle, ContextStatsOv
 
                 {/* Footer with controls */}
                 <Box marginTop={1}>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         ↑↓: navigate | Enter: expand/collapse | Esc: close
                     </Text>
                 </Box>

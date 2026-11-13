@@ -21,6 +21,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { getModelDisplayName, getReasoningProfile } from '@dexto/llm';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 export interface ReasoningOverlayHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -260,31 +261,31 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="cyan"
+                borderColor={tone('teal')}
                 paddingX={1}
                 marginTop={1}
             >
                 <Box marginBottom={1}>
-                    <Text bold color="cyan">
+                    <Text bold color={tone('teal')}>
                         Reasoning
                     </Text>
                 </Box>
 
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="gray">
-                        Model: <Text color="white">{modelLabel}</Text>{' '}
-                        <Text color="gray">({providerLabel})</Text>
+                    <Text color={tone('dim')}>
+                        Model: <Text color={tone('hi')}>{modelLabel}</Text>{' '}
+                        <Text color={tone('dim')}>({providerLabel})</Text>
                     </Text>
-                    <Text color="gray">
-                        Variant: <Text color="white">{currentVariant}</Text>{' '}
-                        <Text color="gray">(Tab cycles)</Text>
+                    <Text color={tone('dim')}>
+                        Variant: <Text color={tone('hi')}>{currentVariant}</Text>{' '}
+                        <Text color={tone('dim')}>(Tab cycles)</Text>
                     </Text>
-                    <Text color="gray">
-                        Visible: <Text color="white">{showReasoning ? 'on' : 'off'}</Text>
+                    <Text color={tone('dim')}>
+                        Visible: <Text color={tone('hi')}>{showReasoning ? 'on' : 'off'}</Text>
                     </Text>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         Budget tokens:{' '}
-                        <Text color="white">
+                        <Text color={tone('hi')}>
                             {support.supportsBudgetTokens
                                 ? typeof currentBudgetTokens === 'number'
                                     ? String(currentBudgetTokens)
@@ -292,9 +293,9 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
                                 : 'not supported'}
                         </Text>
                     </Text>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         Supported variants:{' '}
-                        <Text color="white">{support.supportedVariants.join(', ')}</Text>
+                        <Text color={tone('hi')}>{support.supportedVariants.join(', ')}</Text>
                     </Text>
                 </Box>
 
@@ -302,21 +303,23 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
                     <Box flexDirection="column">
                         <Text bold>Enter budget tokens:</Text>
                         <Box marginTop={1}>
-                            <Text color="cyan">&gt; </Text>
+                            <Text color={tone('teal')}>&gt; </Text>
                             <Text>{budgetInput}</Text>
-                            {!isSavingRef.current && <Text color="cyan">_</Text>}
+                            {!isSavingRef.current && <Text color={tone('teal')}>_</Text>}
                         </Box>
                         <Box marginTop={1}>
-                            <Text color="gray">Enter to save • Esc to cancel</Text>
+                            <Text color={tone('dim')}>Enter to save • Esc to cancel</Text>
                         </Box>
                     </Box>
                 ) : (
                     <Box flexDirection="column">
                         {menuItems.length === 0 ? (
-                            <Text color="gray">No reasoning options available for this model.</Text>
+                            <Text color={tone('dim')}>
+                                No reasoning options available for this model.
+                            </Text>
                         ) : (
                             <>
-                                <Text color="cyan" bold>
+                                <Text color={tone('teal')} bold>
                                     Options ({selectedIndex + 1}/{menuItems.length}) - ↑↓ navigate,
                                     Enter select, Esc close
                                 </Text>
@@ -325,18 +328,20 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
                                     return (
                                         <Box key={item.id} flexDirection="row" marginTop={0}>
                                             <Box width={2}>
-                                                <Text color={isSelected ? 'cyan' : 'gray'}>
+                                                <Text
+                                                    color={isSelected ? tone('teal') : tone('dim')}
+                                                >
                                                     {isSelected ? '>' : ' '}
                                                 </Text>
                                             </Box>
                                             <Box flexDirection="column">
                                                 <Text
-                                                    color={isSelected ? 'cyan' : 'gray'}
+                                                    color={isSelected ? tone('teal') : tone('dim')}
                                                     bold={isSelected}
                                                 >
                                                     {item.label}
                                                 </Text>
-                                                <Text color="gray">{item.description}</Text>
+                                                <Text color={tone('dim')}>{item.description}</Text>
                                             </Box>
                                         </Box>
                                     );
@@ -348,7 +353,7 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
 
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
+                        <Text color={tone('red')}>{error}</Text>
                     </Box>
                 )}
             </Box>

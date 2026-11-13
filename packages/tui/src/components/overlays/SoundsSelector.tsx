@@ -38,6 +38,7 @@ import {
     loadGlobalPreferences,
     updateGlobalPreferences,
 } from '@dexto/agent-management';
+import { tone } from '../../signal/index.js';
 
 interface SoundsSelectorProps {
     isVisible: boolean;
@@ -669,10 +670,13 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 if (item.type === 'enabled') {
                     return (
                         <Text wrap="truncate-end">
-                            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                            <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                                 sounds:{' '}
                             </Text>
-                            <Text color={config.enabled ? 'green' : 'gray'} bold={isSelected}>
+                            <Text
+                                color={config.enabled ? tone('add') : tone('dim')}
+                                bold={isSelected}
+                            >
                                 {config.enabled ? 'On' : 'Off'}
                             </Text>
                         </Text>
@@ -698,7 +702,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                     return (
                         <Text
-                            color={isSelected ? 'cyan' : 'gray'}
+                            color={isSelected ? tone('teal') : tone('dim')}
                             bold={isSelected}
                             wrap="truncate-end"
                         >
@@ -716,9 +720,9 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     return (
                         <Box flexDirection="row">
                             <Box flexGrow={1} flexDirection="row">
-                                <Text color="green">{item.isCurrent ? '* ' : '  '}</Text>
+                                <Text color={tone('add')}>{item.isCurrent ? '* ' : '  '}</Text>
                                 <Text
-                                    color={isSelected ? 'cyan' : 'gray'}
+                                    color={isSelected ? tone('teal') : tone('dim')}
                                     bold={isSelected}
                                     wrap="truncate-end"
                                 >
@@ -781,13 +785,13 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                             ? '↑↓ navigate • Enter toggle/select • Esc close'
                             : `↑↓ navigate • ←/→ Listen/Select • Enter ${pickAction === 'listen' ? 'preview' : 'select'} • Esc back`
                     }
-                    borderColor="magenta"
+                    borderColor={tone('faint')}
                     emptyMessage="No options available"
                 />
 
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red" wrap="wrap">
+                        <Text color={tone('red')} wrap="wrap">
                             {error}
                         </Text>
                     </Box>

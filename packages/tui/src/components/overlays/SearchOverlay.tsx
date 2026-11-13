@@ -15,6 +15,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { SearchResult } from '@dexto/core';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 export interface SearchOverlayProps {
     isVisible: boolean;
@@ -230,14 +231,14 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
     );
 
     return (
-        <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
+        <Box flexDirection="column" borderStyle="round" borderColor={tone('teal')} paddingX={1}>
             {/* Header */}
             <Box marginBottom={1}>
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     Search Messages
                 </Text>
                 {state.total > 0 && (
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {' '}
                         ({state.total} result{state.total !== 1 ? 's' : ''})
                     </Text>
@@ -246,22 +247,22 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
 
             {/* Search input */}
             <Box>
-                <Text color="cyan">&gt; </Text>
+                <Text color={tone('teal')}>&gt; </Text>
                 <Text>{state.query}</Text>
-                <Text color="cyan">_</Text>
+                <Text color={tone('teal')}>_</Text>
             </Box>
 
             {/* Loading indicator */}
             {state.isLoading && (
                 <Box marginTop={1}>
-                    <Text color="yellowBright">Searching...</Text>
+                    <Text color={tone('amber')}>Searching...</Text>
                 </Box>
             )}
 
             {/* Error message */}
             {state.error && (
                 <Box marginTop={1}>
-                    <Text color="red">{state.error}</Text>
+                    <Text color={tone('red')}>{state.error}</Text>
                 </Box>
             )}
 
@@ -273,10 +274,10 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                         const isSelected = actualIndex === state.selectedIndex;
                         const roleColor =
                             result.message.role === 'user'
-                                ? 'blue'
+                                ? tone('fg')
                                 : result.message.role === 'assistant'
-                                  ? 'green'
-                                  : 'yellowBright';
+                                  ? tone('add')
+                                  : tone('amber');
 
                         return (
                             <Box
@@ -286,18 +287,18 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                             >
                                 <Box>
                                     {isSelected && (
-                                        <Text color="cyan" bold>
+                                        <Text color={tone('teal')} bold>
                                             {'> '}
                                         </Text>
                                     )}
-                                    <Text color="gray">{result.sessionId.slice(0, 8)}</Text>
+                                    <Text color={tone('dim')}>{result.sessionId.slice(0, 8)}</Text>
                                     <Text> </Text>
                                     <Text color={roleColor} bold={isSelected}>
                                         [{result.message.role}]
                                     </Text>
                                 </Box>
                                 <Box paddingLeft={isSelected ? 2 : 0}>
-                                    <Text color={isSelected ? 'white' : 'gray'}>
+                                    <Text color={isSelected ? tone('hi') : tone('dim')}>
                                         {'  '}
                                         {truncateContext(result.context, 60)}
                                     </Text>
@@ -309,7 +310,7 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
                     {/* Scroll indicator */}
                     {state.results.length > MAX_VISIBLE_RESULTS && (
                         <Box marginTop={1}>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 Showing {scrollOffset.current + 1}-
                                 {Math.min(
                                     scrollOffset.current + MAX_VISIBLE_RESULTS,
@@ -326,13 +327,13 @@ const SearchOverlay = forwardRef<SearchOverlayHandle, SearchOverlayProps>(functi
             {/* No results message */}
             {!state.isLoading && state.query && state.results.length === 0 && !state.error && (
                 <Box marginTop={1}>
-                    <Text color="gray">No results found for "{state.query}"</Text>
+                    <Text color={tone('dim')}>No results found for "{state.query}"</Text>
                 </Box>
             )}
 
             {/* Help text */}
             <Box marginTop={1}>
-                <Text color="gray">↑↓ navigate • Enter select • Esc close</Text>
+                <Text color={tone('dim')}>↑↓ navigate • Enter select • Esc close</Text>
             </Box>
         </Box>
     );

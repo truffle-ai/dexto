@@ -5,6 +5,7 @@ import os from 'os';
 import path from 'path';
 import chalk from 'chalk';
 import boxen from 'boxen';
+import { noticeLines, safeText, signalOn, span } from '@dexto/tui/signal-text';
 
 /**
  * Version cache stored in ~/.dexto/cache/version-check.json
@@ -251,6 +252,14 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
     }
 }
 
+/** `▌ UPDATE  dexto 2.2.0 is out (you have 2.1.0) · run dexto upgrade`: the Signal notice. */
+export function updateNoticeLines(updateInfo: UpdateInfo): string[] {
+    return noticeLines('UPDATE', [
+        span('fg', `dexto ${updateInfo.latest} is out (you have ${updateInfo.current}) · run `),
+        span('teal', updateInfo.updateCommand),
+    ]);
+}
+
 /**
  * Display update notification in a styled box
  *
@@ -266,11 +275,18 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
  * ```
  */
 export function displayUpdateNotification(updateInfo: UpdateInfo): void {
+    if (signalOn()) {
+        // A notice for people at a terminal: never on stdout, never piped.
+        if (process.stderr.isTTY === true)
+            process.stderr.write(`${updateNoticeLines(updateInfo).join('\n')}\n`);
+        return;
+    }
     const message =
-        `Update available: ${chalk.gray(updateInfo.current)} ${chalk.gray('→')} ${chalk.green(updateInfo.latest)}\n` +
+        `Update available: ${chalk.gray(updateInfo.current)} ${chalk.gray('→')} ${chalk.green(safeText(updateInfo.latest))}\n` +
         `Run: ${chalk.cyan(updateInfo.updateCommand)}`;
 
-    console.log(
+    // A notice, not a result: stderr, so stdout stays what the command printed.
+    console.error(
         boxen(message, {
             padding: 1,
             margin: { top: 1, bottom: 1, left: 0, right: 0 },

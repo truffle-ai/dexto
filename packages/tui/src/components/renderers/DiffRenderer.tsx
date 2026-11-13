@@ -18,6 +18,7 @@ import {
     DiffLine,
     HunkSeparator,
 } from './diff-shared.js';
+import { tone } from '../../signal/index.js';
 
 interface DiffRendererProps {
     /** Diff display data from tool result */
@@ -59,10 +60,10 @@ export function DiffRenderer({ data, maxLines = Infinity }: DiffRendererProps) {
         <Box flexDirection="column">
             {/* Header */}
             <Box>
-                <Text color="gray">{'  ⎿ '}</Text>
+                <Text color={tone('dim')}>{'  ⎿ '}</Text>
                 <Text>{makeRelativePath(filename)}</Text>
-                <Text color="green"> +{additions}</Text>
-                <Text color="red"> -{deletions}</Text>
+                <Text color={tone('add')}> +{additions}</Text>
+                <Text color={tone('red')}> -{deletions}</Text>
             </Box>
 
             {/* Diff content - paddingLeft keeps backgrounds bounded within container */}
@@ -140,7 +141,9 @@ export function DiffRenderer({ data, maxLines = Infinity }: DiffRendererProps) {
                     );
                 })}
 
-                {shouldTruncate && <Text color="gray">... +{totalLines - maxLines} lines</Text>}
+                {shouldTruncate && (
+                    <Text color={tone('dim')}>... +{totalLines - maxLines} lines</Text>
+                )}
             </Box>
         </Box>
     );

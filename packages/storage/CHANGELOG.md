@@ -1,5 +1,27 @@
 # @dexto/storage
 
+## 1.18.1
+
+### Patch Changes
+
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+
+## 1.18.0
+
+### Patch Changes
+
+- 9a75f3a: `npm install dexto` and the dexto.ai installer work without a compiler or Python on Node.js 20, 22, 24 and 26. better-sqlite3 12.9 ships prebuilt binaries for Node.js 20, 22 and 24, and is now optional for the CLI: where it cannot install, as on Node.js 26, `@dexto/storage` opens SQLite with the `node:sqlite` built into Node.js instead. `openSqlite` is exported for other SQLite readers.
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+- Updated dependencies [9a75f3a]
+    - @dexto/core@1.18.0
+
 ## 1.17.0
 
 ### Patch Changes
