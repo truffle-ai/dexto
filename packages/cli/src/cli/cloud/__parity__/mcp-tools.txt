@@ -10299,6 +10299,10 @@
           "timezone": {
             "type": "string",
             "minLength": 1
+          },
+          "repository": {
+            "description": "A GitHub repository (owner/name or https://github.com/owner/name) the Project's chats start with, cloned on their computer. It reuses the person's Environment for that repository alone, or makes a personal one.",
+            "type": "string"
           }
         },
         "required": [
