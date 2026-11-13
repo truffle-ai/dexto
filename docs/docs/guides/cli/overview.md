@@ -1,16 +1,16 @@
 ---
 sidebar_position: 1
-title: "Overview"
+title: 'Overview'
 ---
 
 # CLI Overview
 
 The Dexto CLI provides two ways to interact with AI agents:
 
-| Mode | What It Is | How to Use |
-|------|------------|------------|
-| **CLI Tool** | Terminal commands for chats, headless runs, your sign-in, Dexto Cloud and your workspace | `dexto run`, `dexto chat list`, `dexto login` |
-| **Interactive Mode** | Chat session with slash commands for real-time control | `/model switch`, `/mcp add`, `/search` |
+| Mode                 | What It Is                                                                               | How to Use                                    |
+| -------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------- |
+| **CLI Tool**         | Terminal commands for chats, headless runs, your sign-in, Dexto Cloud and your workspace | `dexto run`, `dexto chat list`, `dexto login` |
+| **Interactive Mode** | Chat session with slash commands for real-time control                                   | `/model switch`, `/mcp add`, `/search`        |
 
 This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
 
@@ -66,19 +66,19 @@ The first start needs a model: a provider key in the environment (such as `ANTHR
 
 ### Main Command Options
 
-| Flag | Description | Example |
-|------|-------------|---------|
-| `-v, --version` | Show version | `dexto --version` |
-| `-a, --agent <id\|path>` | Use agent ID or path to config file | `dexto -a nano-banana-agent` |
-| `-p, --prompt <text>` | Start the interactive CLI and run the prompt | `dexto -p "list files"` |
-| `-m, --model <model>` | Specify LLM model | `dexto -m gpt-5-mini` |
-| `-c, --continue` | Continue most recent conversation | `dexto -c` |
-| `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
-| `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
-| `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
-| `--no-interactive` | Disable interactive prompts | `dexto --no-interactive` |
-| `--permissions-mode` | Select `manual` or `auto-approve` in TUI or headless mode | `dexto --permissions-mode manual` |
-| `--auto-approve` / `--bypass-permissions` | Select `auto-approve`; mandatory approvals still apply | `dexto --auto-approve` |
+| Flag                                      | Description                                               | Example                           |
+| ----------------------------------------- | --------------------------------------------------------- | --------------------------------- |
+| `-v, --version`                           | Show version                                              | `dexto --version`                 |
+| `-a, --agent <id\|path>`                  | Use agent ID or path to config file                       | `dexto -a nano-banana-agent`      |
+| `-p, --prompt <text>`                     | Start the interactive CLI and run the prompt              | `dexto -p "list files"`           |
+| `-m, --model <model>`                     | Specify LLM model                                         | `dexto -m gpt-5-mini`             |
+| `-c, --continue`                          | Continue most recent conversation                         | `dexto -c`                        |
+| `-r, --resume <sessionId>`                | Resume a specific session by ID                           | `dexto --resume my-session`       |
+| `-s, --strict`                            | Require all MCP servers to connect                        | `dexto --strict`                  |
+| `--no-verbose`                            | Disable verbose output                                    | `dexto --no-verbose`              |
+| `--no-interactive`                        | Disable interactive prompts                               | `dexto --no-interactive`          |
+| `--permissions-mode`                      | Select `manual` or `auto-approve` in TUI or headless mode | `dexto --permissions-mode manual` |
+| `--auto-approve` / `--bypass-permissions` | Select `auto-approve`; mandatory approvals still apply    | `dexto --auto-approve`            |
 
 **Note:** The `-a, --agent` flag accepts bundled agent IDs and paths to agent config files. See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
@@ -118,6 +118,7 @@ dexto upgrade
 ```
 
 **Options:**
+
 - `--dry-run` - Print install/migration commands without executing
 - `--force` - Force reinstall for native install target
 
@@ -137,6 +138,7 @@ dexto uninstall --purge
 ```
 
 **Options:**
+
 - `--purge` - Remove `~/.dexto` completely
 - `--dry-run` - Show what would be removed
 
@@ -185,16 +187,16 @@ dexto chat import --all          # import every chat that local lists
 
 These 1.x local-agent commands are gone in 2.0:
 
-| 1.x | Use instead |
-| --- | --- |
-| `dexto setup`, `dexto connect` (1.x provider setup) | `dexto login`, or a provider key in an env var |
-| `dexto agents install\|list` | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
-| `dexto init skill` | `dexto skills push` / `dexto skills sync` |
-| `dexto mcp call\|tools` | `dexto workspace call` / `dexto workspace tools` |
-| `dexto search` | `dexto chat history` |
-| `dexto --mode web` | the Dexto dashboard |
-| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK |
-| `dexto --agent triage-agent` (bundled demo) | removed: it ran its sub-agents with `--mode mcp` |
+| 1.x                                                                        | Use instead                                                     |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `dexto setup`, `dexto connect` (1.x provider setup)                        | `dexto login`, or a provider key in an env var                  |
+| `dexto agents install\|list`                                               | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
+| `dexto init skill`                                                         | `dexto skills push` / `dexto skills sync`                       |
+| `dexto mcp call\|tools`                                                    | `dexto workspace call` / `dexto workspace tools`                |
+| `dexto search`                                                             | `dexto chat history`                                            |
+| `dexto --mode web`                                                         | the Dexto dashboard                                             |
+| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK       |
+| `dexto --agent triage-agent` (bundled demo)                                | removed: it ran its sub-agents with `--mode mcp`                |
 
 The rest of `agents`, `init` and `mcp`, plus `create-image`, `--image`, `--no-auto-install`, `--skip-setup`, `--dev` and `--port`, are removed without a replacement. 2.0's `dexto connect claude` and `dexto connect codex` are different, new commands: they sign Claude Code or Codex in on Dexto Cloud.
 
@@ -314,7 +316,7 @@ Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <
 
 Signed in as a person, each session starts by syncing your Dexto Skills library to `~/.dexto/cloud-skills/`, where Skill discovery finds them after your own Skills, so a local Skill of the same name wins. Signed out, or with an API key, that copy is removed. `dexto skills sync` syncs on demand, and `dexto skills push <dir>` adds a local Skill to your library.
 
-Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
+Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. A folder of plain pages needs no packer: a `dexto.json` with `slug`, `title` and `assets` (the folder holding `index.html`) deploys with `dexto cloud sites deploy` alone. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
 
 ### Run traces
 
