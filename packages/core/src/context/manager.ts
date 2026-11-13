@@ -146,7 +146,7 @@ export class ContextManager<TMessage = unknown> {
     }
 
     private static hasRetainableMedia(message: UserMessage | ToolMessage): boolean {
-        if (message.mediaWithheldAt !== undefined) {
+        if (message.mediaWithheldAt !== undefined || !Array.isArray(message.content)) {
             return false;
         }
 

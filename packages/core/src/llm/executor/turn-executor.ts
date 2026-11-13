@@ -1899,7 +1899,7 @@ export class TurnExecutor {
                 continue;
             }
 
-            if (media === 'retried') {
+            if (media === 'retried' && result.finishReason !== 'cancelled') {
                 media = 'withheld';
                 // The provider took the request once its media was gone: keep it out of every
                 // later request of this session.
