@@ -42,4 +42,19 @@ describe('convertZodSchemaToJsonSchema', () => {
             run_in_background: { type: 'boolean', default: false },
         });
     });
+
+    it('describes a uuid by its format alone, without the long uuid pattern', () => {
+        const logger = createMockLogger();
+        const schema = z.object({
+            chatId: z.string().uuid(),
+            projectId: z.uuid(),
+            email: z.email(),
+        });
+
+        const jsonSchema = convertZodSchemaToJsonSchema(schema, logger);
+
+        expect(jsonSchema.properties?.chatId).toEqual({ type: 'string', format: 'uuid' });
+        expect(jsonSchema.properties?.projectId).toEqual({ type: 'string', format: 'uuid' });
+        expect(jsonSchema.properties?.email).toHaveProperty('pattern');
+    });
 });

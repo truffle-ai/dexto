@@ -16,6 +16,13 @@ export function convertZodSchemaToJsonSchema(
             io,
             target: 'draft-07',
             unrepresentable: 'any',
+            // `format: "uuid"` already says it; zod's ~180-character uuid regex beside it
+            // is repeated on every id field of every tool the model sees.
+            override: ({ jsonSchema }) => {
+                if (jsonSchema.format === 'uuid') {
+                    delete jsonSchema.pattern;
+                }
+            },
         }) as unknown;
         if (converted && typeof converted === 'object') {
             return converted as JSONSchema7;

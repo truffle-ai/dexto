@@ -72,10 +72,20 @@ describe('wrapToolParametersSchema', () => {
                         },
                         required: ['running', 'completed'],
                         additionalProperties: false,
-                        description: expect.any(String),
                     },
                 }),
             })
         );
+    });
+
+    it('keeps the call activity schema short, since every tool carries a copy', () => {
+        const schema = wrapToolParametersSchema({
+            type: 'object',
+            properties: {
+                path: { type: 'string' },
+            },
+        });
+
+        expect(JSON.stringify(schema.properties?.__meta).length).toBeLessThanOrEqual(360);
     });
 });
