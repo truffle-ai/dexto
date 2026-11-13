@@ -288,7 +288,6 @@ describe('dexto workspace', () => {
         creditResponses = [
             {
                 topupId: 'topup-1',
-                checkoutUrl: 'https://pay.example/1',
                 expiresAt: '2020-01-01T00:00:00Z',
                 status: 'expired',
             },
@@ -307,7 +306,6 @@ describe('dexto workspace', () => {
         creditResponses = [
             {
                 topupId: 'topup-1',
-                checkoutUrl: 'https://pay.example/1',
                 expiresAt: '2020-01-01T00:00:00Z',
                 status: 'failed',
             },
@@ -318,13 +316,45 @@ describe('dexto workspace', () => {
         expect(JSON.parse(stderr).error).toMatchObject({ code: 'failed' });
         expect(JSON.parse(stderr).error).not.toHaveProperty('fix');
     });
+    it('ends the wait on a failed payment and points to a new top-up, not the used link', async () => {
+        const open = {
+            topupId: 'topup-1',
+            checkoutUrl: 'https://pay.example/1',
+            expiresAt: '2030-01-01T00:00:00Z',
+            status: 'open',
+        };
+        creditResponses = [
+            open,
+            {
+                topupId: 'topup-1',
+                expiresAt: '2030-01-01T00:00:00Z',
+                status: 'failed',
+                lastFailureReason: 'Card declined',
+            },
+        ];
+        expect(await runCloud(host, ['credits', 'topup', '25', '--yes', '--json'])).toBe(1);
+        const lines = stdout
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines.at(-1)).toEqual({
+            topupId: 'topup-1',
+            expiresAt: '2030-01-01T00:00:00Z',
+            status: 'failed',
+            lastFailureReason: 'Card declined',
+        });
+        const error = JSON.parse(stderr).error;
+        expect(error.message).toContain('Card declined');
+        expect(error.message).toContain('start a new top-up');
+        expect(error.message).not.toContain('still open');
+        expect(calls.filter((call) => call.params.name === 'dexto_credits_topup')).toHaveLength(1);
+    });
     it.each(['expired', 'failed'])(
         'does not suggest resuming a terminal %s top-up without waiting',
         async (status) => {
             creditResponses = [
                 {
                     topupId: 'topup-1',
-                    checkoutUrl: 'https://pay.example/1',
                     expiresAt: '2020-01-01T00:00:00Z',
                     status,
                 },
@@ -476,7 +506,6 @@ describe('dexto workspace', () => {
         creditResponses = [
             {
                 topupId: 'topup-1',
-                checkoutUrl: 'https://pay.example/1',
                 expiresAt: '2030-01-01T00:00:00Z',
                 status: 'paid',
                 balanceUsd: 25,

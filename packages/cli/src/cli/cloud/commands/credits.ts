@@ -19,7 +19,8 @@ import { reportError } from '../run.js';
 
 const CheckoutSchema = z.object({
     topupId: z.string(),
-    checkoutUrl: z.string(),
+    // Checkout links are single-use: the cloud sends one only while the checkout is open.
+    checkoutUrl: z.string().optional(),
     expiresAt: z.string(),
     status: z.enum(['open', 'paid', 'failed', 'expired']),
     balanceUsd: z.number().optional(),
@@ -42,15 +43,30 @@ function deadline(input: CommandInput): number {
         throw new UsageError('--timeout must be a nonnegative number of seconds.');
     return Date.now() + seconds * 1000;
 }
+function showText(checkout: Checkout): string {
+    switch (checkout.status) {
+        case 'paid':
+            return `Paid. Balance $${checkout.balanceUsd?.toFixed(2) ?? 'unknown'}.`;
+        case 'open':
+            return `Top-up ${checkout.topupId}: open\n${checkout.checkoutUrl ?? ''}\nExpires ${checkout.expiresAt}`;
+        case 'failed':
+        case 'expired':
+            return `Top-up ${checkout.topupId}: ${checkout.status}`;
+    }
+}
 function show(context: CommandContext, checkout: Checkout, stream: boolean): void {
     if (context.output.json && stream) context.runtime.writeOutput(`${safeJson(checkout, 0)}\n`);
-    else
-        context.output.result(
-            checkout,
-            checkout.status === 'paid'
-                ? `Paid. Balance $${checkout.balanceUsd?.toFixed(2) ?? 'unknown'}.`
-                : `Top-up ${checkout.topupId}: ${checkout.status}\n${checkout.checkoutUrl}\nExpires ${checkout.expiresAt}${checkout.lastFailureReason ? `\nLast attempt failed: ${checkout.lastFailureReason}. The page is still open.` : ''}`
-        );
+    else context.output.result(checkout, showText(checkout));
+}
+/** Why a top-up ended unpaid: its link can't be paid again, so the next step is a new top-up. */
+function endedFailure(checkout: Checkout): CommandFailure {
+    return new CommandFailure(
+        'failed',
+        checkout.status === 'expired'
+            ? 'topup_expired: rerun to get a new link.'
+            : `Top-up failed${checkout.lastFailureReason ? `: ${checkout.lastFailureReason}` : ''}. Its checkout link can't be used again; start a new top-up for a new link.`,
+        null
+    );
 }
 async function wait(
     context: CommandContext,
@@ -128,13 +144,8 @@ async function wait(
             if (current !== previous) show(context, status, true);
             previous = current;
             if (status.status === 'paid') return 0;
-            if (status.status === 'expired') {
-                return report(
-                    new CommandFailure('failed', 'topup_expired: rerun to get a new link.', null)
-                );
-            }
-            if (status.status === 'failed')
-                return report(new CommandFailure('failed', 'Top-up failed.', null));
+            if (status.status === 'expired' || status.status === 'failed')
+                return report(endedFailure(status));
         }
     } catch (error) {
         if (context.runtime.signal.aborted) {
@@ -229,13 +240,7 @@ const status: Command = {
                 context,
                 context.output.json,
                 { text: '', command: 'dexto credits topup status --help' },
-                new CommandFailure(
-                    'failed',
-                    checkout.status === 'expired'
-                        ? 'topup_expired: rerun to get a new link.'
-                        : 'Top-up failed.',
-                    null
-                )
+                endedFailure(checkout)
             );
         return 0;
     },
