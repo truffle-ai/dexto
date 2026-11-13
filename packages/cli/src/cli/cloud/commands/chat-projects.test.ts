@@ -159,6 +159,27 @@ describe('projects over the Dexto MCP', () => {
         expect(output()).toEqual({ project });
     });
 
+    it('passes a repository to bind the new Project to', async () => {
+        replies = [{ project }];
+        expect(
+            await cli(
+                'projects',
+                'create',
+                'Web',
+                '--repository',
+                'https://github.com/acme/web',
+                '--yes'
+            ),
+            stderr
+        ).toBe(0);
+        expect(calls).toEqual([
+            {
+                name: 'dexto_project_create',
+                arguments: { name: 'Web', repository: 'https://github.com/acme/web' },
+            },
+        ]);
+    });
+
     it('updates only the fields named, and refuses an empty or out-of-range update', async () => {
         expect(await cli('projects', 'update', PROJECT_ID, '--yes')).toBe(2);
         expect(await cli('projects', 'update', PROJECT_ID, '--daily-cap', '0', '--yes')).toBe(2);

@@ -157,12 +157,19 @@ const create: Command = {
             valueName: 'ZONE',
             description: 'IANA time zone for its schedules, such as Europe/London.',
         },
+        repository: {
+            type: 'string',
+            valueName: 'REPO',
+            description:
+                'GitHub repository its chats start with, as owner/name or https://github.com/owner/name. Reuses your Environment for it or makes one.',
+        },
         ...YES_OPTION,
     },
     async run(context, input) {
         const name = argument(input, 0, 'name');
         const description = stringOption(input, 'description');
         const timezone = stringOption(input, 'timezone');
+        const repository = stringOption(input, 'repository');
         await requireLoginScopes(context, ['projects:write']);
         await requireConsent(context, flag(input, 'yes'), `Create the Project ${name}?`);
         const { project } = parsed(
@@ -171,6 +178,7 @@ const create: Command = {
                 name,
                 ...(description === undefined ? {} : { description }),
                 ...(timezone === undefined ? {} : { timezone }),
+                ...(repository === undefined ? {} : { repository }),
             }),
             'Project'
         );
