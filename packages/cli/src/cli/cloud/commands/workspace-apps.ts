@@ -100,7 +100,7 @@ export async function runWorkspaceApp(
         );
     }
     if (operationName === undefined || operationName.startsWith('-')) {
-        printOperations(context, appId, operations, commands);
+        printOperations(context, appId, operations, commands, help);
         return 0;
     }
     const operation = operations.find((each) => each.name === operationName);
@@ -177,7 +177,7 @@ async function requireOperationScopes(
     if (missing.length > 0)
         throw new MissingScopeFailure(
             context,
-            missing.join(','),
+            missing,
             `Your sign-in can't use ${operationName === undefined ? appId : `${appId} ${operationName}`} yet: it needs ${missing.join(', ')}.`
         );
 }
@@ -194,7 +194,7 @@ async function requireScopes(
     if (missing.length > 0)
         throw new MissingScopeFailure(
             context,
-            missing.join(','),
+            missing,
             `Your sign-in can't ${what} yet: it needs ${missing.join(', ')}.`
         );
 }
@@ -461,9 +461,21 @@ function printOperations(
     context: CommandContext,
     appId: string,
     operations: readonly Operation[],
-    commands: readonly AppCommand[]
+    commands: readonly AppCommand[],
+    help: boolean
 ) {
-    if (context.output.json) return context.output.record({ commands, data: operations });
+    if (context.output.json)
+        return context.output.record({
+            commands,
+            data: help
+                ? operations.map(({ name, title, description, level }) => ({
+                      name,
+                      title,
+                      description,
+                      level,
+                  }))
+                : operations,
+        });
     if (operations.length > 0) printOperationTable(context, appId, operations);
     if (commands.length === 0) return;
     const width = Math.max(...commands.map((command) => command.usage.length));

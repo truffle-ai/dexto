@@ -57,7 +57,7 @@ async function fixture() {
         groups: CLOUD_GROUPS,
         runtime,
         signIn,
-        signInForScope: async () => false,
+        signInForScopes: async () => false,
         resolveConnection: (overrides) =>
             resolveConnection({
                 dir,

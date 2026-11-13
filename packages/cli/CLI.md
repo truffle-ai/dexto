@@ -4,11 +4,10 @@ The Dexto CLI provides an interactive terminal interface for conversing with AI 
 
 ## Quick Start
 
-Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
-Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+Node.js 20 or later works; 22 is recommended. Use npm. Install once:
 
 ```sh
-npm install -g dexto@next
+npm install -g dexto
 ```
 
 If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
@@ -57,7 +56,7 @@ New users signing up with Google or GitHub receive a one-time $5 usage credit pe
 
 | 1.x                                                                        | Use instead                                                     |
 | -------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `dexto setup`, `dexto connect`                                             | `dexto login`, or a provider key in an env var                  |
+| `dexto setup`, `dexto connect` (1.x provider setup)                        | `dexto login`, or a provider key in an env var                  |
 | `dexto agents install\|list`                                               | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
 | `dexto init skill`                                                         | `dexto skills push` / `dexto skills sync`                       |
 | `dexto mcp call\|tools`                                                    | `dexto workspace call` / `dexto workspace tools`                |

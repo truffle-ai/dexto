@@ -51,9 +51,9 @@ export interface CloudHost {
     /** The sign-in context login, logout, whoami and accounts run in. */
     readonly signIn: SignInFor;
     /** Discovers the full request, asks for confirmation, then signs in; false when declined. */
-    readonly signInForScope: (
+    readonly signInForScopes: (
         overrides: ConnectionOverrides,
-        scope: string,
+        scopes: readonly string[],
         confirm: (scopes: readonly string[]) => Promise<boolean>
     ) => Promise<boolean>;
 }
@@ -281,7 +281,7 @@ async function askToGrant(
 ): Promise<boolean> {
     const connection = await host.resolveConnection(overrides);
     const signedInAs = connection?.kind === 'oauth' ? connection.login.signedInAs : null;
-    return await host.signInForScope(overrides, error.scope, async (scopes) => {
+    return await host.signInForScopes(overrides, error.scopes, async (scopes) => {
         // The same rows the approval page shows, with every scope named before anything opens.
         const rows = dextoSignIn.signInRequestRows({
             account: signedInAs === null ? null : safeText(signedInAs.account.email),
@@ -312,7 +312,7 @@ function contextFor(
         throw new CommandFailure(
             'needs_sign_in',
             'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
-            signInCommand({ overrides, runtime: host.runtime }, null)
+            signInCommand({ overrides, runtime: host.runtime }, [])
         );
     };
     return {
@@ -345,7 +345,7 @@ function asMissingScope(context: SignInContext, error: unknown): unknown {
             ? details.scope
             : undefined;
     if (typeof scope !== 'string') return error;
-    return new MissingScopeFailure(context, scope, error.message);
+    return new MissingScopeFailure(context, [scope], error.message);
 }
 
 interface FailureReport {
@@ -418,7 +418,7 @@ function describeFailure(context: SignInContext, error: unknown): FailureReport 
             return report(
                 'needs_sign_in',
                 error.message,
-                signInCommand(context, null),
+                signInCommand(context, []),
                 error.code,
                 error.details
             );

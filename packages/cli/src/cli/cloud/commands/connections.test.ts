@@ -118,7 +118,7 @@ describe('subscription connections over MCP', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
     afterEach(async () => {
@@ -1173,7 +1173,7 @@ describe('subscription connections over MCP', () => {
         host = {
             ...host,
             runtime: { ...host.runtime, prompt: vi.fn(async () => 'yes') },
-            signInForScope: grant,
+            signInForScopes: grant,
         };
         rpcError = {
             code: -32003,
@@ -1181,7 +1181,11 @@ describe('subscription connections over MCP', () => {
             data: { kind: 'forbidden', scope: 'models:write', retryable: false, resume: null },
         };
         expect(await runCloud(host, ['connect', 'codex', '--attempt', 'pending'])).toBe(3);
-        expect(grant).toHaveBeenCalledWith(expect.anything(), 'models:write', expect.any(Function));
+        expect(grant).toHaveBeenCalledWith(
+            expect.anything(),
+            ['models:write'],
+            expect.any(Function)
+        );
     });
 
     it('restarts Claude when the retained start chat was not found', async () => {

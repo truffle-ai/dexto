@@ -76,7 +76,7 @@ describe('cloud secrets, web and data-deletions', () => {
                     overrides,
                     refresh: async (login: dextoAccounts.OAuthLogin) => login,
                 }),
-            signInForScope: async () => false,
+            signInForScopes: async () => false,
         };
     });
 
@@ -329,6 +329,69 @@ describe('cloud secrets, web and data-deletions', () => {
                 false
             );
             expect(stderr).toContain('Estimated $0.04 (exact): 1 image');
+        });
+
+        it('offers a download command for a saved media file', async () => {
+            reply = (url) => {
+                if (url.endsWith('/v1/models'))
+                    return Response.json({ object: 'list', data: [textModel] });
+                if (url.endsWith('/v1/media/models'))
+                    return Response.json({ object: 'list', data: [mediaModel] });
+                if (url.endsWith('/v1/media/estimates'))
+                    return Response.json({
+                        id: 'est_1',
+                        amount_usd: 0.04,
+                        confidence: 'exact',
+                        explanation: '1 image',
+                    });
+                if (url.endsWith('/v1/media/generations'))
+                    return Response.json({
+                        ...run(true),
+                        resources: [
+                            {
+                                id: 'r1',
+                                file_id: 'file_1',
+                                file_path: 'media/flux.png',
+                                filename: 'flux.png',
+                                url: null,
+                            },
+                        ],
+                    });
+                return Response.json({}, { status: 404 });
+            };
+            expect(
+                await runCloud(host, [
+                    'cloud',
+                    'models',
+                    'run',
+                    'fal/flux',
+                    'cat',
+                    '--save-to',
+                    'media/',
+                    '--yes',
+                    '--json',
+                ])
+            ).toBe(0);
+            expect(JSON.parse(stdout).next_step).toContain('dexto cloud files download file_1');
+        });
+
+        it('accepts a leading dot segment in a Cloud files destination', async () => {
+            expect(
+                await runCloud(host, [
+                    'cloud',
+                    'models',
+                    'run',
+                    'fal/flux',
+                    'cat',
+                    '--save-to',
+                    './media/',
+                    '--yes',
+                    '--json',
+                ])
+            ).toBe(0);
+            expect(
+                requests.find((request) => request.url.endsWith('/v1/media/generations'))?.body
+            ).toMatchObject({ save_to: 'media/' });
         });
 
         it('starts a media run once agreed, idempotently, and waits for it', async () => {
@@ -667,7 +730,7 @@ describe('cloud secrets, web and data-deletions', () => {
 
             expect(code).toBe(3);
             expect(JSON.parse(stderr).error.fix).toBe(
-                'dexto login --device --scope sites:write,cloud:write'
+                'dexto login --device --scope sites:write --scope cloud:write'
             );
             expect(ran).toHaveLength(0);
         });

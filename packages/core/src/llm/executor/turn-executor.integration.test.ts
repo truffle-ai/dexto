@@ -8,6 +8,7 @@ import { trace } from '@opentelemetry/api';
 import { z } from 'zod';
 import { parseTurnDriverState, TurnExecutor, type TurnDriverState } from './turn-executor.js';
 import { MODEL_STREAM_IDLE_TIMEOUT_MS } from './stream-processor.js';
+import { HostRetryableModelRequestError } from './provider-error.js';
 import { ContextManager } from '../../context/manager.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { defineTool } from '../../tools/define-tool.js';
@@ -4619,6 +4620,37 @@ describe('TurnExecutor Integration Tests', () => {
 
             expect(streamText).toHaveBeenCalledTimes(1);
             expect(retryingHandler).not.toHaveBeenCalled();
+        });
+
+        it('retries a 401 the host classified as retryable, such as an expired credential it renews', async () => {
+            const expired = new HostRetryableModelRequestError({
+                message: 'Host classified model request failure as retryable',
+                statusCode: 401,
+                responseHeaders: {},
+                responseBody: '{"error":{"code":"credential_expired","message":"expired"}}',
+                url: 'https://api.openai.com/v1/responses',
+                requestBodyValues: {},
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => {
+                    throw expired;
+                })
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(2);
         });
 
         it('does not clear unprocessed persisted steers during cleanup', async () => {

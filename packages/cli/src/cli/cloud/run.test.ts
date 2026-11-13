@@ -63,7 +63,7 @@ describe('dexto cloud', () => {
     let stderr: string;
     let requests: globalThis.Request[];
     let reply: (request: globalThis.Request) => Response;
-    let granted: string[];
+    let granted: (readonly string[])[];
     let host: CloudHost;
 
     beforeEach(async () => {
@@ -126,8 +126,8 @@ describe('dexto cloud', () => {
                     overrides,
                     refresh: async (login) => login,
                 }),
-            signInForScope: async (_overrides, scope) => {
-                granted.push(scope);
+            signInForScopes: async (_overrides, scopes) => {
+                granted.push(scopes);
                 return true;
             },
         };
@@ -153,6 +153,12 @@ describe('dexto cloud', () => {
     it('shows the scope needed to start a chat', async () => {
         expect(await runCloud(host, ['chat', 'start', '--help', '--json'])).toBe(0);
         expect(stdout).toContain('sessions:write');
+    });
+
+    it('distinguishes the model catalog from account-available chat models', async () => {
+        expect(await runCloud(host, ['models', 'list', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('workspace chat models');
+        expect(stdout).toContain('account');
     });
 
     it('explains where model outputs are saved and how to download them', async () => {
@@ -417,7 +423,7 @@ describe('dexto cloud', () => {
                         return 'no';
                     },
                 },
-                signInForScope: async (_overrides, extra, confirm) => {
+                signInForScopes: async (_overrides, extra, confirm) => {
                     if (!(await confirm(requested))) return false;
                     granted.push(extra);
                     return true;
