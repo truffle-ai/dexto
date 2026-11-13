@@ -100,3 +100,18 @@ token over a broad one.
 - Local tool IDs are unprefixed (e.g. `read_file`, `bash_exec`).
 - MCP tool IDs are prefixed as `mcp--<server_name>--<tool_name>`. In `permissions.toolPolicies`,
   you can also use `mcp--<tool_name>` to match any MCP server that exposes that tool.
+
+## Private addresses in `delegate_to_url` and webhooks
+
+`delegate_to_url` and webhook URLs may point at loopback and private addresses (`localhost`,
+`127.0.0.1`, `10.x`, `192.168.x`, and similar). This is a decision, not an oversight: delegating to
+an A2A agent running on the same machine and posting events to a local service are the normal uses
+of both, and they would stop working if private addresses were blocked by default. Both still refuse
+the URLs that have no legitimate use here: anything but http or https, credentials in the URL, and
+cloud metadata addresses and host names (`169.254.169.254` and the like), including names that
+resolve to one when the connection is made. The cost of allowing the rest is that the model chooses
+the `delegate_to_url` URL as a tool argument (the tool's approval policy still applies), and whoever
+can register a webhook chooses its target, so either can aim a request at services on the host's own
+network. A deployment that exposes an agent to untrusted input should keep tool approval on for
+`delegate_to_url` and not run on a network with unauthenticated internal services. There is no setting to block private
+addresses; we add one only if a hosted use needs it (DEXTO-2745).
