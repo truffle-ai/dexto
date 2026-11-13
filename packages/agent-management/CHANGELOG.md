@@ -1,5 +1,15 @@
 # @dexto/agent-management
 
+## 1.18.1
+
+### Patch Changes
+
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+    - @dexto/agent-config@1.18.1
+    - @dexto/tools-builtins@1.18.1
+    - @dexto/llm@1.18.1
+
 ## 1.18.0
 
 ### Minor Changes

@@ -1,5 +1,26 @@
 # dexto
 
+## 2.0.1
+
+### Patch Changes
+
+- 5f5de06: `dexto chat move` carries Git LFS objects with the hand-off and names any missing or oversized LFS file.
+- 4387e50: Improve CLI discovery: workspace tool and app help, model availability, where saved media files go, and pointers from mistyped site and local chat commands.
+- f51944b: The README and CLI guide install Dexto 2.0 from npm `latest`.
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+    - @dexto/agent-config@1.18.1
+    - @dexto/agent-management@1.18.1
+    - @dexto/analytics@1.18.1
+    - @dexto/client-sdk@1.18.1
+    - @dexto/image-local@1.18.1
+    - @dexto/image-logger-agent@1.18.1
+    - @dexto/storage@1.18.1
+    - @dexto/tui@1.18.1
+    - @dexto/llm@1.18.1
+    - @dexto/cloud-client@1.18.1
+    - @dexto/registry@1.18.1
+
 ## 2.0.0
 
 ### Major Changes

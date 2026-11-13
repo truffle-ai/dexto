@@ -1,5 +1,18 @@
 # @dexto/webui
 
+## 1.18.1
+
+### Patch Changes
+
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+    - @dexto/agent-config@1.18.1
+    - @dexto/analytics@1.18.1
+    - @dexto/client-sdk@1.18.1
+    - @dexto/storage@1.18.1
+    - @dexto/llm@1.18.1
+    - @dexto/registry@1.18.1
+
 ## 1.18.0
 
 ### Patch Changes
