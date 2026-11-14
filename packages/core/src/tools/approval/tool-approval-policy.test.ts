@@ -37,7 +37,7 @@ function createContext(sessionId?: string): ToolExecutionContext {
 }
 
 function createPolicy(options?: {
-    approvalMode?: 'manual' | 'auto-approve';
+    approvalMode?: 'asks-you' | 'full-access';
     approvedKeys?: string[];
     explicitAllows?: Record<string, ExplicitToolAllow>;
     tools?: Tool[];
@@ -47,7 +47,7 @@ function createPolicy(options?: {
     const approvedKeys = new Set(options?.approvedKeys ?? []);
 
     return new ToolApprovalPolicy({
-        getApprovalMode: () => options?.approvalMode ?? 'manual',
+        getApprovalMode: () => options?.approvalMode ?? 'asks-you',
         getLocalTool: (toolName) => tools.get(toolName),
         isApprovalKeySessionApproved: ({ approvalKey }) => approvedKeys.has(approvalKey),
         findExplicitToolAllow: async ({ toolName }) => explicitAllows[toolName] ?? null,
@@ -115,7 +115,7 @@ describe('ToolApprovalPolicy', () => {
 
     it('asks afresh when the tool says always-ask in auto-approve mode', async () => {
         const policy = createPolicy({
-            approvalMode: 'auto-approve',
+            approvalMode: 'full-access',
             tools: [createTool(() => ({ kind: 'always-ask' }))],
         });
 
@@ -143,7 +143,7 @@ describe('ToolApprovalPolicy', () => {
 
     it('reads an unrecognized object decision as always-ask', async () => {
         const policy = createPolicy({
-            approvalMode: 'auto-approve',
+            approvalMode: 'full-access',
             // @ts-expect-error untyped tool code may return any object
             tools: [createTool(() => ({ kind: 'sometimes' }))],
         });
@@ -155,12 +155,12 @@ describe('ToolApprovalPolicy', () => {
         const getContext = vi.fn(() => createContext());
         const needsApproval = vi.fn(() => true);
         const policy = createPolicy({
-            approvalMode: 'auto-approve',
+            approvalMode: 'full-access',
             tools: [createTool(needsApproval)],
         });
 
         await expect(resolveFor(policy, { getContext })).resolves.toEqual({
-            because: 'auto-approve-mode',
+            because: 'full-access-mode',
             kind: 'ready',
         });
         expect(needsApproval).toHaveBeenCalledTimes(1);
@@ -213,7 +213,7 @@ describe('ToolApprovalPolicy', () => {
         const findExplicitToolAllow = vi.fn(() => null);
         const isApprovalKeySessionApproved = vi.fn(() => true);
         const policy = new ToolApprovalPolicy({
-            getApprovalMode: () => 'manual',
+            getApprovalMode: () => 'asks-you',
             getLocalTool: () => createTool('scoped-key'),
             isApprovalKeySessionApproved,
             findExplicitToolAllow,

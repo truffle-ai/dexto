@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatApprovalScope } from './approvalScope.js';
+import { formatApprovalScope, isEditInWorkspace } from './approvalScope.js';
 
 describe('formatApprovalScope', () => {
     it('names a directory approval in words, not its internal key', () => {
@@ -21,5 +21,22 @@ describe('formatApprovalScope', () => {
         expect(formatApprovalScope({ kind: 'tool', value: 'bash_exec' })).toBe('tool bash_exec');
         expect(formatApprovalScope({ kind: 'action', value: 'bash:git *' })).toBe('git *');
         expect(formatApprovalScope({ kind: 'action', value: 'other:key' })).toBe('other:key');
+    });
+});
+
+describe('isEditInWorkspace', () => {
+    it('lets accept edits settle keyless edits and edit or write keys inside the workspace', () => {
+        expect(isEditInWorkspace(undefined, '/work')).toBe(true);
+        expect(isEditInWorkspace('directory:/work:operation:edit', '/work')).toBe(true);
+        expect(isEditInWorkspace('directory:/work/src/lib:operation:write', '/work')).toBe(true);
+    });
+
+    it('keeps edits outside the workspace and other keys asking', () => {
+        expect(isEditInWorkspace('directory:/elsewhere:operation:edit', '/work')).toBe(false);
+        expect(isEditInWorkspace('directory:/work-other:operation:edit', '/work')).toBe(false);
+        expect(isEditInWorkspace('directory:/work/..:operation:edit', '/work')).toBe(false);
+        expect(isEditInWorkspace('directory:/work/src:operation:read', '/work')).toBe(false);
+        expect(isEditInWorkspace('directory:/work/src', '/work')).toBe(false);
+        expect(isEditInWorkspace('bash:git *', '/work')).toBe(false);
     });
 });

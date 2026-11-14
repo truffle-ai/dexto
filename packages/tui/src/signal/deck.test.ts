@@ -132,7 +132,7 @@ describe('statusRowFit', () => {
     });
 
     it('truncates a long notice rather than the lane', () => {
-        // "auto-approve · r:medium" is 23 cells, and only 22 are left beside the lane.
+        // "full access · r:minimal" is 23 cells, and only 22 are left beside the lane.
         expect(statusRowFit(status, 42, 23)).toEqual({ notice: 22, model: 0, lane: 18 });
     });
 
@@ -199,19 +199,19 @@ describe('Deck', () => {
         const long = {
             ...state,
             mode: 'idle' as const,
-            readout: 'auto-approve',
+            readout: 'accept edits',
             status: { ...state.status, model: 'dexto/anthropic/claude-sonnet-4.5' },
         };
         const row = (await frame(deck(long), 42)).split('\n')[3] ?? '';
-        expect(row).toMatch(/^auto-approve\s+46k\s+◇ local · ◆ \$12\.84$/);
+        expect(row).toMatch(/^accept edits\s+46k\s+◇ local · ◆ \$12\.84$/);
         const plain = (await frame(deck({ ...long, readout: null }), 42)).split('\n')[3] ?? '';
         expect(plain).toMatch(/^dexto\/anthropic.*…\s+46k\s+◇ local · ◆ \$12\.84$/);
     });
 
     it('keeps the lane whole beside a notice too long to fit', async () => {
-        const long = { ...state, mode: 'idle' as const, readout: 'auto-approve · r:medium' };
+        const long = { ...state, mode: 'idle' as const, readout: 'full access · r:minimal' };
         const row = (await frame(deck(long), 42)).split('\n')[3] ?? '';
-        expect(row).toMatch(/^auto-approve · r:medi…\s+◇ local · ◆ \$12\.84$/);
+        expect(row).toMatch(/^full access · r:minim…\s+◇ local · ◆ \$12\.84$/);
     });
 
     it('draws only the input when collapsed, leaving it mounted', async () => {

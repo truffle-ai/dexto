@@ -66,6 +66,7 @@ import {
     loadImage,
     resolveServicesFromConfig,
     toDextoAgentOptions,
+    type AgentConfig,
     type DextoImage,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
@@ -92,6 +93,7 @@ import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.j
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import {
     applyCLIOverrides,
+    getPermissionsModeDeprecationWarning,
     applyStartupLLMFallback,
     applyUserPreferences,
 } from './config/cli-overrides.js';
@@ -216,12 +218,15 @@ program
         new Option(
             '--permissions-mode <mode>',
             "Override the local agent's configured approval mode"
-        ).choices(['manual', 'auto-approve'])
+        ).choices(['full-access', 'asks-you', 'manual', 'auto-approve'])
     )
-    .option('--auto-approve', 'Select auto-approve permissions (mandatory approvals still apply)')
+    .option(
+        '--auto-approve',
+        'Select Full access permissions (alias for --permissions-mode full-access; mandatory approvals still apply)'
+    )
     .option(
         '--bypass-permissions',
-        'Select auto-approve permissions (alias for --permissions-mode auto-approve)'
+        'Select Full access permissions (alias for --permissions-mode full-access)'
     )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session')
@@ -275,6 +280,14 @@ program
         })
     );
 
+// Printed to stderr so headless JSON output and MCP stdio stay clean.
+function printPermissionsModeDeprecation(config: AgentConfig): void {
+    const warning = getPermissionsModeDeprecationWarning(config);
+    if (warning !== null) {
+        console.warn(`⚠️  ${warning}`);
+    }
+}
+
 // Helper to bootstrap a minimal agent for non-interactive commands
 async function bootstrapAgentFromGlobalOpts(options: {
     mode: BootstrapAgentMode;
@@ -319,6 +332,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         ...globalOpts,
         ...(modelOverride ? { model: modelOverride } : {}),
     });
+    printPermissionsModeDeprecation(mergedConfig);
     if (effectiveModel) {
         mergedConfig.llm.model = effectiveModel;
     }
@@ -644,6 +658,7 @@ program
                     // Load raw config and apply CLI overrides
                     const rawConfig = await loadAgentConfig(resolvedPath);
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+                    printPermissionsModeDeprecation(mergedConfig);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
                     // User's LLM preferences from preferences.yml apply to ALL agents

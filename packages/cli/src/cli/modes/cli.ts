@@ -42,7 +42,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
     } = context;
 
     const needsHandler =
-        validatedConfig.permissions.mode === 'manual' || validatedConfig.elicitation.enabled;
+        validatedConfig.permissions.mode === 'asks-you' || validatedConfig.elicitation.enabled;
 
     if (needsHandler) {
         const { createCLIApprovalHandler } = await import('../approval/index.js');

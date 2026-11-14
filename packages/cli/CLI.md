@@ -110,10 +110,10 @@ dexto -m gpt-4o
 
 ### Tool Confirmation
 ```bash
-# Auto-approve all tool executions
+# Full access: run tools without asking
 dexto --auto-approve
 
-# Manual approval (default)
+# Asks you (when the agent sets permissions.mode: asks-you)
 dexto
 ```
 

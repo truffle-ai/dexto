@@ -110,7 +110,7 @@ llm:
   apiKey: $ANTHROPIC_API_KEY
 
 permissions:
-  mode: auto-approve
+  mode: full-access
 ```
 
 ### Key Components Explained

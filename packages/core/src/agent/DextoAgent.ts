@@ -67,7 +67,11 @@ import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { SessionPromptContributorSchema } from '../systemPrompt/schemas.js';
-import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schemas.js';
+import {
+    ElicitationConfigSchema,
+    PermissionsConfigSchema,
+    getDeprecatedPermissionsModeWarning,
+} from '../tools/schemas.js';
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
 import type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
@@ -332,6 +336,13 @@ export class DextoAgent {
         // Agent logger is always provided by the host (typically created from config).
         this.logger = logger;
 
+        const permissionsModeWarning = getDeprecatedPermissionsModeWarning(
+            runtimeSettings.permissions?.mode
+        );
+        if (permissionsModeWarning !== null) {
+            this.logger.warn(permissionsModeWarning);
+        }
+
         this.tools = tools;
         this.compactionStrategy = compaction ?? null;
 
@@ -403,14 +414,14 @@ export class DextoAgent {
             }
 
             // Validate approval configuration
-            // Handler is required for manual tool approval OR when elicitation is enabled
+            // Handler is required for the Asks you mode OR when elicitation is enabled
             const needsHandler =
-                this.config.permissions.mode === 'manual' || this.config.elicitation.enabled;
+                this.config.permissions.mode === 'asks-you' || this.config.elicitation.enabled;
 
             if (needsHandler && !this.approvalHandler) {
                 const reasons = [];
-                if (this.config.permissions.mode === 'manual') {
-                    reasons.push('permissions mode is "manual"');
+                if (this.config.permissions.mode === 'asks-you') {
+                    reasons.push('permissions mode is "asks-you" (Asks you)');
                 }
                 if (this.config.elicitation.enabled) {
                     reasons.push('elicitation is enabled');
@@ -420,7 +431,7 @@ export class DextoAgent {
                     `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
                         'Either:\n' +
                         '  • Call agent.setApprovalHandler() before starting\n' +
-                        '  • Set permissions: { mode: "auto-approve" }\n' +
+                        '  • Set permissions: { mode: "full-access" }\n' +
                         '  • Disable elicitation: { enabled: false }'
                 );
             }
@@ -3684,9 +3695,9 @@ export class DextoAgent {
     // ============= APPROVAL HANDLER API =============
 
     /**
-     * Set a custom approval handler for manual approval mode.
+     * Set a custom approval handler for the Asks you permissions mode.
      *
-     * When `permissions.mode` is set to 'manual', an approval handler must be
+     * When `permissions.mode` is set to 'asks-you', an approval handler must be
      * provided to process tool approval requests. The handler will be called
      * whenever a tool execution requires user approval.
      *

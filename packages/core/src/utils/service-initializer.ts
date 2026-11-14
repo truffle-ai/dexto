@@ -10,7 +10,7 @@ import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import type { ToolPolicies } from '../tools/schemas.js';
+import type { PermissionsMode, ToolPolicies } from '../tools/schemas.js';
 import type { Tool } from '../tools/types.js';
 import type { AllowedToolsProvider } from '../tools/approval/allowed-tools-provider/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -61,7 +61,7 @@ export type ToolManagerFactoryOptions = {
     mcpManager: MCPManager;
     approvalManager: ApprovalManager;
     allowedToolsProvider: AllowedToolsProvider;
-    approvalMode: 'manual' | 'auto-approve';
+    approvalMode: PermissionsMode;
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;
     tools: Tool[];

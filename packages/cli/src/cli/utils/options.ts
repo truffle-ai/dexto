@@ -20,7 +20,9 @@ export function validateCliOptions(opts: any): void {
             agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
             strict: z.boolean().optional().default(false),
             verbose: z.boolean().optional().default(true),
-            permissionsMode: z.enum(['manual', 'auto-approve']).optional(),
+            permissionsMode: z
+                .enum(['full-access', 'asks-you', 'manual', 'auto-approve'])
+                .optional(),
             autoApprove: z
                 .boolean()
                 .optional()
@@ -30,7 +32,7 @@ export function validateCliOptions(opts: any): void {
                 .boolean()
                 .optional()
                 .default(false)
-                .describe('Select auto-approve permissions'),
+                .describe('Select Full access permissions'),
             elicitation: z
                 .boolean()
                 .optional()

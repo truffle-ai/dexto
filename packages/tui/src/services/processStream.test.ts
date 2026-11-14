@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { realpathSync } from 'node:fs';
 import type React from 'react';
 import { LLMErrorCode, type QueuedMessage, type StreamingEvent } from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
@@ -190,6 +191,70 @@ describe('processStream (reasoning)', () => {
         );
         expect(emit).not.toHaveBeenCalledWith('approval:response', expect.anything());
         expect(approval.get()?.approvalId).toBe('mandatory');
+    });
+
+    it('accepts workspace edits in accept-edits mode and keeps keyed edits outside it asking', async () => {
+        const { setters } = createSetters();
+        const approval = createState<ApprovalRequest | null>(null);
+        const emit = vi.fn();
+        await processStream(
+            eventStream([
+                {
+                    name: 'approval:request',
+                    approvalId: 'workspace-edit',
+                    type: 'tool_approval',
+                    sessionId: 'test-session',
+                    timestamp: new Date(),
+                    metadata: { toolName: 'edit_file', toolCallId: 'call-1', args: {} },
+                },
+                {
+                    name: 'approval:request',
+                    approvalId: 'workspace-keyed-edit',
+                    type: 'tool_approval',
+                    sessionId: 'test-session',
+                    timestamp: new Date(),
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-3',
+                        args: {},
+                        approvalKey: `directory:${realpathSync(process.cwd())}:operation:write`,
+                    },
+                },
+                {
+                    name: 'approval:request',
+                    approvalId: 'outside-edit',
+                    type: 'tool_approval',
+                    sessionId: 'test-session',
+                    timestamp: new Date(),
+                    metadata: {
+                        toolName: 'edit_file',
+                        toolCallId: 'call-2',
+                        args: {},
+                        approvalKey: 'directory:/outside-dexto-workspace:operation:edit',
+                    },
+                },
+            ]),
+            { ...setters, setApproval: approval.set },
+            {
+                useStreaming: true,
+                autoApproveEditsRef: { current: true },
+                bypassPermissionsRef: { current: false },
+                eventBus: { emit },
+            }
+        );
+        expect(emit).toHaveBeenCalledWith(
+            'approval:response',
+            expect.objectContaining({ approvalId: 'workspace-edit', status: 'approved' })
+        );
+        expect(emit).toHaveBeenCalledWith(
+            'approval:response',
+            expect.objectContaining({ approvalId: 'workspace-keyed-edit', status: 'approved' })
+        );
+        expect(emit).not.toHaveBeenCalledWith(
+            'approval:response',
+            expect.objectContaining({ approvalId: 'outside-edit' })
+        );
+        expect(approval.get()?.approvalId).toBe('outside-edit');
     });
 
     beforeEach(() => {

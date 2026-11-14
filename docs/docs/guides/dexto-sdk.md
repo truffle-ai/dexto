@@ -111,7 +111,7 @@ const agent = new DextoAgent({
     model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   },
-  permissions: { mode: 'auto-approve' },
+  permissions: { mode: 'full-access' },
   mcpServers: {
     filesystem: {
       type: 'stdio',
@@ -287,7 +287,7 @@ class ChatApplication {
   async initialize() {
     this.agent = new DextoAgent({
       llm: { provider: 'openai', model: 'gpt-5', apiKey: process.env.OPENAI_API_KEY },
-      permissions: { mode: 'auto-approve' },
+      permissions: { mode: 'full-access' },
       mcpServers: { /* your tools */ }
     });
     await this.agent.start();
@@ -497,7 +497,7 @@ agent.on('llm:error', (data) => {
 try {
   const agent = new DextoAgent({
     llm: primaryLLMConfig,
-    permissions: { mode: 'auto-approve' },
+    permissions: { mode: 'full-access' },
     mcpServers: allServers
   });
   await agent.start();

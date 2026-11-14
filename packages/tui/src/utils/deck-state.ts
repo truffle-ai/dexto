@@ -40,7 +40,7 @@ export interface DeckReadoutInput {
     tokens: string;
     compacting: boolean;
     steerCount: number;
-    /** "plan mode", "accept edits", "auto-approve"; null in the default mode. */
+    /** "plan mode", "accept edits", "full access"; null in the default mode. */
     permission: string | null;
     /** The reasoning variant beside the model ("high"); null when the model has none. */
     reasoning: string | null;
@@ -144,9 +144,9 @@ export interface PermissionInput {
 }
 
 /**
- * The approval policy in force, for the idle readout; null for manual approvals. The session
- * mode (Shift+Tab) comes first. Auto-approval is always named when it applies: the session
- * flags don't narrow an agent configured to auto-approve.
+ * The approval policy in force, for the idle readout; null when Dexto asks you (asks-you). The session
+ * mode (Shift+Tab) comes first. Full access is always named when it applies: the session
+ * flags don't narrow an agent configured for Full access.
  */
 export function permissionLabel(p: PermissionInput): string | null {
     const session = p.isShellMode
@@ -156,6 +156,6 @@ export function permissionLabel(p: PermissionInput): string | null {
           : p.autoApproveEdits
             ? 'accept edits'
             : null;
-    const auto = p.bypassPermissions || p.configuredMode === 'auto-approve';
-    return join([session, auto ? 'auto-approve' : null]);
+    const auto = p.bypassPermissions || p.configuredMode === 'full-access';
+    return join([session, auto ? 'full access' : null]);
 }

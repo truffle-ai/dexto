@@ -46,7 +46,7 @@ export function createTestAgentConfig(): AgentConfig {
         hooks: [],
         compaction: { type: 'noop', enabled: false },
         permissions: {
-            mode: 'auto-approve',
+            mode: 'full-access',
             timeout: 120000,
         },
         elicitation: {

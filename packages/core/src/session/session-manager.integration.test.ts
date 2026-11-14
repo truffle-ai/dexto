@@ -81,7 +81,7 @@ describe('Session Integration: Chat History Preservation', () => {
             sessionTTL: 100, // 100ms for fast testing
         }),
         permissions: PermissionsConfigSchema.parse({
-            mode: 'auto-approve',
+            mode: 'full-access',
             timeout: 120000,
         }),
         elicitation: ElicitationConfigSchema.parse({
@@ -440,7 +440,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             sessionTTL: 60000,
         }),
         permissions: PermissionsConfigSchema.parse({
-            mode: 'auto-approve',
+            mode: 'full-access',
             timeout: 120000,
         }),
         elicitation: ElicitationConfigSchema.parse({
@@ -882,7 +882,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         mcpServers: ServersConfigSchema.parse({}),
         sessions: SessionConfigSchema.parse({}),
         permissions: PermissionsConfigSchema.parse({
-            mode: 'auto-approve',
+            mode: 'full-access',
             timeout: 120000,
         }),
         elicitation: ElicitationConfigSchema.parse({

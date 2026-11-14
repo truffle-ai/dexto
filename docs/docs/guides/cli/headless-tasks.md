@@ -68,14 +68,14 @@ A process killed mid-run, a broken output pipe or an argument-parser error doesn
 
 ## Permissions
 
-Local TUI and headless tasks use the same configured Core permission policy. With no override, `permissions.mode` in the agent configuration applies; Core defaults to `auto-approve` when omitted. Select a mode for either interface with the global option:
+Local TUI and headless tasks use the same configured Core permission policy. With no override, `permissions.mode` in the agent configuration applies; Core defaults to `full-access` (Full access) when omitted. Select a mode for either interface with the global option:
 
 ```bash
-dexto --permissions-mode manual
-dexto --permissions-mode manual run "inspect this repository" --json
-dexto --permissions-mode auto-approve run "format this repository"
+dexto --permissions-mode asks-you
+dexto --permissions-mode asks-you run "inspect this repository" --json
+dexto --permissions-mode full-access run "format this repository"
 ```
 
-`--auto-approve` and `--bypass-permissions` are aliases for selecting `auto-approve`. Combining either alias with explicit `manual` is an error. These options do not bypass mandatory approvals or alter Core allow rules. The TUI footer shows configured approvals separately from temporary session shortcuts.
+`--auto-approve` and `--bypass-permissions` are aliases for selecting `full-access`. Combining either alias with explicit `asks-you` is an error. The deprecated values `manual` and `auto-approve` still work for one release and print a warning naming the new value. These options do not bypass mandatory approvals or alter Core allow rules. The TUI footer shows configured approvals separately from temporary session shortcuts.
 
 Headless tasks disable interactive elicitation and cannot collect approvals. When Core requires approval, the operation is denied immediately and the agent can recover and continue to task completion. Text reports `[APPROVAL_REQUIRED]` on stderr. The result lists each refused approval in `permission_denials`, and `--stream-json` also emits an `approval_required` event for each. These records identify unavailable approval; a completed response does not mean the blocked action executed. Review the task in the TUI when approval is needed. No new task limit is imposed.

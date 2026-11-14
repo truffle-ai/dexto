@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { SessionApproval } from '@dexto/core';
+import { formatPermissionsMode } from '../../utils/permissions-mode-display.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
 import type { UIState } from '../../state/types.js';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
@@ -114,7 +115,9 @@ export const PermissionsSelector = forwardRef<PermissionsSelectorHandle, Permiss
             <Box flexDirection="column">
                 <Text color={tone('dim')}>
                     Agent policy:{' '}
-                    {agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode}
+                    {formatPermissionsMode(
+                        agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode
+                    )}
                 </Text>
                 <Text color={tone('dim')}>
                     Mode applies to this TUI session. Remembered grants also apply when this

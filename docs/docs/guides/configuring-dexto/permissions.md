@@ -17,8 +17,8 @@ The permissions system controls whether tools require user approval before execu
 
 **Configuration controls:**
 
-- **Approval mode** - How tools are approved (`manual` or `auto-approve`)
-- **Timeout duration** - How long manual mode waits for a user response
+- **Permissions mode** - **Full access** (`full-access`) or **Asks you** (`asks-you`), the same two choices as the hosted app
+- **Timeout duration** - How long Asks you waits for a user response
 - **Storage type** - Where remembered approvals are stored
 - **Tool policies** - Fine-grained allow lists for low-risk tools
 
@@ -26,20 +26,24 @@ The permissions system controls whether tools require user approval before execu
 **Permissions** control whether tools require approval before execution. **Elicitation** is a separate feature that controls whether MCP servers can request user input during interactions. These are independent settings - see [Elicitation Configuration](./agent-yml.md#elicitation-configuration) for details.
 :::
 
-## Approval Modes
+## Permission Modes
 
-| Mode             | Behavior                          | Use Case                  |
-| ---------------- | --------------------------------- | ------------------------- |
-| **manual**       | Interactive prompts via CLI/WebUI | Production with oversight |
-| **auto-approve** | Automatically approve all tools   | Development/testing       |
+| Mode                            | Behavior                                                                  | Use Case                  |
+| ------------------------------- | ------------------------------------------------------------------------- | ------------------------- |
+| **Asks you** (`asks-you`)       | Asks before file edits, shell commands and other approval-sensitive tools | Oversight of every change |
+| **Full access** (`full-access`) | Runs tools without asking (default)                                       | Trusted tasks, automation |
 
-### manual (Default)
+:::note Deprecated values
+`manual` and `auto-approve` still work for one release. `manual` maps to `asks-you` and `auto-approve` maps to `full-access`, and Dexto prints a warning naming the new value. Update your agent files and `--permissions-mode` flags before the next release.
+:::
 
-Interactive approval via CLI prompts or WebUI dialogs:
+### Asks you
+
+Dexto asks before it changes anything: file writes and edits (including files inside your workspace), shell commands, and tools from MCP servers. Reading files inside the workspace does not ask. Approval prompts appear in the CLI or as WebUI dialogs:
 
 ```yaml
 permissions:
-    mode: manual
+    mode: asks-you
     timeout: 30000 # 30 seconds
     allowedToolsStorage: storage # Persist remembered approvals
 ```
@@ -50,13 +54,13 @@ permissions:
 - Multi-user environments with different permissions
 - Development with tool approval tracking
 
-### auto-approve
+### Full access (Default)
 
-Automatically approve all tools without prompting:
+Runs tools without asking. Tools that always require a fresh approval still ask:
 
 ```yaml
 permissions:
-    mode: auto-approve
+    mode: full-access
 ```
 
 **When to use:**
@@ -65,21 +69,21 @@ permissions:
 - Trusted automation scripts
 - Testing scenarios
 
-CLI shortcut: `dexto --auto-approve`
+CLI: `dexto --permissions-mode full-access` (or the `--auto-approve` / `--bypass-permissions` aliases)
 
 ## Session permissions in the TUI
 
 Use `/permissions` in a local terminal chat to choose an approval mode and inspect or revoke remembered permissions:
 
 - **Agent defaults** follows your agent configuration and remembered grants.
-- **Accept edits for this session** approves file edits automatically.
-- **Auto-approve for this session** approves tool and command requests automatically, while preserving disabled tools and requests that require manual approval.
+- **Accept edits for this session** approves file edits inside the workspace automatically. Edits outside it still ask.
+- **Full access for this session** approves tool and command requests automatically, while preserving disabled tools and requests that always require approval.
 
 These TUI modes reset when switching conversations. They do not change your agent YAML or global preferences.
 
 When a tool asks for approval, choose **Allow once**, **Allow the displayed scope for this session**, or **Reject**. The remembered scope may be a whole tool, a command pattern such as `git status *`, or an exact action. Remembered grants belong to the conversation and remain when you resume it; select a grant in `/permissions` to revoke it. Revocation removes that remembered grant; separately configured permissions still apply.
 
-Compound shell commands and commands with shell expansions use exact command scopes rather than sharing a simple command pattern. Auto-approve mode remains available for trusted tasks without repeated prompts. Tool permissions do not provide OS-level sandbox isolation.
+Compound shell commands and commands with shell expansions use exact command scopes rather than sharing a simple command pattern. Full access remains available for trusted tasks without repeated prompts. Tool permissions do not provide OS-level sandbox isolation.
 
 `/permissions` is available only for chat backends that support inspecting and revoking session grants. This change preserves existing default approval configuration and headless `dexto run` behavior.
 
@@ -89,7 +93,7 @@ Fine-grained control over specific low-risk tools:
 
 ```yaml
 permissions:
-    mode: manual
+    mode: asks-you
     toolPolicies:
         alwaysAllow:
             - ask_user
@@ -108,7 +112,7 @@ permissions:
 1. Session-specific remembered approvals
 2. Static `alwaysAllow` policies
 3. Dynamic allowed-tools provider
-4. Manual approval or auto-approve mode
+4. The permissions mode (Asks you prompts; Full access runs)
 
 ## Storage Options
 
@@ -154,7 +158,7 @@ The system checks session-specific approvals before global approvals.
 
 ```yaml
 permissions:
-    mode: auto-approve
+    mode: full-access
     allowedToolsStorage: memory
 ```
 
@@ -162,7 +166,7 @@ permissions:
 
 ```yaml
 permissions:
-    mode: manual
+    mode: asks-you
     timeout: 60000
     allowedToolsStorage: storage
     toolPolicies:
@@ -175,15 +179,15 @@ permissions:
 
 ```yaml
 permissions:
-    mode: manual
+    mode: asks-you
     allowedToolsStorage: memory
     toolPolicies:
         alwaysAllow: []
 ```
 
-## Manual Mode Requirements
+## Asks you Requirements
 
-Manual mode requires UI integration to prompt the user for approvals:
+Asks you requires UI integration to prompt the user for approvals:
 
 - **CLI Mode**: Interactive prompts in the terminal
 - **Web/Server Mode**: Approval dialogs in the WebUI
@@ -197,7 +201,7 @@ Approval handlers control how your application prompts for and receives user dec
 
 ### Built-in Options
 
-**Auto-approve mode**: No handler needed for tool approvals.
+**Full access**: No handler needed for tool approvals.
 
 **Manual handler for server/API mode**: Use `createManualApprovalHandler` from `@dexto/server` when building web applications. This handler coordinates approvals between backend and frontend via event bus:
 
@@ -239,7 +243,7 @@ agent.setApprovalHandler(async (request) => {
 
 ## Best Practices
 
-1. **Use manual mode in production** - Maintain oversight and control
+1. **Use Asks you when you want oversight** - Review every change before it happens
 2. **Set reasonable timeouts** - Balance security with user experience
 3. **Allow read-only tools** - Let safe operations run without repeated confirmation
 4. **Use memory storage for sensitive environments** - Don't persist approvals
@@ -247,13 +251,13 @@ agent.setApprovalHandler(async (request) => {
 
 ## Common Use Cases
 
-| Scenario        | Configuration                                     |
-| --------------- | ------------------------------------------------- |
-| **Development** | auto-approve + memory storage                     |
-| **Production**  | manual + storage + allow policies                 |
-| **CI/CD**       | auto-approve only when the environment is trusted |
-| **Read-only**   | manual + alwaysAllow read operations              |
-| **Sensitive**   | manual + memory storage                           |
+| Scenario        | Configuration                                    |
+| --------------- | ------------------------------------------------ |
+| **Development** | Full access + memory storage                     |
+| **Production**  | Asks you + storage + allow policies              |
+| **CI/CD**       | Full access only when the environment is trusted |
+| **Read-only**   | Asks you + alwaysAllow read operations           |
+| **Sensitive**   | Asks you + memory storage                        |
 
 ## See Also
 

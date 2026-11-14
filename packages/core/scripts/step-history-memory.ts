@@ -142,7 +142,7 @@ const contextManager = new ContextManager(
 
 const approvalManager = new ApprovalManager(
     {
-        permissions: { mode: 'auto-approve', timeout: 120000 },
+        permissions: { mode: 'full-access', timeout: 120000 },
         elicitation: { enabled: false, timeout: 120000 },
     },
     logger,
@@ -152,7 +152,7 @@ const toolManager = new ToolManager(
     mcpManager,
     approvalManager,
     { isToolAllowed: async () => false, allowTool: () => {}, disallowTool: () => {} },
-    'auto-approve',
+    'full-access',
     agentEventBus,
     { alwaysAllow: [] },
     [],

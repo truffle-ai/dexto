@@ -42,7 +42,7 @@ mcpServers:
     # You'll need to authenticate when first connecting
 
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 llm:

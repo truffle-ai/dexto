@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import { MCPManager } from '../mcp/manager.js';
-import type { ToolPolicies } from './schemas.js';
+import type { PermissionsMode, ToolPolicies } from './schemas.js';
 import {
     ToolSet,
     ToolExecutionContext,
@@ -206,7 +206,7 @@ export class ToolManager {
     private coreTools: Tool[] = [];
     private approvalManager: ApprovalManager;
     private allowedToolsProvider: AllowedToolsProvider;
-    private approvalMode: 'manual' | 'auto-approve';
+    private approvalMode: PermissionsMode;
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
     private toolExecutionContextFactory: ToolExecutionContextFactory;
@@ -265,7 +265,7 @@ export class ToolManager {
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
         allowedToolsProvider: AllowedToolsProvider,
-        approvalMode: 'manual' | 'auto-approve',
+        approvalMode: PermissionsMode,
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
         tools: Tool[],
@@ -952,10 +952,10 @@ export class ToolManager {
         if (needsApproval === false || needsApproval === null) {
             return 'never';
         }
-        // Auto-approve settles every call except one whose tool asks afresh, which a function
+        // Full access settles every call except one whose tool asks afresh, which a function
         // decides per call.
         if (
-            this.approvalMode === 'auto-approve' &&
+            this.approvalMode === 'full-access' &&
             typeof needsApproval !== 'function' &&
             typeof needsApproval !== 'object'
         ) {
@@ -967,7 +967,7 @@ export class ToolManager {
     private prefixMcpToolDescriptor(descriptor: MCPToolDescriptor): ToolDescriptor {
         return {
             ...descriptor,
-            approval: this.approvalMode === 'auto-approve' ? 'never' : 'possible',
+            approval: this.approvalMode === 'full-access' ? 'never' : 'possible',
             name: `${ToolManager.MCP_TOOL_PREFIX}${descriptor.name}`,
             description: `${descriptor.description || 'No description provided'} (via MCP servers)`,
         };

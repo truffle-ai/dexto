@@ -53,7 +53,7 @@ describe('AgentStateManager Events', () => {
             mcpServers: ServersConfigSchema.parse({ test: mcpServer }),
             sessions: SessionConfigSchema.parse({ maxSessions: 100, sessionTTL: 3600000 }),
             permissions: PermissionsConfigSchema.parse({
-                mode: 'manual',
+                mode: 'asks-you',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
             }),

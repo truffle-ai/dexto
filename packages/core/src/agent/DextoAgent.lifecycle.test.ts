@@ -86,7 +86,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 sessionTTL: 3600,
             }),
             permissions: PermissionsConfigSchema.parse({
-                mode: 'auto-approve',
+                mode: 'full-access',
                 timeout: 120000,
             }),
             elicitation: ElicitationConfigSchema.parse({

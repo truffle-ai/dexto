@@ -77,8 +77,8 @@ The first start needs a model: a provider key in the environment (such as `ANTHR
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
 | `--no-interactive` | Disable interactive prompts | `dexto --no-interactive` |
-| `--permissions-mode` | Select `manual` or `auto-approve` in TUI or headless mode | `dexto --permissions-mode manual` |
-| `--auto-approve` / `--bypass-permissions` | Select `auto-approve`; mandatory approvals still apply | `dexto --auto-approve` |
+| `--permissions-mode` | Select `asks-you` (Asks you) or `full-access` (Full access) in TUI or headless mode. `manual` and `auto-approve` still work for one release with a deprecation warning | `dexto --permissions-mode asks-you` |
+| `--auto-approve` / `--bypass-permissions` | Select `full-access`; mandatory approvals still apply | `dexto --auto-approve` |
 
 **Note:** The `-a, --agent` flag accepts bundled agent IDs and paths to agent config files. See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
@@ -224,13 +224,13 @@ dexto -m claude-sonnet-4-5-20250929
 dexto "list all TypeScript files in src/"
 dexto -p "create a README for this project"
 
-# With auto-approve for automation
+# With Full access for automation
 dexto --auto-approve "format all JavaScript files"
 
 # With specific agent
 dexto --agent coding-agent "create a landing page for my coffee shop"
 
-# Combine agent, model, and auto-approve
+# Combine agent, model, and Full access
 dexto --agent coding-agent -m gpt-5 --auto-approve "build a todo app with React"
 ```
 

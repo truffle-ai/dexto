@@ -169,7 +169,7 @@ describe('Directory Approval Integration Tests', () => {
 
         approvalManager = new ApprovalManager(
             {
-                permissions: { mode: 'manual' },
+                permissions: { mode: 'asks-you' },
                 elicitation: { enabled: true },
             },
             mockLogger,
@@ -204,6 +204,63 @@ describe('Directory Approval Integration Tests', () => {
                 toolContext
             );
             expect(decision).toBe(false);
+        });
+
+        it('should return a directory key for writes and edits within config-allowed roots', async () => {
+            const testFile = path.join(tempDir, 'test.txt');
+            await fs.writeFile(testFile, 'old content');
+            const writeTool = createWriteFileTool(getFileSystemService, allowAllPaths);
+            const editTool = createEditFileTool(
+                getFileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
+
+            await expect(
+                callNeedsApproval(
+                    writeTool.needsApproval,
+                    writeTool.inputSchema.parse({ file_path: testFile, content: 'new' }),
+                    toolContext
+                )
+            ).resolves.toBe(createDirectoryApprovalKey(tempDir, 'write'));
+            await expect(
+                callNeedsApproval(
+                    editTool.needsApproval,
+                    editTool.inputSchema.parse({
+                        file_path: testFile,
+                        old_string: 'old',
+                        new_string: 'new',
+                    }),
+                    toolContext
+                )
+            ).resolves.toBe(createDirectoryApprovalKey(tempDir, 'edit'));
+        });
+
+        it('should stop asking for edits in a directory approved for the session', async () => {
+            const testFile = path.join(tempDir, 'test.txt');
+            await fs.writeFile(testFile, 'old content');
+            const editTool = createEditFileTool(
+                getFileSystemService,
+                allowAllPaths,
+                10 * 1024 * 1024
+            );
+            await approvalManager.addApprovedKey(
+                createDirectoryApprovalKey(tempDir, 'edit'),
+                'session',
+                toolContext.sessionId
+            );
+
+            await expect(
+                callNeedsApproval(
+                    editTool.needsApproval,
+                    editTool.inputSchema.parse({
+                        file_path: testFile,
+                        old_string: 'old',
+                        new_string: 'new',
+                    }),
+                    toolContext
+                )
+            ).resolves.toBe(false);
         });
 
         it('should return a directory approval key for external paths', async () => {
