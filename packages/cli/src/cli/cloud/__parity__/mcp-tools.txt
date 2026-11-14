@@ -3166,6 +3166,21 @@
             "minLength": 1,
             "maxLength": 20000
           },
+          "sendAs": {
+            "default": "origin",
+            "description": "Default origin uses the verified Project identity where supported. user explicitly posts as the accountable person with Dexto attribution.",
+            "type": "string",
+            "enum": [
+              "origin",
+              "user"
+            ]
+          },
+          "requestKey": {
+            "description": "Stable key for this exact send. Reuse after a lost response; different content or sender mode conflicts.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
           "threadRootMessageId": {
             "type": "string",
             "format": "uuid",
@@ -3972,6 +3987,7 @@
             "enum": [
               "dexto_credits",
               "chatgpt_subscription",
+              "api_key",
               "claude_code"
             ]
           },
@@ -6868,9 +6884,20 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1000
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "codex"
+                ]
+              },
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            ]
           }
         },
         "required": [
@@ -6909,9 +6936,20 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1000
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "codex"
+                ]
+              },
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            ]
           }
         },
         "required": [
@@ -6928,8 +6966,10 @@
         "properties": {
           "provider": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 120
+            "enum": [
+              "claude",
+              "codex"
+            ]
           },
           "sessionId": {
             "type": "string",
@@ -6958,8 +6998,10 @@
         "properties": {
           "provider": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 120
+            "enum": [
+              "claude",
+              "codex"
+            ]
           },
           "attemptId": {
             "type": "string",
@@ -7283,6 +7325,21 @@
             "minLength": 1,
             "maxLength": 20000
           },
+          "sendAs": {
+            "default": "origin",
+            "description": "Default origin uses the verified Project identity where supported. user explicitly posts as the accountable person with Dexto attribution.",
+            "type": "string",
+            "enum": [
+              "origin",
+              "user"
+            ]
+          },
+          "requestKey": {
+            "description": "Stable key for this exact send. Reuse after a lost response; different content or sender mode conflicts.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
           "threadRootMessageId": {
             "type": "string",
             "format": "uuid",
@@ -7353,6 +7410,11 @@
               "action": {
                 "type": "string",
                 "const": "list"
+              },
+              "projectId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               "parentId": {
                 "default": null,
@@ -7553,6 +7615,90 @@
               "name",
               "size",
               "sha256"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "write"
+              },
+              "projectId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "requestId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "parentId": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "targetId": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expectedRevision": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 262144
+              },
+              "mimeType": {
+                "default": "text/markdown",
+                "type": "string",
+                "enum": [
+                  "text/markdown",
+                  "text/plain",
+                  "text/csv",
+                  "application/json"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "requestId",
+              "name",
+              "text"
             ],
             "additionalProperties": false
           },
@@ -10120,7 +10266,7 @@
             "maxLength": 200
           },
           "route": {
-            "description": "Optional, with model: how the chat pays for it, one of the model's routes from dexto_chat_models. dexto_credits uses Dexto credits, chatgpt_subscription the person's ChatGPT subscription, claude_code Claude Code on the person's Claude plan. Omitted, the model's usual route.",
+            "description": "Optional, with model: how the chat pays for it, one of the model's routes from dexto_chat_models. dexto_credits uses Dexto credits, chatgpt_subscription the person's ChatGPT subscription, claude_code Claude Code on the person's Claude plan. A Project chat never starts on api_key. Omitted, the model's usual route.",
             "type": "string",
             "enum": [
               "dexto_credits",
@@ -10713,7 +10859,7 @@
                   "skill",
                   "project"
                 ],
-                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared only with its whole organization."
+                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
               },
               "id": {
                 "type": "string",
@@ -10790,7 +10936,7 @@
                   "skill",
                   "project"
                 ],
-                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared only with its whole organization."
+                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
               },
               "id": {
                 "type": "string",
@@ -10843,6 +10989,165 @@
             "properties": {
               "action": {
                 "type": "string",
+                "const": "people"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "app",
+                  "drive",
+                  "skill",
+                  "project"
+                ],
+                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "The App record's key (an artifact's id), or the Drive item's, Skill's or Project's id."
+              },
+              "app": {
+                "default": null,
+                "description": "For kind app: the App's id, such as artifacts.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "collection": {
+                "default": null,
+                "description": "For kind app: the record's collection, such as artifacts.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "userIds": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "description": "Members of the person's organization to share with, by user id. A Drive file or folder, or a Project, takes people."
+              },
+              "role": {
+                "default": "viewer",
+                "description": "What these people may do: view (default), or edit, which only a Project offers. Sharing again with someone in the other role changes it.",
+                "type": "string",
+                "enum": [
+                  "viewer",
+                  "editor"
+                ]
+              },
+              "notify": {
+                "default": true,
+                "description": "Tell each person newly added in Dexto (on by default). Nobody is emailed.",
+                "type": "boolean"
+              },
+              "confirm": {
+                "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "kind",
+              "id",
+              "userIds"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "unshare_person"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "app",
+                  "drive",
+                  "skill",
+                  "project"
+                ],
+                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "The App record's key (an artifact's id), or the Drive item's, Skill's or Project's id."
+              },
+              "app": {
+                "default": null,
+                "description": "For kind app: the App's id, such as artifacts.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "collection": {
+                "default": null,
+                "description": "For kind app: the record's collection, such as artifacts.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "userId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person whose access to take away."
+              },
+              "confirm": {
+                "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "kind",
+              "id",
+              "userId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
                 "const": "public"
               },
               "kind": {
@@ -10853,7 +11158,7 @@
                   "skill",
                   "project"
                 ],
-                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared only with its whole organization."
+                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
               },
               "id": {
                 "type": "string",
@@ -10916,7 +11221,7 @@
                   "skill",
                   "project"
                 ],
-                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared only with its whole organization."
+                "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
               },
               "id": {
                 "type": "string",
@@ -10982,7 +11287,7 @@
               "skill",
               "project"
             ],
-            "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared only with its whole organization."
+            "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
           },
           "id": {
             "type": "string",
@@ -12466,6 +12771,41 @@
         "additionalProperties": false
       },
       "name": "dexto_span_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sourceId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_subscription_update"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_subscriptions_list"
     },
     {
       "inputSchema": {

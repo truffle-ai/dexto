@@ -543,5 +543,16 @@
         "dexto_skill_validate",
         "dexto_skill_versions"
     ],
-    "pendingCli": []
+    "pendingCli": [
+        {
+            "tool": "dexto_subscription_update",
+            "issue": "DEXTO-2615",
+            "reason": "Cloud slice lands first; the subscriptions CLI command group follows (slice 1c)."
+        },
+        {
+            "tool": "dexto_subscriptions_list",
+            "issue": "DEXTO-2615",
+            "reason": "Cloud slice lands first; the subscriptions CLI command group follows (slice 1c)."
+        }
+    ]
 }
