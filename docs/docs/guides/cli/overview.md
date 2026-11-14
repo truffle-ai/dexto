@@ -181,6 +181,8 @@ dexto chat local                 # chats Dexto can import
 dexto chat import --all          # import every chat that local lists
 ```
 
+Imports keep which model answered each turn, and continuing an imported chat uses that model (connect ChatGPT with `dexto connect codex` to continue Codex chats on your ChatGPT plan).
+
 ### Removed in 2.0
 
 These 1.x local-agent commands are gone in 2.0:

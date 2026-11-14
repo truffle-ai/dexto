@@ -127,14 +127,10 @@ export function toImportInput(
     if (!SOURCE_SESSION_ID.test(chat.id))
         return { kind: 'skipped', reason: "Its session id isn't one Dexto takes." };
     let truncated = 0;
-    const bounded = chat.messages.map((message) => {
+    const bounded = chat.messages.map((message): LocalChatMessage => {
         const { text } = redactSecrets(message.text);
         if (text.length > MAX_MESSAGE_CHARS) truncated += 1;
-        return {
-            createdAt: message.createdAt,
-            role: message.role,
-            text: truncate(text, MAX_MESSAGE_CHARS),
-        };
+        return { ...message, text: truncate(text, MAX_MESSAGE_CHARS) };
     });
     const { leftOut, messages } = newestWithin(bounded, chat.source);
     const title = redactSecrets(chat.title).text.slice(0, MAX_TITLE_CHARS);

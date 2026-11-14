@@ -1,7 +1,11 @@
 import { findLocalChats } from '../../import/local-chats.js';
 import { findPersonalSkills } from '../../import/personal-skills.js';
 import { redactSecrets, toImportInput } from '../../import/redaction.js';
-import { LOCAL_CHAT_SOURCES, type LocalChat } from '../../import/transcript.js';
+import {
+    LOCAL_CHAT_SOURCES,
+    type LocalChat,
+    type LocalChatSource,
+} from '../../import/transcript.js';
 import { CommandFailure, EXIT_CODES } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
 import {
@@ -13,7 +17,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
-import { sendTranscript } from './import-client.js';
+import { sendTranscript, type ImportedChat } from './import-client.js';
 import {
     importPersonalSkill,
     personalSkillId,
@@ -43,6 +47,44 @@ const options = {
 
 function key(chat: LocalChat): string {
     return `${chat.source}:${chat.id}`;
+}
+
+const SOURCE_NAMES: Readonly<Record<LocalChatSource, string>> = {
+    'claude-code': 'Claude Code',
+    codex: 'Codex',
+};
+
+/** Shown once when a Codex chat continues on a model other than the one that answered in Codex. */
+export const CONNECT_CODEX_HINT =
+    'Continue these chats on your ChatGPT plan? Run `dexto connect codex`, then run this import again.';
+
+type SessionResult =
+    | ({ readonly id: string; readonly source: LocalChatSource } & ImportedChat)
+    | {
+          readonly id: string;
+          readonly status: 'failed' | 'not_attempted';
+          readonly reason: string;
+      };
+
+/** One line per session: where it went and, when known, which model it continues on. */
+function sessionLine(result: SessionResult): string {
+    if ('reason' in result) return `${result.id}: ${result.status} (${result.reason})`;
+    const line = `${result.id}: ${result.status} ${result.url}`;
+    const continuation = result.continuation;
+    if (continuation === undefined) return line;
+    return continuation.reason === 'same_model'
+        ? `${line}\n  continues on ${continuation.model} (same model as in ${SOURCE_NAMES[result.source]})`
+        : `${line}\n  continues on ${continuation.model}: Dexto can't run ${continuation.sourceModel} for your account`;
+}
+
+function needsCodexConnection(results: readonly SessionResult[]): boolean {
+    return results.some(
+        (result) =>
+            'source' in result &&
+            result.source === 'codex' &&
+            result.continuation !== undefined &&
+            result.continuation.reason !== 'same_model'
+    );
 }
 
 async function runImport(
@@ -181,12 +223,12 @@ async function runImport(
             ...item,
             slug: await selectPersonalSkillSlug(context, item.prepared, clash, reserved),
         });
-    const results = [];
+    const results: SessionResult[] = [];
     for (const [index, { chat, prepared }] of planned.entries()) {
         if (prepared.kind !== 'ready') continue;
         try {
             const result = await sendTranscript(context, { kind: 'text', input: prepared.input });
-            results.push({ id: key(chat), ...result });
+            results.push({ id: key(chat), source: chat.source, ...result });
         } catch (error) {
             if (
                 error instanceof CommandFailure &&
@@ -245,9 +287,18 @@ async function runImport(
             });
         }
     }
+    const hints = needsCodexConnection(results) ? [CONNECT_CODEX_HINT] : [];
     context.output.result(
-        { sessions: results, skills },
-        JSON.stringify({ sessions: results, skills }, null, 2)
+        { sessions: results, skills, hints },
+        [
+            ...results.map(sessionLine),
+            ...skills.map((item) =>
+                'reason' in item
+                    ? `${item.id}: ${item.status} (${item.reason})`
+                    : `${item.id}: ${item.status}`
+            ),
+            ...hints,
+        ].join('\n')
     );
     return results.some((result) => result.status === 'failed') ||
         skills.some((item) => item.status === 'failed')

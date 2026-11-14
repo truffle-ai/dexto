@@ -43,6 +43,52 @@ describe('parseClaudeCodeTranscript', () => {
     });
 });
 
+describe('Claude Code models', () => {
+    const line = (
+        type: 'assistant' | 'user',
+        content: unknown,
+        second: number,
+        model?: string
+    ) => ({
+        cwd: '/work',
+        message: { content, role: type, ...(model === undefined ? {} : { model }) },
+        sessionId: 's',
+        timestamp: `2026-11-01T10:00:${String(second).padStart(2, '0')}.000Z`,
+        type,
+    });
+
+    it("gives each answer its last line's message.model, skipping <synthetic>", () => {
+        const chat = parseClaudeCodeTranscript(
+            jsonl([
+                line('user', 'First question', 1),
+                line('assistant', [{ text: 'Looking', type: 'text' }], 2, 'claude-opus-5-5'),
+                line(
+                    'assistant',
+                    [{ id: 'tu', input: {}, name: 'Bash', type: 'tool_use' }],
+                    3,
+                    'claude-sonnet-5-20261001'
+                ),
+                line('user', [{ content: 'ok', tool_use_id: 'tu', type: 'tool_result' }], 4),
+                line('assistant', 'No response requested.', 5, '<synthetic>'),
+                line('user', 'Second question', 6),
+                line('assistant', 'Plain answer', 7),
+            ]),
+            '/x/s.jsonl'
+        );
+
+        expect(chat?.messages.map((message) => message.role)).toEqual([
+            'user',
+            'assistant',
+            'user',
+            'assistant',
+        ]);
+        expect(chat?.messages[1]).toMatchObject({ model: 'claude-sonnet-5-20261001' });
+        expect(chat?.messages[1]).not.toHaveProperty('reasoningEffort');
+        expect(chat?.messages[1]?.text).toContain('No response requested.');
+        expect(chat?.messages[3]).not.toHaveProperty('model');
+    });
+});
+
 describe('Claude Code titles', () => {
     const turn = {
         cwd: '/work',

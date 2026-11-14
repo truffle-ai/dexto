@@ -41,13 +41,30 @@ export type TranscriptPayload =
           };
       };
 
-const ImportedSchema = z.object({
+export const ImportedSchema = z.object({
     session: z.object({ id: z.string() }),
     status: z.enum(['imported', 'already_imported']),
     url: z.string(),
+    /**
+     * The Dexto model the chat continues on, and the model of its last imported answer. Absent
+     * when the transcript names no model, the chat already continued in Dexto, or the server
+     * predates it.
+     */
+    continuation: z
+        .object({
+            model: z.string(),
+            sourceModel: z.string(),
+            reason: z.enum(['same_model', 'unknown_model', 'not_usable']),
+        })
+        .optional(),
 });
 
-export async function sendTranscript(context: CommandContext, payload: TranscriptPayload) {
+export type ImportedChat = z.output<typeof ImportedSchema>;
+
+export async function sendTranscript(
+    context: CommandContext,
+    payload: TranscriptPayload
+): Promise<ImportedChat> {
     if (payload.kind === 'native')
         throw new CommandFailure('failed', 'Native transcript import is not available yet.', null);
     return ImportedSchema.parse(

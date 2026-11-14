@@ -3665,6 +3665,17 @@
                   "format": "date-time",
                   "type": "string"
                 },
+                "model": {
+                  "description": "On an assistant message: the model id the agent recorded for that answer (Codex's turn_context `model`, Claude Code's `message.model`), unchanged.",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "reasoningEffort": {
+                  "description": "On an assistant message: the reasoning effort the agent recorded for it, such as Codex's turn_context `effort`.",
+                  "pattern": "^[a-z0-9_-]{1,32}$",
+                  "type": "string"
+                },
                 "role": {
                   "enum": [
                     "assistant",
