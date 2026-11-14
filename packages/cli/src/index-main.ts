@@ -128,14 +128,25 @@ const USAGE_ERRORS: ReadonlySet<string> = new Set([
 program.exitOverride((error) => {
     if (USAGE_ERRORS.has(error.code)) process.exit(2);
 });
-// Every command but the interactive CLI, which shows its own, and `upgrade` itself says when this
-// CLI is out of date, on stderr: an agent using `--json` learns it too (DEXTO-3134).
+// Every command but the interactive CLI, which shows its own, and `upgrade` itself tells a person
+// at a terminal that this CLI is out of date (DEXTO-3134). Never in a JSON mode, whose stderr holds
+// only its failure, and never waiting on npm: the cache says, and a stale one refreshes for next time.
 program.hook('preAction', async (_program, actionCommand) => {
     if (actionCommand === program || actionCommand.name() === 'upgrade') return;
-    const updateInfo = await getVersionCheckResult();
-    if (updateInfo === null) return;
-    const { printUpdateNotice } = await import('./cli/utils/version-check.js');
-    printUpdateNotice(updateInfo);
+    const argv = process.argv.slice(2);
+    if (
+        process.stdout.isTTY !== true ||
+        process.stderr.isTTY !== true ||
+        argv.includes('--json') ||
+        argv.includes('--stream-json')
+    )
+        return;
+    const { checkForUpdates, displayUpdateNotification, readCachedUpdate } = await import(
+        './cli/utils/version-check.js'
+    );
+    const cached = await readCachedUpdate(cliVersion);
+    if (cached.update !== null) displayUpdateNotification(cached.update);
+    if (cached.stale) void checkForUpdates(cliVersion, { timeoutMs: 1500 });
 });
 
 /** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */

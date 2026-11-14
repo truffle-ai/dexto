@@ -121,9 +121,9 @@ function extractLatestVersion(payload: unknown): string | null {
 /**
  * Fetch the CLI's latest version from npm
  */
-async function fetchLatestVersion(): Promise<string | null> {
+async function fetchLatestVersion(timeoutMs: number): Promise<string | null> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
         const response = await fetch(NPM_LATEST_URL, {
@@ -178,7 +178,10 @@ async function fetchLatestVersion(): Promise<string | null> {
  * }
  * ```
  */
-export async function checkForUpdates(currentVersion: string): Promise<UpdateInfo | null> {
+export async function checkForUpdates(
+    currentVersion: string,
+    options: { timeoutMs?: number } = {}
+): Promise<UpdateInfo | null> {
     // Check if update checks are disabled
     if (process.env.DEXTO_NO_UPDATE_CHECK === 'true') {
         debugLog('Version check disabled via DEXTO_NO_UPDATE_CHECK');
@@ -210,9 +213,12 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
 
         // Cache expired or invalid - fetch from npm
         debugLog('Fetching latest version from npm');
-        const latestVersion = await fetchLatestVersion();
+        const latestVersion = await fetchLatestVersion(options.timeoutMs ?? 5000);
 
         if (!latestVersion) {
+            // Cached as "nothing newer known" for the TTL, so an offline or sandboxed machine
+            // doesn't wait for npm again on every start.
+            await saveCache({ lastCheck: now, latestVersion: currentVersion, currentVersion });
             return null;
         }
 
@@ -286,16 +292,24 @@ export function displayUpdateNotification(updateInfo: UpdateInfo): void {
 }
 
 /**
- * The notice before a command other than the interactive CLI, which shows its own: the styled one
- * at a terminal, else one plain line on stderr, so an agent reading a `--json` command's output
- * learns its CLI is out of date while stdout stays the command's result.
+ * What the cache alone says, without touching the network: the update it knows of, and whether it
+ * is due a refresh. For a notice that must never hold a command up.
  */
-export function printUpdateNotice(updateInfo: UpdateInfo): void {
-    if (process.stderr.isTTY === true) {
-        displayUpdateNotification(updateInfo);
-        return;
-    }
-    process.stderr.write(
-        `dexto ${safeText(updateInfo.latest)} is out (you have ${safeText(updateInfo.current)}); run: ${updateInfo.updateCommand}\n`
-    );
+export async function readCachedUpdate(
+    currentVersion: string
+): Promise<{ stale: boolean; update: UpdateInfo | null }> {
+    if (process.env.DEXTO_NO_UPDATE_CHECK === 'true') return { stale: false, update: null };
+    const cache = await loadCache();
+    if (!cache || cache.currentVersion !== currentVersion) return { stale: true, update: null };
+    return {
+        stale: Date.now() - cache.lastCheck >= CACHE_TTL_MS,
+        update:
+            compareSemver(cache.latestVersion, currentVersion) > 0
+                ? {
+                      current: currentVersion,
+                      latest: cache.latestVersion,
+                      updateCommand: 'dexto upgrade',
+                  }
+                : null,
+    };
 }

@@ -23,7 +23,7 @@ import { getCaps, setCaps } from '@dexto/tui/signal-text';
 import {
     checkForUpdates,
     displayUpdateNotification,
-    printUpdateNotice,
+    readCachedUpdate,
     updateNoticeLines,
 } from './version-check.js';
 
@@ -355,33 +355,52 @@ describe('version-check', () => {
         });
     });
 
-    describe('printUpdateNotice', () => {
-        const info = { current: '1.7.1', latest: '2.0.1', updateCommand: 'dexto upgrade' };
-        const savedIsTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY');
+    describe('readCachedUpdate', () => {
+        it('reports the cached update without fetching', async () => {
+            vi.mocked(fs.readFile).mockResolvedValue(
+                JSON.stringify({
+                    lastCheck: Date.now() - 1000,
+                    latestVersion: '2.0.1',
+                    currentVersion: '1.7.1',
+                })
+            );
 
-        afterEach(() => {
-            vi.restoreAllMocks();
-            if (savedIsTTY === undefined) Reflect.deleteProperty(process.stderr, 'isTTY');
-            else Object.defineProperty(process.stderr, 'isTTY', savedIsTTY);
+            const cached = await readCachedUpdate('1.7.1');
+
+            expect(cached).toEqual({
+                stale: false,
+                update: { current: '1.7.1', latest: '2.0.1', updateCommand: 'dexto upgrade' },
+            });
+            expect(mockFetch).not.toHaveBeenCalled();
         });
 
-        it('writes one plain line to stderr when stderr is not a terminal, never to stdout', () => {
-            Object.defineProperty(process.stderr, 'isTTY', { value: false, configurable: true });
-            const stderr: string[] = [];
-            const stdout: string[] = [];
-            vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
-                stderr.push(String(chunk));
-                return true;
-            });
-            vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
-                stdout.push(String(chunk));
-                return true;
-            });
+        it('says a missing or expired cache is stale, still without fetching', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+            expect(await readCachedUpdate('1.7.1')).toEqual({ stale: true, update: null });
 
-            printUpdateNotice(info);
+            vi.mocked(fs.readFile).mockResolvedValue(
+                JSON.stringify({
+                    lastCheck: Date.now() - 25 * 60 * 60 * 1000,
+                    latestVersion: '2.0.1',
+                    currentVersion: '1.7.1',
+                })
+            );
+            expect(await readCachedUpdate('1.7.1')).toMatchObject({ stale: true });
+            expect(mockFetch).not.toHaveBeenCalled();
+        });
+    });
 
-            expect(stderr).toEqual(['dexto 2.0.1 is out (you have 1.7.1); run: dexto upgrade\n']);
-            expect(stdout).toEqual([]);
+    describe('a failed lookup', () => {
+        it('is cached for the TTL, so the next start does not wait for npm again', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+            vi.mocked(fs.writeFile).mockResolvedValue();
+            vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+            mockFetch.mockRejectedValue(new Error('offline'));
+
+            expect(await checkForUpdates('1.7.1')).toBeNull();
+
+            const written = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls[0]?.[1]));
+            expect(written).toMatchObject({ latestVersion: '1.7.1', currentVersion: '1.7.1' });
         });
     });
 });
