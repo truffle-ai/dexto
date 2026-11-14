@@ -1,5 +1,39 @@
 # @dexto/core
 
+## 1.19.0
+
+### Minor Changes
+
+- 46915b1: Permissions now use the hosted app's two modes: **Full access** (`full-access`) and **Asks you** (`asks-you`). Manual approval mode is removed.
+
+    **Upgrade note: rename `permissions.mode` values.** `manual` becomes `asks-you` and `auto-approve` becomes `full-access`. The old values still work in this release: they map to the new mode and print a warning that names the new value. The next release rejects them.
+
+    ```yaml
+    permissions:
+        mode: asks-you # was: manual
+        # mode: full-access  # was: auto-approve
+    ```
+
+    ```bash
+    dexto --permissions-mode asks-you      # was: --permissions-mode manual
+    dexto --permissions-mode full-access   # was: --permissions-mode auto-approve
+    ```
+
+    `--auto-approve` and `--bypass-permissions` still select Full access.
+
+    Behavior changes:
+    - Asks you now asks before writing or editing files inside the workspace, not only before shell commands and paths outside it. "Allow for session" covers further edits in the same directory. Full access does not ask.
+    - `PermissionsMode` is now `'full-access' | 'asks-you'`. Code that compares `config.permissions.mode` with `'manual'` or `'auto-approve'` must compare with the new values. `PERMISSIONS_MODE_LABELS`, `resolvePermissionsMode()` and `getDeprecatedPermissionsModeWarning()` are exported from `@dexto/core`.
+    - The tool approval reason `auto-approve-mode` is renamed `full-access-mode`.
+    - The TUI footer and `/config` show "Full access" or "Asks you".
+
+### Patch Changes
+
+- e229d40: Stop runs from failing when an attachment is a file type the provider's SDK cannot send
+
+    **Upgrade note: attachments the provider cannot receive now reach the model as a short text note instead of failing the run.** The model registry lists "document" support for models such as OpenAI's, but the provider SDKs only send some types (OpenAI sends images and PDFs; Anthropic images and PDFs; Groq, xAI and OpenAI-compatible endpoints images). A `.docx`, `.xlsx` or `.pptx` attached to such a model used to throw `AI_UnsupportedFunctionalityError` before any request was made, which failed the whole run. Core now checks each file part against what the provider SDK actually sends. Text-like files are still inlined as text. Any other unsupported file is replaced by a note naming the file and its type, so the model can read it with tools or tell the user. Supported types (images, PDFs and so on) are sent exactly as before. No configuration change is needed.
+    - @dexto/llm@1.19.0
+
 ## 1.18.1
 
 ### Patch Changes

@@ -22,7 +22,7 @@
   "bugs": {
     "url": "https://github.com/truffle-ai/dexto/issues"
   },
-  "version": "2.0.1",
+  "version": "2.1.0",
   "type": "module",
   "bin": {
     "dexto": "./dist/index.js"

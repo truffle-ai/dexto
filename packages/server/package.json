@@ -1,6 +1,6 @@
 {
   "name": "@dexto/server",
-  "version": "1.18.1",
+  "version": "1.19.0",
   "private": false,
   "type": "module",
   "main": "./dist/index.cjs",

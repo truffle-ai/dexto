@@ -1,5 +1,54 @@
 # dexto
 
+## 2.1.0
+
+### Minor Changes
+
+- 46915b1: Permissions now use the hosted app's two modes: **Full access** (`full-access`) and **Asks you** (`asks-you`). Manual approval mode is removed.
+
+    **Upgrade note: rename `permissions.mode` values.** `manual` becomes `asks-you` and `auto-approve` becomes `full-access`. The old values still work in this release: they map to the new mode and print a warning that names the new value. The next release rejects them.
+
+    ```yaml
+    permissions:
+        mode: asks-you # was: manual
+        # mode: full-access  # was: auto-approve
+    ```
+
+    ```bash
+    dexto --permissions-mode asks-you      # was: --permissions-mode manual
+    dexto --permissions-mode full-access   # was: --permissions-mode auto-approve
+    ```
+
+    `--auto-approve` and `--bypass-permissions` still select Full access.
+
+    Behavior changes:
+    - Asks you now asks before writing or editing files inside the workspace, not only before shell commands and paths outside it. "Allow for session" covers further edits in the same directory. Full access does not ask.
+    - `PermissionsMode` is now `'full-access' | 'asks-you'`. Code that compares `config.permissions.mode` with `'manual'` or `'auto-approve'` must compare with the new values. `PERMISSIONS_MODE_LABELS`, `resolvePermissionsMode()` and `getDeprecatedPermissionsModeWarning()` are exported from `@dexto/core`.
+    - The tool approval reason `auto-approve-mode` is renamed `full-access-mode`.
+    - The TUI footer and `/config` show "Full access" or "Asks you".
+
+### Patch Changes
+
+- 1ac079d: Tell people when the CLI is out of date
+
+    The update check read GitHub's latest release, which in this monorepo is whichever package released last (such as `@dexto/image-logger-agent@1.18.1`), so it compared the CLI against another package's version and almost never said a newer CLI was out. It now reads the `dexto` package's own latest version from npm. Every command except the interactive CLI (which shows its own notice) and `dexto upgrade` now shows the notice to a person at a terminal, on stderr. It never appears in `--json` or `--stream-json` output, or when stdout is piped. A fresh cached result answers at once; a day-old cache is refreshed first, waiting at most 1.5 s. A failed lookup is cached too (keeping any newer version it already knew of), so an offline machine waits at most once a day. `DEXTO_NO_UPDATE_CHECK=true` still turns the check off.
+
+- 6d1d17c: `dexto import` and `dexto chat import` now send the model that answered each imported turn (and Codex's reasoning effort), read from Codex `turn_context` lines and Claude Code's `message.model`. When the server says which Dexto model an imported chat continues on, `dexto import` shows it per session, and prints a hint to run `dexto connect codex` when a Codex chat can't continue on its own model (in `--json`, as `hints`). Re-running an import on a session imported before fills in its models. Needs a Dexto Cloud server that accepts the per-message `model` and `reasoningEffort` fields.
+- Updated dependencies [46915b1]
+- Updated dependencies [e229d40]
+    - @dexto/core@1.19.0
+    - @dexto/agent-management@1.19.0
+    - @dexto/tui@1.19.0
+    - @dexto/agent-config@1.19.0
+    - @dexto/analytics@1.19.0
+    - @dexto/client-sdk@1.19.0
+    - @dexto/image-local@1.19.0
+    - @dexto/image-logger-agent@1.19.0
+    - @dexto/storage@1.19.0
+    - @dexto/llm@1.19.0
+    - @dexto/cloud-client@1.19.0
+    - @dexto/registry@1.19.0
+
 ## 2.0.1
 
 ### Patch Changes
