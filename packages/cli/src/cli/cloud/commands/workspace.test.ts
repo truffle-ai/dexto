@@ -252,7 +252,11 @@ describe('dexto workspace', () => {
             signInForScopes: grant,
         };
         expect(await runCloud(host, ['workspace', 'describe', 'dexto_project_chat_move'])).toBe(3);
-        expect(grant).toHaveBeenCalledWith(expect.anything(), ['projects:write', 'sessions:write']);
+        expect(grant).toHaveBeenCalledWith(
+            expect.anything(),
+            ['projects:write', 'sessions:write'],
+            expect.any(Function)
+        );
     });
 
     it('shows a concise workspace app help list and leaves schemas to operation help', async () => {

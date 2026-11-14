@@ -2,14 +2,21 @@
 // loopback redirect, or a device code (RFC 8628) for SSH sessions and machines without a browser.
 
 import { createHash, randomBytes } from 'node:crypto';
+import { hostname } from 'node:os';
 import { z } from 'zod';
 import { type OAuthLogin, SignedInAsSchema } from './dexto-accounts.js';
 
 /** Dexto's pre-registered public client for this CLI: no secret, no registration. */
 export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
 
-/** A sign-in starts with reading the workspace and Cloud; more is asked for by name. */
-const BASE_CLOUD_SCOPES = ['cloud:read'] as const;
+/** Ask once for Project chats and their output; Loops and direct computer writes are step-ups. */
+const BASE_TASK_SCOPES = [
+    'cloud:read',
+    'runs:read',
+    'artifacts:read',
+    'sessions:write',
+    'projects:write',
+] as const;
 
 const DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
@@ -44,7 +51,57 @@ export type SignInPrompt =
           /** The link with the code already in it, when the server gives one. */
           readonly verificationUriComplete: string | null;
           readonly expiresInSeconds: number;
+          /** The organization the request names (id, slug or name); null lets the page choose. */
+          readonly organization: string | null;
+          /** Every permission the request asks for. */
+          readonly scopes: readonly string[];
+          /** This computer's name, for the From row. */
+          readonly computer: string;
       };
+
+/** What a sign-in request asks for, as the approval page shows it. */
+export interface SignInRequest {
+    /** The signed-in account's email when known; a new sign-in learns it only on approval. */
+    readonly account: string | null;
+    readonly organization: string | null;
+    /** The device code, once there is one. */
+    readonly code: string | null;
+    readonly scopes: readonly string[];
+    /** The computer the request starts on, for the From row. */
+    readonly computer: string;
+    /** Name every scope here, rather than leaving the list to the page's Details. */
+    readonly listScopes: boolean;
+}
+
+export interface SignInRequestRow {
+    readonly label: 'Account' | 'Organization' | 'Code' | 'From' | 'Access';
+    readonly value: string;
+}
+
+/**
+ * The request as the approval page lays it out (consent variant C, "Plain rows"): Account,
+ * Organization, Code, From and Access, so the terminal and the page can be read side by side.
+ */
+export function signInRequestRows(request: SignInRequest): SignInRequestRow[] {
+    const count = `${request.scopes.length} ${request.scopes.length === 1 ? 'permission' : 'permissions'}`;
+    return [
+        { label: 'Account', value: request.account ?? 'the one you approve with' },
+        { label: 'Organization', value: request.organization ?? 'chosen on the approval page' },
+        ...(request.code === null ? [] : [{ label: 'Code' as const, value: request.code }]),
+        { label: 'From', value: `this computer (${request.computer})` },
+        {
+            label: 'Access',
+            value: request.listScopes
+                ? `${count}: ${request.scopes.join(' ')}`
+                : `${count}, listed under Details on the approval page`,
+        },
+    ];
+}
+
+/** `  Account       sam@acme.co`: each row indented, its label padded to one column. */
+export function signInRequestText(rows: readonly SignInRequestRow[]): string {
+    return rows.map((row) => `  ${row.label.padEnd(14)}${row.value}`).join('\n');
+}
 
 export function signInPromptText(prompt: SignInPrompt): string {
     if (prompt.kind === 'browser')
@@ -53,8 +110,23 @@ export function signInPromptText(prompt: SignInPrompt): string {
         prompt.verificationUriComplete === null
             ? `To sign in, open this link on any device and enter ${prompt.userCode}:\n${prompt.verificationUri}`
             : `To sign in, open this link on any device and check it shows ${prompt.userCode}:\n${prompt.verificationUriComplete}`,
+        signInRequestText(devicePromptRows(prompt)),
         'Only approve this if you just ran dexto login.',
     ].join('\n');
+}
+
+/** A device prompt's rows: the account is learned on approval, and the page lists the scopes. */
+export function devicePromptRows(
+    prompt: Extract<SignInPrompt, { kind: 'device' }>
+): SignInRequestRow[] {
+    return signInRequestRows({
+        account: null,
+        organization: prompt.organization,
+        code: prompt.userCode,
+        scopes: prompt.scopes,
+        computer: prompt.computer,
+        listScopes: false,
+    });
 }
 
 /** Why a sign-in ended without signing in, so the CLI can say what to do next. */
@@ -86,8 +158,10 @@ export interface SignInInput {
     readonly apiBaseUrl: string;
     /** The organization to sign in for (id, slug or name), where the approval page starts. */
     readonly organization: string | null;
-    /** Scopes asked for on purpose, besides reading the workspace and Cloud. */
+    /** Additional permissions beyond reading, Project changes and starting chats. */
     readonly extraScopes: readonly string[];
+    /** Inspect the exact request before any authorization starts; throwing cancels sign-in. */
+    readonly beforeAuthorize?: (scopes: readonly string[]) => Promise<void>;
 }
 
 export interface BrowserSignInInput extends SignInInput {
@@ -152,7 +226,8 @@ async function discover(runtime: SignInRuntime, input: SignInInput): Promise<Dis
     const appUrl = input.appUrl.replace(/\/+$/u, '');
     const { resource, server } = await readMetadata(runtime, appUrl);
     const reading = resource.scopes_supported.filter((scope) => scope.endsWith(':read'));
-    const scopes = [...new Set([...reading, ...BASE_CLOUD_SCOPES, ...input.extraScopes])];
+    const scopes = [...new Set([...reading, ...BASE_TASK_SCOPES, ...input.extraScopes])];
+    await input.beforeAuthorize?.(scopes);
     return { appUrl, resource: resource.resource, scopes, server };
 }
 
@@ -233,6 +308,9 @@ export async function signInWithDevice(
         verificationUri: device.verification_uri,
         verificationUriComplete: device.verification_uri_complete ?? null,
         expiresInSeconds: device.expires_in,
+        organization: input.organization,
+        scopes,
+        computer: hostname(),
     });
 
     const deadline = Date.now() + device.expires_in * 1000;

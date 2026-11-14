@@ -596,6 +596,9 @@ describe('sign-in commands', () => {
                 verificationUri: `${APP}/device${HOSTILE}`,
                 verificationUriComplete: null,
                 expiresInSeconds: 600,
+                organization: `Acme${HOSTILE}`,
+                scopes: [`cloud:read${HOSTILE}`],
+                computer: `laptop${HOSTILE}`,
             });
             screen.show({
                 kind: 'device',
@@ -603,6 +606,9 @@ describe('sign-in commands', () => {
                 verificationUri: `${APP}/device`,
                 verificationUriComplete: `${APP}/device?code=${HOSTILE}`,
                 expiresInSeconds: 600,
+                organization: null,
+                scopes: [],
+                computer: 'laptop',
             });
 
             expect(shown).toHaveLength(3);
@@ -611,7 +617,7 @@ describe('sign-in commands', () => {
             expect(shown[1]).toContain(
                 'To sign in, open this link on any device and enter ABCDEvil[2J'
             );
-            expect(shown[1]?.split('\n')).toHaveLength(3);
+            expect(shown[1]?.split('\n')).toHaveLength(8);
         });
 
         it('strips them from describeSignIn', async () => {

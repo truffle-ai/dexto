@@ -272,31 +272,34 @@ describe('dexto cloud', () => {
         });
     });
 
-    it("names the permission a sign-in lacks and how to grant it, from the API's refusal", async () => {
-        await dextoAccounts.writeLogin(dir, 'default', signedIn());
-        reply = () =>
-            Response.json(
-                {
-                    error: {
-                        code: 'forbidden',
-                        message: 'This needs cloud:write.',
-                        requestId: 'req_1',
-                        retryable: false,
-                        details: { scope: 'cloud:write' },
+    it.each(['cloud:write', 'computers:write', 'automations:write'])(
+        'exits 3 headlessly naming %s and its explicit login command',
+        async (scope) => {
+            await dextoAccounts.writeLogin(dir, 'default', signedIn());
+            reply = () =>
+                Response.json(
+                    {
+                        error: {
+                            code: 'forbidden',
+                            message: `This needs ${scope}.`,
+                            requestId: 'req_1',
+                            retryable: false,
+                            details: { scope },
+                        },
                     },
-                },
-                { status: 403 }
-            );
+                    { status: 403 }
+                );
 
-        const code = await runCloud(host, ['cloud', 'projects', 'create', 'New']);
+            const code = await runCloud(host, ['cloud', 'projects', 'create', 'New']);
 
-        expect(code).toBe(3);
-        expect(JSON.parse(stderr).error).toMatchObject({
-            code: 'needs_permission',
-            fix: 'dexto login --device --scope cloud:write',
-        });
-        expect(granted).toEqual([]);
-    });
+            expect(code).toBe(3);
+            expect(JSON.parse(stderr).error).toMatchObject({
+                code: 'needs_permission',
+                fix: `dexto login --device --scope ${scope}`,
+            });
+            expect(granted).toEqual([]);
+        }
+    );
 
     it('strips control characters from the API error on the plain stderr notes', async () => {
         // ESC[2J clears the screen, OSC 0 sets the title, CSI as one C1 byte sets a colour.
@@ -376,6 +379,71 @@ describe('dexto cloud', () => {
 
         expect(await runCloud(host, ['cloud', 'api', 'GET', '/v1/agents/nope'])).toBe(5);
     });
+
+    it.each(['computers:write', 'automations:write'])(
+        'shows the full request as rows before a %s step-up and honors a decline',
+        async (scope) => {
+            await dextoAccounts.writeLogin(dir, 'default', {
+                ...signedIn(),
+                signedInAs: {
+                    account: { email: 'sam@acme.co', id: 'acc_1', name: 'Sam Rivera' },
+                    organization: { id: 'org_1', name: 'Acme', slug: 'acme' },
+                },
+            });
+            reply = () =>
+                Response.json(
+                    {
+                        error: {
+                            code: 'forbidden',
+                            message: `This needs ${scope}.`,
+                            details: { scope },
+                        },
+                    },
+                    { status: 403 }
+                );
+            const questions: string[] = [];
+            const requested = [
+                'cloud:read',
+                'drive:read',
+                'runs:read',
+                'artifacts:read',
+                'sessions:write',
+                'projects:write',
+                'drive:write',
+                'chats:sync',
+                scope,
+            ];
+            host = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    stdoutIsTerminal: true,
+                    prompt: async (question) => {
+                        questions.push(question);
+                        return 'no';
+                    },
+                },
+                signInForScopes: async (_overrides, extra, confirm) => {
+                    if (!(await confirm(requested))) return false;
+                    granted.push(extra);
+                    return true;
+                },
+            };
+            expect(await runCloud(host, ['cloud', 'projects', 'create', 'New', '--table'])).toBe(3);
+            expect(questions).toEqual([
+                [
+                    `This needs ${scope}. Sign in again to request:`,
+                    '  Account       sam@acme.co',
+                    '  Organization  Acme',
+                    `  From          this computer (${os.hostname()})`,
+                    `  Access        9 permissions: ${requested.join(' ')}`,
+                    'Continue? [y/N] ',
+                ].join('\n'),
+            ]);
+            expect(granted).toEqual([]);
+            expect(requests).toHaveLength(1);
+        }
+    );
 
     it('keeps cloud api on the public API', async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
