@@ -130,6 +130,30 @@ const USAGE_ERRORS: ReadonlySet<string> = new Set([
 program.exitOverride((error) => {
     if (USAGE_ERRORS.has(error.code)) process.exit(2);
 });
+// Every command but the interactive CLI, which shows its own, and `upgrade` itself tells a person
+// at a terminal that this CLI is out of date (DEXTO-3134). Never in a JSON mode, whose stderr holds
+// only its failure. A fresh cache answers at once; a stale one is refreshed here, held to 1.5 s,
+// since most commands end in process.exit, which would cut a background refresh short. A failed
+// lookup is cached too, so this waits at most once a day.
+program.hook('preAction', async (_program, actionCommand) => {
+    if (actionCommand === program || actionCommand.name() === 'upgrade') return;
+    const argv = process.argv.slice(2);
+    if (
+        process.stdout.isTTY !== true ||
+        process.stderr.isTTY !== true ||
+        argv.includes('--json') ||
+        argv.includes('--stream-json')
+    )
+        return;
+    const { checkForUpdates, displayUpdateNotification, readCachedUpdate } = await import(
+        './cli/utils/version-check.js'
+    );
+    const cached = await readCachedUpdate(cliVersion);
+    const update = cached.stale
+        ? await checkForUpdates(cliVersion, { timeoutMs: 1500 })
+        : cached.update;
+    if (update !== null) displayUpdateNotification(update);
+});
 
 /** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */
 async function printFailure(
