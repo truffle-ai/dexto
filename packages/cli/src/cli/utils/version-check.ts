@@ -216,10 +216,16 @@ export async function checkForUpdates(
         const latestVersion = await fetchLatestVersion(options.timeoutMs ?? 5000);
 
         if (!latestVersion) {
-            // Cached as "nothing newer known" for the TTL, so an offline or sandboxed machine
-            // doesn't wait for npm again on every start.
-            await saveCache({ lastCheck: now, latestVersion: currentVersion, currentVersion });
-            return null;
+            // Cached for the TTL, so an offline or sandboxed machine doesn't wait for npm again on
+            // every start, keeping a newer version this install already knew of.
+            const known =
+                cache && cache.currentVersion === currentVersion
+                    ? cache.latestVersion
+                    : currentVersion;
+            await saveCache({ lastCheck: now, latestVersion: known, currentVersion });
+            return compareSemver(known, currentVersion) > 0
+                ? { current: currentVersion, latest: known, updateCommand: 'dexto upgrade' }
+                : null;
         }
 
         // Update cache

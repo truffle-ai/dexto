@@ -402,5 +402,26 @@ describe('version-check', () => {
             const written = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls[0]?.[1]));
             expect(written).toMatchObject({ latestVersion: '1.7.1', currentVersion: '1.7.1' });
         });
+
+        it('keeps a newer version the expired cache knew of', async () => {
+            vi.mocked(fs.readFile).mockResolvedValue(
+                JSON.stringify({
+                    lastCheck: Date.now() - 25 * 60 * 60 * 1000,
+                    latestVersion: '2.0.1',
+                    currentVersion: '1.7.1',
+                })
+            );
+            vi.mocked(fs.writeFile).mockResolvedValue();
+            vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+            mockFetch.mockRejectedValue(new Error('timed out'));
+
+            expect(await checkForUpdates('1.7.1', { timeoutMs: 1500 })).toEqual({
+                current: '1.7.1',
+                latest: '2.0.1',
+                updateCommand: 'dexto upgrade',
+            });
+            const written = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls[0]?.[1]));
+            expect(written).toMatchObject({ latestVersion: '2.0.1', currentVersion: '1.7.1' });
+        });
     });
 });
