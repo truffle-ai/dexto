@@ -20,7 +20,12 @@ global.fetch = mockFetch;
 
 import { TERMINALS } from '@dexto/tui/signal-harness';
 import { getCaps, setCaps } from '@dexto/tui/signal-text';
-import { checkForUpdates, displayUpdateNotification, updateNoticeLines } from './version-check.js';
+import {
+    checkForUpdates,
+    displayUpdateNotification,
+    printUpdateNotice,
+    updateNoticeLines,
+} from './version-check.js';
 
 describe('version-check', () => {
     beforeEach(() => {
@@ -42,7 +47,7 @@ describe('version-check', () => {
             expect(mockFetch).not.toHaveBeenCalled();
         });
 
-        it('returns update info when newer version available from GitHub releases', async () => {
+        it('returns update info when a newer version is on npm', async () => {
             // No cache - force fetch
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
             vi.mocked(fs.writeFile).mockResolvedValue();
@@ -50,7 +55,7 @@ describe('version-check', () => {
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@2.0.0' }),
+                json: () => Promise.resolve({ version: '2.0.0' }),
             });
 
             const result = await checkForUpdates('1.0.0');
@@ -62,21 +67,26 @@ describe('version-check', () => {
             });
         });
 
-        it('extracts trailing semver from scoped monorepo release tags', async () => {
+        // GitHub's latest release is whichever package released last, not the CLI (DEXTO-3134).
+        it("reads the dexto package's own latest version from npm", async () => {
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
             vi.mocked(fs.writeFile).mockResolvedValue();
             vi.mocked(fs.mkdir).mockResolvedValue(undefined);
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: '@dexto/tools-filesystem@2.0.0' }),
+                json: () => Promise.resolve({ name: 'dexto', version: '2.0.1' }),
             });
 
-            const result = await checkForUpdates('1.0.0');
+            const result = await checkForUpdates('1.7.1');
 
+            expect(mockFetch).toHaveBeenCalledWith(
+                'https://registry.npmjs.org/dexto/latest',
+                expect.anything()
+            );
             expect(result).toEqual({
-                current: '1.0.0',
-                latest: '2.0.0',
+                current: '1.7.1',
+                latest: '2.0.1',
                 updateCommand: 'dexto upgrade',
             });
         });
@@ -88,7 +98,7 @@ describe('version-check', () => {
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@1.0.0' }),
+                json: () => Promise.resolve({ version: '1.0.0' }),
             });
 
             const result = await checkForUpdates('1.0.0');
@@ -103,7 +113,7 @@ describe('version-check', () => {
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@1.0.0' }),
+                json: () => Promise.resolve({ version: '1.0.0' }),
             });
 
             const result = await checkForUpdates('2.0.0');
@@ -143,7 +153,7 @@ describe('version-check', () => {
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@2.0.0' }),
+                json: () => Promise.resolve({ version: '2.0.0' }),
             });
 
             const result = await checkForUpdates('1.0.0');
@@ -179,12 +189,12 @@ describe('version-check', () => {
             expect(result).toBeNull();
         });
 
-        it('returns null when tag_name does not contain a semver', async () => {
+        it('returns null when the version is not a semver', async () => {
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'latest-release' }),
+                json: () => Promise.resolve({ version: 'latest-release' }),
             });
 
             const result = await checkForUpdates('1.0.0');
@@ -203,7 +213,7 @@ describe('version-check', () => {
         it('correctly identifies major version updates', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@2.0.0' }),
+                json: () => Promise.resolve({ version: '2.0.0' }),
             });
 
             const result = await checkForUpdates('1.9.9');
@@ -213,7 +223,7 @@ describe('version-check', () => {
         it('correctly identifies minor version updates', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@1.2.0' }),
+                json: () => Promise.resolve({ version: '1.2.0' }),
             });
 
             const result = await checkForUpdates('1.1.9');
@@ -223,24 +233,24 @@ describe('version-check', () => {
         it('correctly identifies patch version updates', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@1.0.2' }),
+                json: () => Promise.resolve({ version: '1.0.2' }),
             });
 
             const result = await checkForUpdates('1.0.1');
             expect(result?.latest).toBe('1.0.2');
         });
 
-        it('handles versions with v prefix in release tag', async () => {
+        it('handles versions with a v prefix', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ tag_name: 'dexto@v2.0.0' }),
+                json: () => Promise.resolve({ version: 'v2.0.0' }),
             });
 
             const result = await checkForUpdates('v1.0.0');
             expect(result?.latest).toBe('v2.0.0');
         });
 
-        it('returns null when release payload has no tag_name', async () => {
+        it('returns null when the npm payload has no version', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
                 json: () => Promise.resolve({}),
@@ -342,6 +352,36 @@ describe('version-check', () => {
                 expect(console.error).not.toHaveBeenCalled();
                 expect(console.log).not.toHaveBeenCalled();
             });
+        });
+    });
+
+    describe('printUpdateNotice', () => {
+        const info = { current: '1.7.1', latest: '2.0.1', updateCommand: 'dexto upgrade' };
+        const savedIsTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY');
+
+        afterEach(() => {
+            vi.restoreAllMocks();
+            if (savedIsTTY === undefined) Reflect.deleteProperty(process.stderr, 'isTTY');
+            else Object.defineProperty(process.stderr, 'isTTY', savedIsTTY);
+        });
+
+        it('writes one plain line to stderr when stderr is not a terminal, never to stdout', () => {
+            Object.defineProperty(process.stderr, 'isTTY', { value: false, configurable: true });
+            const stderr: string[] = [];
+            const stdout: string[] = [];
+            vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+                stderr.push(String(chunk));
+                return true;
+            });
+            vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
+                stdout.push(String(chunk));
+                return true;
+            });
+
+            printUpdateNotice(info);
+
+            expect(stderr).toEqual(['dexto 2.0.1 is out (you have 1.7.1); run: dexto upgrade\n']);
+            expect(stdout).toEqual([]);
         });
     });
 });

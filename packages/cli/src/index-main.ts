@@ -128,6 +128,15 @@ const USAGE_ERRORS: ReadonlySet<string> = new Set([
 program.exitOverride((error) => {
     if (USAGE_ERRORS.has(error.code)) process.exit(2);
 });
+// Every command but the interactive CLI, which shows its own, and `upgrade` itself says when this
+// CLI is out of date, on stderr: an agent using `--json` learns it too (DEXTO-3134).
+program.hook('preAction', async (_program, actionCommand) => {
+    if (actionCommand === program || actionCommand.name() === 'upgrade') return;
+    const updateInfo = await getVersionCheckResult();
+    if (updateInfo === null) return;
+    const { printUpdateNotice } = await import('./cli/utils/version-check.js');
+    printUpdateNotice(updateInfo);
+});
 
 /** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */
 async function printFailure(
