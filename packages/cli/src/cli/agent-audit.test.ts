@@ -43,6 +43,20 @@ it('includes dynamically constructed cloud commands from the registry', async ()
     ]);
 });
 
+it('reports cloud command examples from the declared help', async () => {
+    const { auditCloud } = await import('./agent-audit.js');
+    expect(
+        auditCloud([
+            {
+                path: ['credits', 'balance'],
+                summary: 'balance',
+                examples: ['dexto credits balance --json'],
+                run: async () => {},
+            },
+        ])[0]
+    ).toMatchObject({ examples: true });
+});
+
 it('replaces cloud passthroughs including new nested chat commands', async () => {
     const { auditProgram } = await import('./agent-audit.js');
     const program = new Command('dexto');

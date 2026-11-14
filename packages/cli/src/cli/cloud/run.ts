@@ -352,9 +352,16 @@ interface Help {
  * the command's usage (for a usage mistake) or the command that fixes it. On Signal, the fault
  * block, and a usage mistake points at help instead of printing it.
  */
-function reportError(context: SignInContext, json: boolean, help: Help, error: unknown): number {
+export function reportError(
+    context: SignInContext,
+    json: boolean,
+    help: Help,
+    error: unknown,
+    fixOverride?: string
+): number {
     const { runtime } = context;
-    const failure = describeFailure(context, error);
+    const described = describeFailure(context, asMissingScope(context, error));
+    const failure = fixOverride === undefined ? described : { ...described, fix: fixOverride };
     if (json) {
         const error = {
             code: failure.code,
@@ -630,6 +637,25 @@ function commandHelp(command: Command): string {
                 ...(command.options === undefined
                     ? []
                     : [optionSection('options', command.options)]),
+                ...(command.examples === undefined
+                    ? []
+                    : [
+                          {
+                              title: 'examples',
+                              rows: command.examples.map((example) => ({
+                                  term: example,
+                                  description: '',
+                              })),
+                          },
+                      ]),
+                ...(command.jsonOutput === undefined
+                    ? []
+                    : [
+                          {
+                              title: 'json output',
+                              rows: [{ term: '', description: JSON.stringify(command.jsonOutput) }],
+                          },
+                      ]),
                 optionSection('global options', GLOBAL_OPTIONS),
             ]
         );
@@ -639,6 +665,12 @@ function commandHelp(command: Command): string {
         command.summary,
         '',
         ...(command.options === undefined ? [] : ['Options:', ...optionLines(command.options), '']),
+        ...(command.examples === undefined
+            ? []
+            : ['Examples:', ...command.examples.map((example) => `  ${example}`), '']),
+        ...(command.jsonOutput === undefined
+            ? []
+            : ['JSON output:', JSON.stringify(command.jsonOutput, null, 2), '']),
         'Global options:',
         ...optionLines(GLOBAL_OPTIONS),
         '',
@@ -655,6 +687,8 @@ function commandHelpJson(command: Command): unknown {
         })),
         summary: command.summary,
         usage: `dexto ${usage(command)}`,
+        ...(command.examples === undefined ? {} : { examples: command.examples }),
+        ...(command.jsonOutput === undefined ? {} : { json_output: command.jsonOutput }),
     };
 }
 

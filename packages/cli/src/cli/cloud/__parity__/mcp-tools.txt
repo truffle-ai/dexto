@@ -7209,6 +7209,13 @@
             "maximum": 500,
             "multipleOf": 5
           },
+          "surface": {
+            "type": "string",
+            "enum": [
+              "cli",
+              "mcp"
+            ]
+          },
           "confirm": {
             "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
             "type": "boolean"
@@ -7220,6 +7227,30 @@
         "additionalProperties": false
       },
       "name": "dexto_credits_topup"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "topupId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "waitSeconds": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "topupId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_credits_topup_status"
     },
     {
       "inputSchema": {

@@ -23,6 +23,8 @@ export interface OptionSpec {
 export interface Command {
     /** Such as `<agent_id> [message...]`; `<x>` is required, `[x]` optional. */
     readonly arguments?: string;
+    readonly examples?: readonly string[];
+    readonly jsonOutput?: unknown;
     readonly options?: Readonly<Record<string, OptionSpec>>;
     /** The words that select it, such as ["agents", "sessions", "list"]. */
     readonly path: readonly string[];
