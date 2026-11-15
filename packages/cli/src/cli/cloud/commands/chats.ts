@@ -33,6 +33,7 @@ import {
 import { queryWorkspaceTool } from './workspace.js';
 import { safeJson } from '@dexto/tui/signal-text';
 import { importClaudeExport } from './claude-export.js';
+import { ImportedSchema, type ImportedChat } from './import-client.js';
 import { readClaudeExport } from '../../import/claude-export.js';
 
 const FIND_OPTIONS = {
@@ -59,12 +60,6 @@ const FIND_OPTIONS = {
         valueName: 'DATE',
     },
 } as const satisfies Record<string, OptionSpec>;
-
-const ImportedSchema = z.object({
-    session: z.object({ id: z.string() }),
-    status: z.enum(['already_imported', 'imported']),
-    url: z.string(),
-});
 
 function localQuery(input: CommandInput): LocalChatQuery {
     const from = stringOption(input, 'from');
@@ -130,6 +125,7 @@ const local: Command = {
 
 interface SessionResult {
     readonly chatId?: string;
+    readonly continuation?: ImportedChat['continuation'];
     readonly id: string;
     /** How many of the session's oldest messages were left out to fit the import's bounds. */
     readonly leftOut?: number;
@@ -202,6 +198,9 @@ const importChats: Command = {
                     );
                     return {
                         ...result,
+                        ...(imported.continuation === undefined
+                            ? {}
+                            : { continuation: imported.continuation }),
                         chatId: imported.session.id,
                         status: imported.status,
                         url: imported.url,

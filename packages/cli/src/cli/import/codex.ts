@@ -6,6 +6,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import {
+    answeredBy,
     createTurns,
     finishChat,
     isRecord,
@@ -14,6 +15,7 @@ import {
     toolCallText,
     toolResultText,
     validTime,
+    type AnsweredBy,
     type ParsedChat,
 } from './transcript.js';
 
@@ -25,6 +27,7 @@ const CODEX_INJECTED =
  * A Codex rollout: `{timestamp, type, payload}` lines, as `codex-rs/history` writes them. The
  * `session_meta` line names the thread and its git remote; `response_item` lines carry messages and
  * tool calls. Developer and system messages, injected context, reasoning and compaction are left out.
+ * Each `turn_context` line names the model and effort for the turns after it, until the next one.
  * `titleOf` gives the title Codex keeps for a thread, or null when it keeps none.
  */
 export function parseCodexRollout(
@@ -37,6 +40,7 @@ export function parseCodexRollout(
     let cwd: string | null = null;
     let gitBranch: string | null = null;
     let remoteUrl: string | null = null;
+    let model: AnsweredBy | null = null;
     for (const line of jsonLines(text)) {
         const payload = line.payload;
         if (!isRecord(payload)) continue;
@@ -49,36 +53,42 @@ export function parseCodexRollout(
             }
             continue;
         }
+        if (line.type === 'turn_context') {
+            model = answeredBy(payload.model, payload.effort);
+            continue;
+        }
         const at = validTime(stringField(line, 'timestamp'));
         if (line.type !== 'response_item' || at === null) continue;
         switch (payload.type) {
             case 'message': {
                 const said = codexContentText(payload.content);
                 if (payload.role === 'user' && !CODEX_INJECTED.test(said)) turns.user(said, at);
-                if (payload.role === 'assistant') turns.assistant(said, at);
+                if (payload.role === 'assistant') turns.assistant(said, at, model);
                 break;
             }
             case 'function_call':
                 turns.assistant(
                     toolCallText(stringField(payload, 'name') ?? 'tool', payload.arguments ?? ''),
-                    at
+                    at,
+                    model
                 );
                 break;
             case 'custom_tool_call':
                 turns.assistant(
                     toolCallText(stringField(payload, 'name') ?? 'tool', payload.input ?? ''),
-                    at
+                    at,
+                    model
                 );
                 break;
             case 'local_shell_call': {
                 const action = isRecord(payload.action) ? payload.action : {};
                 const command = Array.isArray(action.command) ? action.command : [];
-                turns.assistant(toolCallText('shell', { command }), at);
+                turns.assistant(toolCallText('shell', { command }), at, model);
                 break;
             }
             case 'function_call_output':
             case 'custom_tool_call_output':
-                turns.assistant(toolResultText(codexOutputText(payload.output)), at);
+                turns.assistant(toolResultText(codexOutputText(payload.output)), at, model);
                 break;
         }
     }

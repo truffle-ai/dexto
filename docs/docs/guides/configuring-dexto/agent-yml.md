@@ -79,7 +79,7 @@ mcpServers:
 
 # Permissions
 permissions:
-  mode: manual
+  mode: asks-you
   timeout: 120000
   allowedToolsStorage: storage
   toolPolicies:
@@ -356,8 +356,8 @@ Tool approval and confirmation behavior.
 
 ```yaml
 permissions:
-  mode: manual | auto-approve  # Default: manual
-  timeout: number               # Default: 120000ms
+  mode: full-access | asks-you  # Default: full-access ("Full access"); asks-you is "Asks you"
+  timeout: number               # Optional; omit to wait indefinitely
   allowedToolsStorage: memory | storage  # Default: storage
   toolPolicies:                 # Optional
     alwaysAllow: [string]       # Never require approval
@@ -372,7 +372,7 @@ permissions:
 
 ```yaml
 permissions:
-  mode: manual
+  mode: asks-you
   toolPolicies:
     alwaysAllow:
       - ask_user

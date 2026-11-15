@@ -6,6 +6,7 @@ import React, {
     useEffect,
     useMemo,
 } from 'react';
+import { realpathSync } from 'node:fs';
 import { Box, Text, useStdout } from 'ink';
 import type {
     HostRuntimeContext,
@@ -19,7 +20,7 @@ import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.j
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { SignalDiff } from './renderers/SignalDiff.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
-import { formatApprovalScope } from '../utils/approvalScope.js';
+import { formatApprovalScope, isEditInWorkspace } from '../utils/approvalScope.js';
 import { formatToolHeader, makeRelativePath } from '../utils/messageFormatting.js';
 import { DiffInsetContext } from './renderers/diff-shared.js';
 import { GateFrame, glyphText, tone, useCaps } from '../signal/index.js';
@@ -140,7 +141,10 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Check if this is an edit/write file tool
         const isEditOrWriteTool = isEditWriteTool(toolName);
-        const canAcceptEdits = canRemember && isEditOrWriteTool && approvalKey === undefined;
+        const canAcceptEdits =
+            canRemember &&
+            isEditOrWriteTool &&
+            isEditInWorkspace(approvalKey, realpathSync(process.cwd()));
 
         // Format tool header using shared utility (same format as tool messages)
         const presentationSnapshot = useMemo(() => {

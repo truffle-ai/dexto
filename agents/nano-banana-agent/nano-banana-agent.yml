@@ -55,7 +55,7 @@ mcpServers:
     timeout: 60000
 
 permissions:
-  mode: "auto-approve"
+  mode: full-access
   allowedToolsStorage: "memory"
 
 llm:

@@ -26,7 +26,11 @@ export interface UpdateInfo {
 }
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const GITHUB_RELEASES_LATEST_URL = 'https://api.github.com/repos/truffle-ai/dexto/releases/latest';
+/**
+ * The CLI's own published version. Not GitHub's latest release: in this monorepo that is whichever
+ * package released last (such as `@dexto/image-logger-agent@1.18.1`), whose version is not the CLI's.
+ */
+const NPM_LATEST_URL = 'https://registry.npmjs.org/dexto/latest';
 const CACHE_FILE_PATH = path.join(os.homedir(), '.dexto', 'cache', 'version-check.json');
 
 function debugLog(message: string): void {
@@ -97,63 +101,48 @@ async function saveCache(cache: VersionCache): Promise<void> {
     }
 }
 
-function normalizeReleaseTag(tagName: string): string | null {
-    const trimmed = tagName.trim();
-    if (trimmed.length === 0) {
-        return null;
-    }
-
-    // GitHub releases in this monorepo can include scoped package tags like
-    // "@dexto/tools-filesystem@1.6.10". Always extract a trailing semver.
-    const trailingSemverMatch = trimmed.match(
-        /(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/
-    );
-    if (!trailingSemverMatch) {
-        return null;
-    }
-
-    const version = trailingSemverMatch[1]?.trim();
-    return version && version.length > 0 ? version : null;
-}
-
-function extractLatestVersionFromRelease(payload: unknown): string | null {
+/** The `version` of npm's `latest` manifest for `dexto`, when it is a semver. */
+function extractLatestVersion(payload: unknown): string | null {
     if (!payload || typeof payload !== 'object') {
         return null;
     }
 
-    const tagName = Reflect.get(payload, 'tag_name');
-    if (typeof tagName !== 'string') {
+    const version = Reflect.get(payload, 'version');
+    if (typeof version !== 'string') {
         return null;
     }
 
-    return normalizeReleaseTag(tagName);
+    const trimmed = version.trim();
+    return /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(trimmed)
+        ? trimmed
+        : null;
 }
 
 /**
- * Fetch latest version from GitHub Releases
+ * Fetch the CLI's latest version from npm
  */
-async function fetchLatestVersion(): Promise<string | null> {
+async function fetchLatestVersion(timeoutMs: number): Promise<string | null> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        const response = await fetch(GITHUB_RELEASES_LATEST_URL, {
+        const response = await fetch(NPM_LATEST_URL, {
             signal: controller.signal,
             headers: {
-                Accept: 'application/vnd.github+json',
+                Accept: 'application/json',
                 'User-Agent': 'dexto-cli-version-check',
             },
         });
 
         if (!response.ok) {
-            debugLog(`GitHub releases API returned status ${response.status}`);
+            debugLog(`npm registry returned status ${response.status}`);
             return null;
         }
 
         const data = (await response.json()) as unknown;
-        const latestVersion = extractLatestVersionFromRelease(data);
+        const latestVersion = extractLatestVersion(data);
         if (!latestVersion) {
-            debugLog('GitHub releases API response missing valid tag_name');
+            debugLog('npm registry response missing a valid version');
             return null;
         }
 
@@ -189,7 +178,10 @@ async function fetchLatestVersion(): Promise<string | null> {
  * }
  * ```
  */
-export async function checkForUpdates(currentVersion: string): Promise<UpdateInfo | null> {
+export async function checkForUpdates(
+    currentVersion: string,
+    options: { timeoutMs?: number } = {}
+): Promise<UpdateInfo | null> {
     // Check if update checks are disabled
     if (process.env.DEXTO_NO_UPDATE_CHECK === 'true') {
         debugLog('Version check disabled via DEXTO_NO_UPDATE_CHECK');
@@ -219,12 +211,21 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
             }
         }
 
-        // Cache expired or invalid - fetch from GitHub releases
-        debugLog('Fetching latest version from GitHub releases');
-        const latestVersion = await fetchLatestVersion();
+        // Cache expired or invalid - fetch from npm
+        debugLog('Fetching latest version from npm');
+        const latestVersion = await fetchLatestVersion(options.timeoutMs ?? 5000);
 
         if (!latestVersion) {
-            return null;
+            // Cached for the TTL, so an offline or sandboxed machine doesn't wait for npm again on
+            // every start, keeping a newer version this install already knew of.
+            const known =
+                cache && cache.currentVersion === currentVersion
+                    ? cache.latestVersion
+                    : currentVersion;
+            await saveCache({ lastCheck: now, latestVersion: known, currentVersion });
+            return compareSemver(known, currentVersion) > 0
+                ? { current: currentVersion, latest: known, updateCommand: 'dexto upgrade' }
+                : null;
         }
 
         // Update cache
@@ -294,4 +295,27 @@ export function displayUpdateNotification(updateInfo: UpdateInfo): void {
             borderStyle: 'round',
         })
     );
+}
+
+/**
+ * What the cache alone says, without touching the network: the update it knows of, and whether it
+ * is due a refresh. For a notice that must never hold a command up.
+ */
+export async function readCachedUpdate(
+    currentVersion: string
+): Promise<{ stale: boolean; update: UpdateInfo | null }> {
+    if (process.env.DEXTO_NO_UPDATE_CHECK === 'true') return { stale: false, update: null };
+    const cache = await loadCache();
+    if (!cache || cache.currentVersion !== currentVersion) return { stale: true, update: null };
+    return {
+        stale: Date.now() - cache.lastCheck >= CACHE_TTL_MS,
+        update:
+            compareSemver(cache.latestVersion, currentVersion) > 0
+                ? {
+                      current: currentVersion,
+                      latest: cache.latestVersion,
+                      updateCommand: 'dexto upgrade',
+                  }
+                : null,
+    };
 }

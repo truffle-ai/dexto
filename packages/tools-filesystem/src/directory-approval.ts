@@ -110,9 +110,16 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                                   : path.dirname(canonicalPath),
                       };
 
-            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(paths.path);
-            if (isAllowed) {
-                return false;
+            // Reads inside the configured roots never ask. Writes and edits always return a key, so
+            // the Asks you mode asks before changing workspace files too; Full access settles the
+            // key without asking.
+            if (options.operation === 'read') {
+                const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(
+                    paths.path
+                );
+                if (isAllowed) {
+                    return false;
+                }
             }
 
             const approvalManager = context.services?.approval;

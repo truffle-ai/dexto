@@ -5,9 +5,11 @@ import { Collapsible } from '../../ui/collapsible';
 import type { AgentConfig } from '@dexto/agent-config';
 import {
     PERMISSIONS_MODES,
+    PERMISSIONS_MODE_LABELS,
     ALLOWED_TOOLS_STORAGE_TYPES,
     DEFAULT_PERMISSIONS_MODE,
     DEFAULT_ALLOWED_TOOLS_STORAGE,
+    resolvePermissionsMode,
 } from '@dexto/core';
 
 type PermissionsConfig = NonNullable<AgentConfig['permissions']>;
@@ -34,6 +36,9 @@ export function PermissionsSection({
     const handleChange = (updates: Partial<PermissionsConfig>) => {
         onChange({ ...value, ...updates });
     };
+
+    // Deprecated values (manual, auto-approve) display as the mode they map to.
+    const mode = resolvePermissionsMode(value.mode ?? DEFAULT_PERMISSIONS_MODE);
 
     const updateAllowedToolsStorage = (type: 'memory' | 'storage') => {
         onChange({
@@ -62,29 +67,32 @@ export function PermissionsSection({
                     </LabelWithTooltip>
                     <select
                         id="confirmation-mode"
-                        value={value.mode || DEFAULT_PERMISSIONS_MODE}
-                        onChange={(e) =>
-                            handleChange({
-                                mode: e.target.value as 'auto-approve' | 'manual',
-                            })
-                        }
+                        value={mode}
+                        onChange={(e) => {
+                            const selected = PERMISSIONS_MODES.find(
+                                (option) => option === e.target.value
+                            );
+                            if (selected !== undefined) {
+                                handleChange({ mode: selected });
+                            }
+                        }}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
-                        {PERMISSIONS_MODES.map((mode) => (
-                            <option key={mode} value={mode}>
-                                {mode === 'auto-approve' ? 'Auto-approve' : 'Manual'}
+                        {PERMISSIONS_MODES.map((option) => (
+                            <option key={option} value={option}>
+                                {PERMISSIONS_MODE_LABELS[option]}
                             </option>
                         ))}
                     </select>
                     <p className="text-xs text-muted-foreground mt-1">
-                        {value.mode === 'manual'
-                            ? 'Require explicit approval before executing tools'
-                            : 'Automatically approve tool executions'}
+                        {mode === 'asks-you'
+                            ? 'Asks you before file edits, shell commands and other approval-sensitive tools'
+                            : 'Runs tools without asking'}
                     </p>
                 </div>
 
                 {/* Timeout */}
-                {value.mode === 'manual' && (
+                {mode === 'asks-you' && (
                     <div>
                         <LabelWithTooltip
                             htmlFor="confirmation-timeout"

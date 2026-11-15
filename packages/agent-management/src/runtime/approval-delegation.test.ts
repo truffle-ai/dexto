@@ -121,7 +121,7 @@ describe('createDelegatingApprovalHandler', () => {
         const parentApprovalManager = new ApprovalManager(
             {
                 elicitation: { enabled: false },
-                permissions: { mode: 'auto-approve' },
+                permissions: { mode: 'full-access' },
             },
             createMockLogger(),
             createMockApprovalStore()
@@ -160,7 +160,7 @@ describe('createDelegatingApprovalHandler', () => {
     it('asks the person for an always-ask call when sub-agent and parent both auto-approve', async () => {
         const autoApproveConfig = {
             elicitation: { enabled: false },
-            permissions: { mode: 'auto-approve' as const },
+            permissions: { mode: 'full-access' as const },
         };
         const parentApprovalManager = new ApprovalManager(
             autoApproveConfig,

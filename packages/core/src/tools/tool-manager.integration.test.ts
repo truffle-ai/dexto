@@ -167,7 +167,7 @@ describe('ToolManager Integration Tests', () => {
         approvalManager = createApprovalManager(
             {
                 permissions: {
-                    mode: 'auto-approve',
+                    mode: 'full-access',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -223,7 +223,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -252,7 +252,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [internalSearchHistoryTool],
@@ -306,7 +306,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [internalSearchHistoryTool],
@@ -364,7 +364,7 @@ describe('ToolManager Integration Tests', () => {
             const autoApproveManager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-approve',
+                        mode: 'full-access',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -395,7 +395,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpMgr,
                 autoApproveManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -411,7 +411,7 @@ describe('ToolManager Integration Tests', () => {
         const sessionId = 'session-always-ask';
 
         function setUp(options: {
-            mode: 'manual' | 'auto-approve';
+            mode: 'asks-you' | 'full-access';
             allow: 'none' | 'always-allow' | 'session-allowed';
         }) {
             const execute = vi.fn(async (input: { value: string }) => `ran ${input.value}`);
@@ -459,7 +459,7 @@ describe('ToolManager Integration Tests', () => {
             return { allowTool, approvals, call, execute, handler, toolManager };
         }
 
-        const everyMode = (['manual', 'auto-approve'] as const).flatMap((mode) =>
+        const everyMode = (['asks-you', 'full-access'] as const).flatMap((mode) =>
             (['none', 'always-allow', 'session-allowed'] as const).map((allow) => ({
                 allow,
                 mode,
@@ -491,7 +491,10 @@ describe('ToolManager Integration Tests', () => {
         );
 
         it('asks afresh after a remembered approval key for the same tool', async () => {
-            const { call, execute, handler, approvals } = setUp({ mode: 'manual', allow: 'none' });
+            const { call, execute, handler, approvals } = setUp({
+                mode: 'asks-you',
+                allow: 'none',
+            });
 
             await call('call-draft', 'draft');
             await call('call-draft-again', 'draft');
@@ -510,7 +513,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('does not run the call when the person denies it in auto-approve mode', async () => {
-            const { call, execute, handler } = setUp({ mode: 'auto-approve', allow: 'none' });
+            const { call, execute, handler } = setUp({ mode: 'full-access', allow: 'none' });
             handler.mockImplementationOnce(async (request: ApprovalRequest) => ({
                 approvalId: request.approvalId,
                 status: ApprovalStatus.DENIED,
@@ -522,7 +525,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('records the fresh approval request before the call runs', async () => {
-            const { toolManager, execute } = setUp({ mode: 'auto-approve', allow: 'always-allow' });
+            const { toolManager, execute } = setUp({ mode: 'full-access', allow: 'always-allow' });
 
             const prepared = await toolManager.prepareToolCall({
                 input: { value: 'publish' },
@@ -544,7 +547,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('describes an always-ask tool as possibly needing approval in auto-approve mode', async () => {
-            const { toolManager } = setUp({ mode: 'auto-approve', allow: 'none' });
+            const { toolManager } = setUp({ mode: 'full-access', allow: 'none' });
 
             await expect(toolManager.getToolDescriptor('publish_post')).resolves.toEqual(
                 expect.objectContaining({ approval: 'possible' })
@@ -567,7 +570,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [internalSearchHistoryTool],
@@ -606,7 +609,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -629,7 +632,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [createSearchHistoryTool(failingSearchService)],
@@ -675,7 +678,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -717,7 +720,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -762,7 +765,7 @@ describe('ToolManager Integration Tests', () => {
 
             const manualApprovalManager = createApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120_000 },
+                    permissions: { mode: 'asks-you', timeout: 120_000 },
                     elicitation: { enabled: true, timeout: 120_000 },
                 },
                 mockLogger
@@ -771,7 +774,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -848,7 +851,7 @@ describe('ToolManager Integration Tests', () => {
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
-                'auto-approve',
+                'full-access',
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [internalSearchHistoryTool],

@@ -66,6 +66,7 @@ import {
     loadImage,
     resolveServicesFromConfig,
     toDextoAgentOptions,
+    type AgentConfig,
     type DextoImage,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
@@ -92,6 +93,7 @@ import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.j
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import {
     applyCLIOverrides,
+    getPermissionsModeDeprecationWarning,
     applyStartupLLMFallback,
     applyUserPreferences,
 } from './config/cli-overrides.js';
@@ -127,6 +129,30 @@ const USAGE_ERRORS: ReadonlySet<string> = new Set([
 ]);
 program.exitOverride((error) => {
     if (USAGE_ERRORS.has(error.code)) process.exit(2);
+});
+// Every command but the interactive CLI, which shows its own, and `upgrade` itself tells a person
+// at a terminal that this CLI is out of date (DEXTO-3134). Never in a JSON mode, whose stderr holds
+// only its failure. A fresh cache answers at once; a stale one is refreshed here, held to 1.5 s,
+// since most commands end in process.exit, which would cut a background refresh short. A failed
+// lookup is cached too, so this waits at most once a day.
+program.hook('preAction', async (_program, actionCommand) => {
+    if (actionCommand === program || actionCommand.name() === 'upgrade') return;
+    const argv = process.argv.slice(2);
+    if (
+        process.stdout.isTTY !== true ||
+        process.stderr.isTTY !== true ||
+        argv.includes('--json') ||
+        argv.includes('--stream-json')
+    )
+        return;
+    const { checkForUpdates, displayUpdateNotification, readCachedUpdate } = await import(
+        './cli/utils/version-check.js'
+    );
+    const cached = await readCachedUpdate(cliVersion);
+    const update = cached.stale
+        ? await checkForUpdates(cliVersion, { timeoutMs: 1500 })
+        : cached.update;
+    if (update !== null) displayUpdateNotification(update);
 });
 
 /** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */
@@ -216,12 +242,15 @@ program
         new Option(
             '--permissions-mode <mode>',
             "Override the local agent's configured approval mode"
-        ).choices(['manual', 'auto-approve'])
+        ).choices(['full-access', 'asks-you', 'manual', 'auto-approve'])
     )
-    .option('--auto-approve', 'Select auto-approve permissions (mandatory approvals still apply)')
+    .option(
+        '--auto-approve',
+        'Select Full access permissions (alias for --permissions-mode full-access; mandatory approvals still apply)'
+    )
     .option(
         '--bypass-permissions',
-        'Select auto-approve permissions (alias for --permissions-mode auto-approve)'
+        'Select Full access permissions (alias for --permissions-mode full-access)'
     )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session')
@@ -275,6 +304,14 @@ program
         })
     );
 
+// Printed to stderr so headless JSON output and MCP stdio stay clean.
+function printPermissionsModeDeprecation(config: AgentConfig): void {
+    const warning = getPermissionsModeDeprecationWarning(config);
+    if (warning !== null) {
+        console.warn(`⚠️  ${warning}`);
+    }
+}
+
 // Helper to bootstrap a minimal agent for non-interactive commands
 async function bootstrapAgentFromGlobalOpts(options: {
     mode: BootstrapAgentMode;
@@ -319,6 +356,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         ...globalOpts,
         ...(modelOverride ? { model: modelOverride } : {}),
     });
+    printPermissionsModeDeprecation(mergedConfig);
     if (effectiveModel) {
         mergedConfig.llm.model = effectiveModel;
     }
@@ -644,6 +682,7 @@ program
                     // Load raw config and apply CLI overrides
                     const rawConfig = await loadAgentConfig(resolvedPath);
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+                    printPermissionsModeDeprecation(mergedConfig);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
                     // User's LLM preferences from preferences.yml apply to ALL agents

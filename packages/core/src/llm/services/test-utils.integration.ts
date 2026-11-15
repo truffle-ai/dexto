@@ -104,7 +104,7 @@ export const TestConfigs = {
                 sessionTTL: 60000, // 60s for tests
             }),
             permissions: PermissionsConfigSchema.parse({
-                mode: 'auto-approve', // Tests don't have interactive approval
+                mode: 'full-access', // Tests don't have interactive approval
                 timeout: 120000,
             }),
             elicitation: ElicitationConfigSchema.parse({
@@ -147,7 +147,7 @@ export const TestConfigs = {
                 sessionTTL: 60000,
             }),
             permissions: PermissionsConfigSchema.parse({
-                mode: 'auto-approve', // Tests don't have interactive approval
+                mode: 'full-access', // Tests don't have interactive approval
                 timeout: 120000,
             }),
             elicitation: ElicitationConfigSchema.parse({
@@ -211,7 +211,7 @@ export const TestConfigs = {
                 sessionTTL: 60000,
             }),
             permissions: PermissionsConfigSchema.parse({
-                mode: 'auto-approve', // Tests don't have interactive approval
+                mode: 'full-access', // Tests don't have interactive approval
                 timeout: 120000,
             }),
             elicitation: ElicitationConfigSchema.parse({

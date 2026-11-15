@@ -108,7 +108,7 @@ storage:
     cleanupAfterDays: 30
 
 permissions:
-  mode: manual
+  mode: asks-you
   # timeout: omitted = infinite wait (no timeout for CLI)
   allowedToolsStorage: storage  # Persist allowed tools across sessions
 

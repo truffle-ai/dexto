@@ -4,6 +4,17 @@ import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { ErrorRetryDisposition } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 
+/**
+ * A failed model request that the host's request auth classified as retryable, such as a gateway
+ * credential that expired and that the host renews on the next attempt.
+ */
+export class HostRetryableModelRequestError extends APICallError {}
+
+/** A 401 is final, unless the host owns the credential and said the next attempt can succeed. */
+export function isRejectedCredential(error: APICallError): boolean {
+    return error.statusCode === 401 && !(error instanceof HostRetryableModelRequestError);
+}
+
 const INSUFFICIENT_CREDITS_BALANCE_PATTERN =
     /Insufficient credits\. Balance: \$(-?\d+(?:\.\d+)?)\./;
 
@@ -186,7 +197,6 @@ function errorCodeForStatus(
 ): LLMErrorCode {
     if (status === 402) return LLMErrorCode.INSUFFICIENT_CREDITS;
     if (status === 429) return LLMErrorCode.RATE_LIMIT_EXCEEDED;
-    if (status === 401) return LLMErrorCode.AUTH_FAILED;
     if (
         status === 400 &&
         (details.openRouterProviderRawCode === 'invalid_function_parameters' ||
@@ -282,7 +292,10 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
     const details = extractProviderErrorDetails(input);
     const status = input.error.statusCode;
     const message = providerMessage(details, input.error.message);
-    const code = errorCodeForStatus(status, details);
+    const rejectedCredential = isRejectedCredential(input.error);
+    const code = rejectedCredential
+        ? LLMErrorCode.AUTH_FAILED
+        : errorCodeForStatus(status, details);
     const type = errorTypeForStatus(status);
     const retryDisposition = retryDispositionForProviderError(details);
 
@@ -307,7 +320,7 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
         );
     }
 
-    if (status === 401) {
+    if (rejectedCredential) {
         const dexto = input.provider === 'dexto-nova';
         return new DextoRuntimeError(
             code,

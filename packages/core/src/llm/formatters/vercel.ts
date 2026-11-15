@@ -15,6 +15,7 @@ import {
 } from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
+import { buildUnsendableFileNote, isFileMediaTypeSendable } from './provider-file-support.js';
 
 type RemoteToolMedia =
     | { type: 'image'; image: URL; mediaType: string }
@@ -331,6 +332,18 @@ export class VercelMessageFormatter {
                                               const textPart = filePartToText(part);
                                               if (textPart) return textPart;
 
+                                              if (
+                                                  !isFileMediaTypeSendable(context, part.mimeType)
+                                              ) {
+                                                  this.logger.warn(
+                                                      `Replaced attachment "${part.filename ?? 'unnamed'}" (${part.mimeType}) with a text note: ${context.provider} cannot receive that file type`
+                                                  );
+                                                  return {
+                                                      type: 'text' as const,
+                                                      text: buildUnsendableFileNote(part),
+                                                  };
+                                              }
+
                                               return {
                                                   type: 'file' as const,
                                                   data: toUrlIfString(part.data),
@@ -387,7 +400,7 @@ export class VercelMessageFormatter {
                 case 'tool':
                     // Only add if we've seen the corresponding tool call
                     if (msg.toolCallId && pendingToolCalls.has(msg.toolCallId)) {
-                        const toolResult = this.formatToolMessage(msg);
+                        const toolResult = this.formatToolMessage(msg, context);
                         formatted.push(toolResult.message);
                         pendingRemoteToolMedia.push(...toolResult.remoteMedia);
                         // Remove from pending since we found its result
@@ -532,7 +545,10 @@ export class VercelMessageFormatter {
     }
 
     // Helper to format Tool result messages
-    private formatToolMessage(msg: ToolMessage): {
+    private formatToolMessage(
+        msg: ToolMessage,
+        context: LLMContext
+    ): {
         message: ModelMessage;
         remoteMedia: RemoteToolMedia[];
     } {
@@ -564,6 +580,15 @@ export class VercelMessageFormatter {
                         };
                     }
                     if (part.type === 'file') {
+                        if (!isFileMediaTypeSendable(context, part.mimeType)) {
+                            this.logger.warn(
+                                `Replaced tool attachment "${part.filename ?? 'unnamed'}" (${part.mimeType}) with a text note: ${context.provider} cannot receive that file type`
+                            );
+                            return {
+                                type: 'text' as const,
+                                text: buildUnsendableFileNote(part),
+                            };
+                        }
                         const data = getFileData(part, this.logger);
                         if (/^https?:\/\//i.test(data)) {
                             remoteMedia.push({

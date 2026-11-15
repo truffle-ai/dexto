@@ -3,7 +3,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { VercelLLMService } from './vercel.js';
-import { APICallError, type LanguageModel } from 'ai';
+import type { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
@@ -23,6 +23,7 @@ import {
 } from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
+import { HostRetryableModelRequestError } from '../executor/provider-error.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
 
 function isLanguageModel(value: unknown): value is LanguageModel {
@@ -300,7 +301,7 @@ export async function createVercelModel(
               response.headers.forEach((value, key) => {
                   responseHeaders[key] = value;
               });
-              throw new APICallError({
+              throw new HostRetryableModelRequestError({
                   message: 'Host classified model request failure as retryable',
                   url:
                       typeof input === 'string'

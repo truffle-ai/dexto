@@ -960,8 +960,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                 (sessionId ? ` (sessionId: ${sessionId})` : ' (no sessionId)')
         );
 
-        // Determine permissions mode (auto-approve vs manual)
-        const permissionsMode = autoApprove ? ('auto-approve' as const) : ('manual' as const);
+        // Determine permissions mode (Full access vs Asks you)
+        const permissionsMode = autoApprove ? ('full-access' as const) : ('asks-you' as const);
 
         const parentToolPolicies = parentSettings.permissions?.toolPolicies;
         const mergeToolPolicies = (subAgentPolicies?: {

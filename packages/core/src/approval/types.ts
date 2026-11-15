@@ -285,7 +285,7 @@ export interface ApprovalHandlerContext {
  * Handler interface for processing approval requests.
  *
  * This is the core abstraction for approval handling in Dexto. When tool approval
- * mode is 'manual', a handler must be provided to process approval requests.
+ * mode is 'asks-you', a handler must be provided to process approval requests.
  *
  * The handler is a callable interface that:
  * - Processes approval requests and returns responses

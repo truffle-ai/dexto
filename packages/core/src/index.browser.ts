@@ -61,9 +61,17 @@ export {
 export { StorageErrorCode } from './storage/error-codes.js';
 
 // Tool permissions types and constants (used by webui)
-export type { PermissionsMode, AllowedToolsStorageType } from './tools/schemas.js';
+export type {
+    PermissionsMode,
+    LegacyPermissionsMode,
+    AllowedToolsStorageType,
+} from './tools/schemas.js';
 export {
     PERMISSIONS_MODES,
+    PERMISSIONS_MODE_LABELS,
+    LEGACY_PERMISSIONS_MODES,
+    getDeprecatedPermissionsModeWarning,
+    resolvePermissionsMode,
     ALLOWED_TOOLS_STORAGE_TYPES,
     DEFAULT_PERMISSIONS_MODE,
     DEFAULT_ALLOWED_TOOLS_STORAGE,

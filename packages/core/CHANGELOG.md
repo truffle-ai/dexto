@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.18.1
+
+### Patch Changes
+
+- c366586: A 401 that the host's request auth classifies as retryable (for example an expired gateway credential the host renews) is retried again instead of failing the turn with `llm_auth_failed`. Every other 401 stays final.
+    - @dexto/llm@1.18.1
+
 ## 1.18.0
 
 ### Patch Changes

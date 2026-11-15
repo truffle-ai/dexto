@@ -1195,4 +1195,173 @@ describe('VercelMessageFormatter', () => {
             expect(reasoningPart).toBeUndefined();
         });
     });
+
+    describe('provider file support', () => {
+        const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        const docxData = Buffer.from('PK\u0003\u0004 not really a docx').toString('base64');
+
+        function formatUserFile(
+            context: { provider: llm.LLMProvider; model: string },
+            file: { mimeType: string; filename: string; data?: string }
+        ) {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const result = formatter.format(
+                [
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: 'Look at this' },
+                            { type: 'file', data: file.data ?? docxData, ...file },
+                        ],
+                    },
+                ],
+                context,
+                null
+            );
+            const user = result.find((m) => m.role === 'user');
+            if (!user || typeof user.content === 'string') throw new Error('Expected user parts');
+            return user.content as Array<{ type: string; text?: string; mediaType?: string }>;
+        }
+
+        test('does not build a file part for an Office file on OpenAI', () => {
+            const content = formatUserFile(
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                { mimeType: DOCX, filename: 'report.docx' }
+            );
+
+            expect(content.some((part) => part.type === 'file')).toBe(false);
+            const note = content.find((part) => part.text?.includes('report.docx'));
+            expect(note?.type).toBe('text');
+            expect(note?.text).toContain(DOCX);
+        });
+
+        test('keeps a PDF as a file part on OpenAI', () => {
+            const content = formatUserFile(
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                { mimeType: 'application/pdf', filename: 'report.pdf' }
+            );
+
+            expect(content.find((part) => part.type === 'file')?.mediaType).toBe('application/pdf');
+        });
+
+        test('keeps a PDF as a file part on Anthropic', () => {
+            const content = formatUserFile(
+                { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+                { mimeType: 'application/pdf', filename: 'report.pdf' }
+            );
+
+            expect(content.find((part) => part.type === 'file')?.mediaType).toBe('application/pdf');
+        });
+
+        test('replaces an Office file with a note on Anthropic, which only sends images and PDFs', () => {
+            const content = formatUserFile(
+                { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+                { mimeType: DOCX, filename: 'report.docx' }
+            );
+
+            expect(content.some((part) => part.type === 'file')).toBe(false);
+            expect(content.some((part) => part.text?.includes('report.docx'))).toBe(true);
+        });
+
+        test('keeps an Office file as a file part where the adapter sends it (Bedrock, Google)', () => {
+            for (const context of [
+                { provider: 'bedrock', model: 'anthropic.claude-sonnet-4-6' },
+                { provider: 'google', model: 'gemini-3-flash-preview' },
+            ] as const) {
+                const content = formatUserFile(context, {
+                    mimeType: DOCX,
+                    filename: 'report.docx',
+                });
+                expect(content.find((part) => part.type === 'file')?.mediaType).toBe(DOCX);
+            }
+        });
+
+        test('replaces a remote text file with a note when the adapter cannot send it', () => {
+            const content = formatUserFile(
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                {
+                    mimeType: 'text/plain',
+                    filename: 'notes.txt',
+                    data: 'https://example.com/notes.txt',
+                }
+            );
+
+            expect(content.some((part) => part.type === 'file')).toBe(false);
+            expect(content.some((part) => part.text?.includes('notes.txt'))).toBe(true);
+        });
+
+        test('does not send an Office file returned by a tool as media', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const result = formatter.format(
+                [
+                    { role: 'user', content: [{ type: 'text', text: 'Make a doc' }] },
+                    {
+                        role: 'assistant',
+                        content: [],
+                        assistantOutput: { status: 'complete' },
+                        toolCalls: [
+                            {
+                                id: 'call-1',
+                                type: 'function',
+                                function: { name: 'make_doc', arguments: '{}' },
+                            },
+                        ],
+                    },
+                    {
+                        role: 'tool',
+                        name: 'make_doc',
+                        toolCallId: 'call-1',
+                        success: true,
+                        content: [
+                            { type: 'file', data: docxData, mimeType: DOCX, filename: 'out.docx' },
+                        ],
+                    },
+                ],
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+
+            const tool = result.find((m) => m.role === 'tool');
+            expect(JSON.stringify(tool)).toContain('out.docx');
+            expect(JSON.stringify(tool)).not.toContain('"type":"media"');
+        });
+
+        test('does not forward a remote Office file returned by a tool as a user file part', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const result = formatter.format(
+                [
+                    {
+                        role: 'assistant',
+                        content: [],
+                        assistantOutput: { status: 'complete' },
+                        toolCalls: [
+                            {
+                                id: 'call-1',
+                                type: 'function',
+                                function: { name: 'make_doc', arguments: '{}' },
+                            },
+                        ],
+                    },
+                    {
+                        role: 'tool',
+                        name: 'make_doc',
+                        toolCallId: 'call-1',
+                        success: true,
+                        content: [
+                            {
+                                type: 'file',
+                                data: 'https://example.com/out.docx',
+                                mimeType: DOCX,
+                                filename: 'out.docx',
+                            },
+                        ],
+                    },
+                ],
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+
+            expect(JSON.stringify(result)).not.toContain('"type":"file"');
+        });
+    });
 });

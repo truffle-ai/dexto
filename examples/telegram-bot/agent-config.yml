@@ -41,9 +41,9 @@ systemPrompt: |
   Always provide helpful, accurate, and friendly responses in plain text format.
 
 # Permissions Configuration
-# Telegram bots auto-approve tool calls, so we disable approvals
+# Telegram bots run with Full access, so we disable approvals
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 # Storage Configuration

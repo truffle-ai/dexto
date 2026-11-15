@@ -1,6 +1,7 @@
 import { APICallError, generateText } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 import { LLMConfigSchema } from '../schemas.js';
+import { HostRetryableModelRequestError } from '../executor/provider-error.js';
 import { createVercelModel } from './factory.js';
 
 describe('runtime request provenance', () => {
@@ -42,6 +43,7 @@ describe('runtime request provenance', () => {
         expect(seen).toEqual(['attempt-one']);
         expect(APICallError.isInstance(error)).toBe(true);
         expect(error).toMatchObject({ statusCode: 401, isRetryable: true });
+        expect(error).toBeInstanceOf(HostRetryableModelRequestError);
     });
     it('leaves a host-declined failure non-retryable', async () => {
         const model = await createVercelModel(
@@ -75,6 +77,7 @@ describe('runtime request provenance', () => {
         }
         expect(APICallError.isInstance(error)).toBe(true);
         expect(error).toMatchObject({ statusCode: 401, isRetryable: false });
+        expect(error).not.toBeInstanceOf(HostRetryableModelRequestError);
     });
 });
 

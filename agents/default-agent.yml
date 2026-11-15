@@ -84,7 +84,7 @@ storage:
     cleanupAfterDays: 30
 
 permissions:
-  mode: manual
+  mode: asks-you
   # timeout: <optional>      # Time to wait for approval (ms). Omit for no timeout (wait indefinitely)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
@@ -98,7 +98,7 @@ permissions:
       - mcp--list_allowed_directories
 
 # Elicitation configuration - separate from tool confirmation
-# Allows auto-approve for tools while still supporting user input requests
+# Allows Full access for tools while still supporting user input requests
 elicitation:
   enabled: true            # Enable ask_user tool and MCP server elicitations
   # timeout: <optional>    # Time to wait for user input (ms). Omit for no timeout (wait indefinitely)

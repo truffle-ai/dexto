@@ -18,9 +18,10 @@ import {
     applyCLIOverrides,
     applyStartupLLMFallback,
     applyUserPreferences,
+    getPermissionsModeDeprecationWarning,
     type CLIConfigOverrides,
 } from './cli-overrides.js';
-import type { AgentConfig } from '@dexto/agent-config';
+import { AgentConfigSchema, type AgentConfig } from '@dexto/agent-config';
 // Note: applyUserPreferences accepts Partial<GlobalPreferences> since it only uses the llm field
 
 function clone<T>(obj: T): T {
@@ -43,7 +44,7 @@ describe('CLI Overrides', () => {
             apiKey: 'file-api-key',
         },
         permissions: {
-            mode: 'manual',
+            mode: 'asks-you',
             timeout: 120000,
             allowedToolsStorage: 'storage',
         },
@@ -135,29 +136,56 @@ describe('CLI Overrides', () => {
         expect(result.llm.apiKey).toBe('file-api-key'); // Original (undefined ignored)
     });
 
-    test('selects manual permissions explicitly without changing configured rules', () => {
-        const overrides: CLIConfigOverrides = { permissionsMode: 'manual' };
+    test('selects asks-you permissions explicitly without changing configured rules', () => {
+        const overrides: CLIConfigOverrides = { permissionsMode: 'asks-you' };
         const automatic = {
             ...clone(baseConfig),
-            permissions: { ...baseConfig.permissions, mode: 'auto-approve' as const },
+            permissions: { ...baseConfig.permissions, mode: 'full-access' as const },
         };
         const result = applyCLIOverrides(automatic, overrides);
-        expect(result.permissions?.mode).toBe('manual');
+        expect(result.permissions?.mode).toBe('asks-you');
         expect(result.permissions?.timeout).toBe(120000);
-        expect(automatic.permissions?.mode).toBe('auto-approve');
+        expect(automatic.permissions?.mode).toBe('full-access');
+        expect(getPermissionsModeDeprecationWarning(result)).toBeNull();
     });
 
-    test('rejects contradictory manual mode and auto-approval aliases', () => {
-        expect(() =>
-            applyCLIOverrides(clone(baseConfig), { permissionsMode: 'manual', autoApprove: true })
-        ).toThrow('conflicts');
-        expect(() =>
-            applyCLIOverrides(clone(baseConfig), {
-                permissionsMode: 'manual',
-                bypassPermissions: true,
-            })
-        ).toThrow('conflicts');
+    test.each([
+        ['manual', 'asks-you'],
+        ['auto-approve', 'full-access'],
+    ] as const)(
+        'passes a deprecated --permissions-mode %s through with a warning naming %s',
+        (legacy, replacement) => {
+            const result = applyCLIOverrides(clone(baseConfig), { permissionsMode: legacy });
+            expect(result.permissions?.mode).toBe(legacy);
+            expect(getPermissionsModeDeprecationWarning(result)).toContain(`use "${replacement}"`);
+            expect(AgentConfigSchema.parse(result).permissions.mode).toBe(replacement);
+        }
+    );
+
+    test('warns about a deprecated mode in the agent file', () => {
+        const legacy = {
+            ...clone(baseConfig),
+            permissions: { ...baseConfig.permissions, mode: 'manual' as const },
+        };
+        expect(getPermissionsModeDeprecationWarning(applyCLIOverrides(legacy, {}))).toContain(
+            'use "asks-you"'
+        );
     });
+
+    test.each(['asks-you', 'manual'] as const)(
+        'rejects contradictory %s mode and full-access aliases',
+        (permissionsMode) => {
+            expect(() =>
+                applyCLIOverrides(clone(baseConfig), { permissionsMode, autoApprove: true })
+            ).toThrow('conflicts');
+            expect(() =>
+                applyCLIOverrides(clone(baseConfig), {
+                    permissionsMode,
+                    bypassPermissions: true,
+                })
+            ).toThrow('conflicts');
+        }
+    );
 
     test('preserves configured permissions when no mode override is selected', () => {
         const result = applyCLIOverrides(clone(baseConfig), {
@@ -167,14 +195,14 @@ describe('CLI Overrides', () => {
         expect(result.permissions).toEqual(baseConfig.permissions);
     });
 
-    test('sets permissions mode to auto-approve when override enabled', () => {
+    test('sets permissions mode to full-access when override enabled', () => {
         const cliOverrides: CLIConfigOverrides = {
             autoApprove: true,
         };
 
         const result = applyCLIOverrides(clone(baseConfig), cliOverrides);
 
-        expect(result.permissions?.mode).toBe('auto-approve');
+        expect(result.permissions?.mode).toBe('full-access');
         expect(result.permissions?.timeout).toBe(120000); // Existing fields preserved
     });
 });

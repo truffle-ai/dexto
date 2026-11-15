@@ -38,7 +38,7 @@ async function openPermissions() {
             .fn()
             .mockResolvedValue([{ kind: 'action', value: 'bash:git status *' }]),
         revokeSessionApproval: vi.fn().mockResolvedValue(undefined),
-        getEffectiveConfig: () => ({ permissions: { mode: 'manual' } }),
+        getEffectiveConfig: () => ({ permissions: { mode: 'asks-you' } }),
     } as unknown as TuiAgentBackend;
     const ref = createRef<PermissionsSelectorHandle>();
     let ui = createInitialState().ui;

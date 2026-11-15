@@ -1,5 +1,13 @@
 # @dexto/agent-config
 
+## 1.18.1
+
+### Patch Changes
+
+- Updated dependencies [c366586]
+    - @dexto/core@1.18.1
+    - @dexto/storage@1.18.1
+
 ## 1.18.0
 
 ### Patch Changes
