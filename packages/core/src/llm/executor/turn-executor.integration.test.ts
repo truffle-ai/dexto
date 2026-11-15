@@ -4578,6 +4578,60 @@ describe('TurnExecutor Integration Tests', () => {
             );
         });
 
+        it('keeps a chat working after the provider rejects an image in its history', async () => {
+            const createImageModelExecutor = () =>
+                new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10 },
+                    { provider: 'openai', model: 'gpt-5.2' },
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                );
+            const carriesMedia = (messages: ModelMessage[] | undefined) =>
+                (messages ?? []).some(
+                    (message) =>
+                        message.role === 'user' &&
+                        Array.isArray(message.content) &&
+                        message.content.some((part) => part.type !== 'text')
+                );
+            vi.mocked(streamText).mockImplementation((options) => {
+                if (carriesMedia(options.messages)) {
+                    throw apiCallError({
+                        message: 'Image could not be decoded',
+                        statusCode: 400,
+                        isRetryable: false,
+                    });
+                }
+                return createMockStream({ text: 'Answer' }) as unknown as ReturnType<
+                    typeof streamText
+                >;
+            });
+
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'What is in this picture?' },
+                { type: 'image', image: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+            ]);
+            await createImageModelExecutor().execute({ mcpManager }, true);
+            await contextManager.addUserMessage([{ type: 'text', text: 'And now?' }]);
+            await createImageModelExecutor().execute({ mcpManager }, true);
+
+            const requests = vi.mocked(streamText).mock.calls.map(([options]) => options.messages);
+            expect(requests.map(carriesMedia)).toEqual([true, false, false]);
+            expect(JSON.stringify(requests[1])).toContain(
+                '[Image withheld: the model provider rejected the request that carried it]'
+            );
+            const history = await contextManager.getHistory();
+            expect(history.find((message) => message.role === 'user')).toMatchObject({
+                mediaWithheldAt: expect.any(Number),
+            });
+        });
+
         it('does not retry non-retryable model request failures', async () => {
             const nonRetryableError = apiCallError({
                 message: 'Bad request',
