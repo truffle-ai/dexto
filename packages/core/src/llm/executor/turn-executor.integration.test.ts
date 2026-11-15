@@ -4940,27 +4940,18 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Stalled model streams', () => {
-        const stalledAfter = (events: Array<{ type: string; [key: string]: unknown }>) =>
+        const stalledAfter = (
+            events: Array<{ type: string; [key: string]: unknown }>,
+            readStarted: () => void
+        ) =>
             ({
                 fullStream: (async function* () {
                     yield* events;
+                    readStarted();
                     // A provider socket that stays open and never sends again, even when aborted.
                     await new Promise(() => {});
                 })(),
             }) as unknown as ReturnType<typeof streamText>;
-
-        /** Advances fake time in small steps so timers set after async work still fire. */
-        const settleWithin = async <T>(execution: Promise<T>, ms: number): Promise<T> => {
-            let settled = false;
-            const observed = execution.finally(() => {
-                settled = true;
-            });
-            observed.catch(() => {});
-            for (let elapsed = 0; elapsed < ms && !settled; elapsed += 1_000) {
-                await vi.advanceTimersByTimeAsync(1_000);
-            }
-            return observed;
-        };
 
         beforeEach(() => {
             vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
@@ -4971,8 +4962,9 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('retries a model stream that goes silent before any output', async () => {
+            const readStarted = createDeferred<void>();
             vi.mocked(streamText)
-                .mockImplementationOnce(() => stalledAfter([]))
+                .mockImplementationOnce(() => stalledAfter([], readStarted.resolve))
                 .mockImplementationOnce(
                     () =>
                         createMockStream({
@@ -4984,10 +4976,14 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus.on('llm:retrying', retryingHandler);
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            const result = await settleWithin(
-                executor.execute({ mcpManager }, true),
-                2 * MODEL_STREAM_IDLE_TIMEOUT_MS
+            const execution = executor.execute({ mcpManager }, true);
+            await waitForDeferredBoundary(
+                readStarted.promise,
+                execution,
+                'Stream ended before stalling'
             );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS);
+            const result = await execution;
 
             expect(result.text).toBe('Recovered');
             expect(streamText).toHaveBeenCalledTimes(2);
@@ -5001,37 +4997,47 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('fails with a clear error when a model stream goes silent after output', async () => {
+            const readStarted = createDeferred<void>();
             vi.mocked(streamText).mockImplementation(() =>
-                stalledAfter([{ type: 'text-delta', text: 'Partial answer' }])
+                stalledAfter([{ type: 'text-delta', text: 'Partial answer' }], readStarted.resolve)
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            await expect(
-                settleWithin(
-                    executor.execute({ mcpManager }, true),
-                    2 * MODEL_STREAM_IDLE_TIMEOUT_MS
-                )
-            ).rejects.toMatchObject({
+            const execution = executor.execute({ mcpManager }, true);
+            const result = expect(execution).rejects.toMatchObject({
                 code: 'llm_stream_stalled',
                 type: 'third_party',
             });
+            await waitForDeferredBoundary(
+                readStarted.promise,
+                execution,
+                'Stream ended before stalling'
+            );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS);
+            await result;
 
             expect(streamText).toHaveBeenCalledTimes(1);
         });
 
         it('keeps a stream that pauses for less than the idle limit', async () => {
+            const firstPause = createDeferred<void>();
+            const secondPause = createDeferred<void>();
             vi.mocked(streamText).mockImplementation(
                 () =>
                     ({
                         fullStream: (async function* () {
                             yield { type: 'reasoning-delta', text: 'Thinking' };
-                            await new Promise((resolve) =>
+                            const firstDelay = new Promise((resolve) =>
                                 setTimeout(resolve, MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000)
                             );
+                            firstPause.resolve();
+                            await firstDelay;
                             yield { type: 'text-delta', text: 'Done' };
-                            await new Promise((resolve) =>
+                            const secondDelay = new Promise((resolve) =>
                                 setTimeout(resolve, MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000)
                             );
+                            secondPause.resolve();
+                            await secondDelay;
                             yield {
                                 type: 'finish',
                                 finishReason: 'stop',
@@ -5042,14 +5048,24 @@ describe('TurnExecutor Integration Tests', () => {
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            const result = await settleWithin(
-                executor.execute({ mcpManager }, true),
-                3 * MODEL_STREAM_IDLE_TIMEOUT_MS
+            const execution = executor.execute({ mcpManager }, true);
+            await waitForDeferredBoundary(
+                firstPause.promise,
+                execution,
+                'Stream ended before first pause'
             );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000);
+            await waitForDeferredBoundary(
+                secondPause.promise,
+                execution,
+                'Stream ended before second pause'
+            );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000);
+            const result = await execution;
 
             expect(result.text).toBe('Done');
             expect(streamText).toHaveBeenCalledTimes(1);
-        });
+        }, 15_000);
     });
 
     describe('Empty replies', () => {
