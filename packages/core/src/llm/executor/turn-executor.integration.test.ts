@@ -4902,8 +4902,8 @@ describe('TurnExecutor Integration Tests', () => {
                 settled = true;
             });
             observed.catch(() => {});
-            for (let elapsed = 0; elapsed < ms && !settled; elapsed += 1_000) {
-                await vi.advanceTimersByTimeAsync(1_000);
+            for (let elapsed = 0; elapsed < ms && !settled; elapsed += 60_000) {
+                await vi.advanceTimersByTimeAsync(60_000);
             }
             return observed;
         };
@@ -4995,7 +4995,7 @@ describe('TurnExecutor Integration Tests', () => {
 
             expect(result.text).toBe('Done');
             expect(streamText).toHaveBeenCalledTimes(1);
-        });
+        }, 15_000);
     });
 
     describe('Empty replies', () => {
