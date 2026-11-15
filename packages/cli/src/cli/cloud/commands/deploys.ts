@@ -1,9 +1,10 @@
-// `cloud sites` and `cloud functions`: pack a project with its own packer, deploy, list and delete.
+// `cloud sites` and `cloud functions`: pack a project with its own packer (or, for a plain static
+// Site, the CLI's own), deploy, list and delete.
 
 import { CommandFailure } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
 
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -27,6 +28,20 @@ type Kind = 'function' | 'site';
 
 const PACKER = path.join('.dexto', 'pack.mjs');
 const PROVIDERS = ['cloudflare-workers', 'aws-lambda'] as const;
+
+// A Site of pages only, which the CLI packs itself. Anything more (a Function, data, visitor sign-in)
+// needs the project's packer. The deploy route checks each value.
+const StaticSiteConfigSchema = z
+    .object({
+        $schema: z.string().optional(),
+        assets: z.string(),
+        slug: z.string(),
+        spaFallback: z.boolean().optional(),
+        title: z.string(),
+        visibility: z.string().optional(),
+    })
+    .strict();
+const PackageScriptsSchema = z.object({ scripts: z.object({ pack: z.string() }) });
 
 const SiteSchema = z.object({
     id: z.string(),
@@ -72,7 +87,7 @@ const deploySite: Command = {
     options: DEPLOY_OPTIONS,
     path: ['cloud', 'sites', 'deploy'],
     summary:
-        'Pack the Site in dir (default: here) with its packer and deploy it to the Cloud project; it goes live unless --no-promote.',
+        'Pack the Site in dir (default: here) with its packer, or as static pages from dexto.json when it has none, and deploy it to the Cloud project; it goes live unless --no-promote.',
     async run(context, input) {
         await requireLoginScopes(context, ['sites:write', 'cloud:write']);
         // Options are checked before packing, which can build and rewrite project files.
@@ -235,41 +250,141 @@ function deployQuery(
 }
 
 /**
- * Runs the project's own packer, `.dexto/pack.mjs`, or its `pack` script when it has none, into a
- * temporary file, and returns the deploy request it wrote once it is the kind asked for.
+ * Packs the project into a deploy request and returns it once it is the kind asked for. A project's
+ * own packer, `.dexto/pack.mjs` or its `pack` script, runs into a temporary file; a project with
+ * neither is packed here as a static Site.
  */
 async function pack(context: CommandContext, dir: string | undefined, kind: Kind): Promise<string> {
     const projectDir = path.resolve(dir ?? '.');
+    const packer = await projectPacker(projectDir);
+    context.output.note(`Packing ${projectDir} with ${packer?.name ?? 'the static Site packer'}…`);
+    const text =
+        packer === null
+            ? await packStaticSite(projectDir)
+            : await runPacker(context, projectDir, packer);
+    const packedKind = packageKind(text);
+    if (packedKind !== kind)
+        throw new UsageError(
+            `${projectDir} packs a ${packedKind}. Deploy it with dexto cloud ${packedKind}s deploy.`
+        );
+    return text;
+}
+
+type Packer = { name: string; command: string; args: readonly string[] };
+
+async function projectPacker(projectDir: string): Promise<Packer | null> {
+    if (await exists(path.join(projectDir, PACKER)))
+        return { name: PACKER, command: 'node', args: [PACKER, '.'] };
+    const manifest = await readFile(path.join(projectDir, 'package.json'), 'utf8').catch(
+        () => null
+    );
+    if (manifest === null) return null;
+    const hasPackScript = PackageScriptsSchema.safeParse(
+        parseJson(manifest, path.join(projectDir, 'package.json'))
+    ).success;
+    return hasPackScript
+        ? { name: 'pnpm run pack', command: 'pnpm', args: ['run', 'pack', '.'] }
+        : null;
+}
+
+async function runPacker(
+    context: CommandContext,
+    projectDir: string,
+    packer: Packer
+): Promise<string> {
     const outputDir = await mkdtemp(path.join(tmpdir(), 'dexto-pack-'));
     const outputPath = path.join(outputDir, 'deploy-request.json');
     try {
-        const ownPacker = await exists(path.join(projectDir, PACKER));
-        const [command, args] = ownPacker
-            ? ['node', [PACKER, '.', '--out', outputPath]]
-            : ['pnpm', ['run', 'pack', '.', '--out', outputPath]];
-        context.output.note(`Packing ${projectDir} with ${ownPacker ? PACKER : 'pnpm run pack'}…`);
-        const packed = await context.runtime.runProcess(command, args, { cwd: projectDir });
+        const packed = await context.runtime.runProcess(
+            packer.command,
+            [...packer.args, '--out', outputPath],
+            { cwd: projectDir }
+        );
         if (packed.exitCode !== 0)
             throw new CommandFailure(
                 'invalid_input',
                 `Packing failed:\n${packed.output.trim()}`,
                 null
             );
-        const text = await readFile(outputPath, 'utf8').catch(() => {
+        return await readFile(outputPath, 'utf8').catch(() => {
             throw new CommandFailure(
                 'failed',
                 `The packer wrote no deploy request to ${outputPath}.`,
                 null
             );
         });
-        const packedKind = packageKind(text);
-        if (packedKind !== kind)
-            throw new UsageError(
-                `${projectDir} packs a ${packedKind}. Deploy it with dexto cloud ${packedKind}s deploy.`
-            );
-        return text;
     } finally {
         await rm(outputDir, { force: true, recursive: true });
+    }
+}
+
+/**
+ * Packs a static Site from its `dexto.json` the way the Sites packer does: every file under
+ * `assets`, served from `index.html`.
+ */
+async function packStaticSite(projectDir: string): Promise<string> {
+    const configPath = path.join(projectDir, 'dexto.json');
+    const configText = await readFile(configPath, 'utf8').catch(() => {
+        throw new UsageError(
+            `${configPath} not found. A Site keeps its settings there: { "slug": "my-site", "title": "My site", "assets": "dist" }.`
+        );
+    });
+    const config = StaticSiteConfigSchema.safeParse(parseJson(configText, configPath));
+    if (!config.success)
+        throw new UsageError(
+            `${projectDir} has no packer (${PACKER} or a "pack" script in package.json), so it deploys as a static Site, whose dexto.json has only "slug", "title" and "assets" (and optionally "visibility" and "spaFallback"). For a Function, data or visitor sign-in, add ${PACKER} from the Sites skill.`
+        );
+    const { assets, slug, spaFallback, title, visibility } = config.data;
+    const assetsDir = path.resolve(projectDir, assets);
+    const fromProject = path.relative(projectDir, assetsDir);
+    if (fromProject === '' || fromProject.startsWith('..') || path.isAbsolute(fromProject))
+        throw new UsageError(
+            '"assets" in dexto.json must name the built pages folder inside the project, such as "dist".'
+        );
+    const indexPath = path.join(assetsDir, 'index.html');
+    const html = await readFile(indexPath, 'utf8').catch(() => {
+        throw new UsageError(`${indexPath} is missing: build the Site first.`);
+    });
+    if (/<(?:link|script)\b[^>]*(?:href|src)\s*=\s*["']\//iu.test(html))
+        throw new UsageError(
+            `${assets}/index.html must use relative asset URLs (Vite base "./"); previews serve Sites under a path.`
+        );
+    const pages = await Promise.all(
+        (await listFiles(assetsDir)).sort().map(async (file) => ({
+            contentBase64: (await readFile(file)).toString('base64'),
+            path: path.relative(assetsDir, file).split(path.sep).join('/'),
+        }))
+    );
+    return JSON.stringify({
+        assets: pages,
+        entrypoint: 'index.html',
+        runtime: { kind: 'static' },
+        schemaVersion: 1,
+        slug,
+        spaFallback: spaFallback ?? true,
+        title,
+        visibility: visibility ?? 'unlisted',
+    });
+}
+
+async function listFiles(dir: string): Promise<string[]> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    const nested = await Promise.all(
+        entries.map(async (entry) => {
+            const file = path.join(dir, entry.name);
+            if (entry.isSymbolicLink())
+                throw new UsageError(`Built pages cannot contain symbolic links: ${file}`);
+            return entry.isDirectory() ? listFiles(file) : [file];
+        })
+    );
+    return nested.flat();
+}
+
+function parseJson(text: string, file: string): unknown {
+    try {
+        return JSON.parse(text);
+    } catch {
+        throw new UsageError(`${file} must be valid JSON.`);
     }
 }
 

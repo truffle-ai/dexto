@@ -693,8 +693,92 @@ describe('cloud secrets, web and data-deletions', () => {
         });
 
         it('refuses to deploy a Function as a Site', async () => {
+            const project = path.join(path.dirname(dir), 'fn');
+            await mkdir(project, { recursive: true });
+            await writeFile(
+                path.join(project, 'package.json'),
+                JSON.stringify({ scripts: { pack: 'node pack.mjs' } })
+            );
             packed = { entry: 'index.js' };
-            expect(await runCloud(host, ['cloud', 'sites', 'deploy', path.dirname(dir)])).toBe(2);
+
+            expect(await runCloud(host, ['cloud', 'sites', 'deploy', project])).toBe(2);
+            expect(ran[0]?.command).toBe('pnpm');
+            expect(requests).toHaveLength(0);
+        });
+
+        it('packs a plain static folder itself when the project has no packer', async () => {
+            const project = path.join(path.dirname(dir), 'plain');
+            await mkdir(path.join(project, 'dist', 'css'), { recursive: true });
+            await writeFile(
+                path.join(project, 'dexto.json'),
+                JSON.stringify({ assets: 'dist', slug: 'plain-page', title: 'Plain page' })
+            );
+            await writeFile(path.join(project, 'dist', 'index.html'), '<link href="css/a.css">');
+            await writeFile(path.join(project, 'dist', 'css', 'a.css'), 'body{}');
+            reply = () =>
+                Response.json({
+                    deployment: { id: 'dep_1' },
+                    promoted: true,
+                    site: { id: 'site_1', slug: 'plain-page' },
+                    url: 'https://plain-page.dexto.site',
+                });
+
+            const code = await runCloud(host, ['cloud', 'sites', 'deploy', project, '--table']);
+
+            expect(code).toBe(0);
+            expect(ran).toHaveLength(0);
+            expect(requests[0]?.body).toEqual({
+                assets: [
+                    { contentBase64: Buffer.from('body{}').toString('base64'), path: 'css/a.css' },
+                    {
+                        contentBase64: Buffer.from('<link href="css/a.css">').toString('base64'),
+                        path: 'index.html',
+                    },
+                ],
+                entrypoint: 'index.html',
+                runtime: { kind: 'static' },
+                schemaVersion: 1,
+                slug: 'plain-page',
+                spaFallback: true,
+                title: 'Plain page',
+                visibility: 'unlisted',
+            });
+        });
+
+        it('names the packer a project needs beyond static pages', async () => {
+            const project = path.join(path.dirname(dir), 'with-function');
+            await mkdir(path.join(project, 'dist'), { recursive: true });
+            await writeFile(
+                path.join(project, 'dexto.json'),
+                JSON.stringify({
+                    assets: 'dist',
+                    function: { main: 'api.ts' },
+                    slug: 'with-function',
+                    title: 'With function',
+                })
+            );
+            await writeFile(path.join(project, 'dist', 'index.html'), '<p>hi</p>');
+
+            expect(await runCloud(host, ['cloud', 'sites', 'deploy', project])).toBe(2);
+            expect(stderr).toContain('.dexto/pack.mjs');
+            expect(ran).toHaveLength(0);
+            expect(requests).toHaveLength(0);
+        });
+
+        it('refuses root-absolute asset URLs, which break previews', async () => {
+            const project = path.join(path.dirname(dir), 'absolute');
+            await mkdir(path.join(project, 'dist'), { recursive: true });
+            await writeFile(
+                path.join(project, 'dexto.json'),
+                JSON.stringify({ assets: 'dist', slug: 'absolute', title: 'Absolute' })
+            );
+            await writeFile(
+                path.join(project, 'dist', 'index.html'),
+                '<script src="/app.js"></script>'
+            );
+
+            expect(await runCloud(host, ['cloud', 'sites', 'deploy', project])).toBe(2);
+            expect(stderr).toContain('relative asset URLs');
             expect(requests).toHaveLength(0);
         });
 
