@@ -1,5 +1,16 @@
 # @dexto/tools-lifecycle
 
+## 1.19.0
+
+### Patch Changes
+
+- Updated dependencies [46915b1]
+- Updated dependencies [d57b42d]
+- Updated dependencies [e229d40]
+- Updated dependencies [110d8e5]
+    - @dexto/core@1.19.0
+    - @dexto/agent-config@1.19.0
+
 ## 1.18.1
 
 ### Patch Changes
