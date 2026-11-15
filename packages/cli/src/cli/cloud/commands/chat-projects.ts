@@ -161,7 +161,7 @@ const create: Command = {
             type: 'string',
             valueName: 'REPO',
             description:
-                'GitHub repository its chats start with, as owner/name or https://github.com/owner/name. Reuses your Environment for it or makes one.',
+                'GitHub repository its chats start with, as owner/name or https://github.com/owner/name. Reuses your Environment for it or makes one, whose first build is metered compute (needs computers:write).',
         },
         ...YES_OPTION,
     },
@@ -170,15 +170,26 @@ const create: Command = {
         const description = stringOption(input, 'description');
         const timezone = stringOption(input, 'timezone');
         const repository = stringOption(input, 'repository');
-        await requireLoginScopes(context, ['projects:write']);
-        await requireConsent(context, flag(input, 'yes'), `Create the Project ${name}?`);
+        // A repository may make an Environment whose first build is metered compute: the server
+        // takes that call as a money call, with computers:write and confirm.
+        await requireLoginScopes(
+            context,
+            repository === undefined ? ['projects:write'] : ['projects:write', 'computers:write']
+        );
+        await requireConsent(
+            context,
+            flag(input, 'yes'),
+            repository === undefined
+                ? `Create the Project ${name}?`
+                : `Create the Project ${name} for ${repository}? A new Environment for it is built as metered compute.`
+        );
         const { project } = parsed(
             ProjectResultSchema,
             await queryWorkspaceTool(context, 'dexto_project_create', {
                 name,
                 ...(description === undefined ? {} : { description }),
                 ...(timezone === undefined ? {} : { timezone }),
-                ...(repository === undefined ? {} : { repository }),
+                ...(repository === undefined ? {} : { repository, confirm: true }),
             }),
             'Project'
         );

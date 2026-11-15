@@ -159,7 +159,12 @@ describe('projects over the Dexto MCP', () => {
         expect(output()).toEqual({ project });
     });
 
-    it('passes a repository to bind the new Project to', async () => {
+    it('passes a repository to bind the new Project to, as a metered call', async () => {
+        // A new Environment's first build is metered compute: it needs computers:write.
+        expect(await cli('projects', 'create', 'Web', '--repository', 'acme/web', '--yes')).toBe(3);
+        expect(stderr).toContain('--scope computers:write');
+        expect(calls).toEqual([]);
+        await signIn(['projects:read', 'projects:write', 'computers:write']);
         replies = [{ project }];
         expect(
             await cli(
@@ -175,7 +180,11 @@ describe('projects over the Dexto MCP', () => {
         expect(calls).toEqual([
             {
                 name: 'dexto_project_create',
-                arguments: { name: 'Web', repository: 'https://github.com/acme/web' },
+                arguments: {
+                    name: 'Web',
+                    repository: 'https://github.com/acme/web',
+                    confirm: true,
+                },
             },
         ]);
     });
