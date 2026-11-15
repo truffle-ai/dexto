@@ -4,6 +4,8 @@ import type { LocalChat, LocalChatMessage, LocalChatSource } from './transcript.
 
 /** What `dexto_chat_import` takes; its bounds are the server's too. */
 export interface ChatImportInput {
+    /** The Project the chat goes into, from `dexto_project_import`. */
+    readonly chatProjectId?: string;
     readonly cwd?: string;
     readonly gitBranch?: string;
     readonly messages: readonly LocalChatMessage[];

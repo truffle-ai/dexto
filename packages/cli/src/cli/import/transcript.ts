@@ -7,7 +7,8 @@ export const LOCAL_CHAT_SOURCES: readonly LocalChatSource[] = ['claude-code', 'c
 
 export interface LocalChatMessage {
     readonly createdAt: string;
-    readonly role: 'assistant' | 'user';
+    /** `summary` is the agent's own recap of every message before it, sent where it was made. */
+    readonly role: 'assistant' | 'summary' | 'user';
     readonly text: string;
 }
 
@@ -81,6 +82,13 @@ export function createTurns() {
         done(): Turns {
             flush();
             return { lastAt, messages };
+        },
+        /** A compaction summary: it closes the turn before it, like the person's next message. */
+        summary(text: string, createdAt: string) {
+            if (text.trim() === '') return;
+            flush();
+            messages.push({ createdAt, role: 'summary', text: text.trim() });
+            lastAt = createdAt;
         },
         user(text: string, createdAt: string) {
             if (text.trim() === '') return;
