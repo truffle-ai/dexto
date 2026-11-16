@@ -4496,14 +4496,14 @@ describe('TurnExecutor Integration Tests', () => {
             const driver = await executor.createDriver({ mcpManager }, { streaming: true });
 
             try {
-                let failure: unknown;
-                try {
-                    await driver.runNextModelStep();
-                    throw new Error('Expected the model call to fail');
-                } catch (error) {
-                    failure = error;
-                }
-                await expect(driver.fail(failure)).resolves.toBeUndefined();
+                const failure = await driver.runNextModelStep().then(
+                    () => undefined,
+                    (error: unknown) => error
+                );
+                expect(failure).toBe(providerError);
+                await expect(driver.fail(failure)).resolves.toMatchObject({
+                    code: 'llm_generation_failed',
+                });
                 expect(completeHandler).toHaveBeenCalledTimes(1);
                 expect(completeHandler).toHaveBeenCalledWith(
                     expect.objectContaining({ finishReason: 'error' })
@@ -4591,9 +4591,15 @@ describe('TurnExecutor Integration Tests', () => {
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
-            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
-                code: 'llm_generation_failed',
-            });
+            const failure = await executor.execute({ mcpManager }, true).then(
+                () => undefined,
+                (error: unknown) => error
+            );
+            expect(failure).toMatchObject({ code: 'llm_generation_failed' });
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ error: failure })
+            );
+            expect(completeHandler.mock.calls[0]?.[0].error).toBe(failure);
 
             expect(streamText).toHaveBeenCalledTimes(3);
             expect(retryingHandler).toHaveBeenCalledTimes(2);
