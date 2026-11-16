@@ -32,7 +32,7 @@ export interface paths {
         };
         /**
          * Get billing summary
-         * @description Returns the caller organization's current credit balance, charged usage for the preceding 30 days, and up to 50 recent model usage events. Organization owners and admins see all members' usage; other members see only usage attributed to them.
+         * @description Returns the caller organization's current credit balance, charged usage for the preceding 30 days, and up to 50 recent events each for model and compute usage. Organization owners and admins see all members' usage; other members see only usage attributed to them.
          */
         get: operations["getBillingSummary"];
         put?: never;
@@ -1119,6 +1119,114 @@ export interface paths {
         patch: operations["updateSecret"];
         trace?: never;
     };
+    "/v1/environments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List environments
+         * @description Beta, may change. List the Environments this person can read in their organization: every team Environment and their own personal ones.
+         */
+        get: operations["listEnvironments"];
+        put?: never;
+        /**
+         * Create an environment
+         * @description Beta, may change. Create an Environment and queue its first build. Takes cloud:write; Owners and Admins create team Environments, and any member creates a personal one.
+         */
+        post: operations["createEnvironment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/environments/{environment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an environment
+         * @description Beta, may change. Get an Environment. Another member's personal Environment is not found.
+         */
+        get: operations["getEnvironment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update an environment
+         * @description Beta, may change. Change an Environment's name, visibility or spec. Takes cloud:write and the same permission as Settings: Owners and Admins change team Environments, and a member their own personal ones. A spec change queues a build.
+         */
+        patch: operations["updateEnvironment"];
+        trace?: never;
+    };
+    "/v1/environments/{environment_id}/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List environment builds
+         * @description Beta, may change. List an Environment's latest 20 builds, newest first, without their logs.
+         */
+        get: operations["listEnvironmentBuilds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/environments/{environment_id}/builds/{build_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an environment build
+         * @description Beta, may change. Get one build of an Environment with its log, to follow it while it runs.
+         */
+        get: operations["getEnvironmentBuild"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/environments/{environment_id}/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rebuild an environment
+         * @description Beta, may change. Queue a manual build of the Environment's current spec, or fold it into the build already queued, and return that build. Takes cloud:write and the same permission as editing. The last ready build stays in use until the new one is ready.
+         */
+        post: operations["rebuildEnvironment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects": {
         parameters: {
             query?: never;
@@ -1314,7 +1422,7 @@ export interface paths {
         put?: never;
         /**
          * Start moving a synced chat
-         * @description Beta, may change. Start moving a synced chat. To the cloud: move it and its working tree to the chat's own cloud computer. Declare the branch, head commit, and the size and SHA-256 of the git bundle and of the patch of uncommitted changes, then PUT each to its URL and call uploaded. A bundle over 256 MiB or a patch over 32 MiB is refused with 413. 409 move_in_progress names the chat's open move; 409 chat_in_cloud means the chat is already in the cloud; 409 too_many_moves when 3 of the person's chats are already moving to the cloud. To local (`{"to":"local"}`): the chat in the cloud stops taking turns (409 chat_moving) while its computer exports the working tree, within about a minute: the commits after the head the CLI uploaded as a bundle, and the uncommitted changes as a patch without gitignored or secret-shaped files. The move is then ready, with export, or failed with export_failed or computer_unavailable and the chat back in the cloud; 409 chat_busy while a turn runs or messages wait in its queue, and 409 chat_local when the chat is not in the cloud. An open move expires an hour after it starts, and an expired or canceled move back puts the chat in the cloud again. 503 when this environment cannot take uploads.
+         * @description Beta, may change. Start moving a synced chat. To the cloud: move it and its working tree to the chat's own cloud computer. A chat imported from Claude Code or Codex moves its folder the same way, once and only to the cloud: its next turn is told where the repository now is and that the laptop's paths in that repository are at the same place under it. Declare the branch, head commit, and the size and SHA-256 of the git bundle and of the patch of uncommitted changes, then PUT each to its URL and call uploaded. A bundle over 256 MiB or a patch over 32 MiB is refused with 413. 409 move_in_progress names the chat's open move; 409 chat_in_cloud means the chat is already in the cloud; 409 too_many_moves when 3 of the person's chats are already moving to the cloud. To local (`{"to":"local"}`): the chat in the cloud stops taking turns (409 chat_moving) while its computer exports the working tree, within about a minute: the commits after the head the CLI uploaded as a bundle, and the uncommitted changes as a patch without gitignored or secret-shaped files. The move is then ready, with export, or failed with export_failed or computer_unavailable and the chat back in the cloud; 409 chat_busy while a turn runs or messages wait in its queue, and 409 chat_local when the chat is not in the cloud. An open move expires an hour after it starts, and an expired or canceled move back puts the chat in the cloud again. 503 when this environment cannot take uploads.
          */
         post: operations["startSyncedChatMove"];
         delete?: never;
@@ -1852,10 +1960,21 @@ export interface operations {
                             total_usage_events: number;
                         };
                         recent_model_usage: {
+                            allowance_usd: number;
                             cost_usd: number;
                             input_tokens: number;
                             model: string;
                             output_tokens: number;
+                            /** Format: date-time */
+                            timestamp: string;
+                        }[];
+                        recent_compute_usage: {
+                            allowance_usd: number;
+                            billable_seconds: number;
+                            chat_id: string | null;
+                            computer_id: string | null;
+                            cost_usd: number;
+                            provider: string;
                             /** Format: date-time */
                             timestamp: string;
                         }[];
@@ -2022,6 +2141,9 @@ export interface operations {
                         })[];
                         reasoning?: string;
                         reasoning_content?: string;
+                        reasoning_details?: {
+                            [key: string]: components["schemas"]["JsonValue"];
+                        }[];
                         /** @constant */
                         role: "assistant";
                         tool_calls?: {
@@ -2145,6 +2267,9 @@ export interface operations {
                                 content: string | null;
                                 reasoning?: string;
                                 reasoning_content?: string;
+                                reasoning_details?: {
+                                    [key: string]: unknown;
+                                }[];
                                 /** @constant */
                                 role: "assistant";
                                 tool_calls?: {
@@ -13496,6 +13621,1330 @@ export interface operations {
             };
         };
     };
+    listEnvironments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description The organization's default for Projects that pick none. */
+                            is_default: boolean;
+                            latest_build: {
+                                /** Format: date-time */
+                                created_at: string;
+                                error: string | null;
+                                finished_at: string | null;
+                                /** Format: uuid */
+                                id: string;
+                                /** @description 1, 2, 3… per Environment. */
+                                number: number;
+                                /** @constant */
+                                object: "environment_build";
+                                started_at: string | null;
+                                /** @enum {string} */
+                                status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                                /** @enum {string} */
+                                trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                            } | null;
+                            name: string;
+                            /** @constant */
+                            object: "environment";
+                            owner_id: string;
+                            /** @description The build new chats start from; a failed rebuild never replaces it. */
+                            ready_build: {
+                                /** Format: date-time */
+                                created_at: string;
+                                error: string | null;
+                                finished_at: string | null;
+                                /** Format: uuid */
+                                id: string;
+                                /** @description 1, 2, 3… per Environment. */
+                                number: number;
+                                /** @constant */
+                                object: "environment_build";
+                                started_at: string | null;
+                                /** @enum {string} */
+                                status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                                /** @enum {string} */
+                                trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                            } | null;
+                            /** @description What a build installs. It holds no secret values: builds reach private registries through the organization's connections. */
+                            spec: {
+                                /**
+                                 * @description { "mode": "full" }, or { "mode": "allowlist", "hosts": [...] } to narrow the organization's network policy to those hostnames.
+                                 * @default {
+                                 *       "mode": "full"
+                                 *     }
+                                 */
+                                network: {
+                                    /** @constant */
+                                    mode: "full";
+                                } | {
+                                    /** @constant */
+                                    mode: "allowlist";
+                                    hosts: string[];
+                                };
+                                /** @description Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos. */
+                                repos: {
+                                    repository: string;
+                                    ref?: string;
+                                }[];
+                                /**
+                                 * @description A shell script, at most 16 KiB, run once in each build after the clones.
+                                 * @default
+                                 */
+                                setup_script: string;
+                                /**
+                                 * @description Up to 50 named one-line install commands, run in order after the setup script.
+                                 * @default []
+                                 */
+                                tools: {
+                                    name: string;
+                                    install: string;
+                                }[];
+                            };
+                            /**
+                             * @description building while a build is queued or runs; ready when the ready build matches the spec; out_of_date when it doesn't; failed when the latest build failed and none is ready; none before any build.
+                             * @enum {string}
+                             */
+                            state: "ready" | "out_of_date" | "building" | "failed" | "none";
+                            /** Format: date-time */
+                            updated_at: string;
+                            /**
+                             * @description personal: only its owner sees it. team: the organization's members use it.
+                             * @enum {string}
+                             */
+                            visibility: "personal" | "team";
+                        }[];
+                        /** @constant */
+                        has_more: false;
+                        next_after: null;
+                        /** @constant */
+                        object: "list";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createEnvironment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @description What a build installs. It holds no secret values: builds reach private registries through the organization's connections. */
+                    spec: {
+                        /**
+                         * @description { "mode": "full" }, or { "mode": "allowlist", "hosts": [...] } to narrow the organization's network policy to those hostnames.
+                         * @default {
+                         *       "mode": "full"
+                         *     }
+                         */
+                        network?: {
+                            /** @constant */
+                            mode: "full";
+                        } | {
+                            /** @constant */
+                            mode: "allowlist";
+                            hosts: string[];
+                        };
+                        /** @description Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos. */
+                        repos: {
+                            repository: string;
+                            ref?: string;
+                        }[];
+                        /**
+                         * @description A shell script, at most 16 KiB, run once in each build after the clones.
+                         * @default
+                         */
+                        setup_script?: string;
+                        /**
+                         * @description Up to 50 named one-line install commands, run in order after the setup script.
+                         * @default []
+                         */
+                        tools?: {
+                            name: string;
+                            install: string;
+                        }[];
+                    };
+                    /**
+                     * @description Defaults to personal; a team Environment made by the organization's only member is stored personal.
+                     * @default personal
+                     * @enum {string}
+                     */
+                    visibility?: "personal" | "team";
+                };
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        created_at: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description The organization's default for Projects that pick none. */
+                        is_default: boolean;
+                        latest_build: {
+                            /** Format: date-time */
+                            created_at: string;
+                            error: string | null;
+                            finished_at: string | null;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description 1, 2, 3… per Environment. */
+                            number: number;
+                            /** @constant */
+                            object: "environment_build";
+                            started_at: string | null;
+                            /** @enum {string} */
+                            status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        } | null;
+                        name: string;
+                        /** @constant */
+                        object: "environment";
+                        owner_id: string;
+                        /** @description The build new chats start from; a failed rebuild never replaces it. */
+                        ready_build: {
+                            /** Format: date-time */
+                            created_at: string;
+                            error: string | null;
+                            finished_at: string | null;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description 1, 2, 3… per Environment. */
+                            number: number;
+                            /** @constant */
+                            object: "environment_build";
+                            started_at: string | null;
+                            /** @enum {string} */
+                            status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        } | null;
+                        /** @description What a build installs. It holds no secret values: builds reach private registries through the organization's connections. */
+                        spec: {
+                            /**
+                             * @description { "mode": "full" }, or { "mode": "allowlist", "hosts": [...] } to narrow the organization's network policy to those hostnames.
+                             * @default {
+                             *       "mode": "full"
+                             *     }
+                             */
+                            network: {
+                                /** @constant */
+                                mode: "full";
+                            } | {
+                                /** @constant */
+                                mode: "allowlist";
+                                hosts: string[];
+                            };
+                            /** @description Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos. */
+                            repos: {
+                                repository: string;
+                                ref?: string;
+                            }[];
+                            /**
+                             * @description A shell script, at most 16 KiB, run once in each build after the clones.
+                             * @default
+                             */
+                            setup_script: string;
+                            /**
+                             * @description Up to 50 named one-line install commands, run in order after the setup script.
+                             * @default []
+                             */
+                            tools: {
+                                name: string;
+                                install: string;
+                            }[];
+                        };
+                        /**
+                         * @description building while a build is queued or runs; ready when the ready build matches the spec; out_of_date when it doesn't; failed when the latest build failed and none is ready; none before any build.
+                         * @enum {string}
+                         */
+                        state: "ready" | "out_of_date" | "building" | "failed" | "none";
+                        /** Format: date-time */
+                        updated_at: string;
+                        /**
+                         * @description personal: only its owner sees it. team: the organization's members use it.
+                         * @enum {string}
+                         */
+                        visibility: "personal" | "team";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEnvironment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                environment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        created_at: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description The organization's default for Projects that pick none. */
+                        is_default: boolean;
+                        latest_build: {
+                            /** Format: date-time */
+                            created_at: string;
+                            error: string | null;
+                            finished_at: string | null;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description 1, 2, 3… per Environment. */
+                            number: number;
+                            /** @constant */
+                            object: "environment_build";
+                            started_at: string | null;
+                            /** @enum {string} */
+                            status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        } | null;
+                        name: string;
+                        /** @constant */
+                        object: "environment";
+                        owner_id: string;
+                        /** @description The build new chats start from; a failed rebuild never replaces it. */
+                        ready_build: {
+                            /** Format: date-time */
+                            created_at: string;
+                            error: string | null;
+                            finished_at: string | null;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description 1, 2, 3… per Environment. */
+                            number: number;
+                            /** @constant */
+                            object: "environment_build";
+                            started_at: string | null;
+                            /** @enum {string} */
+                            status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        } | null;
+                        /** @description What a build installs. It holds no secret values: builds reach private registries through the organization's connections. */
+                        spec: {
+                            /**
+                             * @description { "mode": "full" }, or { "mode": "allowlist", "hosts": [...] } to narrow the organization's network policy to those hostnames.
+                             * @default {
+                             *       "mode": "full"
+                             *     }
+                             */
+                            network: {
+                                /** @constant */
+                                mode: "full";
+                            } | {
+                                /** @constant */
+                                mode: "allowlist";
+                                hosts: string[];
+                            };
+                            /** @description Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos. */
+                            repos: {
+                                repository: string;
+                                ref?: string;
+                            }[];
+                            /**
+                             * @description A shell script, at most 16 KiB, run once in each build after the clones.
+                             * @default
+                             */
+                            setup_script: string;
+                            /**
+                             * @description Up to 50 named one-line install commands, run in order after the setup script.
+                             * @default []
+                             */
+                            tools: {
+                                name: string;
+                                install: string;
+                            }[];
+                        };
+                        /**
+                         * @description building while a build is queued or runs; ready when the ready build matches the spec; out_of_date when it doesn't; failed when the latest build failed and none is ready; none before any build.
+                         * @enum {string}
+                         */
+                        state: "ready" | "out_of_date" | "building" | "failed" | "none";
+                        /** Format: date-time */
+                        updated_at: string;
+                        /**
+                         * @description personal: only its owner sees it. team: the organization's members use it.
+                         * @enum {string}
+                         */
+                        visibility: "personal" | "team";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateEnvironment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                environment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    /** @description Replaces the whole spec and queues a build. */
+                    spec?: {
+                        /**
+                         * @description { "mode": "full" }, or { "mode": "allowlist", "hosts": [...] } to narrow the organization's network policy to those hostnames.
+                         * @default {
+                         *       "mode": "full"
+                         *     }
+                         */
+                        network?: {
+                            /** @constant */
+                            mode: "full";
+                        } | {
+                            /** @constant */
+                            mode: "allowlist";
+                            hosts: string[];
+                        };
+                        /** @description Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos. */
+                        repos: {
+                            repository: string;
+                            ref?: string;
+                        }[];
+                        /**
+                         * @description A shell script, at most 16 KiB, run once in each build after the clones.
+                         * @default
+                         */
+                        setup_script?: string;
+                        /**
+                         * @description Up to 50 named one-line install commands, run in order after the setup script.
+                         * @default []
+                         */
+                        tools?: {
+                            name: string;
+                            install: string;
+                        }[];
+                    };
+                    /**
+                     * @description personal: only its owner sees it. team: the organization's members use it.
+                     * @enum {string}
+                     */
+                    visibility?: "personal" | "team";
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        created_at: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description The organization's default for Projects that pick none. */
+                        is_default: boolean;
+                        latest_build: {
+                            /** Format: date-time */
+                            created_at: string;
+                            error: string | null;
+                            finished_at: string | null;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description 1, 2, 3… per Environment. */
+                            number: number;
+                            /** @constant */
+                            object: "environment_build";
+                            started_at: string | null;
+                            /** @enum {string} */
+                            status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        } | null;
+                        name: string;
+                        /** @constant */
+                        object: "environment";
+                        owner_id: string;
+                        /** @description The build new chats start from; a failed rebuild never replaces it. */
+                        ready_build: {
+                            /** Format: date-time */
+                            created_at: string;
+                            error: string | null;
+                            finished_at: string | null;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description 1, 2, 3… per Environment. */
+                            number: number;
+                            /** @constant */
+                            object: "environment_build";
+                            started_at: string | null;
+                            /** @enum {string} */
+                            status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        } | null;
+                        /** @description What a build installs. It holds no secret values: builds reach private registries through the organization's connections. */
+                        spec: {
+                            /**
+                             * @description { "mode": "full" }, or { "mode": "allowlist", "hosts": [...] } to narrow the organization's network policy to those hostnames.
+                             * @default {
+                             *       "mode": "full"
+                             *     }
+                             */
+                            network: {
+                                /** @constant */
+                                mode: "full";
+                            } | {
+                                /** @constant */
+                                mode: "allowlist";
+                                hosts: string[];
+                            };
+                            /** @description Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos. */
+                            repos: {
+                                repository: string;
+                                ref?: string;
+                            }[];
+                            /**
+                             * @description A shell script, at most 16 KiB, run once in each build after the clones.
+                             * @default
+                             */
+                            setup_script: string;
+                            /**
+                             * @description Up to 50 named one-line install commands, run in order after the setup script.
+                             * @default []
+                             */
+                            tools: {
+                                name: string;
+                                install: string;
+                            }[];
+                        };
+                        /**
+                         * @description building while a build is queued or runs; ready when the ready build matches the spec; out_of_date when it doesn't; failed when the latest build failed and none is ready; none before any build.
+                         * @enum {string}
+                         */
+                        state: "ready" | "out_of_date" | "building" | "failed" | "none";
+                        /** Format: date-time */
+                        updated_at: string;
+                        /**
+                         * @description personal: only its owner sees it. team: the organization's members use it.
+                         * @enum {string}
+                         */
+                        visibility: "personal" | "team";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listEnvironmentBuilds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                environment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            /** Format: date-time */
+                            created_at: string;
+                            error: string | null;
+                            finished_at: string | null;
+                            /** Format: uuid */
+                            id: string;
+                            /** @description 1, 2, 3… per Environment. */
+                            number: number;
+                            /** @constant */
+                            object: "environment_build";
+                            started_at: string | null;
+                            /** @enum {string} */
+                            status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                            /** @enum {string} */
+                            trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        }[];
+                        /** @constant */
+                        has_more: false;
+                        next_after: null;
+                        /** @constant */
+                        object: "list";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEnvironmentBuild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                environment_id: string;
+                build_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        created_at: string;
+                        error: string | null;
+                        finished_at: string | null;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description 1, 2, 3… per Environment. */
+                        number: number;
+                        /** @constant */
+                        object: "environment_build";
+                        started_at: string | null;
+                        /** @enum {string} */
+                        status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                        /** @enum {string} */
+                        trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                        /** @description The build's output, its last 64 KiB. */
+                        log: string;
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rebuildEnvironment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                environment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        created_at: string;
+                        error: string | null;
+                        finished_at: string | null;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description 1, 2, 3… per Environment. */
+                        number: number;
+                        /** @constant */
+                        object: "environment_build";
+                        started_at: string | null;
+                        /** @enum {string} */
+                        status: "queued" | "building" | "ready" | "failed" | "cancelled";
+                        /** @enum {string} */
+                        trigger: "created" | "setup_changed" | "tool_added" | "weekly" | "platform_release" | "manual";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -13890,150 +15339,6 @@ export interface operations {
             };
         };
     };
-    publishSiteFiles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description What's published, such as the file or folder's name. It titles the page and, with your handle, makes its address, so publishing the same name again updates the same link. */
-                    name: string;
-                    /** @description The address to publish at, <slug>.<Sites host>, instead of one made from the name. A Site of yours there is updated. */
-                    slug?: string;
-                    /** @description The page's title. Defaults to the name. */
-                    title?: string;
-                    /**
-                     * @description Site visibility; defaults to the existing visibility or unlisted for a new Site.
-                     * @enum {string}
-                     */
-                    visibility?: "private" | "unlisted" | "public";
-                    /** @description The existing private Site's exact title, to confirm making it public. */
-                    confirmPublicName?: string;
-                    /** @description The path dexto_upload_prepare returned for purpose site-files. */
-                    uploadPath: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        created: boolean;
-                        files: number;
-                        homepage: string;
-                        site: {
-                            id: string;
-                            slug: string;
-                            title: string;
-                        };
-                        url: string;
-                        /** @enum {string} */
-                        visibility: "private" | "unlisted" | "public";
-                    };
-                };
-            };
-            /** @description Invalid JSON or request fields. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Missing or invalid authentication. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The account has insufficient credits. */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The account cannot perform this operation. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The requested resource was not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The request conflicts with existing resource state. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The account exceeded this operation's request rate. */
-            429: {
-                headers: {
-                    /** @description Seconds to wait before retrying. */
-                    "Retry-After"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unexpected Dexto failure. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The upstream model provider failed. */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description A required Dexto service is temporarily unavailable. */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     listSkills: {
         parameters: {
             query?: never;
@@ -14089,7 +15394,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14203,7 +15508,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14349,7 +15654,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14465,7 +15770,7 @@ export interface operations {
                             run_id: string;
                             run_span_id: string;
                         }[];
-                        /** @description The trace reached its 500-span cap and may hold more; list them with /spans, filtered by name or status. */
+                        /** @description The trace holds more than these 500 spans; list them with /spans, filtered by name or status. */
                         has_more: boolean;
                         /** @constant */
                         object: "run_trace";
@@ -14508,7 +15813,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14660,7 +15965,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14846,7 +16151,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14967,7 +16272,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16040,7 +17345,151 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    publishSiteFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description What's published, such as the file or folder's name. It titles the page and, with your handle, makes its address, so publishing the same name again updates the same link. */
+                    name: string;
+                    /** @description The address to publish at, <slug>.<Sites host>, instead of one made from the name. A Site of yours there is updated. */
+                    slug?: string;
+                    /** @description The page's title. Defaults to the name. */
+                    title?: string;
+                    /**
+                     * @description Site visibility; defaults to the existing visibility or unlisted for a new Site.
+                     * @enum {string}
+                     */
+                    visibility?: "private" | "unlisted" | "public";
+                    /** @description The existing private Site's exact title, to confirm making it public. */
+                    confirmPublicName?: string;
+                    /** @description The path dexto_upload_prepare returned for purpose site-files. */
+                    uploadPath: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        files: number;
+                        homepage: string;
+                        site: {
+                            id: string;
+                            slug: string;
+                            title: string;
+                        };
+                        url: string;
+                        /** @enum {string} */
+                        visibility: "private" | "unlisted" | "public";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16663,10 +18112,7 @@ export interface operations {
                     schemaVersion: 1;
                     slug: string;
                     title: string;
-                    /**
-                     * @default unlisted
-                     * @enum {string}
-                     */
+                    /** @enum {string} */
                     visibility?: "private" | "unlisted" | "public";
                     assets: {
                         contentBase64: string;
@@ -17083,7 +18529,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17216,7 +18662,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17336,7 +18782,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
