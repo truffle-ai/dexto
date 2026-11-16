@@ -1001,6 +1001,9 @@ export async function expandBlobReferences(
     return expandedParts;
 }
 
+/** The declared type comes from the uploading client, so only a plain type name is quoted. */
+const QUOTABLE_IMAGE_TYPE_PATTERN = /^image\/[a-z0-9.+-]{1,40}$/i;
+
 /**
  * Filters message content based on LLM capabilities.
  * Removes unsupported file attachments while preserving supported content.
@@ -1056,6 +1059,22 @@ export function filterMessagesByLLMCapabilities(
                                 {
                                     type: 'text' as const,
                                     text: `ERROR: Cannot read image (this model does not support image input). Inform the user.`,
+                                },
+                            ];
+                        }
+                        // Only an image type no model can view comes back without a file type.
+                        // Sending it anyway makes the provider fail or reply with nothing.
+                        if (validation.fileType === undefined) {
+                            const typeName = QUOTABLE_IMAGE_TYPE_PATTERN.test(mimeType)
+                                ? mimeType
+                                : 'an unrecognized image type';
+                            logger.info(
+                                `Replaced an image of unrecognized type ${typeName} for ${config.model}`
+                            );
+                            return [
+                                {
+                                    type: 'text' as const,
+                                    text: `ERROR: Cannot read image (${typeName} is not an image type this model can view). Inform the user.`,
                                 },
                             ];
                         }
