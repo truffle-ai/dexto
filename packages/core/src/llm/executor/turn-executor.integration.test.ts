@@ -4481,6 +4481,38 @@ describe('TurnExecutor Integration Tests', () => {
                 isRetryable: input.isRetryable,
             });
 
+        it('records a failed model turn without rejecting the failure handler', async () => {
+            const providerError = apiCallError({
+                message: 'Your model connection could not complete the request.',
+                statusCode: 502,
+                isRetryable: false,
+            });
+            vi.mocked(streamText).mockImplementation(() => {
+                throw providerError;
+            });
+            const completeHandler = vi.fn();
+            sessionEventBus.on('run:complete', completeHandler);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                const failure = await driver.runNextModelStep().then(
+                    () => undefined,
+                    (error: unknown) => error
+                );
+                expect(failure).toBe(providerError);
+                await expect(driver.fail(failure)).resolves.toMatchObject({
+                    code: 'llm_generation_failed',
+                });
+                expect(completeHandler).toHaveBeenCalledTimes(1);
+                expect(completeHandler).toHaveBeenCalledWith(
+                    expect.objectContaining({ finishReason: 'error' })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('retries a retryable model request failure before terminal run failure', async () => {
             const retryableError = apiCallError({
                 message: 'Provider unavailable',
@@ -4559,9 +4591,15 @@ describe('TurnExecutor Integration Tests', () => {
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
-            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
-                code: 'llm_generation_failed',
-            });
+            const failure = await executor.execute({ mcpManager }, true).then(
+                () => undefined,
+                (error: unknown) => error
+            );
+            expect(failure).toMatchObject({ code: 'llm_generation_failed' });
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ error: failure })
+            );
+            expect(completeHandler.mock.calls[0]?.[0].error).toBe(failure);
 
             expect(streamText).toHaveBeenCalledTimes(3);
             expect(retryingHandler).toHaveBeenCalledTimes(2);

@@ -460,7 +460,7 @@ export type TurnDriver = {
     executeToolCalls(): Promise<TurnDriverToolCalls>;
     decideNextStep(): Promise<TurnDriverNextAction>;
     finish(): Promise<ExecutorResult>;
-    fail(error: unknown): Promise<never>;
+    fail(error: unknown): Promise<Error>;
     getState(): TurnDriverState;
     checkpoint(): TurnDriverState;
     dispose(): void;
@@ -628,7 +628,7 @@ export class TurnExecutor {
                     }
                 }
             } catch (error) {
-                return await driver.fail(error);
+                throw await driver.fail(error);
             }
             return await driver.finish();
         } finally {
@@ -1109,7 +1109,7 @@ export class TurnExecutor {
         };
     }
 
-    private async failTurn(error: unknown, stepCount: number, startTime: number): Promise<never> {
+    private async failTurn(error: unknown, stepCount: number, startTime: number): Promise<Error> {
         const mappedError = this.mapProviderError(error);
         this.logger.error('TurnExecutor failed', { error: mappedError });
 
@@ -1134,7 +1134,7 @@ export class TurnExecutor {
             error: mappedError,
         });
 
-        throw mappedError;
+        return mappedError;
     }
 
     private advanceStep(stepCount: number): StepAdvance {
