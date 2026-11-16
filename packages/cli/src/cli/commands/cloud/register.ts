@@ -3,6 +3,7 @@ import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 
 /** The top-level words the cloud command engine owns, and what each is for. */
 const ENGINE_WORDS = {
+    artifacts: 'Publish, list and open organization Artifacts',
     import: 'Import local Claude Code and Codex chats',
     connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
     connections: 'List, inspect and disconnect model subscriptions',

@@ -84,6 +84,84 @@ describe('cloud secrets, web and data-deletions', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it('publishes an HTML file as an organization Artifact', async () => {
+        const file = path.join(path.dirname(dir), 'report.html');
+        await writeFile(file, '<h1>Report</h1>');
+        reply = () =>
+            Response.json(
+                {
+                    id: 'art_1',
+                    object: 'artifact',
+                    title: 'Report',
+                    url: 'https://app.dexto.ai/a/1',
+                },
+                { status: 201 }
+            );
+        expect(
+            await runCloud(host, ['artifacts', 'publish', file, '--title', 'Report', '--json'])
+        ).toBe(0);
+        expect(requests[0]).toMatchObject({
+            method: 'POST',
+            url: 'https://api.dexto.ai/v1/artifacts',
+            body: { title: 'Report', html: '<h1>Report</h1>' },
+        });
+        expect(JSON.parse(stdout)).toMatchObject({ id: 'art_1', url: 'https://app.dexto.ai/a/1' });
+    });
+
+    it('lists and opens Artifact links through the public API', async () => {
+        const artifact = {
+            id: 'art_1',
+            object: 'artifact',
+            title: 'Report',
+            url: 'https://app.dexto.ai/a/1',
+        };
+        reply = (url) =>
+            Response.json(
+                url.includes('?')
+                    ? { object: 'list', data: [artifact], has_more: false, next_after: null }
+                    : artifact
+            );
+        expect(await runCloud(host, ['artifacts', 'list', '--limit', '5', '--json'])).toBe(0);
+        expect(requests[0]?.url).toBe('https://api.dexto.ai/v1/artifacts?limit=5');
+        expect(JSON.parse(stdout).data).toEqual([artifact]);
+        stdout = '';
+        expect(await runCloud(host, ['artifacts', 'open', 'art_1', '--json'])).toBe(0);
+        expect(requests[1]?.url).toBe('https://api.dexto.ai/v1/artifacts/art_1');
+        expect(JSON.parse(stdout)).toEqual(artifact);
+    });
+
+    it('validates Artifact input and previews without publishing', async () => {
+        const file = path.join(path.dirname(dir), 'report.html');
+        await writeFile(file, '<p>Report</p>');
+        expect(await runCloud(host, ['artifacts', 'publish', file])).toBe(2);
+        expect(
+            await runCloud(host, [
+                'artifacts',
+                'publish',
+                file,
+                '--title',
+                'Report',
+                '--kind',
+                'bad',
+            ])
+        ).toBe(2);
+        expect(
+            await runCloud(host, [
+                'artifacts',
+                'publish',
+                file,
+                '--title',
+                'Report',
+                '--kind',
+                'plan',
+                '--dry-run',
+                '--json',
+            ])
+        ).toBe(0);
+        expect(requests).toHaveLength(0);
+        expect(JSON.parse(stdout)).toMatchObject({ dryRun: true, title: 'Report', kind: 'plan' });
+    });
+
     it('creates a secret from stdin, never from an argument, sent as a bearer by default', async () => {
         stdin = 'ghp_value\n';
         reply = () => Response.json({ id: 'sec_1', name: 'GITHUB' }, { status: 201 });
