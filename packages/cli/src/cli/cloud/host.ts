@@ -16,6 +16,7 @@ import { computerKeyCommands } from './commands/computer-keys.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
+import { environmentCommands } from './commands/environments.js';
 import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
 import { profileCommands } from './commands/profile.js';
@@ -42,6 +43,7 @@ export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
         { name: 'projects', summary: 'List, create and choose Cloud projects' },
         { name: 'agents', summary: 'Define agents, chat with them, read their sessions and runs' },
         { name: 'automations', summary: 'Run agents on a schedule or a webhook' },
+        { name: 'environments', summary: 'Manage Environments and their builds' },
         { name: 'files', summary: "Upload, download, share and delete the project's files" },
         { name: 'sandboxes', summary: 'Create sandboxes, run commands in them and move files' },
         { name: 'secrets', summary: 'Credentials agents use without seeing them' },
@@ -68,6 +70,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         projectsUse(dir),
         ...agentCommands,
         ...automationCommands,
+        ...environmentCommands,
         ...fileCommands,
         ...sandboxCommands,
         ...secretCommands,
