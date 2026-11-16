@@ -533,6 +533,38 @@ describe('TurnExecutor Integration Tests', () => {
             }
         });
 
+        it('records a failed model turn without rejecting the failure handler', async () => {
+            const providerError = apiCallError({
+                message: 'Your model connection could not complete the request.',
+                statusCode: 502,
+                isRetryable: false,
+            });
+            vi.mocked(streamText).mockImplementation(() => {
+                throw providerError;
+            });
+            const completeHandler = vi.fn();
+            sessionEventBus.on('run:complete', completeHandler);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                let failure: unknown;
+                try {
+                    await driver.runNextModelStep();
+                    throw new Error('Expected the model call to fail');
+                } catch (error) {
+                    failure = error;
+                }
+                await expect(driver.fail(failure)).resolves.toBeUndefined();
+                expect(completeHandler).toHaveBeenCalledTimes(1);
+                expect(completeHandler).toHaveBeenCalledWith(
+                    expect.objectContaining({ finishReason: 'error' })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('can checkpoint after preparing the next model step without calling the model', async () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             const driver = await executor.createDriver({ mcpManager }, { streaming: true });
