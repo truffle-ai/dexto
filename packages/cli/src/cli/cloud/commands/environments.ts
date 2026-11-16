@@ -36,7 +36,15 @@ const buildColumns: readonly Column<Build>[] = [
     { header: 'error', value: (row) => row.error },
 ];
 const options = {
-    ...BODY_OPTIONS,
+    data: {
+        ...BODY_OPTIONS.data,
+        description:
+            'The Environment spec as JSON, e.g. {"repos":[{"repository":"owner/name","ref":"main"}]}.',
+    },
+    file: {
+        ...BODY_OPTIONS.file,
+        description: 'Read the Environment spec as JSON from a file, or - for stdin.',
+    },
     visibility: { type: 'string', description: 'personal or team' },
     'dry-run': { type: 'boolean', description: 'Show the request without sending it.' },
 } as const;

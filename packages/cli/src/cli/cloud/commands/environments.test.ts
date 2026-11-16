@@ -85,6 +85,14 @@ describe('cloud environments', () => {
     afterEach(async () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
+    it('explains that create takes an Environment spec', async () => {
+        expect(await runCloud(host, ['cloud', 'environments', 'create', '--help', '--json'])).toBe(
+            0
+        );
+        expect(output).toContain('The Environment spec as JSON');
+        expect(output).toContain('owner/name');
+        expect(requests).toHaveLength(0);
+    });
     it('lists using the person’s OAuth credential and returns JSON', async () => {
         expect(await runCloud(host, ['cloud', 'environments', 'list', '--json'])).toBe(0);
         expect(requests).toHaveLength(1);
