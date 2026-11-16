@@ -152,6 +152,20 @@ describe('dexto workspace artifacts', () => {
         return file;
     };
 
+    it('reports the missing public Artifact permissions for an OAuth login', async () => {
+        expect(await runCloud(host, ['artifacts', 'list', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toContain('artifacts:read');
+        stderr = '';
+        expect(await runCloud(host, ['artifacts', 'open', 'a1', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toContain('artifacts:read');
+        stderr = '';
+        const file = await htmlFile('report.html', '<p>Report</p>');
+        expect(
+            await runCloud(host, ['artifacts', 'publish', file, '--title', 'Report', '--json'])
+        ).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toContain('artifacts:write');
+    });
+
     it('lists Artifacts as a page whose cursor is the next --after', async () => {
         expect(
             await runCloud(host, [

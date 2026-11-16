@@ -162,6 +162,23 @@ describe('cloud secrets, web and data-deletions', () => {
         expect(JSON.parse(stdout)).toMatchObject({ dryRun: true, title: 'Report', kind: 'plan' });
     });
 
+    it('rejects oversized Artifact HTML during dry run', async () => {
+        const file = path.join(path.dirname(dir), 'large.html');
+        await writeFile(file, 'x'.repeat(524289));
+        expect(
+            await runCloud(host, [
+                'artifacts',
+                'publish',
+                file,
+                '--title',
+                'Report',
+                '--dry-run',
+                '--json',
+            ])
+        ).toBe(2);
+        expect(requests).toHaveLength(0);
+    });
+
     it('creates a secret from stdin, never from an argument, sent as a bearer by default', async () => {
         stdin = 'ghp_value\n';
         reply = () => Response.json({ id: 'sec_1', name: 'GITHUB' }, { status: 201 });

@@ -11,6 +11,7 @@ import {
     type Command,
 } from '../command.js';
 import type { Column } from '../output.js';
+import { requireLoginScopes } from './deploys.js';
 
 const KINDS = [
     'document',
@@ -47,6 +48,8 @@ const publish: Command = {
             throw new UsageError(`Cannot read ${file}.`);
         });
         if (!html.length) throw new UsageError(`${file} is empty.`);
+        if (Buffer.byteLength(html, 'utf8') > 524_288)
+            throw new UsageError('An Artifact holds at most 524288 bytes of HTML.');
         if (flag(input, 'dry-run')) {
             context.output.result(
                 {
@@ -59,6 +62,7 @@ const publish: Command = {
             );
             return;
         }
+        await requireLoginScopes(context, ['artifacts:write']);
         const artifact = await unwrap(
             await (
                 await context.client()
@@ -74,6 +78,7 @@ const list: Command = {
     path: ['artifacts', 'list'],
     summary: 'List your Artifacts. Example: dexto artifacts list --json',
     async run(context, input) {
+        await requireLoginScopes(context, ['artifacts:read']);
         const page = await unwrap(
             await (
                 await context.client()
@@ -87,6 +92,7 @@ const open: Command = {
     path: ['artifacts', 'open'],
     summary: 'Print an Artifact link. Example: dexto artifacts open "$ARTIFACT_ID"',
     async run(context, input) {
+        await requireLoginScopes(context, ['artifacts:read']);
         const artifact = await unwrap(
             await (
                 await context.client()
