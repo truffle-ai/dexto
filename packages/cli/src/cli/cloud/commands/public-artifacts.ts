@@ -73,7 +73,12 @@ const publish: Command = {
             await (
                 await context.client()
             ).POST('/v1/artifacts', {
-                body: { title, html, idempotencyKey, ...(kind === undefined ? {} : { kind }) },
+                body: {
+                    title,
+                    html,
+                    idempotency_key: idempotencyKey,
+                    ...(kind === undefined ? {} : { kind }),
+                },
             })
         );
         context.output.result(artifact, `${artifact.id} ${artifact.url ?? ''}`);

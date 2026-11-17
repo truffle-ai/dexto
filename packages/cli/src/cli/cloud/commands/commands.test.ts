@@ -124,28 +124,28 @@ describe('cloud secrets, web and data-deletions', () => {
         const args = ['artifacts', 'publish', file, '--title', 'Report', '--json'];
         expect(await runCloud(host, args)).toBe(0);
         expect(await runCloud(host, args)).toBe(0);
-        const first = requests[0]?.body as { idempotencyKey: string };
-        const second = requests[1]?.body as { idempotencyKey: string };
-        expect(first.idempotencyKey).toBeTruthy();
-        expect(second.idempotencyKey).toBe(first.idempotencyKey);
+        const first = requests[0]?.body as { idempotency_key: string };
+        const second = requests[1]?.body as { idempotency_key: string };
+        expect(first.idempotency_key).toBeTruthy();
+        expect(second.idempotency_key).toBe(first.idempotency_key);
         expect(await runCloud(host, [...args, '--kind', 'document'])).toBe(0);
-        expect((requests[2]?.body as { idempotencyKey: string }).idempotencyKey).toBe(
-            first.idempotencyKey
+        expect((requests[2]?.body as { idempotency_key: string }).idempotency_key).toBe(
+            first.idempotency_key
         );
         expect(await runCloud(host, [...args, '--kind', 'plan'])).toBe(0);
-        expect((requests[3]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
-            first.idempotencyKey
+        expect((requests[3]?.body as { idempotency_key: string }).idempotency_key).not.toBe(
+            first.idempotency_key
         );
         await writeFile(file, '<p>Second</p>');
         expect(await runCloud(host, args)).toBe(0);
-        expect((requests[4]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
-            first.idempotencyKey
+        expect((requests[4]?.body as { idempotency_key: string }).idempotency_key).not.toBe(
+            first.idempotency_key
         );
         expect(
             await runCloud(host, ['artifacts', 'publish', file, '--title', 'Different', '--json'])
         ).toBe(0);
-        expect((requests[5]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
-            (requests[4]?.body as { idempotencyKey: string }).idempotencyKey
+        expect((requests[5]?.body as { idempotency_key: string }).idempotency_key).not.toBe(
+            (requests[4]?.body as { idempotency_key: string }).idempotency_key
         );
     });
 
