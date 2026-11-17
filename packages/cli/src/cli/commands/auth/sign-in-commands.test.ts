@@ -334,7 +334,12 @@ describe('sign-in commands', () => {
 
             expect(ended).toHaveLength(1);
             expect(await readLogin(dir, 'default')).toBeNull();
-            expect(printed).toEqual(['Logged out.']);
+            expect(printed).toEqual([
+                'Logged out. This ended the sign-in on the server, so any other computer, script or agent using this same sign-in is signed out too.',
+            ]);
+            expect(values).toEqual([
+                { profile: 'default', logged_out: true, ended_on_server: true },
+            ]);
         });
 
         it("forgets the sign-in even when the server couldn't end it, and says so", async () => {
@@ -345,12 +350,35 @@ describe('sign-in commands', () => {
 
             expect(await readLogin(dir, 'default')).toBeNull();
             expect(notes.join('\n')).toContain(`${APP}/settings/sign-ins`);
+            expect(values).toEqual([
+                { profile: 'default', logged_out: true, ended_on_server: false },
+            ]);
+        });
+
+        it('forgets an API key locally without deleting it', async () => {
+            await writeLogin(dir, 'default', {
+                kind: 'api_key',
+                apiKey: 'dxt_test',
+                apiBaseUrl: API,
+                savedAt: new Date().toISOString(),
+            });
+            await logout(context, { profile: null });
+            expect(printed).toEqual([
+                'Logged out. The API key still works until it is deleted in Settings.',
+            ]);
+            expect(values).toEqual([
+                { profile: 'default', logged_out: true, ended_on_server: false },
+            ]);
+            expect(ended).toHaveLength(0);
         });
 
         it('says when there was nothing to log out of', async () => {
             await logout(context, { profile: 'work' });
 
             expect(printed).toEqual(['No saved sign-in for profile work.']);
+            expect(values).toEqual([
+                { profile: 'work', logged_out: false, ended_on_server: false },
+            ]);
         });
     });
 
