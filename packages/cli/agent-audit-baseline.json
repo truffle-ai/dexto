@@ -623,6 +623,27 @@
     "examples": false
   },
   {
+    "command": "credits balance",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "credits topup",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "credits topup status",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "find",
     "json": true,
     "dryRun": false,

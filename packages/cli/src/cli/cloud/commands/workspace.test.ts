@@ -69,6 +69,7 @@ describe('dexto workspace', () => {
     let computersResponse: unknown;
     let profilesResponse: unknown;
     let followResponses: unknown[];
+    let creditResponses: unknown[];
     let chatInspection: unknown;
     let appScopes: Record<string, Record<string, string[]>>;
 
@@ -102,6 +103,7 @@ describe('dexto workspace', () => {
             ],
         };
         followResponses = [];
+        creditResponses = [];
         chatInspection = {};
         appScopes = {};
         profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
@@ -167,24 +169,28 @@ describe('dexto workspace', () => {
                 calls.push({ method: message.method, params: message.params });
                 const tool = message.params?.name;
                 const structured =
-                    tool === 'dexto_upload_prepare'
-                        ? {
-                              url: 'https://upload.example/u1',
-                              method: 'PUT',
-                              headers: {},
-                              path: 'uploads/u1.zip',
-                          }
-                        : tool === 'dexto_chat_follow' || tool === 'dexto_chat_wait'
-                          ? followResponses.shift()
-                          : tool === 'dexto_chat_get' || tool === 'dexto_chat_list'
-                            ? chatInspection
-                            : tool === 'dexto_chat_start'
-                              ? chatResponse
-                              : tool === 'dexto_chat_computers_list'
-                                ? computersResponse
-                                : tool === 'dexto_chat_browser_profiles_list'
-                                  ? profilesResponse
-                                  : { status: 'sent' };
+                    tool === 'dexto_credits_topup' ||
+                    tool === 'dexto_credits_topup_status' ||
+                    tool === 'dexto_credits_balance'
+                        ? creditResponses.shift()
+                        : tool === 'dexto_upload_prepare'
+                          ? {
+                                url: 'https://upload.example/u1',
+                                method: 'PUT',
+                                headers: {},
+                                path: 'uploads/u1.zip',
+                            }
+                          : tool === 'dexto_chat_follow' || tool === 'dexto_chat_wait'
+                            ? followResponses.shift()
+                            : tool === 'dexto_chat_get' || tool === 'dexto_chat_list'
+                              ? chatInspection
+                              : tool === 'dexto_chat_start'
+                                ? chatResponse
+                                : tool === 'dexto_chat_computers_list'
+                                  ? computersResponse
+                                  : tool === 'dexto_chat_browser_profiles_list'
+                                    ? profilesResponse
+                                    : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
@@ -272,6 +278,283 @@ describe('dexto workspace', () => {
         answer: 'Finished answer',
         artifacts: [{ name: 'report.txt' }],
         usage: { totalChargeUsd: 0.01 },
+    });
+
+    it('starts one credit checkout and waits for the paid balance as NDJSON', async () => {
+        const open = {
+            topupId: 'topup-1',
+            checkoutUrl: 'https://pay.example/1',
+            expiresAt: '2030-01-01T00:00:00Z',
+            status: 'open',
+        };
+        creditResponses = [open, { ...open, status: 'paid', balanceUsd: 25.42 }];
+        expect(await runCloud(host, ['credits', 'topup', '25', '--yes', '--json'])).toBe(0);
+        const lines = stdout
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines).toMatchObject([
+            { status: 'open', checkoutUrl: 'https://pay.example/1' },
+            { status: 'paid', balanceUsd: 25.42 },
+        ]);
+        expect(calls.filter((call) => call.params.name === 'dexto_credits_topup')).toHaveLength(1);
+        expect(
+            calls.find((call) => call.params.name === 'dexto_credits_topup')?.params.arguments
+        ).toEqual({ creditsUsd: 25, surface: 'cli', confirm: true });
+    });
+    it('requires consent before starting and supports no-wait and balance', async () => {
+        expect(await runCloud(host, ['credits', 'topup', '25', '--json'])).toBe(4);
+        expect(calls).toHaveLength(0);
+        creditResponses = [
+            {
+                topupId: 'topup-1',
+                checkoutUrl: 'https://pay.example/1',
+                expiresAt: '2030-01-01T00:00:00Z',
+                status: 'open',
+            },
+        ];
+        expect(
+            await runCloud(host, ['credits', 'topup', '25', '--yes', '--no-wait', '--json'])
+        ).toBe(0);
+        expect(
+            calls.filter((call) => call.params.name === 'dexto_credits_topup_status')
+        ).toHaveLength(0);
+        stdout = '';
+        creditResponses = [{ creditsUsd: 12.5 }];
+        expect(await runCloud(host, ['credits', 'balance', '--json'])).toBe(0);
+        expect(JSON.parse(stdout)).toEqual({ creditsUsd: 12.5 });
+    });
+    it('reports an expired top-up and allows a later attempt', async () => {
+        creditResponses = [
+            {
+                topupId: 'topup-1',
+                expiresAt: '2020-01-01T00:00:00Z',
+                status: 'expired',
+            },
+        ];
+        expect(
+            await runCloud(host, ['credits', 'topup', 'status', 'topup-1', '--wait', '--json'])
+        ).toBe(1);
+        expect(JSON.parse(stdout)).toMatchObject({ status: 'expired' });
+        expect(JSON.parse(stderr).error).toMatchObject({
+            code: 'failed',
+            message: expect.stringContaining('topup_expired'),
+        });
+        expect(JSON.parse(stderr).error).not.toHaveProperty('fix');
+    });
+    it('does not suggest resuming a failed top-up while waiting', async () => {
+        creditResponses = [
+            {
+                topupId: 'topup-1',
+                expiresAt: '2020-01-01T00:00:00Z',
+                status: 'failed',
+            },
+        ];
+        expect(
+            await runCloud(host, ['credits', 'topup', 'status', 'topup-1', '--wait', '--json'])
+        ).toBe(1);
+        expect(JSON.parse(stderr).error).toMatchObject({ code: 'failed' });
+        expect(JSON.parse(stderr).error).not.toHaveProperty('fix');
+    });
+    it('ends the wait on a failed payment and points to a new top-up, not the used link', async () => {
+        const open = {
+            topupId: 'topup-1',
+            checkoutUrl: 'https://pay.example/1',
+            expiresAt: '2030-01-01T00:00:00Z',
+            status: 'open',
+        };
+        creditResponses = [
+            open,
+            {
+                topupId: 'topup-1',
+                expiresAt: '2030-01-01T00:00:00Z',
+                status: 'failed',
+                lastFailureReason: 'Card declined',
+            },
+        ];
+        expect(await runCloud(host, ['credits', 'topup', '25', '--yes', '--json'])).toBe(1);
+        const lines = stdout
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines.at(-1)).toEqual({
+            topupId: 'topup-1',
+            expiresAt: '2030-01-01T00:00:00Z',
+            status: 'failed',
+            lastFailureReason: 'Card declined',
+        });
+        const error = JSON.parse(stderr).error;
+        expect(error.message).toContain('Card declined');
+        expect(error.message).toContain('start a new top-up');
+        expect(error.message).not.toContain('still open');
+        expect(calls.filter((call) => call.params.name === 'dexto_credits_topup')).toHaveLength(1);
+    });
+    it.each(['expired', 'failed'])(
+        'does not suggest resuming a terminal %s top-up without waiting',
+        async (status) => {
+            creditResponses = [
+                {
+                    topupId: 'topup-1',
+                    expiresAt: '2020-01-01T00:00:00Z',
+                    status,
+                },
+            ];
+            expect(await runCloud(host, ['credits', 'topup', 'status', 'topup-1', '--json'])).toBe(
+                1
+            );
+            expect(JSON.parse(stdout)).toMatchObject({ status });
+            expect(JSON.parse(stderr).error).toMatchObject({ code: 'failed' });
+            expect(JSON.parse(stderr).error).not.toHaveProperty('fix');
+        }
+    );
+
+    it('returns a resumable top-up when waiting times out', async () => {
+        creditResponses = [
+            {
+                topupId: 'topup-1',
+                checkoutUrl: 'https://pay.example/1',
+                expiresAt: '2030-01-01T00:00:00Z',
+                status: 'open',
+            },
+        ];
+        expect(
+            await runCloud(host, ['credits', 'topup', '25', '--yes', '--timeout', '0', '--json'])
+        ).toBe(6);
+        expect(JSON.parse(stdout)).toMatchObject({ topupId: 'topup-1', status: 'open' });
+        expect(JSON.parse(stderr).error).toMatchObject({
+            code: 'waiting_on_person',
+            fix: 'dexto credits topup status topup-1 --wait',
+        });
+    });
+
+    it.each([
+        [401, 'needs_sign_in', 3],
+        [403, 'needs_permission', 3],
+        [404, 'not_found', 5],
+    ])(
+        'reports HTTP %s from checkout polling without repeating the start',
+        async (status, code, exit) => {
+            creditResponses = [
+                {
+                    topupId: 'topup-1',
+                    checkoutUrl: 'https://pay.example/1',
+                    expiresAt: '2030-01-01T00:00:00Z',
+                    status: 'open',
+                },
+            ];
+            const failingHost: CloudHost = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        const message = JSON.parse(await request.clone().text());
+                        if (message.params?.name === 'dexto_credits_topup_status')
+                            return Response.json(
+                                { error: { code: 'poll_error', message: 'Poll refused' } },
+                                { status }
+                            );
+                        return host.runtime.fetch(request);
+                    },
+                },
+            };
+            expect(await runCloud(failingHost, ['credits', 'topup', '25', '--yes', '--json'])).toBe(
+                exit
+            );
+            expect(JSON.parse(stderr).error).toMatchObject({
+                code,
+                fix: 'dexto credits topup status topup-1 --wait',
+            });
+            expect(calls.filter((call) => call.params.name === 'dexto_credits_topup')).toHaveLength(
+                1
+            );
+        }
+    );
+    it('reports a polling network failure as JSON with a resume command', async () => {
+        creditResponses = [
+            {
+                topupId: 'topup-1',
+                checkoutUrl: 'https://pay.example/1',
+                expiresAt: '2030-01-01T00:00:00Z',
+                status: 'open',
+            },
+        ];
+        const failingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_credits_topup_status')
+                        throw new Error('network unavailable');
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(failingHost, ['credits', 'topup', '25', '--yes', '--json'])).toBe(1);
+        expect(JSON.parse(stderr).error).toMatchObject({
+            code: 'failed',
+            fix: 'dexto credits topup status topup-1 --wait',
+        });
+        expect(calls.filter((call) => call.params.name === 'dexto_credits_topup')).toHaveLength(1);
+    });
+    it('describes checkout schemas and examples in JSON help', async () => {
+        expect(await runCloud(host, ['credits', 'topup', '--help', '--json'])).toBe(0);
+        expect(JSON.parse(stdout)).toMatchObject({
+            examples: expect.arrayContaining(['dexto credits topup 25 --yes']),
+            json_output: {
+                schema: {
+                    properties: {
+                        topupId: { type: 'string' },
+                        status: { enum: ['open', 'paid', 'failed', 'expired'] },
+                    },
+                },
+            },
+        });
+    });
+
+    it.each(['balance', 'topup', 'topup status'])(
+        'returns the same JSON help schema envelope for credits %s',
+        async (command) => {
+            expect(
+                await runCloud(host, ['credits', ...command.split(' '), '--help', '--json'])
+            ).toBe(0);
+            expect(JSON.parse(stdout)).toMatchObject({
+                json_output: {
+                    description: expect.any(String),
+                    schema: { type: 'object', properties: expect.any(Object) },
+                },
+            });
+        }
+    );
+
+    it.each(['balance', 'topup', 'topup status'])(
+        'documents examples and JSON output in credits %s help',
+        async (subcommand) => {
+            expect(
+                await runCloud(host, ['credits', ...subcommand.split(' '), '--help', '--table'])
+            ).toBe(0);
+            expect(stdout).toContain('Examples:');
+            expect(stdout).toContain(`dexto credits ${subcommand}`);
+            expect(stdout).toContain('JSON output:');
+            if (subcommand === 'topup') expect(stdout).toContain('$5–$500');
+        }
+    );
+
+    it('resumes a top-up status by id', async () => {
+        creditResponses = [
+            {
+                topupId: 'topup-1',
+                expiresAt: '2030-01-01T00:00:00Z',
+                status: 'paid',
+                balanceUsd: 25,
+            },
+        ];
+        expect(
+            await runCloud(host, ['credits', 'topup', 'status', 'topup-1', '--wait', '--json'])
+        ).toBe(0);
+        expect(JSON.parse(stdout)).toMatchObject({ status: 'paid', balanceUsd: 25 });
     });
 
     it('start --wait starts once and prints events and a final NDJSON answer', async () => {

@@ -114,8 +114,6 @@ dexto_contacts_request_answer
 dexto_contacts_requests_list
 dexto_contacts_unblock
 dexto_cos_report
-dexto_credits_balance
-dexto_credits_topup
 dexto_direct_conversation_get
 dexto_direct_conversations_list
 dexto_direct_message_send
