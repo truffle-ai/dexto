@@ -1,4 +1,5 @@
 import type { ModelMessage, AssistantContent, AssistantModelMessage, ToolResultPart } from 'ai';
+import { isOpenRouterThinkingSeparator } from '../providers/openrouter-thinking-stream.js';
 import {
     DEFAULT_MODEL_REGISTRY,
     isOpenRouterAnthropicModel,
@@ -20,7 +21,6 @@ import {
 } from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import { isOpenRouterThinkingSeparator } from '../providers/openrouter-thinking-stream.js';
 
 type ToolCallProviderOptions = NonNullable<
     AssistantMessage['toolCalls']
