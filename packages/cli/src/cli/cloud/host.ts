@@ -7,6 +7,7 @@ import { accountCommands, type SignInFor } from './commands/account.js';
 import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { artifactCommands } from './commands/artifacts.js';
+import { publicArtifactCommands } from './commands/public-artifacts.js';
 import { connectionCommands } from './commands/connections.js';
 import { chatCommands } from './commands/chats.js';
 import { importCommands } from './commands/import.js';
@@ -82,6 +83,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...computerKeyCommands,
         ...driveCommands,
         ...artifactCommands,
+        ...publicArtifactCommands,
         ...findCommands,
         ...profileCommands,
         ...publishCommands,

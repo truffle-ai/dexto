@@ -330,6 +330,18 @@ dexto span list <run_id> --name llm.stream --sort duration --limit 5
 
 `trace list` takes `--period` (such as `15m`, `3h` or `7d`, at most `30d`), `--status`, `--session` and `--limit` (at most 100). `span list` takes `--name`, `--status` (`completed` or `failed`), `--sort` (`started_at` or `duration`) and `--limit` (at most 500). They print tables at a terminal and JSON with `--json` or when piped. Reading traces needs `runs:read`. If your sign-in lacks it, the CLI offers to sign in again for it, or prints `dexto login --scope runs:read`. An API key needs the `runs:read` permission: create one that has it.
 
+## Publish an Artifact
+
+Publish an HTML file to your organization, then list or open your Artifacts:
+
+```bash
+dexto artifacts publish ./report.html --title "Report" --kind document --json
+dexto artifacts list --json
+dexto artifacts open "$ARTIFACT_ID" --json
+```
+
+Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes, title and kind again returns the original Artifact; use a different title to publish a separate copy.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.
