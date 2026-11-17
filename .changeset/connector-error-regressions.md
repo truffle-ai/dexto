@@ -1,4 +1,5 @@
 ---
+'dexto': minor
 ---
 
-Add regression coverage for connector error messages; this change does not alter the published CLI.
+Enable catalog connector sign-in, including GitHub, and report unknown connector names clearly.
