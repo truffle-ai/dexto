@@ -94,6 +94,7 @@ export function getOpenRouterReasoningTarget(model: string): OpenRouterReasoning
 export function isOpenRouterAnthropicModel(provider: LLMProvider, model: string): boolean {
     return (
         isOpenRouterGatewayProvider(provider) &&
-        getOpenRouterReasoningTarget(model)?.upstreamProvider === 'anthropic'
+        getOpenRouterReasoningTarget(model.startsWith('~') ? model.slice(1) : model)
+            ?.upstreamProvider === 'anthropic'
     );
 }

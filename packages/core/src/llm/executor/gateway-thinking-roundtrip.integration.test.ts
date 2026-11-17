@@ -80,19 +80,14 @@ function toolCallDelta(index: number, id: string) {
     };
 }
 
-function createFakeGateway(model: string, toolCallIds: string[]) {
+function createFakeGateway(model: string, toolCallIds: string[], reasoningDetails: unknown[][]) {
     const requests: ChatRequestBody[] = [];
     const fetchImpl = async (_input: unknown, init?: RequestInit): Promise<Response> => {
         requests.push(JSON.parse(String(init?.body)) as ChatRequestBody);
         if (requests.length === 1) {
             return sse([
-                chunk(
-                    model,
-                    {
-                        role: 'assistant',
-                        reasoning_details: [SIGNED_EMPTY_THINKING, REDACTED_THINKING],
-                    },
-                    null
+                ...reasoningDetails.map((details) =>
+                    chunk(model, { role: 'assistant', reasoning_details: details }, null)
                 ),
                 chunk(
                     model,
@@ -129,7 +124,12 @@ describe('gateway thinking round-trip in a tool loop', () => {
         logger.destroy();
     });
 
-    async function runToolLoop(provider: LLMProvider, model: string, toolCallIds: string[]) {
+    async function runToolLoop(
+        provider: LLMProvider,
+        model: string,
+        toolCallIds: string[],
+        reasoningDetails: unknown[][] = [[SIGNED_EMPTY_THINKING, REDACTED_THINKING]]
+    ) {
         const sessionId = 'thinking-session';
         const agentEventBus = new AgentEventBus();
         const sessionEventBus = new SessionEventBus();
@@ -203,7 +203,7 @@ describe('gateway thinking round-trip in a tool loop', () => {
             }),
         ]);
 
-        const gateway = createFakeGateway(model, toolCallIds);
+        const gateway = createFakeGateway(model, toolCallIds, reasoningDetails);
         const languageModel = await createVercelModel(llmConfig, {
             authResolver: {
                 resolveRuntimeAuth: () => ({
@@ -265,6 +265,19 @@ describe('gateway thinking round-trip in a tool loop', () => {
         }
     );
 
+    it.each(['dexto-nova', 'openrouter'] as const)(
+        'preserves thinking for a Claude latest alias on %s',
+        async (provider) => {
+            const requests = await runToolLoop(provider, '~anthropic/claude-opus-latest', [
+                'call-1',
+            ]);
+            expect(toolCallingAssistantMessage(requests).reasoning_details).toEqual([
+                SIGNED_EMPTY_THINKING,
+                REDACTED_THINKING,
+            ]);
+        }
+    );
+
     it('sends the thinking blocks once when Claude calls several tools in one turn', async () => {
         const requests = await runToolLoop('dexto-nova', 'anthropic/claude-opus-4.5', [
             'call-1',
@@ -274,6 +287,66 @@ describe('gateway thinking round-trip in a tool loop', () => {
         const assistant = toolCallingAssistantMessage(requests);
         expect(assistant.tool_calls).toHaveLength(2);
         expect(assistant.reasoning_details).toEqual([SIGNED_EMPTY_THINKING, REDACTED_THINKING]);
+    });
+
+    it('keeps adjacent signed thinking blocks separate on direct OpenRouter', async () => {
+        const first = { ...SIGNED_EMPTY_THINKING, text: 'first', signature: 'sig-1', index: 0 };
+        const second = { ...SIGNED_EMPTY_THINKING, text: 'second', signature: 'sig-2', index: 1 };
+        const requests = await runToolLoop(
+            'openrouter',
+            'anthropic/claude-opus-4.5',
+            ['call-1'],
+            [[first], [second]]
+        );
+
+        expect(toolCallingAssistantMessage(requests).reasoning_details).toEqual([first, second]);
+    });
+
+    it('keeps adjacent signature-only blocks separate on direct OpenRouter', async () => {
+        const first = { ...SIGNED_EMPTY_THINKING, signature: 'sig-1', index: 0 };
+        const second = { ...SIGNED_EMPTY_THINKING, signature: 'sig-2', index: 1 };
+        const requests = await runToolLoop(
+            'openrouter',
+            'anthropic/claude-opus-4.5',
+            ['call-1'],
+            [[first], [second]]
+        );
+
+        expect(toolCallingAssistantMessage(requests).reasoning_details).toEqual([first, second]);
+    });
+
+    it('keeps the block index across an indexless continuation', async () => {
+        const first = { ...SIGNED_EMPTY_THINKING, text: 'first', signature: 'sig-1', index: 0 };
+        const second = { ...SIGNED_EMPTY_THINKING, text: 'second', signature: 'sig-2', index: 1 };
+        const requests = await runToolLoop(
+            'openrouter',
+            'anthropic/claude-opus-4.5',
+            ['call-1'],
+            [[first], [{ type: 'reasoning.text', text: ' more' }], [second]]
+        );
+
+        expect(toolCallingAssistantMessage(requests).reasoning_details).toEqual([
+            { ...first, text: 'first more' },
+            second,
+        ]);
+    });
+
+    it('does not replay a gateway separator to OpenRouter', async () => {
+        const first = { ...SIGNED_EMPTY_THINKING, signature: 'sig-1', index: 0 };
+        const second = { ...SIGNED_EMPTY_THINKING, signature: 'sig-2', index: 1 };
+        const separator = {
+            type: 'reasoning.summary',
+            summary: '',
+            format: 'anthropic-claude-v1',
+            index: 1,
+        };
+        const requests = await runToolLoop(
+            'openrouter',
+            'anthropic/claude-opus-4.5',
+            ['call-1'],
+            [[first, separator, second]]
+        );
+        expect(toolCallingAssistantMessage(requests).reasoning_details).toEqual([first, second]);
     });
 
     it('sends no reasoning details back for a non-Anthropic model', async () => {

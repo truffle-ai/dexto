@@ -20,6 +20,7 @@ import {
 } from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
+import { isOpenRouterThinkingSeparator } from '../providers/openrouter-thinking-stream.js';
 
 type ToolCallProviderOptions = NonNullable<
     AssistantMessage['toolCalls']
@@ -44,7 +45,11 @@ function findGatewayReasoningDetails(
         if (!isRecord(openrouter)) continue;
         const details = openrouter['reasoning_details'];
         if (Array.isArray(details) && details.length > 0) {
-            return details as GatewayReasoningDetails;
+            // Synthetic summaries separate signed blocks for the OpenRouter SDK only.
+            // Do not send them to the upstream provider.
+            return details.filter(
+                (detail: unknown) => !isOpenRouterThinkingSeparator(detail)
+            ) as GatewayReasoningDetails;
         }
     }
     return undefined;

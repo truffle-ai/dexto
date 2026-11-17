@@ -72,6 +72,12 @@ describe('openrouter reasoning profile routing', () => {
             expect(isOpenRouterAnthropicModel('openrouter', 'anthropic/claude-opus-4.5')).toBe(
                 true
             );
+            expect(isOpenRouterAnthropicModel('openrouter', '~anthropic/claude-opus-latest')).toBe(
+                true
+            );
+            expect(isOpenRouterAnthropicModel('dexto-nova', '~anthropic/claude-fable-latest')).toBe(
+                true
+            );
         });
 
         it('does not match other upstreams or direct providers', () => {
