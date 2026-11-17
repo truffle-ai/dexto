@@ -340,7 +340,7 @@ dexto artifacts list --json
 dexto artifacts open "$ARTIFACT_ID" --json
 ```
 
-Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Each publish creates a new Artifact; retrying can create a duplicate.
+Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes and title again returns the original Artifact; use a different title to publish a separate copy.
 
 ## Your Dexto Workspace
 

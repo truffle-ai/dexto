@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { unwrap, type V1Response } from '@dexto/cloud-client';
 import {
     argument,
@@ -44,9 +45,10 @@ const publish: Command = {
         const file = argument(input, 0, 'file');
         const title = requiredOption(input, 'title');
         const kind = choiceOption(input, 'kind', KINDS);
-        const html = await readFile(file, 'utf8').catch(() => {
+        const bytes = await readFile(file).catch(() => {
             throw new UsageError(`Cannot read ${file}.`);
         });
+        const html = bytes.toString('utf8');
         if (!html.length) throw new UsageError(`${file} is empty.`);
         if (Buffer.byteLength(html, 'utf8') > 524_288)
             throw new UsageError('An Artifact holds at most 524288 bytes of HTML.');
@@ -62,12 +64,16 @@ const publish: Command = {
             );
             return;
         }
+        const fileHash = createHash('sha256').update(bytes).digest('hex');
+        const idempotencyKey = createHash('sha256')
+            .update(JSON.stringify([title, fileHash]))
+            .digest('hex');
         await requireLoginScopes(context, ['artifacts:write']);
         const artifact = await unwrap(
             await (
                 await context.client()
             ).POST('/v1/artifacts', {
-                body: { title, html, ...(kind === undefined ? {} : { kind }) },
+                body: { title, html, idempotencyKey, ...(kind === undefined ? {} : { kind }) },
             })
         );
         context.output.result(artifact, `${artifact.id} ${artifact.url ?? ''}`);

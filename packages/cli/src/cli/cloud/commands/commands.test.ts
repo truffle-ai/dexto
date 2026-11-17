@@ -108,6 +108,39 @@ describe('cloud secrets, web and data-deletions', () => {
         expect(JSON.parse(stdout)).toMatchObject({ id: 'art_1', url: 'https://app.dexto.ai/a/1' });
     });
 
+    it('uses a stable key for identical titles and file bytes', async () => {
+        const file = path.join(path.dirname(dir), 'report.html');
+        await writeFile(file, '<p>First</p>');
+        reply = () =>
+            Response.json(
+                {
+                    id: 'art_1',
+                    object: 'artifact',
+                    title: 'Report',
+                    url: 'https://app.dexto.ai/a/1',
+                },
+                { status: 201 }
+            );
+        const args = ['artifacts', 'publish', file, '--title', 'Report', '--json'];
+        expect(await runCloud(host, args)).toBe(0);
+        expect(await runCloud(host, args)).toBe(0);
+        const first = requests[0]?.body as { idempotencyKey: string };
+        const second = requests[1]?.body as { idempotencyKey: string };
+        expect(first.idempotencyKey).toBeTruthy();
+        expect(second.idempotencyKey).toBe(first.idempotencyKey);
+        await writeFile(file, '<p>Second</p>');
+        expect(await runCloud(host, args)).toBe(0);
+        expect((requests[2]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
+            first.idempotencyKey
+        );
+        expect(
+            await runCloud(host, ['artifacts', 'publish', file, '--title', 'Different', '--json'])
+        ).toBe(0);
+        expect((requests[3]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
+            (requests[2]?.body as { idempotencyKey: string }).idempotencyKey
+        );
+    });
+
     it('lists and opens Artifact links through the public API', async () => {
         const artifact = {
             id: 'art_1',

@@ -17187,6 +17187,7 @@ export interface operations {
                      * @enum {string}
                      */
                     kind?: "document" | "plan" | "mockup" | "prototype" | "slide-deck" | "visualization" | "interactive" | "other";
+                    idempotencyKey?: string;
                 };
             };
         };
