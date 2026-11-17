@@ -21,6 +21,27 @@
     "examples": false
   },
   {
+    "command": "artifacts list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "artifacts open",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "artifacts publish",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "billing",
     "json": true,
     "dryRun": false,
