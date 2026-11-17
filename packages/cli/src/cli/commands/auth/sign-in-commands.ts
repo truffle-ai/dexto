@@ -272,11 +272,16 @@ export async function logout(
     options: { readonly profile: string | null }
 ): Promise<void> {
     const profile = await resolveProfile(context.dir, options.profile, context.environment);
-    const removed = await logOutProfile(context, profile);
+    const result = await logOutProfile(context, profile);
     const named = profile === DEFAULT_PROFILE ? '' : ` for profile ${profile}`;
+    const detail = result.endedOnServer
+        ? ' This ended the sign-in on the server, so any other computer, script or agent using this same sign-in is signed out too.'
+        : result.kind === 'api_key'
+          ? ' The API key still works until it is deleted in Settings.'
+          : '';
     context.result(
-        { profile, logged_out: removed },
-        removed ? `Logged out${named}.` : `No saved sign-in${named}.`
+        { profile, logged_out: result.removed, ended_on_server: result.endedOnServer },
+        result.removed ? `Logged out${named}.${detail}` : `No saved sign-in${named}.`
     );
 }
 
@@ -284,16 +289,26 @@ export async function logout(
  * Ends a profile's sign-in on its server, then forgets it here. A sign-in the server didn't end
  * keeps working until it expires, so a note says where to end it.
  */
-async function logOutProfile(context: SignInContext, profile: string): Promise<boolean> {
+async function logOutProfile(
+    context: SignInContext,
+    profile: string
+): Promise<{
+    removed: boolean;
+    endedOnServer: boolean;
+    kind: StoredLogin['kind'] | null;
+}> {
     const saved = await readLogin(context.dir, profile);
+    let endedOnServer = false;
     if (saved?.kind === 'oauth') {
         const ended = await context.dexto.endSignIn(saved);
+        endedOnServer = ended.status === 'ended';
         if (ended.status === 'failed')
             context.note(
                 `Couldn't end the sign-in on ${safeText(saved.appUrl)} (${safeText(ended.reason)}). Sign it out at ${safeText(new URL('/settings/sign-ins', saved.appUrl).href)}, or it keeps working until it expires.`
             );
     }
-    return await forgetLogin(context.dir, profile);
+    const removed = await forgetLogin(context.dir, profile);
+    return { removed, endedOnServer, kind: saved?.kind ?? null };
 }
 
 export async function whoami(
