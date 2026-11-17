@@ -10827,6 +10827,14 @@
           "timezone": {
             "type": "string",
             "minLength": 1
+          },
+          "repository": {
+            "description": "A GitHub repository (owner/name or https://github.com/owner/name) the Project's chats start with, cloned on their computer. It reuses the person's Environment for that repository alone, or makes a personal one whose first build is metered compute (needs computers:write and money consent).",
+            "type": "string"
+          },
+          "confirm": {
+            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+            "type": "boolean"
           }
         },
         "required": [
