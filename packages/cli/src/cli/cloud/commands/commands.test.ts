@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
@@ -602,6 +602,251 @@ describe('cloud secrets, web and data-deletions', () => {
                     },
                 },
             };
+        });
+
+        it('pulls the live Site files by slug into the requested directory', async () => {
+            const dest = path.join(path.dirname(dir), 'download');
+            reply = (url) =>
+                url.endsWith('/v1/sites')
+                    ? Response.json({
+                          data: [
+                              {
+                                  id: 'site_1',
+                                  slug: 'hello',
+                                  url: 'https://hello.dexto.site',
+                                  visibility: 'public',
+                              },
+                          ],
+                      })
+                    : Response.json({
+                          site_id: 'site_1',
+                          deployment_id: 'dep_1',
+                          entrypoint: 'index.html',
+                          files: [
+                              {
+                                  path: 'nested/index.html',
+                                  size_bytes: 5,
+                                  content_type: 'text/html',
+                                  content_base64: 'aGVsbG8=',
+                              },
+                          ],
+                      });
+
+            const code = await runCloud(host, ['cloud', 'sites', 'pull', 'hello', dest, '--json']);
+
+            expect(code).toBe(0);
+            expect(requests.map((request) => request.url)).toEqual([
+                'https://api.dexto.ai/v1/sites',
+                'https://api.dexto.ai/v1/sites/site_1/files',
+            ]);
+            expect(await readFile(path.join(dest, 'nested/index.html'), 'utf8')).toBe('hello');
+            expect(JSON.parse(stdout)).toEqual({
+                id: 'site_1',
+                slug: 'hello',
+                deployment_id: 'dep_1',
+                dir: dest,
+                dry_run: false,
+                files: [{ path: 'nested/index.html', size_bytes: 5, replaces: false }],
+            });
+        });
+
+        it('refuses a path outside the destination before writing any files', async () => {
+            const dest = path.join(path.dirname(dir), 'download');
+            reply = (url) =>
+                url.endsWith('/v1/sites')
+                    ? Response.json({
+                          data: [
+                              {
+                                  id: 'site_1',
+                                  slug: 'hello',
+                                  url: 'https://hello.dexto.site',
+                                  visibility: 'public',
+                              },
+                          ],
+                      })
+                    : Response.json({
+                          deployment_id: 'dep_1',
+                          files: [
+                              { path: 'good.txt', size_bytes: 5, content_base64: 'aGVsbG8=' },
+                              { path: '../outside.txt', size_bytes: 5, content_base64: 'aGVsbG8=' },
+                          ],
+                      });
+
+            expect(
+                await runCloud(host, ['cloud', 'sites', 'pull', 'site_1', dest, '--json'])
+            ).not.toBe(0);
+            await expect(readFile(path.join(dest, 'good.txt'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
+            await expect(
+                readFile(path.join(path.dirname(dest), 'outside.txt'))
+            ).rejects.toMatchObject({ code: 'ENOENT' });
+        });
+
+        it('refuses a link inside the destination before writing any files', async () => {
+            const dest = path.join(path.dirname(dir), 'download');
+            const outside = path.join(path.dirname(dir), 'outside');
+            await mkdir(dest);
+            await mkdir(outside);
+            await symlink(outside, path.join(dest, 'link'), 'dir');
+            reply = (url) =>
+                url.endsWith('/v1/sites')
+                    ? Response.json({
+                          data: [
+                              {
+                                  id: 'site_1',
+                                  slug: 'hello',
+                                  url: 'https://hello.dexto.site',
+                                  visibility: 'public',
+                              },
+                          ],
+                      })
+                    : Response.json({
+                          deployment_id: 'dep_1',
+                          files: [
+                              { path: 'good.txt', size_bytes: 5, content_base64: 'aGVsbG8=' },
+                              {
+                                  path: 'link/outside.txt',
+                                  size_bytes: 5,
+                                  content_base64: 'aGVsbG8=',
+                              },
+                          ],
+                      });
+
+            expect(
+                await runCloud(host, ['cloud', 'sites', 'pull', 'site_1', dest, '--json'])
+            ).not.toBe(0);
+            await expect(readFile(path.join(dest, 'good.txt'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
+            await expect(readFile(path.join(outside, 'outside.txt'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
+        });
+
+        it('previews replacements without writing files', async () => {
+            const dest = path.join(path.dirname(dir), 'download');
+            await mkdir(dest);
+            await writeFile(path.join(dest, 'index.html'), 'original');
+            reply = (url) =>
+                url.endsWith('/v1/sites')
+                    ? Response.json({
+                          data: [
+                              {
+                                  id: 'site_1',
+                                  slug: 'hello',
+                                  url: 'https://hello.dexto.site',
+                                  visibility: 'public',
+                              },
+                          ],
+                      })
+                    : Response.json({
+                          deployment_id: 'dep_1',
+                          files: [
+                              { path: 'index.html', size_bytes: 5, content_base64: 'aGVsbG8=' },
+                              { path: 'new/file.txt', size_bytes: 5, content_base64: 'aGVsbG8=' },
+                          ],
+                      });
+
+            expect(
+                await runCloud(host, [
+                    'cloud',
+                    'sites',
+                    'pull',
+                    'site_1',
+                    dest,
+                    '--dry-run',
+                    '--json',
+                ])
+            ).toBe(0);
+            expect(JSON.parse(stdout)).toMatchObject({
+                dry_run: true,
+                files: [
+                    { path: 'index.html', size_bytes: 5, replaces: true },
+                    { path: 'new/file.txt', size_bytes: 5, replaces: false },
+                ],
+            });
+            expect(await readFile(path.join(dest, 'index.html'), 'utf8')).toBe('original');
+            await expect(readFile(path.join(dest, 'new/file.txt'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
+            stdout = '';
+            expect(
+                await runCloud(host, [
+                    'cloud',
+                    'sites',
+                    'pull',
+                    'site_1',
+                    dest,
+                    '--dry-run',
+                    '--table',
+                ])
+            ).toBe(0);
+            expect(stdout).toContain('index.html (replaces existing file)');
+            expect(stdout).toContain('new/file.txt (new file)');
+        });
+
+        it('reports API failures and does not write files when no release is live', async () => {
+            const dest = path.join(path.dirname(dir), 'download');
+            reply = (url) =>
+                url.endsWith('/v1/sites')
+                    ? Response.json({
+                          data: [
+                              {
+                                  id: 'site_1',
+                                  slug: 'hello',
+                                  url: 'https://hello.dexto.site',
+                                  visibility: 'public',
+                              },
+                          ],
+                      })
+                    : Response.json(
+                          { error: { code: 'no_live_release', message: 'No live release' } },
+                          { status: 409 }
+                      );
+
+            expect(
+                await runCloud(host, ['cloud', 'sites', 'pull', 'hello', dest, '--json'])
+            ).not.toBe(0);
+            expect(JSON.parse(stderr).error).toMatchObject({ message: 'No live release' });
+            await expect(readFile(path.join(dest, 'index.html'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
+        });
+
+        it('rejects conflicting file and directory paths before writing', async () => {
+            const dest = path.join(path.dirname(dir), 'download');
+            reply = (url) =>
+                url.endsWith('/v1/sites')
+                    ? Response.json({
+                          data: [
+                              {
+                                  id: 'site_1',
+                                  slug: 'hello',
+                                  url: 'https://hello.dexto.site',
+                                  visibility: 'public',
+                              },
+                          ],
+                      })
+                    : Response.json({
+                          deployment_id: 'dep_1',
+                          files: [
+                              { path: 'page', size_bytes: 5, content_base64: 'aGVsbG8=' },
+                              { path: 'page-other', size_bytes: 5, content_base64: 'aGVsbG8=' },
+                              {
+                                  path: 'page/index.html',
+                                  size_bytes: 5,
+                                  content_base64: 'aGVsbG8=',
+                              },
+                          ],
+                      });
+
+            expect(
+                await runCloud(host, ['cloud', 'sites', 'pull', 'hello', dest, '--json'])
+            ).not.toBe(0);
+            await expect(readFile(path.join(dest, 'page'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
         });
 
         it("deploys a Site packed with the project's own packer, live by default", async () => {

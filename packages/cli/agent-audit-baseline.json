@@ -637,6 +637,13 @@
     "examples": false
   },
   {
+    "command": "cloud sites pull",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "connect claude",
     "json": true,
     "dryRun": false,

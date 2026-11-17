@@ -99,6 +99,11 @@
         "cloud sandboxes ls": ["dexto_cloud_sandboxes_ls"],
         "cloud sandboxes cat": ["dexto_cloud_sandboxes_cat"],
         "cloud sites list": ["dexto_cloud_sites_list"],
+        "cloud sites pull": [
+            "dexto_cloud_sites_list",
+            "dexto_cloud_site_files_list",
+            "dexto_cloud_site_file_read"
+        ],
         "cloud secrets list": ["dexto_cloud_secrets_list"],
         "cloud secrets get": ["dexto_cloud_secrets_get"],
         "projects list": ["dexto_projects_list"],

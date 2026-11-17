@@ -47,7 +47,7 @@ export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
         { name: 'files', summary: "Upload, download, share and delete the project's files" },
         { name: 'sandboxes', summary: 'Create sandboxes, run commands in them and move files' },
         { name: 'secrets', summary: 'Credentials agents use without seeing them' },
-        { name: 'sites', summary: 'Deploy, list and delete Sites, packed with their own packer' },
+        { name: 'sites', summary: 'Deploy, list, pull and delete Sites' },
         { name: 'functions', summary: 'Deploy and list Functions, packed with their own packer' },
         { name: 'models', summary: 'Run text and media models, and see media runs' },
         { name: 'search', summary: 'Search the web' },
