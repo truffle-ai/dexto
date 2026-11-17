@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
-import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import type { LanguageModel, ModelMessage } from 'ai';
+import type { ModelMessage } from 'ai';
 import type { LLMContext, LLMProvider } from '@dexto/llm';
 import { TurnExecutor } from './turn-executor.js';
+import { createVercelModel } from '../services/factory.js';
 import { ContextManager } from '../../context/manager.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { defineTool } from '../../tools/define-tool.js';
+import { DEFAULT_PERMISSIONS_MODE } from '../../tools/schemas.js';
 import { SessionEventBus, AgentEventBus } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MessageQueueService } from '../../session/message-queue.js';
@@ -169,7 +170,7 @@ describe('gateway thinking round-trip in a tool loop', () => {
 
         const approvalManager = new ApprovalManager(
             {
-                permissions: { mode: 'auto-approve', timeout: 120000 },
+                permissions: { mode: DEFAULT_PERMISSIONS_MODE, timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             },
             logger,
@@ -183,7 +184,7 @@ describe('gateway thinking round-trip in a tool loop', () => {
                 allowTool: async () => {},
                 disallowTool: async () => {},
             },
-            'auto-approve',
+            DEFAULT_PERMISSIONS_MODE,
             agentEventBus,
             { alwaysAllow: [] },
             [],
@@ -203,11 +204,14 @@ describe('gateway thinking round-trip in a tool loop', () => {
         ]);
 
         const gateway = createFakeGateway(model, toolCallIds);
-        const languageModel: LanguageModel = createOpenRouter({
-            apiKey: 'test-api-key',
-            baseURL: 'https://gateway.test/api/v1',
-            fetch: gateway.fetchImpl,
-        }).chat(model);
+        const languageModel = await createVercelModel(llmConfig, {
+            authResolver: {
+                resolveRuntimeAuth: () => ({
+                    baseURL: 'https://gateway.test/api/v1',
+                    fetch: gateway.fetchImpl,
+                }),
+            },
+        });
 
         const llmContext: LLMContext = { provider, model };
         const executor = new TurnExecutor(
