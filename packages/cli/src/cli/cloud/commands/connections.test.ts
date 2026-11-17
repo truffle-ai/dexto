@@ -173,6 +173,28 @@ describe('subscription connections over MCP', () => {
         ]);
         expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'github' });
     });
+    it('reports an unknown connector and its alternatives in JSON', async () => {
+        rpcError = {
+            code: -32004,
+            message: 'There is no such connector: typo. Available connectors: github, slack.',
+            data: { kind: 'not_found', retryable: false, resume: null },
+        };
+        expect(await runCloud(host, ['connect', 'typo', '--json'])).toBe(5);
+        expect(JSON.parse(stderr).error.message).toContain('no such connector');
+        expect(JSON.parse(stderr).error.message).toContain('github, slack');
+        expect(calls).toEqual([
+            { name: 'dexto_connection_start', arguments: { provider: 'typo' } },
+        ]);
+    });
+    it('names connections:write for GitHub permission refusals', async () => {
+        rpcError = {
+            code: -32003,
+            message: 'Permission required',
+            data: { kind: 'forbidden', scope: 'connections:write', retryable: false, resume: null },
+        };
+        expect(await runCloud(host, ['connect', 'github', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.message).toContain('connections:write');
+    });
     it('reports a catalog connector that completes without browser authorization', async () => {
         replies = [{ outcome: 'connected', name: 'public-mcp', nextAction: null }];
         expect(await runCloud(host, ['connect', 'public-mcp', '--no-browser', '--json'])).toBe(0);
