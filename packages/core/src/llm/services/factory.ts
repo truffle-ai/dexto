@@ -19,12 +19,14 @@ import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
     requiresApiKey,
     supportsAnthropicInterleavedThinking,
+    isOpenRouterAnthropicModel,
     type LLMProvider,
 } from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import { HostRetryableModelRequestError } from '../executor/provider-error.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
+import { preserveOpenRouterThinkingBlocks } from '../providers/openrouter-thinking-stream.js';
 
 function isLanguageModel(value: unknown): value is LanguageModel {
     if (!value || typeof value !== 'object') return false;
@@ -410,7 +412,11 @@ export async function createVercelModel(
                 baseURL: orBaseURL,
                 compatibility: 'strict',
                 ...(runtimeHeaders ? { headers: runtimeHeaders } : {}),
-                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+                ...(isOpenRouterAnthropicModel('openrouter', model)
+                    ? { fetch: preserveOpenRouterThinkingBlocks(runtimeFetch ?? globalThis.fetch) }
+                    : runtimeFetch
+                      ? { fetch: runtimeFetch }
+                      : {}),
             });
             const chatModel = provider.chat(model);
             if (!isLanguageModel(chatModel)) {

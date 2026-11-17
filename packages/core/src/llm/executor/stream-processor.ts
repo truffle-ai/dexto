@@ -10,6 +10,7 @@ import type { ModelToolCall } from './types.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '@dexto/llm';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '@dexto/llm';
+import { isOpenRouterAnthropicModel } from '@dexto/llm';
 import { extractProviderErrorDetails, mapProviderError } from './provider-error.js';
 import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
@@ -421,10 +422,14 @@ export class StreamProcessor {
                             },
                         };
                         // IMPORTANT: Only persist providerMetadata for providers that require round-tripping
-                        // (e.g., Gemini thought signatures). OpenAI Responses metadata can cause invalid
-                        // follow-up requests (function_call item references missing required reasoning items).
+                        // (e.g., Gemini thought signatures, or the signed Anthropic thinking blocks a gateway
+                        // returns as `openrouter.reasoning_details`). OpenAI Responses metadata can cause
+                        // invalid follow-up requests (function_call item references missing required
+                        // reasoning items).
                         const shouldPersistProviderMetadata =
-                            this.config.provider === 'google' || this.config.provider === 'vertex';
+                            this.config.provider === 'google' ||
+                            this.config.provider === 'vertex' ||
+                            isOpenRouterAnthropicModel(this.config.provider, this.config.model);
 
                         if (shouldPersistProviderMetadata && event.providerMetadata) {
                             toolCall.providerOptions = {
