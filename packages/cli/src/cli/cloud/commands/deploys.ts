@@ -3,11 +3,12 @@
 import { CommandFailure } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
 
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { z } from 'zod';
+import { unwrap } from '@dexto/cloud-client';
 
 import {
     argument,
@@ -152,6 +153,123 @@ const listSites: Command = {
     },
 };
 
+const pullSite: Command = {
+    arguments: '<site> [dir]',
+    options: {
+        'dry-run': { description: 'List files without writing them.', type: 'boolean' },
+    },
+    path: ['cloud', 'sites', 'pull'],
+    summary: "Download a Site's live files by id or slug into dir (default: its slug).",
+    async run(context, input) {
+        await requireLoginScopes(context, ['sites:read']);
+        const site = await findSite(context, argument(input, 0, 'site'));
+        const pulled = await unwrap(
+            await (
+                await context.client()
+            ).GET('/v1/sites/{site_id}/files', {
+                params: { path: { site_id: site.id } },
+            })
+        );
+        const dir = path.resolve(input.positionals[1] ?? site.slug);
+        const dryRun = flag(input, 'dry-run');
+        const planned = [];
+        for (const file of pulled.files)
+            planned.push({ file, ...(await plannedWrite(dir, file.path)) });
+        const targets = new Set<string>();
+        for (const { target } of planned) {
+            if (targets.has(target))
+                throw new CommandFailure('failed', `The Site repeats a path: ${target}.`, null);
+            targets.add(target);
+        }
+        for (const { target } of planned) {
+            for (let parent = path.dirname(target); parent !== dir; parent = path.dirname(parent)) {
+                if (targets.has(parent))
+                    throw new CommandFailure(
+                        'failed',
+                        `The Site has conflicting paths: ${parent} and ${target}.`,
+                        null
+                    );
+            }
+        }
+        if (!dryRun)
+            for (const { file, target } of planned) {
+                await mkdir(path.dirname(target), { recursive: true });
+                await writeFile(target, Buffer.from(file.content_base64, 'base64'));
+            }
+        const files = planned.map(({ file, replaces }) => ({
+            path: file.path,
+            size_bytes: file.size_bytes,
+            replaces,
+        }));
+        context.output.result(
+            {
+                id: site.id,
+                slug: site.slug,
+                deployment_id: pulled.deployment_id,
+                dir,
+                dry_run: dryRun,
+                files,
+            },
+            `${dryRun ? 'Would save' : 'Saved'} ${files.length} files of ${site.slug} to ${dir}.` +
+                (dryRun
+                    ? files
+                          .map(
+                              (file) =>
+                                  `\n${file.path} (${file.replaces ? 'replaces existing file' : 'new file'})`
+                          )
+                          .join('')
+                    : '')
+        );
+    },
+};
+
+async function plannedWrite(
+    dir: string,
+    filePath: string
+): Promise<{ target: string; replaces: boolean }> {
+    const target = path.resolve(dir, filePath);
+    const relative = path.relative(dir, target);
+    if (
+        path.isAbsolute(filePath) ||
+        relative === '' ||
+        relative === '..' ||
+        relative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relative)
+    )
+        throw new CommandFailure(
+            'failed',
+            `The Site has a file outside its root: ${filePath}`,
+            null
+        );
+    let current = dir;
+    const parts = relative.split(path.sep);
+    for (const part of ['', ...parts]) {
+        current = path.join(current, part);
+        let stats;
+        try {
+            stats = await lstat(current);
+        } catch (error) {
+            if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+                return { target, replaces: false };
+            throw error;
+        }
+        if (stats.isSymbolicLink())
+            throw new CommandFailure(
+                'failed',
+                `${current} is a link. Pull into a folder without links.`,
+                null
+            );
+        if (current === target) {
+            if (!stats.isFile())
+                throw new CommandFailure('failed', `${current} is not a file.`, null);
+            return { target, replaces: true };
+        }
+        if (!stats.isDirectory())
+            throw new CommandFailure('failed', `${current} is not a directory.`, null);
+    }
+    throw new Error('A Site file path has no target.');
+}
+
 const deleteSite: Command = {
     arguments: '<site>',
     options: YES_OPTION,
@@ -161,17 +279,7 @@ const deleteSite: Command = {
     async run(context, input) {
         // The Site is found by listing, which takes sites:read, before it is deleted.
         await requireLoginScopes(context, ['sites:read', 'sites:write', 'cloud:write']);
-        const wanted = argument(input, 0, 'site');
-        const sites = z
-            .object({ data: z.array(SiteSchema) })
-            .parse(await callV1(context, 'GET', '/v1/sites', null)).data;
-        const site = sites.find((each) => each.id === wanted || each.slug === wanted);
-        if (site === undefined)
-            throw new CommandFailure(
-                'not_found',
-                `The Cloud project has no Site ${wanted}.`,
-                'dexto cloud sites list'
-            );
+        const site = await findSite(context, argument(input, 0, 'site'));
         await requireConsent(
             context,
             flag(input, 'yes'),
@@ -184,6 +292,23 @@ const deleteSite: Command = {
         );
     },
 };
+
+async function findSite(
+    context: CommandContext,
+    wanted: string
+): Promise<z.output<typeof SiteSchema>> {
+    const sites = z
+        .object({ data: z.array(SiteSchema) })
+        .parse(await callV1(context, 'GET', '/v1/sites', null)).data;
+    const site = sites.find((each) => each.id === wanted || each.slug === wanted);
+    if (site === undefined)
+        throw new CommandFailure(
+            'not_found',
+            `The Cloud project has no Site ${wanted}.`,
+            'dexto cloud sites list'
+        );
+    return site;
+}
 
 const listFunctions: Command = {
     path: ['cloud', 'functions', 'list'],
@@ -293,6 +418,7 @@ async function exists(file: string): Promise<boolean> {
 export const deployCommands: readonly Command[] = [
     deploySite,
     listSites,
+    pullSite,
     deleteSite,
     deployFunction,
     listFunctions,
