@@ -16,6 +16,15 @@ const MemoryListInputSchema = z
         tags: z.array(z.string()).optional().describe('Optional: filter by tags'),
         source: MemorySourceSchema.optional().describe('Optional: filter by source'),
         pinned: z.boolean().optional().describe('Optional: filter by pinned status'),
+        query: z
+            .string()
+            .trim()
+            .min(1)
+            .max(500)
+            .optional()
+            .describe(
+                'Optional: case-insensitive keyword search over memory content and tags; every whitespace-separated term must match'
+            ),
         limit: z
             .number()
             .int()
@@ -36,12 +45,16 @@ const MemoryListInputSchema = z
 export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
     return defineTool({
         id: 'memory_list',
-        description: 'List stored memories for this agent, with optional filtering.',
+        description:
+            'List stored memories for this agent, with optional filtering and keyword search.',
         inputSchema: MemoryListInputSchema,
         presentation: {
             activity: TOOL_ACTIVITY.listMemories,
             describeHeader: (input) => {
                 const filterParts: string[] = [];
+                if (input.query) {
+                    filterParts.push(`query="${input.query}"`);
+                }
                 if (input.tags && input.tags.length > 0) {
                     filterParts.push(`tags=${input.tags.join(',')}`);
                 }
@@ -66,7 +79,7 @@ export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
                 throw ToolError.configInvalid('memory_list requires ToolExecutionContext.agent');
             }
 
-            const { tags, source, pinned, limit, offset } = input;
+            const { tags, source, pinned, query, limit, offset } = input;
 
             const options: ListMemoriesOptions = {
                 limit,
@@ -74,6 +87,7 @@ export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
                 ...(tags !== undefined && { tags }),
                 ...(source !== undefined && { source }),
                 ...(pinned !== undefined && { pinned }),
+                ...(query !== undefined && { query }),
             };
 
             return await agent.memoryManager.list(options);
