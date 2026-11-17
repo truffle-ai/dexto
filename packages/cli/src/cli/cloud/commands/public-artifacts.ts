@@ -66,7 +66,7 @@ const publish: Command = {
         }
         const fileHash = createHash('sha256').update(bytes).digest('hex');
         const idempotencyKey = createHash('sha256')
-            .update(JSON.stringify([title, fileHash]))
+            .update(JSON.stringify([title, fileHash, kind ?? 'document']))
             .digest('hex');
         await requireLoginScopes(context, ['artifacts:write']);
         const artifact = await unwrap(

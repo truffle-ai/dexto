@@ -128,16 +128,24 @@ describe('cloud secrets, web and data-deletions', () => {
         const second = requests[1]?.body as { idempotencyKey: string };
         expect(first.idempotencyKey).toBeTruthy();
         expect(second.idempotencyKey).toBe(first.idempotencyKey);
+        expect(await runCloud(host, [...args, '--kind', 'document'])).toBe(0);
+        expect((requests[2]?.body as { idempotencyKey: string }).idempotencyKey).toBe(
+            first.idempotencyKey
+        );
+        expect(await runCloud(host, [...args, '--kind', 'plan'])).toBe(0);
+        expect((requests[3]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
+            first.idempotencyKey
+        );
         await writeFile(file, '<p>Second</p>');
         expect(await runCloud(host, args)).toBe(0);
-        expect((requests[2]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
+        expect((requests[4]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
             first.idempotencyKey
         );
         expect(
             await runCloud(host, ['artifacts', 'publish', file, '--title', 'Different', '--json'])
         ).toBe(0);
-        expect((requests[3]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
-            (requests[2]?.body as { idempotencyKey: string }).idempotencyKey
+        expect((requests[5]?.body as { idempotencyKey: string }).idempotencyKey).not.toBe(
+            (requests[4]?.body as { idempotencyKey: string }).idempotencyKey
         );
     });
 
