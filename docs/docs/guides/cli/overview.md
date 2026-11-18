@@ -342,6 +342,19 @@ dexto artifacts open "$ARTIFACT_ID" --json
 
 Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes, title and kind again returns the original Artifact; use a different title to publish a separate copy.
 
+## Your managed Applications
+
+Inspect the Dockerfile Applications you own in the signed-in organization, one release, and its logs:
+
+```bash
+dexto applications list --json
+dexto applications get "$APPLICATION_ID" --json
+dexto applications release "$DEPLOYMENT_ID" --json
+dexto applications logs "$DEPLOYMENT_ID" --json
+```
+
+These read only and need `applications:read`. List returns `{applications, deployments}`: your Applications and their recent releases. A ready Application names its backend provider and the runtime variables Dexto injects, never their values. Get returns one Application, checking its provisioning while it is not ready. Release returns one release's status, URL and progress, reconciling an uncertain outcome without resubmitting it. Logs returns `{logs}`, the release's recent logs, bounded and redacted. Create, deploy, rollback and lifecycle changes are not CLI commands.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.
