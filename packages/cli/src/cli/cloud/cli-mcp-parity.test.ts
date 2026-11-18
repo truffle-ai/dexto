@@ -26,6 +26,24 @@ const catalog = z
         JSON.parse(readFileSync(new URL('./__parity__/mcp-tools.txt', import.meta.url), 'utf8'))
     );
 
+/** The `action` values a catalog tool takes, one per variant of its input. */
+function catalogActions(name: string): string[] {
+    const tool = catalog.tools.find((each) => each.name === name);
+    if (tool === undefined) return [];
+    return z
+        .object({
+            anyOf: z
+                .array(
+                    z.object({
+                        properties: z.object({ action: z.object({ const: z.string() }) }),
+                    })
+                )
+                .default([]),
+        })
+        .parse(tool.inputSchema)
+        .anyOf.map((variant) => variant.properties.action.const);
+}
+
 // Approved S0 debt ceiling. Remove closed exceptions; never extend this baseline.
 const approvedExceptions = new Set(
     `cloud-api
@@ -206,6 +224,7 @@ describe('CLI and MCP capability parity', () => {
         }).map((command) => command.path.join(' '));
         const inventoried = [
             ...Object.keys(inventory.commands),
+            ...Object.keys(inventory.actionCommands),
             ...inventory.localOnly
                 .filter((entry) => entry.registry === 'cloud')
                 .map((entry) => entry.command),
@@ -245,6 +264,17 @@ describe('CLI and MCP capability parity', () => {
         expect([...new Set(direct.concat(inventory.passthroughOnly, pending))].sort()).toEqual(
             catalog.tools.map((tool) => tool.name).sort()
         );
+    });
+
+    it('maps action commands to real actions of passthrough-only tools', () => {
+        const mapped = z
+            .record(z.string(), z.object({ tool: z.string(), actions: z.array(z.string()).min(1) }))
+            .parse(inventory.actionCommands);
+        for (const [command, { tool, actions }] of Object.entries(mapped)) {
+            // A tool every action of which has a command moves to commands, not here.
+            expect(inventory.passthroughOnly, command).toContain(tool);
+            expect(catalogActions(tool), command).toEqual(expect.arrayContaining(actions));
+        }
     });
 
     it('rejects stale or untracked exceptions', () => {

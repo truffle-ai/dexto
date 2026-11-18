@@ -2,7 +2,7 @@
     "version": 1,
     "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
-    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
+    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. actionCommands cover some actions of a passthroughOnly tool; the tool leaves passthroughOnly only once its other actions have commands too. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
         "artifacts list": ["dexto_artifacts_list"],
         "artifacts open": ["dexto_artifacts_get"],
@@ -108,6 +108,15 @@
         "projects move": ["dexto_project_chat_move"],
         "projects start": ["dexto_project_chat_start"],
         "projects run": ["dexto_chat_send"]
+    },
+    "actionCommands": {
+        "workspace gigs search": { "tool": "dexto_gigs_finding", "actions": ["search_gigs"] },
+        "workspace gigs get": { "tool": "dexto_gigs_finding", "actions": ["get_gig"] },
+        "workspace gigs bids": { "tool": "dexto_gigs_finding", "actions": ["list_my_bids"] },
+        "workspace gigs match": { "tool": "dexto_gigs_finding", "actions": ["get_match"] },
+        "workspace gigs thread": { "tool": "dexto_gigs_finding", "actions": ["read_thread"] },
+        "workspace gigs posted": { "tool": "dexto_gigs_posting", "actions": ["list_posted_gigs"] },
+        "workspace gigs proposals": { "tool": "dexto_gigs_posting", "actions": ["list_gig_bids"] }
     },
     "localOnly": [
         {

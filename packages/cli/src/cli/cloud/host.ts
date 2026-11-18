@@ -20,6 +20,7 @@ import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
 import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
+import { gigCommands } from './commands/gigs.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
 import { skillCommands } from './commands/skills.js';
@@ -83,6 +84,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...computerKeyCommands,
         ...driveCommands,
         ...artifactCommands,
+        ...gigCommands,
         ...publicArtifactCommands,
         ...findCommands,
         ...profileCommands,
