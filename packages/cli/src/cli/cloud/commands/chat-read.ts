@@ -117,6 +117,24 @@ async function listLocalChats(context: CommandContext, input: CommandInput): Pro
         context.output.note('Resume one with: dexto -r "$CHAT_ID"');
 }
 
+/**
+ * Points people who knew chat list as this machine's chats to --local. Only for people: --json
+ * never opens the local agent, and a machine without a usable one just gets no hint.
+ */
+async function noteLocalChats(context: CommandContext): Promise<void> {
+    if (context.openLocalAgent === undefined) return;
+    let count: number;
+    try {
+        count = (await (await context.openLocalAgent()).listSessions()).length;
+    } catch {
+        return;
+    }
+    if (count > 0)
+        context.output.note(
+            `This machine also has ${count} local chat${count === 1 ? '' : 's'}: dexto chat list --local`
+        );
+}
+
 const list: Command = {
     path: ['chat', 'list'],
     summary:
@@ -179,6 +197,7 @@ const list: Command = {
             { header: 'last run', value: (chat) => chat.lastRun?.status ?? '' },
             { header: 'updated', value: (chat) => chat.updatedAt },
         ]);
+        if (!context.output.json) await noteLocalChats(context);
     },
 };
 

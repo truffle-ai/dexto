@@ -126,6 +126,57 @@ describe('chat list', () => {
     });
 });
 
+describe('chat list hint for local chats', () => {
+    const page = { pagination: { hasMore: false, limit: 20, nextCursor: null }, sessions: [chat] };
+
+    function tableContext(openLocalAgent: () => Promise<unknown>) {
+        const list = vi.fn();
+        const note = vi.fn();
+        const context = {
+            output: { json: false, list, note },
+            openLocalAgent,
+        } as unknown as CommandContext;
+        return { context, note };
+    }
+
+    it('points to --local after the cloud list when this machine has chats', async () => {
+        query.mockResolvedValueOnce(page);
+        const { context, note } = tableContext(async () => ({
+            listSessions: async () => ['a', 'b'],
+        }));
+        await command('list').run(context, input([]));
+        expect(note).toHaveBeenCalledWith(
+            'This machine also has 2 local chats: dexto chat list --local'
+        );
+    });
+
+    it('says nothing when this machine has no chats or its agent cannot open', async () => {
+        query.mockResolvedValueOnce(page);
+        const empty = tableContext(async () => ({ listSessions: async () => [] }));
+        await command('list').run(empty.context, input([]));
+        expect(empty.note).not.toHaveBeenCalled();
+
+        query.mockResolvedValueOnce(page);
+        const broken = tableContext(async () => {
+            throw new Error('no agent config');
+        });
+        await expect(command('list').run(broken.context, input([]))).resolves.toBeUndefined();
+        expect(broken.note).not.toHaveBeenCalled();
+    });
+
+    it('never opens the local agent for --json', async () => {
+        query.mockResolvedValueOnce(page);
+        const openLocalAgent = vi.fn();
+        const { list } = harness();
+        const context = {
+            output: { json: true, list },
+            openLocalAgent,
+        } as unknown as CommandContext;
+        await command('list').run(context, input([]));
+        expect(openLocalAgent).not.toHaveBeenCalled();
+    });
+});
+
 describe('chat list --local', () => {
     it("lists this machine's chats, most recently active first, without calling Dexto", async () => {
         const { context, list } = harness();
