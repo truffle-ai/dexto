@@ -1,0 +1,257 @@
+// Read your cloud chats: list or search them, read one's messages, and see the models a chat can use.
+
+import { z } from 'zod';
+import { CommandFailure } from '../../failure.js';
+import {
+    argument,
+    choiceOption,
+    flag,
+    PAGE_OPTIONS,
+    pageQuery,
+    stringOption,
+    UsageError,
+    type Command,
+    type CommandContext,
+    type CommandInput,
+} from '../command.js';
+import { requireLoginScopes } from './deploys.js';
+import { queryWorkspaceTool } from './workspace.js';
+
+const CHAT_STATUSES = ['queued', 'running', 'retrying', 'waiting_approval', 'idle'] as const;
+const IMPORT_SOURCES = ['claude_code', 'codex', 'claude_export', 'any'] as const;
+
+const ChatSchema = z
+    .object({
+        id: z.string(),
+        title: z.string().nullable(),
+        status: z.string(),
+        updatedAt: z.string(),
+        url: z.string(),
+        lastRun: z.object({ id: z.string(), status: z.string() }).passthrough().nullable(),
+    })
+    .passthrough();
+// A search (--query) answers with no pagination: it returns its best matches only.
+const ChatListSchema = z
+    .object({
+        sessions: z.array(ChatSchema),
+        pagination: z.object({ nextCursor: z.string().nullable() }).passthrough().optional(),
+    })
+    .passthrough();
+const ChatPageSchema = z
+    .object({
+        session: ChatSchema,
+        messages: z.array(
+            z.object({ role: z.string(), text: z.string(), createdAt: z.string() }).passthrough()
+        ),
+        pagination: z.object({ nextCursor: z.string().nullable() }).passthrough(),
+    })
+    .passthrough();
+const ChatModelsSchema = z.object({
+    models: z.array(
+        z
+            .object({
+                id: z.string(),
+                name: z.string(),
+                current: z.boolean(),
+                routes: z.array(z.string()),
+            })
+            .passthrough()
+    ),
+});
+
+/** --limit and --after as the tools' limit (capped at 50) and cursor. */
+function pageArgs(input: CommandInput): { limit?: number; cursor?: string } {
+    const { after, limit } = pageQuery(input);
+    if (limit !== undefined && (limit < 1 || limit > 50))
+        throw new UsageError('--limit must be between 1 and 50.');
+    return {
+        ...(limit === undefined ? {} : { limit }),
+        ...(after === undefined ? {} : { cursor: after }),
+    };
+}
+
+function parsed<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
+    const result = schema.safeParse(value);
+    if (!result.success)
+        throw new CommandFailure('failed', `Dexto didn't return a valid ${what}.`, null);
+    return result.data;
+}
+
+/** This machine's chats, from the local agent's session store, most recently active first. */
+async function listLocalChats(context: CommandContext, input: CommandInput): Promise<void> {
+    const cloudOption = Object.keys(list.options ?? {}).find(
+        (name) => name !== 'local' && input.values[name] !== undefined
+    );
+    if (cloudOption !== undefined)
+        throw new UsageError(`--local lists every chat on this machine; drop --${cloudOption}.`);
+    if (context.openLocalAgent === undefined)
+        throw new CommandFailure(
+            'failed',
+            "This machine's chats are listed only by dexto itself.",
+            null
+        );
+    const agent = await context.openLocalAgent();
+    const chats = (
+        await Promise.all(
+            (await agent.listSessions()).map(async (id) => {
+                const metadata = await agent.getSessionMetadata(id);
+                return metadata === undefined ? [] : [{ id, metadata }];
+            })
+        )
+    )
+        .flat()
+        .sort((a, b) => b.metadata.lastActivity - a.metadata.lastActivity)
+        .map(({ id, metadata }) => ({
+            id,
+            title: metadata.title ?? null,
+            messages: metadata.messageCount,
+            lastActivity: new Date(metadata.lastActivity).toISOString(),
+        }));
+    context.output.list({ data: chats }, [
+        { header: 'id', value: (chat) => chat.id },
+        { header: 'title', value: (chat) => chat.title ?? '' },
+        { header: 'messages', value: (chat) => chat.messages },
+        { header: 'last active', value: (chat) => chat.lastActivity },
+    ]);
+    if (!context.output.json && chats.length > 0)
+        context.output.note('Resume one with: dexto -r "$CHAT_ID"');
+}
+
+const list: Command = {
+    path: ['chat', 'list'],
+    summary:
+        "List your cloud chats, newest first, or search them with --query (sessions:read); --local lists this machine's chats.",
+    options: {
+        status: {
+            type: 'string',
+            valueName: 'STATUS',
+            description: `Only chats with this status: ${CHAT_STATUSES.join(', ')}. idle means no active run.`,
+        },
+        query: {
+            type: 'string',
+            valueName: 'WORDS',
+            description:
+                'Only chats whose title or messages contain every word, with where it matched.',
+        },
+        'imported-from': {
+            type: 'string',
+            valueName: 'SOURCE',
+            description: `Only chats imported from ${IMPORT_SOURCES.join(', ')}.`,
+        },
+        ...PAGE_OPTIONS,
+        local: {
+            type: 'boolean',
+            description: "List this machine's chats instead, to resume with dexto -r.",
+        },
+    },
+    examples: [
+        'dexto chat list --json',
+        'dexto chat list --local',
+        'dexto chat list --status running',
+        'dexto chat list --query "invoice bug" --json',
+        'dexto chat list --limit 10 --after "$CURSOR" --json',
+    ],
+    async run(context, input) {
+        if (flag(input, 'local')) return listLocalChats(context, input);
+        const status = choiceOption(input, 'status', CHAT_STATUSES);
+        const importedFrom = choiceOption(input, 'imported-from', IMPORT_SOURCES);
+        const query = stringOption(input, 'query');
+        const page = pageArgs(input);
+        if (query !== undefined && page.cursor !== undefined)
+            throw new UsageError('--after does not page a --query search; drop one of them.');
+        const args = {
+            ...(status === undefined ? {} : { status }),
+            ...(importedFrom === undefined ? {} : { importedFrom }),
+            ...(query === undefined ? {} : { query }),
+            ...page,
+        };
+        await requireLoginScopes(context, ['sessions:read']);
+        const result = parsed(
+            ChatListSchema,
+            await queryWorkspaceTool(context, 'dexto_chat_list', args),
+            'chat list'
+        );
+        const next = result.pagination?.nextCursor ?? null;
+        context.output.list({ data: result.sessions, has_more: next !== null, next_after: next }, [
+            { header: 'id', value: (chat) => chat.id },
+            { header: 'title', value: (chat) => chat.title ?? '' },
+            { header: 'status', value: (chat) => chat.status },
+            { header: 'last run', value: (chat) => chat.lastRun?.status ?? '' },
+            { header: 'updated', value: (chat) => chat.updatedAt },
+        ]);
+    },
+};
+
+const get: Command = {
+    path: ['chat', 'get'],
+    arguments: '<chat_id>',
+    summary:
+        'Read a cloud chat: its status, how its last run ended and its latest messages. Requires sessions:read.',
+    options: {
+        limit: {
+            type: 'string',
+            valueName: 'N',
+            description: 'How many messages (1-50; default 20).',
+        },
+        after: {
+            type: 'string',
+            valueName: 'CURSOR',
+            description: 'Read the messages before this cursor, from the previous page.',
+        },
+    },
+    examples: [
+        'dexto chat get "$CHAT_ID"',
+        'dexto chat get "$CHAT_ID" --limit 50 --json',
+        'dexto chat get "$CHAT_ID" --after "$CURSOR" --json',
+    ],
+    async run(context, input) {
+        const sessionId = argument(input, 0, 'chat_id');
+        const args = { sessionId, ...pageArgs(input) };
+        await requireLoginScopes(context, ['sessions:read']);
+        const page = parsed(
+            ChatPageSchema,
+            await queryWorkspaceTool(context, 'dexto_chat_get', args),
+            'chat'
+        );
+        const { session, messages, pagination } = page;
+        const lines = [
+            session.title ?? session.id,
+            session.url,
+            `Status: ${session.status}${session.lastRun === null ? '' : `; last run ${session.lastRun.status}`}`,
+            ...messages.flatMap((message) => [
+                '',
+                `${message.role}, ${message.createdAt}`,
+                message.text,
+            ]),
+        ];
+        if (pagination.nextCursor !== null)
+            lines.push(
+                '',
+                `Older messages: dexto chat get ${sessionId} --after ${pagination.nextCursor}`
+            );
+        context.output.result(page, lines.join('\n'));
+    },
+};
+
+const models: Command = {
+    path: ['chat', 'models'],
+    summary:
+        'List the models your chats can run on now and how each can be paid for; current is what a new chat uses. Requires sessions:read.',
+    examples: ['dexto chat models', 'dexto chat models --json'],
+    async run(context) {
+        await requireLoginScopes(context, ['sessions:read']);
+        const result = parsed(
+            ChatModelsSchema,
+            await queryWorkspaceTool(context, 'dexto_chat_models', {}),
+            'model list'
+        );
+        context.output.list({ data: result.models }, [
+            { header: 'id', value: (model) => model.id },
+            { header: 'name', value: (model) => model.name },
+            { header: 'routes', value: (model) => model.routes.join(', ') },
+            { header: 'current', value: (model) => (model.current ? 'yes' : '') },
+        ]);
+    },
+};
+
+export const chatReadCommands: readonly Command[] = [list, get, models];
