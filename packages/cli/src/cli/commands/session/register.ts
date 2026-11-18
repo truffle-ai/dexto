@@ -70,6 +70,8 @@ export function registerSessionCommand({
         start: 'Start a cloud chat on your chosen connected computer and browser profile',
         list: "List your cloud chats, or this machine's with --local",
         follow: "Follow a cloud chat's events until it finishes",
+        send: 'Message a cloud chat, steering its current turn or queued after it',
+        cancel: "Stop a cloud chat's current run",
         get: "Read a cloud chat's status and messages",
         models: 'List the models your cloud chats can use',
         outputs: 'List the files and resources a cloud chat produced',

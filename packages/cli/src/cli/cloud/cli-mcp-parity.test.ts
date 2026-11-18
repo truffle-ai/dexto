@@ -98,7 +98,6 @@ dexto_capabilities_search
 dexto_channel_get
 dexto_channel_send
 dexto_channels_list
-dexto_chat_cancel
 dexto_chat_computer
 dexto_chat_continue
 dexto_contacts_block
