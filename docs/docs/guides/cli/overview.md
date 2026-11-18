@@ -353,7 +353,7 @@ dexto applications release "$DEPLOYMENT_ID" --json
 dexto applications logs "$DEPLOYMENT_ID" --json
 ```
 
-These read only and need `applications:read`. List returns `{applications, deployments}`: your Applications and their recent releases. A ready Application names its backend provider and the runtime variables Dexto injects, never their values. Get returns one Application, checking its provisioning while it is not ready. Release returns one release's status, URL and progress, reconciling an uncertain outcome without resubmitting it. Logs returns `{logs}`, the release's recent logs, bounded and redacted. Create, deploy, rollback and lifecycle changes are not CLI commands.
+These read only and need `applications:read`. List returns `{applications, deployments}`: your Applications and their recent releases. A ready Application names its backend provider and the runtime variables Dexto injects, never their values. Get returns one Application, checking its provisioning while it is not ready. Release returns one release's status, URL and progress, reconciling an uncertain outcome without resubmitting it. Logs returns `{logs}`, the release's recent logs, bounded and redacted; before the release has started it returns `{logs, status}` with a note to inspect the release instead. Create, deploy, rollback and lifecycle changes are not CLI commands.
 
 ## Your Dexto Workspace
 
