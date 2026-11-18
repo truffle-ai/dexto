@@ -79,13 +79,6 @@ dexto_application_variables_list
 dexto_applications_list
 dexto_apps_list
 dexto_apps_uninstalled_list
-dexto_autobot_chat_start
-dexto_autobot_get
-dexto_autobot_input_submit
-dexto_autobot_publish
-dexto_autobot_save
-dexto_autobot_status
-dexto_autobots_list
 dexto_automation_create
 dexto_automation_delete
 dexto_automation_get
