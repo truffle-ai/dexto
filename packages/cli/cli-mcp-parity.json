@@ -2,7 +2,7 @@
     "version": 1,
     "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
-    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
+    "maintenance": "Regenerate the MCP catalog (tool names, sorted top-level input keys with {} values, and chatGetUsage) on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts; it changes only when a tool or a top-level input is added or removed. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
         "chat outputs": ["dexto_chat_outputs_list"],
         "import": ["dexto_chat_import", "dexto_upload_prepare", "dexto_skill_bundle_import"],
