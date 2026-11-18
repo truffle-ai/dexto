@@ -342,6 +342,22 @@ dexto artifacts open "$ARTIFACT_ID" --json
 
 Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes, title and kind again returns the original Artifact; use a different title to publish a separate copy.
 
+## The Marketplace
+
+Find AutoBot templates, Dexto Apps and Skills in the Dexto Marketplace, install them, and publish your own:
+
+```bash
+dexto marketplace search invoices --kind dexto-app --json
+dexto marketplace get "$LISTING_ID" --kind dexto-app --json
+dexto marketplace install "$LISTING_ID" --kind dexto-app --release "$RELEASE_ID" --yes --json
+dexto marketplace uninstall "$APP_ID" --yes --json
+dexto marketplace preview --slug my-skill --json
+dexto marketplace publish --slug my-skill --release "$RELEASE_ID" --title "My Skill" --summary "Does one thing well" --yes --json
+dexto marketplace unpublish --slug my-skill --yes --json
+```
+
+These act as you, so they need your own sign-in, not an API key. Search and get need `marketplace:read`; preview also needs `skills:read`. Install, uninstall, publish and unpublish need `marketplace:write`, plus `apps:read` to install or uninstall a Dexto App, `apps:write` to publish or unpublish one, and `skills:write` to publish or unpublish a Skill. A Dexto App installs only at the release you name with `--release`, its `latestRelease.releaseId` from search or get; if a newer release has come out since, nothing is installed. To publish a Skill, run preview first and pass the release id it shows. Every write asks before it runs: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it. Without `--yes` and with no terminal to ask at, the command fails with `needs_confirmation` and changes nothing.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.

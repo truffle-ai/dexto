@@ -141,13 +141,6 @@ dexto_gpu_sandbox_provision
 dexto_gpu_sandbox_start
 dexto_gpu_sandbox_stop
 dexto_gpu_sandboxes_list
-dexto_marketplace_get
-dexto_marketplace_install
-dexto_marketplace_preview
-dexto_marketplace_publish
-dexto_marketplace_search
-dexto_marketplace_uninstall
-dexto_marketplace_unpublish
 dexto_mcp_server_import
 dexto_network_send
 dexto_network_thread_get
