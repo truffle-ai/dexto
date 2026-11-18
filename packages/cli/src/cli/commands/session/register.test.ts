@@ -18,6 +18,7 @@ it.each([
     ['start', 'Investigate', '--computer', 'computer-1', '--browser-profile', 'profile-1'],
     ['computers'],
     ['browser-profiles'],
+    ['share', 'chat-1', 'view', '--yes'],
 ])('registers public chat %s and forwards its arguments to the cloud engine', async (...args) => {
     const program = new Command().name('dexto').enablePositionalOptions().exitOverride();
     registerSessionCommand({
