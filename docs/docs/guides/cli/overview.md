@@ -354,6 +354,10 @@ dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan
 dexto workspace artifacts list --chat <id> --json
 dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
+dexto workspace network list --json
+dexto workspace network read <thread_id> --before <cursor>
+dexto workspace network mark-read <thread_id> --through <sequence>
+dexto workspace network send <contact_id> "See you at 3." --idempotency-key reply-1 --yes
 dexto workspace email send --to a@b.c --yes
 dexto workspace tools --search calendar    # every tool, by MCP name
 dexto workspace call dexto_search --data '{"query":"invoices"}'
@@ -363,6 +367,8 @@ dexto find "share a file"                  # the command for what you want to do
 An operation that acts, approves or spends asks first; pass `--yes` only once your person has agreed (without it, and with no one to ask, the command exits 4 with the command that goes ahead). Workspace tools act as a person, so an API key can't use them. An operation your sign-in can't use yet names the `dexto login --scope` that grants it.
 
 `dexto workspace artifacts` saves HTML files as Artifacts in your library (`list`, `get`, `create`, `replace`, `share`). HTML comes from a file or `-` for stdin, never an argument; `get --out` writes it back to a file. `create --idempotency-key` makes a retry return the first Artifact instead of a copy, `replace` keeps the title, kind, summary, surface and renderer you don't change, and every write takes `--dry-run`.
+
+`dexto workspace network` reads and answers your Network conversations (`list`, `read`, `mark-read`, `send`). `read` takes a thread id or `--contact <contact_id>`, pages back with the page's `previousCursor` as `--before`, and reads the rest of a long message with `--message <sequence> --offset <nextTextOffset>`; reading never marks anything read. `mark-read --through <sequence>` marks a conversation read up to the newest message you were told. `send` sends the exact text (or `-` for stdin) to an accepted connection's contact id once your person has agreed, and `--idempotency-key` makes a retry return the first send instead of sending twice. Reading needs `network:read`; marking read and sending need `network:write`.
 
 ## Next Steps
 
