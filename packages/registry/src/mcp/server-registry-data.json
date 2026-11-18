@@ -279,6 +279,25 @@
     "matchIds": ["parallel-search", "parallel_search", "parallel"]
   },
   {
+    "id": "specstream",
+    "name": "SpecStream",
+    "description": "Search the live web, read pages, and extract structured web data with source citations",
+    "category": "research",
+    "icon": "🔍",
+    "config": {
+      "type": "http",
+      "url": "https://api.specstream.ai/mcp",
+      "headers": {},
+      "timeout": 30000
+    },
+    "tags": ["search", "web", "research", "citations", "data"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "SpecStream",
+    "homepage": "https://specstream.ai/docs/mcp",
+    "matchIds": ["specstream", "specstream-mcp"]
+  },
+  {
     "id": "tavily",
     "name": "Tavily Search",
     "description": "Web search and research using Tavily AI search engine",
