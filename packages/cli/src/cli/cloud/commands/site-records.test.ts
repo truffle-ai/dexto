@@ -60,24 +60,35 @@ describe('dexto workspace sites records', () => {
             cloudProject: null,
         });
 
-    /** The tool's result, verbatim as the cloud returns it; a missing record is the tool's error. */
-    const answer = (
-        name: string,
-        args: Record<string, unknown>
-    ): { isError?: true; structuredContent: unknown } => {
-        const where = { collection: args.collection, siteId: SITE, slug: 'shop' };
-        if (name === 'dexto_site_records_list')
-            return { structuredContent: { ...where, records: [STORED] } };
+    /**
+     * The JSON-RPC body the cloud answers with: the tool's result verbatim, or for a missing record
+     * the refusal the Site record tools declare, `unavailable` with code -32004.
+     */
+    const answer = (id: number, name: string, args: Record<string, unknown>): unknown => {
         if (args.recordId !== undefined && args.recordId !== RECORD)
             return {
-                isError: true,
-                structuredContent: {
-                    status: 'not_found',
+                jsonrpc: '2.0',
+                id,
+                error: {
+                    code: -32004,
                     message: `Site record ${String(args.recordId)} was not found.`,
+                    data: { kind: 'unavailable', retryable: false, resume: null },
                 },
             };
+        const where = { collection: args.collection, siteId: SITE, slug: 'shop' };
         const value = 'value' in args ? args.value : STORED.value;
-        return { structuredContent: { ...where, record: { ...STORED, value } } };
+        const structuredContent =
+            name === 'dexto_site_records_list'
+                ? { ...where, records: [STORED] }
+                : { ...where, record: { ...STORED, value } };
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                content: [{ type: 'text', text: JSON.stringify(structuredContent) }],
+                structuredContent,
+            },
+        };
     };
 
     beforeEach(async () => {
@@ -105,15 +116,9 @@ describe('dexto workspace sites records', () => {
                         result: { tools: TOOLS },
                     });
                 calls.push({ name: message.params.name, arguments: message.params.arguments });
-                const result = answer(message.params.name, message.params.arguments);
-                return Response.json({
-                    jsonrpc: '2.0',
-                    id: message.id,
-                    result: {
-                        content: [{ type: 'text', text: JSON.stringify(result.structuredContent) }],
-                        ...result,
-                    },
-                });
+                return Response.json(
+                    answer(message.id, message.params.name, message.params.arguments)
+                );
             },
             prompt: null,
             readStdin: async () => stdin,
@@ -186,7 +191,7 @@ describe('dexto workspace sites records', () => {
         expect(calls).toHaveLength(0);
     });
 
-    it('gets one record, and exits 5 for one that is not there', async () => {
+    it("gets one record, and fails with the tool's own message for one that is not there", async () => {
         expect(await records('get', SITE, 'signups', RECORD, '--json')).toBe(0);
         expect(calls).toEqual([
             {
@@ -198,9 +203,9 @@ describe('dexto workspace sites records', () => {
 
         stderr = '';
         const missing = '33333333-3333-4333-8333-333333333333';
-        expect(await records('get', SITE, 'signups', missing, '--json')).toBe(5);
+        expect(await records('get', SITE, 'signups', missing, '--json')).toBe(1);
         expect(JSON.parse(stderr).error).toMatchObject({
-            code: 'not_found',
+            code: 'failed',
             message: `Site record ${missing} was not found.`,
         });
     });
