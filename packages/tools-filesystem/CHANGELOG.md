@@ -1,5 +1,13 @@
 # @dexto/tools-filesystem
 
+## 1.19.3
+
+### Patch Changes
+
+- Updated dependencies [023c262]
+    - @dexto/core@1.19.3
+    - @dexto/agent-config@1.19.3
+
 ## 1.19.2
 
 ### Patch Changes

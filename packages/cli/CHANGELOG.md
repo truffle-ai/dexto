@@ -1,5 +1,25 @@
 # dexto
 
+## 2.2.2
+
+### Patch Changes
+
+- 0cd288b: Export `dextoSignIn.CLI_LOGIN_SCOPES`, every scope the CLI asks a sign-in for by name, so Dexto Cloud can test that its sign-in accepts each one. The CLI's own scope checks now only accept scopes from that list.
+- Updated dependencies [023c262]
+- Updated dependencies [0cd288b]
+    - @dexto/core@1.19.3
+    - @dexto/agent-management@1.19.3
+    - @dexto/agent-config@1.19.3
+    - @dexto/analytics@1.19.3
+    - @dexto/client-sdk@1.19.3
+    - @dexto/image-local@1.19.3
+    - @dexto/image-logger-agent@1.19.3
+    - @dexto/storage@1.19.3
+    - @dexto/tui@1.19.3
+    - @dexto/llm@1.19.3
+    - @dexto/cloud-client@1.19.3
+    - @dexto/registry@1.19.3
+
 ## 2.2.1
 
 ### Patch Changes
