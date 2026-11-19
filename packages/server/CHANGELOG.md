@@ -1,5 +1,20 @@
 # @dexto/server
 
+## 1.19.1
+
+### Patch Changes
+
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/agent-management@1.19.1
+    - @dexto/image-local@1.19.1
+    - @dexto/storage@1.19.1
+    - @dexto/tools-scheduler@1.19.1
+    - @dexto/llm@1.19.1
+
 ## 1.19.0
 
 ### Minor Changes
