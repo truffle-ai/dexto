@@ -130,6 +130,28 @@ describe('withholdRequestMedia', () => {
         ]);
     });
 
+    it.each([
+        'Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting',
+        'Could not process image',
+        'Invalid file format',
+    ])(
+        'keeps the neutral note when the provider does not say the file is damaged: %s',
+        (message) => {
+            const messages: ModelMessage[] = [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'image', image: new Uint8Array([1]), mediaType: 'image/png' },
+                    ],
+                },
+            ];
+
+            expect(withholdRequestMedia(messages, apiCallError(400, message))).toEqual([
+                { role: 'user', content: [{ type: 'text', text: withheldImage }] },
+            ]);
+        }
+    );
+
     it('keeps the neutral note when the request carries more than one media item', () => {
         const error = apiCallError(400, 'The file you uploaded is badly formatted or corrupted.');
         const messages: ModelMessage[] = [

@@ -8,9 +8,13 @@ export function isRejectedModelRequest(error: unknown): boolean {
     return APICallError.isInstance(error) && error.statusCode === 400;
 }
 
-/** A provider saying the media itself could not be opened, in each provider's wording. */
+/**
+ * A provider saying the media itself is broken, in each provider's wording. Only words for damage:
+ * "could not process" or "invalid file format" also come back for a good file of a type the model
+ * does not take, or one worth retrying.
+ */
 const DAMAGED_MEDIA_PATTERN =
-    /badly formatted|corrupt|malformed|damaged|truncated|(?:could not|couldn't|unable to)(?: be)? (?:read|pars|process|decod)|invalid (?:pdf|file|image)/iu;
+    /badly formatted|corrupt|malformed|damaged|truncated|could not be decoded|invalid pdf/iu;
 
 /** Why the provider refused the request, as far as its error says: the media is damaged, or unknown. */
 type RejectionCause = 'damaged' | 'unknown';
