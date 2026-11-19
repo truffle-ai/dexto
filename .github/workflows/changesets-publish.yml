@@ -80,17 +80,27 @@ jobs:
           commit: 'chore: version packages'
           version: pnpm run changeset:version
           publish: pnpm -w changeset publish
-      # `next` is the newest of `latest` and the newest beta, so it must never sit below `latest`
-      # (DEXTO-2518). A stable publish moves `latest` only, so for `dexto` and `@dexto/core`, each on
-      # its own, move `next` up to `latest` when `next` is missing or older. A package that was not
-      # published, or was published as a prerelease (pre mode leaves `latest` alone), is skipped;
-      # publish-cli-beta.yml moves `next` for betas. continue-on-error keeps a failed tag move from
-      # blocking the standalone binaries, which need this job to succeed.
+
+  # `next` is the newest of `latest` and the newest beta, so it must never sit below `latest`
+  # (DEXTO-2518). A stable publish moves `latest` only, so for `dexto` and `@dexto/core`, each on
+  # its own, move `next` up to `latest` when `next` is missing or older. A package that was not
+  # published, or was published as a prerelease (pre mode leaves `latest` alone), is skipped;
+  # publish-cli-beta.yml moves `next` for betas. This is its own job, not a step of `release`, so a
+  # newer push cancelling `release` cannot cut it short, and a failed tag move never holds up the
+  # standalone binaries. It needs no GitHub token.
+  move-next-up-to-latest:
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
       - name: Move next up to latest if it fell behind
-        if: steps.changesets.outputs.published == 'true'
-        continue-on-error: true
         env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
