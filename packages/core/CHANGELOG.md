@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.19.2
+
+### Patch Changes
+
+- @dexto/llm@1.19.2
+
 ## 1.19.1
 
 ### Patch Changes

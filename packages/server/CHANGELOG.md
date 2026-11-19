@@ -1,5 +1,18 @@
 # @dexto/server
 
+## 1.19.2
+
+### Patch Changes
+
+- Updated dependencies [5293e60]
+    - @dexto/agent-management@1.19.2
+    - @dexto/image-local@1.19.2
+    - @dexto/core@1.19.2
+    - @dexto/storage@1.19.2
+    - @dexto/llm@1.19.2
+    - @dexto/agent-config@1.19.2
+    - @dexto/tools-scheduler@1.19.2
+
 ## 1.19.1
 
 ### Patch Changes
