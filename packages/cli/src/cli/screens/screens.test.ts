@@ -26,6 +26,9 @@ const DEVICE = {
     verificationUri: 'https://app.dexto.ai/auth/device',
     verificationUriComplete: null,
     expiresInSeconds: 600,
+    organization: 'acme',
+    scopes: ['cloud:read', 'sessions:write', 'projects:write'],
+    computer: 'sams-laptop',
 } as const;
 
 const BROWSER = {
@@ -233,7 +236,7 @@ describe('Signal screens', () => {
             })
         );
         expect(out).toContain(
-            'Open https://app.dexto.ai/auth/device?code=KX7R-49QD and check it shows:'
+            'Open https://app.dexto.ai/auth/device?code=KX7R-49QD and check it shows the code below:'
         );
     });
 });

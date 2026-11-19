@@ -8,6 +8,7 @@ import {
     refreshSignIn,
     signInWithBrowser,
     signInPromptText,
+    signInRequestRows,
     signInWithDevice,
 } from './dexto-sign-in.js';
 import type { OAuthLogin } from './dexto-accounts.js';
@@ -110,6 +111,43 @@ function runtime(
     };
 }
 
+describe.each(['browser', 'device'] as const)('step-up before %s authorization', (transport) => {
+    it('shows the discovered union and can stop before creating an authorization request', async () => {
+        const server = fakeServer(() => undefined);
+        const fake = runtime(server.fetch);
+        const declined = new Error('declined');
+        const input = {
+            appUrl: APP,
+            apiBaseUrl: API,
+            organization: null,
+            extraScopes: ['drive:write', 'chats:sync', 'computers:write', 'drive:read'],
+            beforeAuthorize: async (scopes: readonly string[]) => {
+                expect(scopes).toEqual([
+                    'drive:read',
+                    'memory:read',
+                    'cloud:read',
+                    'runs:read',
+                    'artifacts:read',
+                    'sessions:write',
+                    'projects:write',
+                    'drive:write',
+                    'chats:sync',
+                    'computers:write',
+                ]);
+                throw declined;
+            },
+        };
+        await expect(
+            transport === 'browser'
+                ? signInWithBrowser(fake, { ...input, openBrowser: true })
+                : signInWithDevice(fake, input)
+        ).rejects.toBe(declined);
+        expect(server.calls.every((call) => call.method === 'GET')).toBe(true);
+        expect(fake.opened).toEqual([]);
+        expect(fake.prompts).toEqual([]);
+    });
+});
+
 describe('signInWithBrowser', () => {
     it('signs in as dexto-cli with PKCE on a loopback redirect, without registering', async () => {
         let challenge = '';
@@ -152,15 +190,21 @@ describe('signInWithBrowser', () => {
             },
         });
 
+        const requestedScopes: string[] = [];
         const signedIn = await signInWithBrowser(fake, {
             appUrl: APP,
             apiBaseUrl: API,
             organization: 'acme',
             extraScopes: ['drive:write'],
             openBrowser: true,
+            beforeAuthorize: async (scopes) => {
+                expect(fake.opened).toEqual([]);
+                requestedScopes.push(...scopes);
+            },
         });
 
         const authorize = new URL(fake.opened[0] ?? '');
+        expect(requestedScopes.join(' ')).toBe(authorize.searchParams.get('scope'));
         expect(authorize.origin + authorize.pathname).toBe(`${APP}/oauth/authorize`);
         expect(Object.fromEntries(authorize.searchParams)).toMatchObject({
             client_id: DEXTO_CLI_CLIENT_ID,
@@ -168,7 +212,7 @@ describe('signInWithBrowser', () => {
             redirect_uri: REDIRECT,
             resource: `${APP}/mcp`,
             response_type: 'code',
-            scope: 'drive:read memory:read cloud:read drive:write',
+            scope: 'drive:read memory:read cloud:read runs:read artifacts:read sessions:write projects:write drive:write',
             organization: 'acme',
         });
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
@@ -252,7 +296,7 @@ describe('signInWithBrowser', () => {
 });
 
 describe('signInPromptText', () => {
-    it('words a device code without a complete link as before', () => {
+    it('lays a device request out as the approval page does: Account, Organization, Code, From, Access', () => {
         expect(
             signInPromptText({
                 kind: 'device',
@@ -260,10 +304,58 @@ describe('signInPromptText', () => {
                 verificationUri: `${APP}/auth/device`,
                 verificationUriComplete: null,
                 expiresInSeconds: 600,
+                organization: 'acme',
+                scopes: ['cloud:read', 'sessions:write'],
+                computer: 'sams-laptop',
             })
         ).toBe(
-            `To sign in, open this link on any device and enter ABCD-EFGH:\n${APP}/auth/device\nOnly approve this if you just ran dexto login.`
+            [
+                `To sign in, open this link on any device and enter ABCD-EFGH:`,
+                `${APP}/auth/device`,
+                `  Account       the one you approve with`,
+                `  Organization  acme`,
+                `  Code          ABCD-EFGH`,
+                `  From          this computer (sams-laptop)`,
+                `  Access        2 permissions, listed under Details on the approval page`,
+                `Only approve this if you just ran dexto login.`,
+            ].join('\n')
         );
+    });
+});
+
+describe('signInRequestRows', () => {
+    it('names the account, lets the page choose the organization and lists every scope when asked', () => {
+        expect(
+            signInRequestRows({
+                account: 'sam@acme.co',
+                organization: null,
+                code: null,
+                scopes: ['cloud:read', 'automations:write'],
+                computer: 'sams-laptop',
+                listScopes: true,
+            })
+        ).toEqual([
+            { label: 'Account', value: 'sam@acme.co' },
+            { label: 'Organization', value: 'chosen on the approval page' },
+            { label: 'From', value: 'this computer (sams-laptop)' },
+            { label: 'Access', value: '2 permissions: cloud:read automations:write' },
+        ]);
+    });
+
+    it('says one permission', () => {
+        expect(
+            signInRequestRows({
+                account: null,
+                organization: 'acme',
+                code: 'ABCD-EFGH',
+                scopes: ['cloud:read'],
+                computer: 'sams-laptop',
+                listScopes: false,
+            }).at(-1)
+        ).toEqual({
+            label: 'Access',
+            value: '1 permission, listed under Details on the approval page',
+        });
     });
 });
 
@@ -306,7 +398,9 @@ describe('signInWithDevice', () => {
 
         const start = server.calls.find((call) => call.url.endsWith('/device_authorization'));
         expect(start?.body?.get('client_id')).toBe(DEXTO_CLI_CLIENT_ID);
-        expect(start?.body?.get('scope')).toBe('drive:read memory:read cloud:read');
+        expect(start?.body?.get('scope')).toBe(
+            'drive:read memory:read cloud:read runs:read artifacts:read sessions:write projects:write'
+        );
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
         const polls = server.calls.filter((call) => call.url === `${APP}/api/oauth/token`);
         expect(polls.map((call) => call.body?.get('grant_type'))).toEqual([
@@ -323,6 +417,13 @@ describe('signInWithDevice', () => {
         expect(fake.prompts).toEqual([
             expect.objectContaining({ kind: 'device', userCode: 'ABCD-EFGH' }),
         ]);
+        // The prompt carries the request itself, so the terminal can show what the page will.
+        const [prompt] = fake.prompts;
+        if (prompt?.kind !== 'device') throw new Error('Expected a device prompt');
+        const requested = server.calls
+            .find((call) => call.url === `${APP}/api/oauth/device_authorization`)
+            ?.body?.get('scope');
+        expect(prompt.scopes.join(' ')).toBe(requested);
         expect(signedIn.clientId).toBe(DEXTO_CLI_CLIENT_ID);
     });
 

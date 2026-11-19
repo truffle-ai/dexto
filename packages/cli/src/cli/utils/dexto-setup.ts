@@ -4,7 +4,7 @@ export { canUseDextoProvider } from '@dexto/agent-management';
 
 /**
  * Signs in to Dexto asking to spend credits (`cloud:write`), as choosing Dexto models needs. A
- * sign-in that only reads keeps what it had and gains that.
+ * sign-in keeps its granted scopes, asks for the normal Project/chat permissions, and adds that.
  */
 export async function signInForDextoModels(): Promise<void> {
     const [{ login }, { nodeSignInContext }] = await Promise.all([

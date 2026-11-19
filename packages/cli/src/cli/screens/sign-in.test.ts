@@ -3,7 +3,7 @@ import { TERMINALS } from '@dexto/tui/signal-harness';
 import { getCaps, setCaps } from '@dexto/tui/signal-text';
 import {
     browserPromptLines,
-    codeLines,
+    codeRow,
     devicePromptLines,
     signalSignInScreen,
     terminalSignInScreen,
@@ -18,6 +18,9 @@ const DEVICE = {
     verificationUri: 'https://app.dexto.ai/auth/device',
     verificationUriComplete: null,
     expiresInSeconds: 600,
+    organization: 'acme',
+    scopes: ['cloud:read', 'sessions:write', 'projects:write'],
+    computer: 'sams-laptop',
 } as const;
 
 const BROWSER = {
@@ -78,11 +81,10 @@ describe('signalSignInScreen', () => {
 
         screen.settle(true);
 
-        const faded = codeLines(DEVICE.userCode, true);
-        expect(faded).toHaveLength(3);
+        // Up past the blank row, Access and From to the Code row; then back down to this line.
         expect(writes.slice(2)).toEqual([
             CLEAR_LINE,
-            `\u001B[4A${faded.map((row) => `${CLEAR_LINE}${row}`).join('\n')}\n\n`,
+            `\u001B[4A${CLEAR_LINE}${codeRow(DEVICE.userCode, true)}\n\n\n\n`,
         ]);
     });
 

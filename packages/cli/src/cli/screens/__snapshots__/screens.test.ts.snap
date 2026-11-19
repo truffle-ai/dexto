@@ -5,10 +5,13 @@ exports[`Signal screens on 16-dark > 2 device code, waiting 1`] = `
  ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█    ␛[90mno browser on this machine, so: a code␛[39m
 ▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀
 
-␛[90mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[35m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[90m on any device and enter:␛[39m
-█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄
-█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █
-▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ 
+␛[90mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[35m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[90m on any device and enter the code below:␛[39m
+
+␛[90m  Account       ␛[39mthe one you approve with
+␛[90m  Organization  ␛[39macme
+␛[90m  Code          ␛[39m␛[1mKX7R-49QD␛[22m
+␛[90m  From          ␛[39mthis computer (sams-laptop)
+␛[90m  Access        ␛[39m3 permissions, listed under Details on the approval page
 
 ␛[35m⠿␛[39m␛[90m waiting for you · expires in 9:41␛[39m"
 `;
@@ -291,10 +294,13 @@ exports[`Signal screens on 256-dark > 2 device code, waiting 1`] = `
 ␛[38;5;231m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;5;109mno browser on this machine, so: a code␛[39m
 ␛[38;5;231m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
 
-␛[38;5;109mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;5;183m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;5;109m on any device and enter:␛[39m
-␛[38;5;231m█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄␛[39m
-␛[38;5;231m█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █␛[39m
-␛[38;5;231m▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ ␛[39m
+␛[38;5;109mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;5;183m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;5;109m on any device and enter the code below:␛[39m
+
+␛[38;5;109m  Account       ␛[39m␛[38;5;188mthe one you approve with␛[39m
+␛[38;5;109m  Organization  ␛[39m␛[38;5;188macme␛[39m
+␛[38;5;109m  Code          ␛[39m␛[38;5;231m␛[1mKX7R-49QD␛[22m␛[39m
+␛[38;5;109m  From          ␛[39m␛[38;5;188mthis computer (sams-laptop)␛[39m
+␛[38;5;109m  Access        ␛[39m␛[38;5;188m3 permissions, listed under Details on the approval page␛[39m
 
 ␛[38;5;183m⠿␛[39m␛[38;5;109m waiting for you · expires in 9:41␛[39m"
 `;
@@ -576,8 +582,13 @@ exports[`Signal screens on ascii > 2 device code, waiting 1`] = `
 "␛[1mSIGN IN␛[22m  ␛[36m␛[1mdexto login --device␛[22m␛[39m
 ␛[90mno browser on this machine, so: a code␛[39m
 
-␛[90mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[35m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[90m on any device and enter:␛[39m
-␛[1mKX7R-49QD␛[22m
+␛[90mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[35m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[90m on any device and enter the code below:␛[39m
+
+␛[90m  Account       ␛[39mthe one you approve with
+␛[90m  Organization  ␛[39macme
+␛[90m  Code          ␛[39m␛[1mKX7R-49QD␛[22m
+␛[90m  From          ␛[39mthis computer (sams-laptop)
+␛[90m  Access        ␛[39m3 permissions, listed under Details on the approval page
 
 ␛[35m'␛[39m␛[90m waiting for you . expires in 9:41␛[39m"
 `;
@@ -858,8 +869,13 @@ exports[`Signal screens on no-color > 2 device code, waiting 1`] = `
 "SIGN IN  dexto login --device
 no browser on this machine, so: a code
 
-Open app.dexto.ai/auth/device on any device and enter:
-KX7R-49QD
+Open app.dexto.ai/auth/device on any device and enter the code below:
+
+  Account       the one you approve with
+  Organization  acme
+  Code          KX7R-49QD
+  From          this computer (sams-laptop)
+  Access        3 permissions, listed under Details on the approval page
 
 ⠿ waiting for you · expires in 9:41"
 `;
@@ -1134,10 +1150,13 @@ exports[`Signal screens on truecolor-dark > 2 device code, waiting 1`] = `
 ␛[38;2;244;248;247m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;2;127;140;138mno browser on this machine, so: a code␛[39m
 ␛[38;2;244;248;247m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
 
-␛[38;2;127;140;138mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;2;226;141;240m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;2;127;140;138m on any device and enter:␛[39m
-␛[38;2;244;248;247m█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄␛[39m
-␛[38;2;244;248;247m█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █␛[39m
-␛[38;2;244;248;247m▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ ␛[39m
+␛[38;2;127;140;138mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;2;226;141;240m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;2;127;140;138m on any device and enter the code below:␛[39m
+
+␛[38;2;127;140;138m  Account       ␛[39m␛[38;2;216;224;222mthe one you approve with␛[39m
+␛[38;2;127;140;138m  Organization  ␛[39m␛[38;2;216;224;222macme␛[39m
+␛[38;2;127;140;138m  Code          ␛[39m␛[38;2;244;248;247m␛[1mKX7R-49QD␛[22m␛[39m
+␛[38;2;127;140;138m  From          ␛[39m␛[38;2;216;224;222mthis computer (sams-laptop)␛[39m
+␛[38;2;127;140;138m  Access        ␛[39m␛[38;2;216;224;222m3 permissions, listed under Details on the approval page␛[39m
 
 ␛[38;2;226;141;240m⠿␛[39m␛[38;2;127;140;138m waiting for you · expires in 9:41␛[39m"
 `;
@@ -1420,10 +1439,13 @@ exports[`Signal screens on truecolor-light > 2 device code, waiting 1`] = `
 ␛[38;2;5;8;7m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;2;94;106;104mno browser on this machine, so: a code␛[39m
 ␛[38;2;5;8;7m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
 
-␛[38;2;94;106;104mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;2;158;42;156m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;2;94;106;104m on any device and enter:␛[39m
-␛[38;2;5;8;7m█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄␛[39m
-␛[38;2;5;8;7m█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █␛[39m
-␛[38;2;5;8;7m▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ ␛[39m
+␛[38;2;94;106;104mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;2;158;42;156m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;2;94;106;104m on any device and enter the code below:␛[39m
+
+␛[38;2;94;106;104m  Account       ␛[39m␛[38;2;27;34;33mthe one you approve with␛[39m
+␛[38;2;94;106;104m  Organization  ␛[39m␛[38;2;27;34;33macme␛[39m
+␛[38;2;94;106;104m  Code          ␛[39m␛[38;2;5;8;7m␛[1mKX7R-49QD␛[22m␛[39m
+␛[38;2;94;106;104m  From          ␛[39m␛[38;2;27;34;33mthis computer (sams-laptop)␛[39m
+␛[38;2;94;106;104m  Access        ␛[39m␛[38;2;27;34;33m3 permissions, listed under Details on the approval page␛[39m
 
 ␛[38;2;158;42;156m⠿␛[39m␛[38;2;94;106;104m waiting for you · expires in 9:41␛[39m"
 `;

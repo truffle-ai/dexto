@@ -1181,7 +1181,11 @@ describe('subscription connections over MCP', () => {
             data: { kind: 'forbidden', scope: 'models:write', retryable: false, resume: null },
         };
         expect(await runCloud(host, ['connect', 'codex', '--attempt', 'pending'])).toBe(3);
-        expect(grant).toHaveBeenCalledWith(expect.anything(), ['models:write']);
+        expect(grant).toHaveBeenCalledWith(
+            expect.anything(),
+            ['models:write'],
+            expect.any(Function)
+        );
     });
 
     it('restarts Claude when the retained start chat was not found', async () => {
