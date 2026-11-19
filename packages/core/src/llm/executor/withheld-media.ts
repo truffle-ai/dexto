@@ -11,11 +11,12 @@ export function isRejectedModelRequest(error: unknown): boolean {
 /**
  * A provider saying the media itself is broken, in each provider's wording. Only words for damage:
  * "could not process" or "invalid file format" also come back for a good file of a type the model
- * does not take, or one worth retrying. "Malformed" counts only next to a media word, since
- * "Malformed JSON in request body" says nothing about the file.
+ * does not take, or one worth retrying. "Malformed" counts only next to a media word, either
+ * order ("malformed PDF", "the PDF file is malformed"), since "Malformed JSON in request body"
+ * says nothing about the file.
  */
 const DAMAGED_MEDIA_PATTERN =
-    /badly formatted|corrupt|malformed (?:file|pdf|image|document)|damaged|truncated|could not be decoded|invalid pdf/iu;
+    /badly formatted|corrupt|malformed (?:file|pdf|image|document)|(?:file|pdf|image|document) (?:is |was )?malformed|damaged|truncated|could not be decoded|invalid pdf/iu;
 
 /** Why the provider refused the request, as far as its error says: the media is damaged, or unknown. */
 type RejectionCause = 'damaged' | 'unknown';

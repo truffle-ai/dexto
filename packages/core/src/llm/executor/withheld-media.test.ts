@@ -130,6 +130,31 @@ describe('withholdRequestMedia', () => {
         ]);
     });
 
+    it('says a file looks damaged when the provider calls the PDF malformed', () => {
+        const messages: ModelMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'file', data: new Uint8Array([2]), mediaType: 'application/pdf' },
+                ],
+            },
+        ];
+
+        expect(
+            withholdRequestMedia(messages, apiCallError(400, 'The PDF file is malformed'))
+        ).toEqual([
+            {
+                role: 'user',
+                content: [
+                    {
+                        type: 'text',
+                        text: '[File not read: the model provider could not open it because it is damaged or not a valid file. Tell the person the file looks damaged and could not be read; sending the same file again will not help, so ask for a fresh export or its text.]',
+                    },
+                ],
+            },
+        ]);
+    });
+
     it.each([
         'Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting',
         'Could not process image',
