@@ -17,7 +17,7 @@ export interface DextoGatewayOptions {
     /** The public API new sign-ins use; requests go to the one their sign-in was saved for. */
     readonly apiBaseUrl: string;
     readonly fetch: typeof globalThis.fetch;
-    readonly refresh: (login: OAuthLogin) => Promise<OAuthLogin>;
+    readonly refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
 }
 
 /** This machine's sign-in, Dexto's public API and the global fetch. */
@@ -31,7 +31,7 @@ export function defaultDextoGatewayOptions(): DextoGatewayOptions {
             ''
         ),
         fetch,
-        refresh: (login) => refreshSignIn({ fetch, signal: AbortSignal.timeout(10_000) }, login),
+        refresh: (login, signal) => refreshSignIn({ fetch, signal }, login),
     };
 }
 

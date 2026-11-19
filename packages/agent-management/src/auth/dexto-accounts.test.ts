@@ -1,7 +1,17 @@
-import { chmod, mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import {
+    chmod,
+    mkdtemp,
+    mkdir,
+    readFile,
+    rm,
+    stat,
+    symlink,
+    utimes,
+    writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     type OAuthLogin,
     carryOverCloudCliLogins,
@@ -440,6 +450,120 @@ describe('accounts', () => {
 
             expect(credential).toMatchObject({ token: 'access-2' });
             await expect(stat(lock)).rejects.toMatchObject({ code: 'ENOENT' });
+        });
+
+        it('lets two processes taking over one stale lock refresh only once', async () => {
+            await writeLogin(dir, 'default', oauthLogin({ expiresAt: new Date().toISOString() }));
+            const lock = path.join(dir, 'default.refresh.lock');
+            await writeFile(lock, 'crashed-owner');
+            const old = new Date(Date.now() - 60_000);
+            await utimes(lock, old, old);
+            // A second path to the same folder is a second process: it shares the lock file but
+            // not this process's in-flight refresh.
+            const otherDir = `${dir}-other-process`;
+            await symlink(dir, otherDir);
+            let refreshes = 0;
+            const refresh = async (login: OAuthLogin): Promise<OAuthLogin> => {
+                refreshes += 1;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                return {
+                    ...login,
+                    accessToken: 'access-2',
+                    refreshToken: 'refresh-2',
+                    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+                };
+            };
+
+            try {
+                const credentials = await Promise.all(
+                    [dir, otherDir].map((each) =>
+                        resolveCredential({
+                            dir: each,
+                            apiKey: null,
+                            environment: {},
+                            profile: null,
+                            refresh,
+                        })
+                    )
+                );
+
+                expect(refreshes).toBe(1);
+                expect(credentials.map((credential) => credential?.token)).toEqual([
+                    'access-2',
+                    'access-2',
+                ]);
+                await expect(stat(lock)).rejects.toMatchObject({ code: 'ENOENT' });
+            } finally {
+                await rm(otherDir, { force: true });
+            }
+        });
+
+        it('leaves the lock alone when another process took it over during the refresh', async () => {
+            await writeLogin(dir, 'default', oauthLogin({ expiresAt: new Date().toISOString() }));
+            const lock = path.join(dir, 'default.refresh.lock');
+            let finishRefresh = (_login: OAuthLogin) => {};
+            const refreshing = new Promise<OAuthLogin>((resolve) => {
+                finishRefresh = resolve;
+            });
+            let started = () => {};
+            const refreshStarted = new Promise<void>((resolve) => {
+                started = resolve;
+            });
+
+            const credential = resolveCredential({
+                dir,
+                apiKey: null,
+                environment: {},
+                profile: null,
+                refresh: async () => {
+                    started();
+                    return refreshing;
+                },
+            });
+            await refreshStarted;
+            await writeFile(lock, 'new-owner');
+            finishRefresh(oauthLogin({ accessToken: 'access-2', refreshToken: 'refresh-2' }));
+
+            await expect(credential).resolves.toMatchObject({ token: 'access-2' });
+            await expect(readFile(lock, 'utf8')).resolves.toBe('new-owner');
+        });
+
+        it('ends a refresh that outlives its deadline, so it never outlives the lock', async () => {
+            await writeLogin(dir, 'default', oauthLogin({ expiresAt: new Date().toISOString() }));
+            const lock = path.join(dir, 'default.refresh.lock');
+            let refreshSignal: AbortSignal | undefined;
+            let started = () => {};
+            const refreshStarted = new Promise<void>((resolve) => {
+                started = resolve;
+            });
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+            try {
+                const credential = resolveCredential({
+                    dir,
+                    apiKey: null,
+                    environment: {},
+                    profile: null,
+                    // Ignores its signal, as a hung request with no timeout of its own would.
+                    refresh: (_login, signal) => {
+                        refreshSignal = signal;
+                        started();
+                        return new Promise<OAuthLogin>(() => {});
+                    },
+                });
+                const settled = credential.then(
+                    () => 'resolved',
+                    (error: unknown) => (error instanceof Error ? error.message : 'rejected')
+                );
+                await refreshStarted;
+                await vi.advanceTimersByTimeAsync(10_000);
+
+                await expect(settled).resolves.toMatch(/timed out/u);
+                expect(refreshSignal?.aborted).toBe(true);
+                await expect(stat(lock)).rejects.toMatchObject({ code: 'ENOENT' });
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 });

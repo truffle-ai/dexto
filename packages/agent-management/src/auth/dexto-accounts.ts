@@ -1,7 +1,17 @@
 // Saved Dexto sign-ins, one per profile, under ~/.dexto/accounts, and the credential a command uses.
 
-import { createHash } from 'node:crypto';
-import { chmod, mkdir, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+    chmod,
+    link,
+    mkdir,
+    readdir,
+    readFile,
+    rename,
+    rm,
+    stat,
+    writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 
@@ -262,7 +272,7 @@ export interface ResolveCredentialInput {
     /** The global --profile value. */
     readonly profile: string | null;
     readonly environment: Readonly<Record<string, string | undefined>>;
-    readonly refresh: (login: OAuthLogin) => Promise<OAuthLogin>;
+    readonly refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
 }
 
 /**
@@ -294,10 +304,13 @@ function isExpiring(login: OAuthLogin): boolean {
 
 /** Refreshes in flight in this process, by login file, so concurrent requests share one. */
 const refreshesInFlight = new Map<string, Promise<OAuthLogin>>();
-const REFRESH_LOCK_WAIT_MS = 15_000;
-const REFRESH_LOCK_POLL_MS = 50;
-/** Longer than a refresh's own 10 s timeout, so only a crashed process's lock is this old. */
+/** refreshSaved ends every refresh by then, whatever its caller's own timeout. */
+const REFRESH_TIMEOUT_MS = 10_000;
+/** Well past REFRESH_TIMEOUT_MS, so only a crashed process's lock is this old. */
 const REFRESH_LOCK_STALE_MS = 30_000;
+/** No shorter than the stale window, so a crashed process's lock is taken over, not waited out. */
+const REFRESH_LOCK_WAIT_MS = REFRESH_LOCK_STALE_MS + 5_000;
+const REFRESH_LOCK_POLL_MS = 50;
 
 /**
  * Refreshes and saves the login, one refresh at a time per login: refresh tokens rotate, and the
@@ -309,7 +322,7 @@ function refreshSaved(
     dir: string,
     profile: string,
     stored: OAuthLogin,
-    refresh: (login: OAuthLogin) => Promise<OAuthLogin>
+    refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>
 ): Promise<OAuthLogin> {
     const file = loginFile(dir, profile);
     const inFlight = refreshesInFlight.get(file);
@@ -330,7 +343,7 @@ async function refreshUnlessSaved(
     dir: string,
     profile: string,
     stored: OAuthLogin,
-    refresh: (login: OAuthLogin) => Promise<OAuthLogin>
+    refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>
 ): Promise<OAuthLogin> {
     const savedByOther = async () => {
         const current = await readLogin(dir, profile);
@@ -343,7 +356,9 @@ async function refreshUnlessSaved(
     const saved = await savedByOther();
     if (saved !== null) return saved;
     try {
-        const refreshed = await refresh(stored);
+        const refreshed = await withDeadline(REFRESH_TIMEOUT_MS, (signal) =>
+            refresh(stored, signal)
+        );
         await writeLogin(dir, profile, refreshed);
         return refreshed;
     } catch (error) {
@@ -353,21 +368,46 @@ async function refreshUnlessSaved(
     }
 }
 
-/** Runs `work` holding an exclusive lock file, taking over one a crashed process left behind. */
+/**
+ * Runs `work` with a signal that aborts after `ms`, and rejects then even if `work` ignores it, so
+ * no refresh outlives the lock it holds.
+ */
+async function withDeadline<T>(ms: number, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+            const error = new Error(`Refreshing the Dexto sign-in timed out after ${ms} ms.`);
+            controller.abort(error);
+            reject(error);
+        }, ms);
+    });
+    try {
+        return await Promise.race([work(controller.signal), deadline]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * Runs `work` holding an exclusive lock file that names this holder, taking over one a crashed
+ * process left behind. Only the holder named in the lock releases it.
+ */
 async function withRefreshLock<T>(lock: string, work: () => Promise<T>): Promise<T> {
+    const owner = `${process.pid}:${randomUUID()}`;
     const deadline = Date.now() + REFRESH_LOCK_WAIT_MS;
+    await mkdir(path.dirname(lock), { mode: 0o700, recursive: true });
     for (;;) {
         try {
-            await mkdir(path.dirname(lock), { mode: 0o700, recursive: true });
-            await (await open(lock, 'wx', 0o600)).close();
+            await writeFile(lock, owner, { flag: 'wx', mode: 0o600 });
             break;
         } catch (error) {
             if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST'))
                 throw error;
         }
-        const held = await stat(lock).catch(() => null);
-        if (held !== null && Date.now() - held.mtimeMs > REFRESH_LOCK_STALE_MS) {
-            await rm(lock, { force: true });
+        const held = await readLock(lock);
+        if (held !== null && Date.now() - held.modifiedAt > REFRESH_LOCK_STALE_MS) {
+            await takeOverStaleLock(lock, held.owner);
             continue;
         }
         if (Date.now() > deadline)
@@ -377,8 +417,40 @@ async function withRefreshLock<T>(lock: string, work: () => Promise<T>): Promise
     try {
         return await work();
     } finally {
-        await rm(lock, { force: true });
+        if ((await readLock(lock))?.owner === owner) await rm(lock, { force: true });
     }
+}
+
+async function readLock(lock: string): Promise<{ owner: string; modifiedAt: number } | null> {
+    try {
+        const [owner, held] = await Promise.all([readFile(lock, 'utf8'), stat(lock)]);
+        return { owner, modifiedAt: held.mtimeMs };
+    } catch (error) {
+        if (isMissingFile(error)) return null;
+        throw error;
+    }
+}
+
+/**
+ * Moves a stale lock aside atomically, so of several processes taking it over only one removes
+ * it. One that moved a fresh lock instead (another process took the stale one over first) puts it
+ * back, unless a third already holds the lock.
+ */
+async function takeOverStaleLock(lock: string, staleOwner: string): Promise<void> {
+    const moved = `${lock}.${randomUUID()}`;
+    try {
+        await rename(lock, moved);
+    } catch (error) {
+        if (isMissingFile(error)) return;
+        throw error;
+    }
+    if ((await readFile(moved, 'utf8')) !== staleOwner) {
+        await link(moved, lock).catch((error: unknown) => {
+            if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST'))
+                throw error;
+        });
+    }
+    await rm(moved, { force: true });
 }
 
 async function readOptional(file: string): Promise<string | null> {

@@ -89,7 +89,11 @@ export async function nodeSignInContext(io: SignInIo = terminalIo()): Promise<Si
             signInWithBrowser: (input) => dextoSignIn.signInWithBrowser(runtime, input),
             signInWithDevice: (input) => dextoSignIn.signInWithDevice(runtime, input),
             endSignIn: (login) => dextoSignIn.endSignIn(runtime, login),
-            refreshSignIn: (login) => dextoSignIn.refreshSignIn(runtime, login),
+            refreshSignIn: (login, signal) =>
+                dextoSignIn.refreshSignIn(
+                    { ...runtime, signal: AbortSignal.any([runtime.signal, signal]) },
+                    login
+                ),
             listProjects: (login) =>
                 dextoCloud.listCloudProjects(runtime.fetch, login.apiBaseUrl, login.accessToken),
             acceptsApiKey: async (apiBaseUrl, apiKey) => {
