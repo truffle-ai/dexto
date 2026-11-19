@@ -45,6 +45,31 @@ describe('wrapToolParametersSchema', () => {
         expect(schema.properties?.format).toEqual({ enum: ['email', 'sms'] });
     });
 
+    it('keeps root definitions when it flattens a union, so a $ref still resolves', () => {
+        // z.json() and other recursive zod schemas emit a $ref into root definitions; xAI
+        // rejects a tool whose $ref points nowhere with HTTP 400.
+        const definitions = { __schema0: { anyOf: [{ type: 'string' }, { type: 'null' }] } };
+        const $defs = { Value: { type: 'number' } };
+        const schema = wrapToolParametersSchema({
+            oneOf: [
+                {
+                    type: 'object',
+                    properties: { body: { $ref: '#/definitions/__schema0' } },
+                },
+                {
+                    type: 'object',
+                    properties: { value: { $ref: '#/$defs/Value' } },
+                },
+            ],
+            definitions,
+            $defs,
+        });
+
+        expect(schema.properties?.body).toEqual({ $ref: '#/definitions/__schema0' });
+        expect(schema.definitions).toEqual(definitions);
+        expect(schema.$defs).toEqual($defs);
+    });
+
     it('injects grouped model-authored call activity metadata', () => {
         const schema = wrapToolParametersSchema({
             type: 'object',
