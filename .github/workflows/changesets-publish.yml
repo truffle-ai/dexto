@@ -81,10 +81,11 @@ jobs:
           version: pnpm run changeset:version
           publish: pnpm -w changeset publish
       # `next` is the newest of `latest` and the newest beta, so it must never sit below `latest`
-      # (DEXTO-2518). A stable `dexto` publish moves `latest` only, so move `next` up to it when
-      # `next` is missing or older. A prerelease publish (pre mode) leaves `latest` alone and is
-      # skipped; publish-cli-beta.yml moves `next` for betas. continue-on-error keeps a failed tag
-      # move from blocking the standalone binaries, which need this job to succeed.
+      # (DEXTO-2518). A stable publish moves `latest` only, so for `dexto` and `@dexto/core`, each on
+      # its own, move `next` up to `latest` when `next` is missing or older. A package that was not
+      # published, or was published as a prerelease (pre mode leaves `latest` alone), is skipped;
+      # publish-cli-beta.yml moves `next` for betas. continue-on-error keeps a failed tag move from
+      # blocking the standalone binaries, which need this job to succeed.
       - name: Move next up to latest if it fell behind
         if: steps.changesets.outputs.published == 'true'
         continue-on-error: true
@@ -93,35 +94,14 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          version="$(jq -r 'map(select(.name == "dexto")) | .[0].version // empty' <<< "${PUBLISHED_PACKAGES}")"
-          if [[ -z "${version}" ]]; then
-            echo "dexto was not published; next stays where it is."
-            exit 0
-          fi
-          if [[ "${version}" == *-* ]]; then
-            echo "dexto@${version} is a prerelease, so latest did not move; next stays where it is."
-            exit 0
-          fi
 
-          # Read anonymously, as npm-dist-tag.yml does. The registry can serve the tags from
-          # before the publish for a short while, so wait for latest to show this version.
-          view_tag() { NPM_CONFIG_USERCONFIG=/dev/null npm view dexto "dist-tags.$1"; }
-          latest=""
-          for attempt in {1..12}; do
-            latest="$(view_tag latest)"
-            [[ "${latest}" == "${version}" ]] && break
-            echo "latest is '${latest}', waiting for ${version} (attempt ${attempt}/12)..."
-            sleep 10
-          done
-          if [[ "${latest}" != "${version}" ]]; then
-            echo "::warning::latest is '${latest}', not the published ${version}; leaving next alone."
-            exit 0
-          fi
-          next="$(view_tag next)"
+          # Read anonymously, as npm-dist-tag.yml does.
+          view_tag() { NPM_CONFIG_USERCONFIG=/dev/null npm view "$1" "dist-tags.$2"; }
 
           # Semver precedence with prereleases, so 2.3.0-beta.1 > 2.2.3 > 2.2.3-beta.9.
-          # Prints "behind" when next is missing or lower than latest.
-          behind="$(LATEST="${latest}" NEXT="${next}" node -e '
+          # Prints "behind" when next ($1) is missing or lower than latest ($2), else "ok".
+          compare_next() {
+            NEXT="$1" LATEST="$2" node -e '
             const parse = (v) => {
               const [core, pre] = v.split("+")[0].split(/-(.*)/s);
               return { core: core.split(".").map(Number), pre: pre ? pre.split(".") : [] };
@@ -145,16 +125,53 @@ jobs:
             };
             const { LATEST, NEXT } = process.env;
             console.log(!NEXT || compare(NEXT, LATEST) < 0 ? "behind" : "ok");
-          ')"
+          '
+          }
 
-          if [[ "${behind}" != behind ]]; then
-            echo "next is ${next}, not below latest ${latest}; next stays where it is."
-            exit 0
-          fi
-          echo "next is '${next:-missing}', below latest ${latest}; moving next to ${latest}."
-          npm dist-tag add "dexto@${latest}" next
-          echo "dist-tags after the move:"
-          NPM_CONFIG_USERCONFIG=/dev/null npm dist-tag ls dexto
+          # Called in an `||` list, where bash ignores `set -e`, so every command that can fail
+          # returns explicitly.
+          move_next_up() {
+            local package="$1" version latest next behind attempt
+            version="$(jq -r --arg name "${package}" 'map(select(.name == $name)) | .[0].version // empty' <<< "${PUBLISHED_PACKAGES}")" || return 1
+            if [[ -z "${version}" ]]; then
+              echo "${package} was not published; next stays where it is."
+              return 0
+            fi
+            if [[ "${version}" == *-* ]]; then
+              echo "${package}@${version} is a prerelease, so latest did not move; next stays where it is."
+              return 0
+            fi
+
+            # The registry can serve the tags from before the publish for a short while, so wait
+            # for latest to show this version.
+            for attempt in {1..12}; do
+              latest="$(view_tag "${package}" latest)" || return 1
+              [[ "${latest}" == "${version}" ]] && break
+              echo "${package}: latest is '${latest}', waiting for ${version} (attempt ${attempt}/12)..."
+              sleep 10
+            done
+            if [[ "${latest}" != "${version}" ]]; then
+              echo "::warning::${package}: latest is '${latest}', not the published ${version}; leaving next alone."
+              return 0
+            fi
+            next="$(view_tag "${package}" next)" || return 1
+            behind="$(compare_next "${next}" "${latest}")" || return 1
+
+            if [[ "${behind}" != behind ]]; then
+              echo "${package}: next is ${next}, not below latest ${latest}; next stays where it is."
+              return 0
+            fi
+            echo "${package}: next is '${next:-missing}', below latest ${latest}; moving next to ${latest}."
+            npm dist-tag add "${package}@${latest}" next || return 1
+            echo "${package} dist-tags after the move:"
+            NPM_CONFIG_USERCONFIG=/dev/null npm dist-tag ls "${package}" || return 1
+          }
+
+          failed=0
+          for package in dexto @dexto/core; do
+            move_next_up "${package}" || { echo "::error::Could not check or move next for ${package}."; failed=1; }
+          done
+          exit "${failed}"
 
   derive-dexto-release-tag:
     needs: release
