@@ -1,3 +1,4 @@
+import type { JSONSchema7 } from 'json-schema';
 import { describe, expect, it } from 'vitest';
 import { wrapToolParametersSchema } from './tool-call-metadata.js';
 
@@ -48,8 +49,10 @@ describe('wrapToolParametersSchema', () => {
     it('keeps root definitions when it flattens a union, so a $ref still resolves', () => {
         // z.json() and other recursive zod schemas emit a $ref into root definitions; xAI
         // rejects a tool whose $ref points nowhere with HTTP 400.
-        const definitions = { __schema0: { anyOf: [{ type: 'string' }, { type: 'null' }] } };
-        const $defs = { Value: { type: 'number' } };
+        const definitions: JSONSchema7['definitions'] = {
+            __schema0: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        };
+        const $defs: JSONSchema7['$defs'] = { Value: { type: 'number' } };
         const schema = wrapToolParametersSchema({
             oneOf: [
                 {
