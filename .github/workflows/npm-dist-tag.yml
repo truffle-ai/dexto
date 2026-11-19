@@ -1,0 +1,78 @@
+# Moves an npm dist-tag of `dexto` to a version already on npm, by hand only (DEXTO-2518).
+#
+# It never publishes. Guards run before the write: the version must exist on npm, the tag must be
+# `next` or `latest`, and `latest` never moves backwards or onto a prerelease. The npm token
+# (NPM_TOKEN, as publish-cli-beta.yml uses) is only in the step that moves the tag.
+name: Move dexto npm dist-tag (manual)
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: 'Version already on npm, such as 2.2.2'
+                required: true
+                type: string
+            tag:
+                description: 'The dist-tag to point at it'
+                required: true
+                type: choice
+                options:
+                    - next
+                    - latest
+
+permissions:
+    contents: read
+
+concurrency:
+    group: npm-dist-tag
+    cancel-in-progress: false
+
+jobs:
+    move-tag:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  registry-url: https://registry.npmjs.org
+
+            - name: Check the version and tag
+              env:
+                  VERSION: ${{ inputs.version }}
+                  TAG: ${{ inputs.tag }}
+              run: |
+                  set -euo pipefail
+                  [[ "$TAG" == next || "$TAG" == latest ]] || { echo "::error::tag must be next or latest, got '$TAG'"; exit 1; }
+                  [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::version must be an exact version such as 2.2.2, got '$VERSION'"; exit 1; }
+
+                  found=$(npm view "dexto@$VERSION" version 2>/dev/null || true)
+                  [[ "$found" == "$VERSION" ]] || { echo "::error::dexto@$VERSION is not on npm"; exit 1; }
+
+                  if [[ "$TAG" == latest ]]; then
+                    [[ "$VERSION" != *-* ]] || { echo "::error::latest never points at a prerelease ($VERSION)"; exit 1; }
+                    current=$(npm view dexto dist-tags.latest)
+                    # Compares stable versions only; a prerelease was refused above.
+                    CURRENT="$current" node -e '
+                      const parse = (v) => v.split("-")[0].split(".").map(Number);
+                      const [a, b] = [parse(process.env.VERSION), parse(process.env.CURRENT)];
+                      const diff = a.map((n, i) => n - b[i]).find((d) => d !== 0) ?? 0;
+                      if (diff < 0) {
+                        console.log(`::error::refusing to move latest backwards from ${process.env.CURRENT} to ${process.env.VERSION}`);
+                        process.exit(1);
+                      }
+                    '
+                    echo "latest: $current -> $VERSION"
+                  fi
+                  echo "Current dist-tags:"
+                  npm dist-tag ls dexto
+
+            - name: Move the tag
+              env:
+                  VERSION: ${{ inputs.version }}
+                  TAG: ${{ inputs.tag }}
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  npm dist-tag add "dexto@$VERSION" "$TAG"
+                  echo "dist-tags after the move:"
+                  npm dist-tag ls dexto
