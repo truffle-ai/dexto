@@ -10,13 +10,17 @@ export function isRejectedModelRequest(error: unknown): boolean {
 
 /** A provider saying the media itself could not be opened, in each provider's wording. */
 const DAMAGED_MEDIA_PATTERN =
-    /badly formatted|corrupt|malformed|damaged|truncated|could not (?:be )?(?:read|parsed|processed|decoded)|unable to (?:read|parse|process|decode)|invalid (?:pdf|file|image)/iu;
+    /badly formatted|corrupt|malformed|damaged|truncated|(?:could not|couldn't|unable to)(?: be)? (?:read|pars|process|decod)|invalid (?:pdf|file|image)/iu;
 
 /** Why the provider refused the request, as far as its error says: the media is damaged, or unknown. */
 type RejectionCause = 'damaged' | 'unknown';
 
-function rejectionCause(error: unknown): RejectionCause {
-    if (!APICallError.isInstance(error)) return 'unknown';
+/**
+ * The error names no item, so "damaged" is said only of a request's one media item: with several,
+ * the good ones (earlier screenshots still in the request, say) would be called damaged too.
+ */
+function rejectionCause(error: unknown, mediaCount: number): RejectionCause {
+    if (mediaCount !== 1 || !APICallError.isInstance(error)) return 'unknown';
     return DAMAGED_MEDIA_PATTERN.test(`${error.message}\n${error.responseBody ?? ''}`)
         ? 'damaged'
         : 'unknown';
@@ -45,7 +49,7 @@ export function withholdRequestMedia(
     messages: ModelMessage[],
     error: unknown
 ): ModelMessage[] | null {
-    const cause = rejectionCause(error);
+    const cause = rejectionCause(error, countMedia(messages));
     let withheld = false;
     const result = messages.map((message): ModelMessage => {
         if (message.role === 'user' && Array.isArray(message.content)) {
@@ -89,4 +93,19 @@ export function withholdRequestMedia(
         return message;
     });
     return withheld ? result : null;
+}
+
+function countMedia(messages: ModelMessage[]): number {
+    let count = 0;
+    for (const message of messages) {
+        if (message.role === 'user' && Array.isArray(message.content)) {
+            count += message.content.filter((part) => part.type !== 'text').length;
+        } else if (message.role === 'tool') {
+            for (const part of message.content) {
+                if (part.output.type !== 'content') continue;
+                count += part.output.value.filter((item) => item.type !== 'text').length;
+            }
+        }
+    }
+    return count;
 }

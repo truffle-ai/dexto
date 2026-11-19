@@ -130,6 +130,29 @@ describe('withholdRequestMedia', () => {
         ]);
     });
 
+    it('keeps the neutral note when the request carries more than one media item', () => {
+        const error = apiCallError(400, 'The file you uploaded is badly formatted or corrupted.');
+        const messages: ModelMessage[] = [
+            {
+                role: 'user',
+                content: [
+                    { type: 'image', image: new Uint8Array([1]), mediaType: 'image/png' },
+                    { type: 'file', data: new Uint8Array([2]), mediaType: 'application/pdf' },
+                ],
+            },
+        ];
+
+        expect(withholdRequestMedia(messages, error)).toEqual([
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: withheldImage },
+                    { type: 'text', text: withheldFile },
+                ],
+            },
+        ]);
+    });
+
     it('returns null when no message carries media', () => {
         expect(
             withholdRequestMedia(
