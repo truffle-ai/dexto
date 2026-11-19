@@ -8,8 +8,28 @@ export function isRejectedModelRequest(error: unknown): boolean {
     return APICallError.isInstance(error) && error.statusCode === 400;
 }
 
-function withheldMediaText(label: 'Image' | 'File'): string {
-    return `[${label} withheld: the model provider rejected the request that carried it]`;
+/** A provider saying the media itself could not be opened, in each provider's wording. */
+const DAMAGED_MEDIA_PATTERN =
+    /badly formatted|corrupt|malformed|damaged|truncated|could not (?:be )?(?:read|parsed|processed|decoded)|unable to (?:read|parse|process|decode)|invalid (?:pdf|file|image)/iu;
+
+/** Why the provider refused the request, as far as its error says: the media is damaged, or unknown. */
+type RejectionCause = 'damaged' | 'unknown';
+
+function rejectionCause(error: unknown): RejectionCause {
+    if (!APICallError.isInstance(error)) return 'unknown';
+    return DAMAGED_MEDIA_PATTERN.test(`${error.message}\n${error.responseBody ?? ''}`)
+        ? 'damaged'
+        : 'unknown';
+}
+
+/**
+ * The note that stands in for the media. A damaged file says so, or the model asks the person to
+ * send the same broken file again. The provider's own words are never quoted into the prompt.
+ */
+function withheldMediaText(label: 'Image' | 'File', cause: RejectionCause): string {
+    return cause === 'damaged'
+        ? `[${label} not read: the model provider could not open it because it is damaged or not a valid file. Tell the person the ${label.toLowerCase()} looks damaged and could not be read; sending the same ${label.toLowerCase()} again will not help, so ask for a fresh export or its text.]`
+        : `[${label} withheld: the model provider rejected the request that carried it]`;
 }
 
 function mediaLabel(mediaType: string): 'Image' | 'File' {
@@ -18,9 +38,14 @@ function mediaLabel(mediaType: string): 'Image' | 'File' {
 
 /**
  * The request's messages with every user and tool-result image or file replaced by a text
- * placeholder, or null when no message carries media.
+ * placeholder that says why, as far as the provider's `error` tells, or null when no message
+ * carries media.
  */
-export function withholdRequestMedia(messages: ModelMessage[]): ModelMessage[] | null {
+export function withholdRequestMedia(
+    messages: ModelMessage[],
+    error: unknown
+): ModelMessage[] | null {
+    const cause = rejectionCause(error);
     let withheld = false;
     const result = messages.map((message): ModelMessage => {
         if (message.role === 'user' && Array.isArray(message.content)) {
@@ -32,7 +57,8 @@ export function withholdRequestMedia(messages: ModelMessage[]): ModelMessage[] |
                     return {
                         type: 'text',
                         text: withheldMediaText(
-                            part.type === 'image' ? 'Image' : mediaLabel(part.mediaType)
+                            part.type === 'image' ? 'Image' : mediaLabel(part.mediaType),
+                            cause
                         ),
                     };
                 }),
@@ -52,7 +78,7 @@ export function withholdRequestMedia(messages: ModelMessage[]): ModelMessage[] |
                                 withheld = true;
                                 return {
                                     type: 'text',
-                                    text: withheldMediaText(mediaLabel(item.mediaType)),
+                                    text: withheldMediaText(mediaLabel(item.mediaType), cause),
                                 };
                             }),
                         },
