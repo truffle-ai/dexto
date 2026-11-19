@@ -1,5 +1,23 @@
 # dexto
 
+## 2.2.3
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/agent-management@1.19.4
+    - @dexto/analytics@1.19.4
+    - @dexto/client-sdk@1.19.4
+    - @dexto/image-local@1.19.4
+    - @dexto/image-logger-agent@1.19.4
+    - @dexto/storage@1.19.4
+    - @dexto/tui@1.19.4
+    - @dexto/llm@1.19.4
+    - @dexto/cloud-client@1.19.4
+    - @dexto/registry@1.19.4
+
 ## 2.2.2
 
 ### Patch Changes
