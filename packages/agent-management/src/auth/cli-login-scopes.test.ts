@@ -13,6 +13,7 @@ describe('CLI_LOGIN_SCOPES', () => {
             'cloud:write',
             'computers:read',
             'computers:write',
+            'connections:read',
             'drive:read',
             'drive:write',
             'functions:read',
