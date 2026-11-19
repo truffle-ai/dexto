@@ -80,6 +80,81 @@ jobs:
           commit: 'chore: version packages'
           version: pnpm run changeset:version
           publish: pnpm -w changeset publish
+      # `next` is the newest of `latest` and the newest beta, so it must never sit below `latest`
+      # (DEXTO-2518). A stable `dexto` publish moves `latest` only, so move `next` up to it when
+      # `next` is missing or older. A prerelease publish (pre mode) leaves `latest` alone and is
+      # skipped; publish-cli-beta.yml moves `next` for betas. continue-on-error keeps a failed tag
+      # move from blocking the standalone binaries, which need this job to succeed.
+      - name: Move next up to latest if it fell behind
+        if: steps.changesets.outputs.published == 'true'
+        continue-on-error: true
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(jq -r 'map(select(.name == "dexto")) | .[0].version // empty' <<< "${PUBLISHED_PACKAGES}")"
+          if [[ -z "${version}" ]]; then
+            echo "dexto was not published; next stays where it is."
+            exit 0
+          fi
+          if [[ "${version}" == *-* ]]; then
+            echo "dexto@${version} is a prerelease, so latest did not move; next stays where it is."
+            exit 0
+          fi
+
+          # Read anonymously, as npm-dist-tag.yml does. The registry can serve the tags from
+          # before the publish for a short while, so wait for latest to show this version.
+          view_tag() { NPM_CONFIG_USERCONFIG=/dev/null npm view dexto "dist-tags.$1"; }
+          latest=""
+          for attempt in {1..12}; do
+            latest="$(view_tag latest)"
+            [[ "${latest}" == "${version}" ]] && break
+            echo "latest is '${latest}', waiting for ${version} (attempt ${attempt}/12)..."
+            sleep 10
+          done
+          if [[ "${latest}" != "${version}" ]]; then
+            echo "::warning::latest is '${latest}', not the published ${version}; leaving next alone."
+            exit 0
+          fi
+          next="$(view_tag next)"
+
+          # Semver precedence with prereleases, so 2.3.0-beta.1 > 2.2.3 > 2.2.3-beta.9.
+          # Prints "behind" when next is missing or lower than latest.
+          behind="$(LATEST="${latest}" NEXT="${next}" node -e '
+            const parse = (v) => {
+              const [core, pre] = v.split("+")[0].split(/-(.*)/s);
+              return { core: core.split(".").map(Number), pre: pre ? pre.split(".") : [] };
+            };
+            const comparePart = (a, b) => {
+              const [an, bn] = [/^\d+$/.test(a), /^\d+$/.test(b)];
+              if (an && bn) return Number(a) - Number(b);
+              if (an !== bn) return an ? -1 : 1;
+              return a < b ? -1 : a > b ? 1 : 0;
+            };
+            const compare = (x, y) => {
+              const [a, b] = [parse(x), parse(y)];
+              const core = a.core.map((n, i) => n - b.core[i]).find((d) => d !== 0) ?? 0;
+              if (core !== 0) return core;
+              if (!a.pre.length || !b.pre.length) return b.pre.length - a.pre.length;
+              for (let i = 0; i < Math.min(a.pre.length, b.pre.length); i++) {
+                const d = comparePart(a.pre[i], b.pre[i]);
+                if (d !== 0) return d;
+              }
+              return a.pre.length - b.pre.length;
+            };
+            const { LATEST, NEXT } = process.env;
+            console.log(!NEXT || compare(NEXT, LATEST) < 0 ? "behind" : "ok");
+          ')"
+
+          if [[ "${behind}" != behind ]]; then
+            echo "next is ${next}, not below latest ${latest}; next stays where it is."
+            exit 0
+          fi
+          echo "next is '${next:-missing}', below latest ${latest}; moving next to ${latest}."
+          npm dist-tag add "dexto@${latest}" next
+          echo "dist-tags after the move:"
+          NPM_CONFIG_USERCONFIG=/dev/null npm dist-tag ls dexto
 
   derive-dexto-release-tag:
     needs: release
