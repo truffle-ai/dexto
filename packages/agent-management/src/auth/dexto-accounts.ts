@@ -1,19 +1,10 @@
 // Saved Dexto sign-ins, one per profile, under ~/.dexto/accounts, and the credential a command uses.
 
-import { createHash, randomUUID } from 'node:crypto';
-import {
-    chmod,
-    link,
-    mkdir,
-    readdir,
-    readFile,
-    rename,
-    rm,
-    stat,
-    writeFile,
-} from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { withRefreshLock } from './refresh-lock.js';
 
 export const DEFAULT_PROFILE = 'default';
 
@@ -306,11 +297,6 @@ function isExpiring(login: OAuthLogin): boolean {
 const refreshesInFlight = new Map<string, Promise<OAuthLogin>>();
 /** refreshSaved ends every refresh by then, whatever its caller's own timeout. */
 const REFRESH_TIMEOUT_MS = 10_000;
-/** Well past REFRESH_TIMEOUT_MS, so only a crashed process's lock is this old. */
-const REFRESH_LOCK_STALE_MS = 30_000;
-/** No shorter than the stale window, so a crashed process's lock is taken over, not waited out. */
-const REFRESH_LOCK_WAIT_MS = REFRESH_LOCK_STALE_MS + 5_000;
-const REFRESH_LOCK_POLL_MS = 50;
 
 /**
  * Refreshes and saves the login, one refresh at a time per login: refresh tokens rotate, and the
@@ -387,70 +373,6 @@ async function withDeadline<T>(ms: number, work: (signal: AbortSignal) => Promis
     } finally {
         clearTimeout(timer);
     }
-}
-
-/**
- * Runs `work` holding an exclusive lock file that names this holder, taking over one a crashed
- * process left behind. Only the holder named in the lock releases it.
- */
-async function withRefreshLock<T>(lock: string, work: () => Promise<T>): Promise<T> {
-    const owner = `${process.pid}:${randomUUID()}`;
-    const deadline = Date.now() + REFRESH_LOCK_WAIT_MS;
-    await mkdir(path.dirname(lock), { mode: 0o700, recursive: true });
-    for (;;) {
-        try {
-            await writeFile(lock, owner, { flag: 'wx', mode: 0o600 });
-            break;
-        } catch (error) {
-            if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST'))
-                throw error;
-        }
-        const held = await readLock(lock);
-        if (held !== null && Date.now() - held.modifiedAt > REFRESH_LOCK_STALE_MS) {
-            await takeOverStaleLock(lock, held.owner);
-            continue;
-        }
-        if (Date.now() > deadline)
-            throw new Error(`Another dexto process is still refreshing this sign-in (${lock}).`);
-        await new Promise((resolve) => setTimeout(resolve, REFRESH_LOCK_POLL_MS));
-    }
-    try {
-        return await work();
-    } finally {
-        if ((await readLock(lock))?.owner === owner) await rm(lock, { force: true });
-    }
-}
-
-async function readLock(lock: string): Promise<{ owner: string; modifiedAt: number } | null> {
-    try {
-        const [owner, held] = await Promise.all([readFile(lock, 'utf8'), stat(lock)]);
-        return { owner, modifiedAt: held.mtimeMs };
-    } catch (error) {
-        if (isMissingFile(error)) return null;
-        throw error;
-    }
-}
-
-/**
- * Moves a stale lock aside atomically, so of several processes taking it over only one removes
- * it. One that moved a fresh lock instead (another process took the stale one over first) puts it
- * back, unless a third already holds the lock.
- */
-async function takeOverStaleLock(lock: string, staleOwner: string): Promise<void> {
-    const moved = `${lock}.${randomUUID()}`;
-    try {
-        await rename(lock, moved);
-    } catch (error) {
-        if (isMissingFile(error)) return;
-        throw error;
-    }
-    if ((await readFile(moved, 'utf8')) !== staleOwner) {
-        await link(moved, lock).catch((error: unknown) => {
-            if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST'))
-                throw error;
-        });
-    }
-    await rm(moved, { force: true });
 }
 
 async function readOptional(file: string): Promise<string | null> {
