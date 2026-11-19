@@ -134,6 +134,7 @@ describe('withholdRequestMedia', () => {
         'Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting',
         'Could not process image',
         'Invalid file format',
+        'Malformed JSON in request body',
     ])(
         'keeps the neutral note when the provider does not say the file is damaged: %s',
         (message) => {
