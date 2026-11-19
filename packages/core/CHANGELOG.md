@@ -1,5 +1,14 @@
 # @dexto/core
 
+## 1.19.1
+
+### Patch Changes
+
+- 5d74a71: Resolve turn driver failure handling after recording the failure instead of rethrowing the provider error.
+- 6042c83: Keep a tool schema's root `definitions` and `$defs` when flattening a union root, so a `$ref` inside an alternative still resolves. xAI rejects a tool whose `$ref` points nowhere.
+- e0db54d: Replace an image of a type the provider cannot view (such as HEIC sent to Anthropic, OpenAI or a gateway) with a text note instead of sending it. Core used to log `Could not validate image support` and send the image anyway, which made the provider fail or stop with no reply. The note names the image type, so the model can tell the user. Google and Vertex still receive HEIC and HEIF, which Gemini reads, and endpoints you configure yourself (openai-compatible, LiteLLM, Ollama, local) still receive any image type, as before.
+    - @dexto/llm@1.19.1
+
 ## 1.19.0
 
 ### Minor Changes

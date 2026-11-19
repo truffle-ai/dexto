@@ -1,5 +1,31 @@
 # dexto
 
+## 2.2.0
+
+### Minor Changes
+
+- 8c1bcfd: Add commands to publish HTML Artifacts to your organization, list them, and print their links.
+
+### Patch Changes
+
+- 4e2ecf7: Add `dexto credits balance`, `dexto credits topup`, and `dexto credits topup status`, and report resumable credit errors with the next command to run.
+- e7198e9: Explain whether logging out ended the sign-in on the server or only forgot an API key locally.
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/agent-management@1.19.1
+    - @dexto/analytics@1.19.1
+    - @dexto/client-sdk@1.19.1
+    - @dexto/image-local@1.19.1
+    - @dexto/image-logger-agent@1.19.1
+    - @dexto/storage@1.19.1
+    - @dexto/tui@1.19.1
+    - @dexto/llm@1.19.1
+    - @dexto/cloud-client@1.19.1
+    - @dexto/registry@1.19.1
+
 ## 2.1.0
 
 ### Minor Changes
