@@ -40,6 +40,8 @@ jobs:
               env:
                   VERSION: ${{ inputs.version }}
                   TAG: ${{ inputs.tag }}
+                  # Read anonymously: setup-node's .npmrc would send a placeholder token here (#1139).
+                  NPM_CONFIG_USERCONFIG: /dev/null
               run: |
                   set -euo pipefail
                   [[ "$TAG" == next || "$TAG" == latest ]] || { echo "::error::tag must be next or latest, got '$TAG'"; exit 1; }
