@@ -1,5 +1,22 @@
 # @dexto/image-local
 
+## 1.19.4
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/agent-management@1.19.4
+    - @dexto/storage@1.19.4
+    - @dexto/tools-builtins@1.19.4
+    - @dexto/tools-filesystem@1.19.4
+    - @dexto/tools-lifecycle@1.19.4
+    - @dexto/tools-plan@1.19.4
+    - @dexto/tools-process@1.19.4
+    - @dexto/tools-scheduler@1.19.4
+    - @dexto/tools-todo@1.19.4
+
 ## 1.19.3
 
 ### Patch Changes
