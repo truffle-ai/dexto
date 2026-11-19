@@ -8,6 +8,7 @@ import { access, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import type { dextoSignIn } from '@dexto/agent-management';
 import { z } from 'zod';
 
 import {
@@ -220,7 +221,7 @@ const listFunctions: Command = {
  */
 export async function requireLoginScopes(
     context: CommandContext,
-    scopes: readonly string[]
+    scopes: readonly dextoSignIn.CliLoginScope[]
 ): Promise<void> {
     const connection = await context.connection();
     if (connection.kind !== 'oauth') return;
