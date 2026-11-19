@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -362,6 +362,84 @@ describe('accounts', () => {
             });
 
             expect(credential).toMatchObject({ token: 'other-access' });
+        });
+
+        it('refreshes once when several requests in one process find the login expiring', async () => {
+            await writeLogin(dir, 'default', oauthLogin({ expiresAt: new Date().toISOString() }));
+            let refreshes = 0;
+            const refresh = async (login: OAuthLogin): Promise<OAuthLogin> => {
+                refreshes += 1;
+                await new Promise((resolve) => setTimeout(resolve, 20));
+                return {
+                    ...login,
+                    accessToken: 'access-2',
+                    refreshToken: 'refresh-2',
+                    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+                };
+            };
+            const resolve = () =>
+                resolveCredential({ dir, apiKey: null, environment: {}, profile: null, refresh });
+
+            const credentials = await Promise.all([resolve(), resolve(), resolve()]);
+
+            expect(refreshes).toBe(1);
+            expect(credentials.map((credential) => credential?.token)).toEqual([
+                'access-2',
+                'access-2',
+                'access-2',
+            ]);
+        });
+
+        it('waits for another process refreshing the same login and uses the tokens it saved', async () => {
+            await writeLogin(dir, 'default', oauthLogin({ expiresAt: new Date().toISOString() }));
+            const lock = path.join(dir, 'default.refresh.lock');
+            await writeFile(lock, '');
+            let refreshes = 0;
+
+            const credential = resolveCredential({
+                dir,
+                apiKey: null,
+                environment: {},
+                profile: null,
+                refresh: async (login) => {
+                    refreshes += 1;
+                    return login;
+                },
+            });
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            await writeLogin(
+                dir,
+                'default',
+                oauthLogin({ accessToken: 'other-access', refreshToken: 'other-refresh' })
+            );
+            await rm(lock);
+
+            await expect(credential).resolves.toMatchObject({ token: 'other-access' });
+            expect(refreshes).toBe(0);
+        });
+
+        it('takes over a refresh lock a crashed process left behind', async () => {
+            await writeLogin(dir, 'default', oauthLogin({ expiresAt: new Date().toISOString() }));
+            const lock = path.join(dir, 'default.refresh.lock');
+            await writeFile(lock, '');
+            const old = new Date(Date.now() - 60_000);
+            await utimes(lock, old, old);
+
+            const credential = await resolveCredential({
+                dir,
+                apiKey: null,
+                environment: {},
+                profile: null,
+                refresh: async (login) => ({
+                    ...login,
+                    accessToken: 'access-2',
+                    refreshToken: 'refresh-2',
+                    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+                }),
+            });
+
+            expect(credential).toMatchObject({ token: 'access-2' });
+            await expect(stat(lock)).rejects.toMatchObject({ code: 'ENOENT' });
         });
     });
 });

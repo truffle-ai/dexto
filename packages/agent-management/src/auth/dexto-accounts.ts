@@ -1,7 +1,7 @@
 // Saved Dexto sign-ins, one per profile, under ~/.dexto/accounts, and the credential a command uses.
 
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 
@@ -292,29 +292,92 @@ function isExpiring(login: OAuthLogin): boolean {
     return Date.parse(login.expiresAt) - Date.now() < REFRESH_MARGIN_MS;
 }
 
+/** Refreshes in flight in this process, by login file, so concurrent requests share one. */
+const refreshesInFlight = new Map<string, Promise<OAuthLogin>>();
+const REFRESH_LOCK_WAIT_MS = 15_000;
+const REFRESH_LOCK_POLL_MS = 50;
+/** Longer than a refresh's own 10 s timeout, so only a crashed process's lock is this old. */
+const REFRESH_LOCK_STALE_MS = 30_000;
+
 /**
- * Refreshes and saves the login. Refresh tokens rotate, so when another process refreshed the
- * same login first this refresh fails; the tokens that process saved are used instead.
+ * Refreshes and saves the login, one refresh at a time per login: refresh tokens rotate, and the
+ * server ends the sign-in when a rotated token is presented again outside its short grace window.
+ * Requests in this process share one refresh; other processes wait on a lock file beside the login
+ * and then use the tokens the first one saved.
  */
-async function refreshSaved(
+function refreshSaved(
     dir: string,
     profile: string,
     stored: OAuthLogin,
     refresh: (login: OAuthLogin) => Promise<OAuthLogin>
 ): Promise<OAuthLogin> {
+    const file = loginFile(dir, profile);
+    const inFlight = refreshesInFlight.get(file);
+    if (inFlight !== undefined) return inFlight;
+    const refreshing = withRefreshLock(`${file.slice(0, -'.json'.length)}.refresh.lock`, () =>
+        refreshUnlessSaved(dir, profile, stored, refresh)
+    ).finally(() => refreshesInFlight.delete(file));
+    refreshesInFlight.set(file, refreshing);
+    return refreshing;
+}
+
+/**
+ * Uses the tokens another process saved since `stored` was read, or refreshes. When the refresh
+ * fails because another process without the lock (an older CLI) won the race, its saved tokens are
+ * used instead.
+ */
+async function refreshUnlessSaved(
+    dir: string,
+    profile: string,
+    stored: OAuthLogin,
+    refresh: (login: OAuthLogin) => Promise<OAuthLogin>
+): Promise<OAuthLogin> {
+    const savedByOther = async () => {
+        const current = await readLogin(dir, profile);
+        return current?.kind === 'oauth' &&
+            current.refreshToken !== stored.refreshToken &&
+            !isExpiring(current)
+            ? current
+            : null;
+    };
+    const saved = await savedByOther();
+    if (saved !== null) return saved;
     try {
         const refreshed = await refresh(stored);
         await writeLogin(dir, profile, refreshed);
         return refreshed;
     } catch (error) {
-        const current = await readLogin(dir, profile);
-        if (
-            current?.kind === 'oauth' &&
-            current.refreshToken !== stored.refreshToken &&
-            !isExpiring(current)
-        )
-            return current;
+        const current = await savedByOther();
+        if (current !== null) return current;
         throw error;
+    }
+}
+
+/** Runs `work` holding an exclusive lock file, taking over one a crashed process left behind. */
+async function withRefreshLock<T>(lock: string, work: () => Promise<T>): Promise<T> {
+    const deadline = Date.now() + REFRESH_LOCK_WAIT_MS;
+    for (;;) {
+        try {
+            await mkdir(path.dirname(lock), { mode: 0o700, recursive: true });
+            await (await open(lock, 'wx', 0o600)).close();
+            break;
+        } catch (error) {
+            if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST'))
+                throw error;
+        }
+        const held = await stat(lock).catch(() => null);
+        if (held !== null && Date.now() - held.mtimeMs > REFRESH_LOCK_STALE_MS) {
+            await rm(lock, { force: true });
+            continue;
+        }
+        if (Date.now() > deadline)
+            throw new Error(`Another dexto process is still refreshing this sign-in (${lock}).`);
+        await new Promise((resolve) => setTimeout(resolve, REFRESH_LOCK_POLL_MS));
+    }
+    try {
+        return await work();
+    } finally {
+        await rm(lock, { force: true });
     }
 }
 
