@@ -4,7 +4,10 @@
 import { getDextoGlobalPath, type LlmRuntimeAuthOverrides } from '@dexto/core';
 import { z } from 'zod';
 import { type Credential, type OAuthLogin, resolveCredential } from './dexto-accounts.js';
-import { refreshSignIn } from './dexto-sign-in.js';
+import { type CliLoginScope, refreshSignIn } from './dexto-sign-in.js';
+
+/** The scope a sign-in needs to spend credits on Dexto models. */
+const SPEND_SCOPE: CliLoginScope = 'cloud:write';
 
 const DEXTO_CLOUD_PROJECT_HEADER = 'Dexto-Cloud-Project';
 /** Satisfies the provider's "has a key" check; every request's real token is set per call. */
@@ -75,7 +78,7 @@ export function dextoGatewayRuntimeAuth(
             if (credential.kind === 'oauth') {
                 if (!canSpend(credential.login))
                     throw new Error(
-                        'Dexto models spend credits, which this sign-in may not do yet. Run dexto login --scope cloud:write.'
+                        `Dexto models spend credits, which this sign-in may not do yet. Run dexto login --scope ${SPEND_SCOPE}.`
                     );
                 if (credential.login.cloudProject === null)
                     throw new Error(
@@ -180,7 +183,7 @@ export async function currentCredential(options: DextoGatewayOptions): Promise<C
 }
 
 function canSpend(login: OAuthLogin): boolean {
-    return login.scopes.includes('cloud:write');
+    return login.scopes.includes(SPEND_SCOPE);
 }
 
 /** The same path on the API the sign-in was saved for. */
