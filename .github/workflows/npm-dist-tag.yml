@@ -1,13 +1,22 @@
-# Moves an npm dist-tag of `dexto` to a version already on npm, by hand only (DEXTO-2518).
+# Moves an npm dist-tag of `dexto` or `@dexto/core` to a version already on npm, by hand only
+# (DEXTO-2518).
 #
-# It never publishes. Guards run before the write: the version must exist on npm, the tag must be
-# `next` or `latest`, and `latest` never moves backwards or onto a prerelease. The npm token
-# (NPM_TOKEN, as publish-cli-beta.yml uses) is only in the step that moves the tag.
-name: Move dexto npm dist-tag (manual)
+# It never publishes. Guards run before the write, each for the chosen package: the package must be
+# `dexto` or `@dexto/core`, the version must exist on npm, the tag must be `next` or `latest`, and
+# `latest` never moves backwards or onto a prerelease. The npm token (NPM_TOKEN, as
+# publish-cli-beta.yml uses) is only in the step that moves the tag.
+name: Move npm dist-tag (manual)
 
 on:
     workflow_dispatch:
         inputs:
+            package:
+                description: 'The package whose dist-tag moves'
+                required: true
+                type: choice
+                options:
+                    - dexto
+                    - '@dexto/core'
             version:
                 description: 'Version already on npm, such as 2.2.2'
                 required: true
@@ -38,21 +47,23 @@ jobs:
 
             - name: Check the version and tag
               env:
+                  PACKAGE: ${{ inputs.package }}
                   VERSION: ${{ inputs.version }}
                   TAG: ${{ inputs.tag }}
                   # Read anonymously: setup-node's .npmrc would send a placeholder token here (#1139).
                   NPM_CONFIG_USERCONFIG: /dev/null
               run: |
                   set -euo pipefail
+                  [[ "$PACKAGE" == "dexto" || "$PACKAGE" == "@dexto/core" ]] || { echo "::error::package must be dexto or @dexto/core, got '$PACKAGE'"; exit 1; }
                   [[ "$TAG" == next || "$TAG" == latest ]] || { echo "::error::tag must be next or latest, got '$TAG'"; exit 1; }
                   [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::version must be an exact version such as 2.2.2, got '$VERSION'"; exit 1; }
 
-                  found=$(npm view "dexto@$VERSION" version 2>/dev/null || true)
-                  [[ "$found" == "$VERSION" ]] || { echo "::error::dexto@$VERSION is not on npm"; exit 1; }
+                  found=$(npm view "$PACKAGE@$VERSION" version 2>/dev/null || true)
+                  [[ "$found" == "$VERSION" ]] || { echo "::error::$PACKAGE@$VERSION is not on npm"; exit 1; }
 
                   if [[ "$TAG" == latest ]]; then
                     [[ "$VERSION" != *-* ]] || { echo "::error::latest never points at a prerelease ($VERSION)"; exit 1; }
-                    current=$(npm view dexto dist-tags.latest)
+                    current=$(npm view "$PACKAGE" dist-tags.latest)
                     # Compares stable versions only; a prerelease was refused above.
                     CURRENT="$current" node -e '
                       const parse = (v) => v.split("-")[0].split(".").map(Number);
@@ -63,18 +74,19 @@ jobs:
                         process.exit(1);
                       }
                     '
-                    echo "latest: $current -> $VERSION"
+                    echo "$PACKAGE latest: $current -> $VERSION"
                   fi
-                  echo "Current dist-tags:"
-                  npm dist-tag ls dexto
+                  echo "Current dist-tags of $PACKAGE:"
+                  npm dist-tag ls "$PACKAGE"
 
             - name: Move the tag
               env:
+                  PACKAGE: ${{ inputs.package }}
                   VERSION: ${{ inputs.version }}
                   TAG: ${{ inputs.tag }}
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
               run: |
                   set -euo pipefail
-                  npm dist-tag add "dexto@$VERSION" "$TAG"
-                  echo "dist-tags after the move:"
-                  npm dist-tag ls dexto
+                  npm dist-tag add "$PACKAGE@$VERSION" "$TAG"
+                  echo "dist-tags of $PACKAGE after the move:"
+                  npm dist-tag ls "$PACKAGE"
