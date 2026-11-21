@@ -917,6 +917,76 @@
     "examples": false
   },
   {
+    "command": "workspace contacts accept",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts block",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts connect",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts decline",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts invite-link",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts remove",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts requests",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts search",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts unblock",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "workspace describe",
     "json": true,
     "dryRun": false,

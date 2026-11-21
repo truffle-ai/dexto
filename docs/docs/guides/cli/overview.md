@@ -354,6 +354,8 @@ dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan
 dexto workspace artifacts list --chat <id> --json
 dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
+dexto workspace contacts search ada --json
+dexto workspace contacts connect ada --user <id> --organization <id> --yes
 dexto workspace email send --to a@b.c --yes
 dexto workspace tools --search calendar    # every tool, by MCP name
 dexto workspace call dexto_search --data '{"query":"invoices"}'
@@ -363,6 +365,8 @@ dexto find "share a file"                  # the command for what you want to do
 An operation that acts, approves or spends asks first; pass `--yes` only once your person has agreed (without it, and with no one to ask, the command exits 4 with the command that goes ahead). Workspace tools act as a person, so an API key can't use them. An operation your sign-in can't use yet names the `dexto login --scope` that grants it.
 
 `dexto workspace artifacts` saves HTML files as Artifacts in your library (`list`, `get`, `create`, `replace`, `share`). HTML comes from a file or `-` for stdin, never an argument; `get --out` writes it back to a file. `create --idempotency-key` makes a retry return the first Artifact instead of a copy, `replace` keeps the title, kind, summary, surface and renderer you don't change, and every write takes `--dry-run`.
+
+`dexto workspace contacts` manages your Dexto Contacts in the organization you are signed in to: `list` (`--query`, `--blocked`), `search`, `requests` and `invite-link` read them; `connect`, `accept`, `decline`, `remove`, `block` and `unblock` change them and ask first. Reading needs `contacts:read`; `search` and every change need `contacts:write`, because finding people reaches beyond your saved Contacts. `search` gives the `--user` and `--organization` that `connect` takes, and `list` and `requests` give the contact id the other changes take.
 
 ## Next Steps
 

@@ -104,15 +104,6 @@ dexto_chat_continue
 dexto_chat_get
 dexto_chat_list
 dexto_chat_models
-dexto_contacts_block
-dexto_contacts_connect
-dexto_contacts_invite_link
-dexto_contacts_people_list
-dexto_contacts_people_search
-dexto_contacts_remove
-dexto_contacts_request_answer
-dexto_contacts_requests_list
-dexto_contacts_unblock
 dexto_cos_report
 dexto_direct_conversation_get
 dexto_direct_conversations_list
