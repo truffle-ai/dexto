@@ -48,12 +48,7 @@ export async function findLocalChats(
         await readdir(query.dir).catch(() => {
             throw new UsageError(`--dir ${query.dir} is not a folder this can read.`);
         });
-    const since = query.since === null ? null : new Date(query.since);
-    const within = query.folder === null ? null : path.resolve(query.folder);
-    const matches = (updatedAt: string, cwd: string | null) =>
-        (since === null || new Date(updatedAt) >= since) &&
-        (within === null || insideFolder(cwd, within));
-
+    const matches = localChatMatcher(query);
     const sessions =
         query.source === 'claude-code'
             ? await claudeCodeSessions(runtime, query.dir)
@@ -74,6 +69,17 @@ export async function findLocalChats(
         chats: chats.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
         notices,
     };
+}
+
+/** Whether a session, by its last turn and working directory, falls inside the query's date and folder. */
+export function localChatMatcher(
+    query: Pick<LocalChatQuery, 'folder' | 'since'>
+): (updatedAt: string, cwd: string | null) => boolean {
+    const since = query.since === null ? null : new Date(query.since);
+    const within = query.folder === null ? null : path.resolve(query.folder);
+    return (updatedAt, cwd) =>
+        (since === null || new Date(updatedAt) >= since) &&
+        (within === null || insideFolder(cwd, within));
 }
 
 interface SourceSessions {

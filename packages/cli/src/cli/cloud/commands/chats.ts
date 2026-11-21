@@ -1,5 +1,7 @@
 // Discover local chats, import them, and start cloud chats with owned computer and browser choices.
 
+import path from 'node:path';
+
 import { requireConsent } from '../../interaction.js';
 import { CommandFailure, EXIT_CODES, type FailureKind } from '../../failure.js';
 import { chatMoveCommands } from './chat-move.js';
@@ -21,6 +23,7 @@ import {
 } from '../command.js';
 import {
     findLocalChats,
+    localChatMatcher,
     type LocalChatQuery,
     type LocalChatScan,
 } from '../../import/local-chats.js';
@@ -159,16 +162,26 @@ const importChats: Command = {
         const query = localQuery(input);
         const ids = input.positionals;
         const all = flag(input, 'all');
-        if (ids.length === 0 && !all)
+        // A person at a terminal who named nothing chooses here; an agent, a pipe or --yes is never asked.
+        const prompt =
+            context.output.json || !context.runtime.stdoutIsTerminal || flag(input, 'yes')
+                ? null
+                : context.runtime.prompt;
+        const picking = ids.length === 0 && !all;
+        if (picking && prompt === null)
             throw new UsageError(
-                'Name the sessions to import, by the ids chat local lists, or pass --all.'
+                'Name the sessions to import, by the ids chat local lists, or pass --all (with --folder . or --since DATE to narrow it).'
             );
         const scan = await findLocalChats(context.runtime, query);
         noteScan(context, scan);
         const found = scan.chats;
-        const planned = (
-            all ? found : ids.map((id) => found.find((chat) => chat.id === id) ?? id)
-        ).map((chat) => plan(chat, query.source));
+        const chosen =
+            picking && prompt !== null
+                ? await pickChats(context, prompt, query.source, found)
+                : all
+                  ? found
+                  : ids.map((id) => found.find((chat) => chat.id === id) ?? id);
+        const planned = chosen.map((chat) => plan(chat, query.source));
         const sending = planned.filter((each) => each.input !== null);
         if (flag(input, 'dry-run') || sending.length === 0) {
             report(
@@ -177,6 +190,12 @@ const importChats: Command = {
             );
             return flag(input, 'dry-run') || planned.length === 0 ? 0 : 1;
         }
+        // What was picked, as the dry run shows it, before asking to send it.
+        if (picking)
+            report(
+                context,
+                planned.map((each) => each.result)
+            );
         const messages = sending.reduce((sum, each) => sum + (each.result.messages ?? 0), 0);
         const redacted = sending.reduce(
             (sum, each) =>
@@ -222,6 +241,97 @@ const importChats: Command = {
             : 0;
     },
 };
+
+type Prompt = NonNullable<CommandContext['runtime']['prompt']>;
+
+/** Asks which sessions to import: all, this folder's, those since a date, or ones picked by number. */
+async function pickChats(
+    context: CommandContext,
+    prompt: Prompt,
+    source: LocalChatSource,
+    found: readonly LocalChat[]
+): Promise<readonly LocalChat[]> {
+    const name = sourceName(source);
+    if (found.length === 0) {
+        context.output.note(`No ${name} chats found on this machine.`);
+        return [];
+    }
+    context.runtime.writeOutput(
+        [
+            `${found.length} ${name} chat${found.length === 1 ? '' : 's'} found. Which should come to Dexto?`,
+            '  1. All of them',
+            `  2. Only this folder (${path.resolve('.')})`,
+            '  3. Since a date',
+            '  4. Let me pick',
+            '',
+        ].join('\n')
+    );
+    const choice = await ask(prompt, 'Choose 1-4: ', (answer) =>
+        ['1', '2', '3', '4'].includes(answer) ? answer : null
+    );
+    if (choice === '1') return found;
+    if (choice === '2' || choice === '3') {
+        // `found` already holds the command line's filters; narrow within it, never beyond it.
+        const matches = localChatMatcher(
+            choice === '2'
+                ? { folder: '.', since: null }
+                : {
+                      folder: null,
+                      since: await ask(prompt, 'Since which date (YYYY-MM-DD)? ', (answer) =>
+                          Number.isNaN(new Date(answer).getTime()) ? null : answer
+                      ),
+                  }
+        );
+        const narrowed = found.filter((chat) => matches(chat.updatedAt, chat.cwd));
+        if (narrowed.length === 0) context.output.note(`No ${name} chats match.`);
+        return narrowed;
+    }
+    context.runtime.writeOutput(
+        `${found
+            .map(
+                (chat, index) =>
+                    `${String(index + 1).padStart(4)}. ${shortTitle(chat.title)}  ${chat.updatedAt.slice(0, 10)}, ${chat.messages.length} messages`
+            )
+            .join('\n')}\n`
+    );
+    const picked = await ask(prompt, 'Which ones? Numbers or ranges, such as 1 3 5-7: ', (answer) =>
+        pickedNumbers(answer, found.length)
+    );
+    return found.filter((_, index) => picked.includes(index + 1));
+}
+
+/** Asks until the answer reads; an empty answer stops, as declining does. */
+async function ask<T>(
+    prompt: Prompt,
+    question: string,
+    read: (answer: string) => T | null
+): Promise<T> {
+    for (;;) {
+        const answer = (await prompt(question, { secret: false })).trim();
+        if (answer === '') throw new CommandFailure('needs_confirmation', 'Not done.', null);
+        const value = read(answer);
+        if (value !== null) return value;
+    }
+}
+
+/** `1 3 5-7` as the numbers 1, 3, 5, 6, 7, each from 1 to `count`; null when any part doesn't read. */
+function pickedNumbers(answer: string, count: number): number[] | null {
+    const numbers: number[] = [];
+    for (const part of answer.split(/[\s,]+/u)) {
+        const range = /^(\d+)(?:-(\d+))?$/u.exec(part);
+        if (range === null) return null;
+        const first = Number(range[1]);
+        const last = Number(range[2] ?? range[1]);
+        if (first < 1 || last > count || first > last) return null;
+        for (let number = first; number <= last; number += 1) numbers.push(number);
+    }
+    return numbers;
+}
+
+function shortTitle(title: string): string {
+    const line = title.replace(/\s+/gu, ' ').trim();
+    return line.length <= 70 ? line : `${line.slice(0, 69)}…`;
+}
 
 /** What importing one chosen session would send, or why it can't go. */
 function plan(
