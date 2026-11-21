@@ -112,6 +112,13 @@
     "examples": false
   },
   {
+    "command": "chat share",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "chat start",
     "json": true,
     "dryRun": false,

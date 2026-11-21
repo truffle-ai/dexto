@@ -8,6 +8,7 @@
         "artifacts open": ["dexto_artifacts_get"],
         "artifacts publish": ["dexto_artifacts_create", "dexto_artifacts_share"],
         "chat outputs": ["dexto_chat_outputs_list"],
+        "chat share": ["dexto_chat_share"],
         "import": ["dexto_chat_import", "dexto_upload_prepare", "dexto_skill_bundle_import"],
         "chat import": [
             "dexto_chat_import_prepare",
