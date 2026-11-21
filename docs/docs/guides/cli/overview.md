@@ -342,6 +342,19 @@ dexto artifacts open "$ARTIFACT_ID" --json
 
 Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes, title and kind again returns the original Artifact; use a different title to publish a separate copy.
 
+## Your Channels
+
+List the Dexto channels you are in, read them, and send a message to one, as yourself:
+
+```bash
+dexto channels list --json
+dexto channels read "$CHANNEL_ID" --json
+dexto channels read "$CHANNEL_ID" --thread "$MESSAGE_ID" --before 42 --json
+dexto channels send "$CHANNEL_ID" "Release 2.1 is out." --yes --json
+```
+
+Reading needs a sign-in with `messages:read`, sending `messages:write`; an API key can't use them. `read` returns the newest few messages; page with the `previousCursor` and `nextCursor` it returns (`--before` and `--after`), read the rest of a long message with `--text-offset`, and a reply thread with `--thread`. Reading marks nothing read. `send` posts the exact text (`-` reads it from stdin), to a reply thread with `--thread`, and asks first: pass `--yes` once you agree. `--as user` posts as you with Dexto attribution instead of your verified Project identity. Every send carries a request key, printed on stderr before it sends and in the result; run it again with `--request-key <key>` after a lost response and Dexto returns the first message instead of sending twice. `--dry-run` shows the call without sending.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.
