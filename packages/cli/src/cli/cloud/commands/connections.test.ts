@@ -4,7 +4,7 @@ import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConnection } from '../connection.js';
-import { builtCloudCommands, CLOUD_GROUPS } from '../host.js';
+import { cloudCommands, CLOUD_GROUPS } from '../host.js';
 import { runCloud, type CloudHost } from '../run.js';
 import type { CloudRuntime } from '../runtime.js';
 const MCP = 'https://app.dexto.ai/mcp';
@@ -106,8 +106,7 @@ describe('subscription connections over MCP', () => {
             },
         };
         host = {
-            // The catalog connector is held from 2.0 but stays tested for its release.
-            commands: builtCloudCommands(dir, unusedSignIn),
+            commands: cloudCommands(dir, unusedSignIn),
             signIn: unusedSignIn,
             groups: CLOUD_GROUPS,
             runtime,
@@ -172,6 +171,28 @@ describe('subscription connections over MCP', () => {
             },
         ]);
         expect(lastResult()).toMatchObject({ outcome: 'connected', name: 'github' });
+    });
+    it('reports an unknown connector and its alternatives in JSON', async () => {
+        rpcError = {
+            code: -32004,
+            message: 'There is no such connector: typo. Available connectors: github, slack.',
+            data: { kind: 'not_found', retryable: false, resume: null },
+        };
+        expect(await runCloud(host, ['connect', 'typo', '--json'])).toBe(5);
+        expect(JSON.parse(stderr).error.message).toContain('no such connector');
+        expect(JSON.parse(stderr).error.message).toContain('github, slack');
+        expect(calls).toEqual([
+            { name: 'dexto_connection_start', arguments: { provider: 'typo' } },
+        ]);
+    });
+    it('names connections:write for GitHub permission refusals', async () => {
+        rpcError = {
+            code: -32003,
+            message: 'Permission required',
+            data: { kind: 'forbidden', scope: 'connections:write', retryable: false, resume: null },
+        };
+        expect(await runCloud(host, ['connect', 'github', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.message).toContain('connections:write');
     });
     it('reports a catalog connector that completes without browser authorization', async () => {
         replies = [{ outcome: 'connected', name: 'public-mcp', nextAction: null }];

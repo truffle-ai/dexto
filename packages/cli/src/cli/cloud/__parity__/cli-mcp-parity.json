@@ -2,7 +2,7 @@
     "version": 1,
     "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
-    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
+    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. The generic connect command covers GitHub and catalog connectors once paired CLI PR truffle-ai/dexto#1233 ships. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
         "artifacts list": ["dexto_artifacts_list"],
         "artifacts open": ["dexto_artifacts_get"],

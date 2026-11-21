@@ -31,7 +31,7 @@ check_cli() {
     local driver=better-sqlite3
     if [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 26 ]; then driver=node:sqlite; fi
     EXPECT_SQLITE_DRIVER=$driver node "$tree/beta-install-check.mjs"
-    # 2.0 ships chat sync off by default, and holds chat move and the catalog connect.
+    # 2.0 ships chat sync off by default and holds chat move.
     rm -rf /tmp/sync-home && mkdir -p /tmp/sync-home
     node --input-type=module -e '
         const [store, dir] = process.argv.slice(1);
@@ -40,14 +40,15 @@ check_cli() {
         if (settings.sync !== "off" || syncIsOn(settings)) throw new Error("chat sync is on by default");
         console.log("CHAT SYNC DEFAULT: off");
     ' "$tree/dist/cli/chat-sync/store.js" /tmp/sync-home/chat-sync
-    for held in "chat move x --to cloud" "connect linear"; do
-        rc=0
-        # shellcheck disable=SC2086
-        "$cli" $held --json > /tmp/held.out 2>&1 || rc=$?
-        [ "$rc" -eq 2 ] && grep -qi 'unknown command' /tmp/held.out || {
-            cat /tmp/held.out; echo "dexto $held should be an unknown command (exit 2), got $rc"; exit 1; }
-    done
-    echo 'HELD COMMANDS: chat move and connect <connector> are not registered'
+    rc=0
+    "$cli" chat move x --to cloud --json > /tmp/held.out 2>&1 || rc=$?
+    [ "$rc" -eq 2 ] && grep -qi 'unknown command' /tmp/held.out || {
+        cat /tmp/held.out; echo "dexto chat move should be an unknown command (exit 2), got $rc"; exit 1; }
+    rc=0
+    "$cli" connect linear --json > /tmp/connect.out 2>&1 || rc=$?
+    [ "$rc" -eq 3 ] && grep -q 'needs_sign_in' /tmp/connect.out || {
+        cat /tmp/connect.out; echo "dexto connect linear should require sign-in (exit 3), got $rc"; exit 1; }
+    echo 'COMMANDS: chat move held; connector sign-in available'
     # No stale beta-closure package or stable core/storage may appear anywhere in the tree.
     node - "$tree" "$beta" <<'NODE'
 const fs = require('fs');
