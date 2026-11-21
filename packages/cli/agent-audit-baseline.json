@@ -665,6 +665,20 @@
     "examples": true
   },
   {
+    "command": "docs read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "docs search",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "find",
     "json": true,
     "dryRun": false,

@@ -2,7 +2,7 @@ import type { Command } from 'commander';
 import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 
 /** The top-level words the cloud command engine owns, and what each is for. */
-const ENGINE_WORDS = {
+export const ENGINE_WORDS = {
     artifacts: 'Publish, list and open organization Artifacts',
     import: 'Import local Claude Code and Codex chats',
     connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
@@ -13,11 +13,13 @@ const ENGINE_WORDS = {
     accounts: 'List, switch and remove saved sign-ins, one per account and organization',
     models: 'Models Dexto serves on your sign-in',
     billing: "Show the organization's credit balance and recent spending",
+    credits: 'Show the credit balance and top it up',
     cloud: 'Build in Dexto Cloud: projects, agents, files, sandboxes and more',
     projects:
         'Your Dexto Projects: list and change them, message their coordinators, start their chats',
     workspace: 'Use your Dexto workspace as yourself: its apps and tools, over the Dexto MCP',
     find: 'Find the command for something you want to do in Dexto',
+    docs: "Search Dexto's public documentation and read a page as Markdown",
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',
     profile: 'Show and change your Dexto profile: handle, name, bio and who can see it',
     skills: 'Push a local Skill to your Dexto Skills library, or sync the library to this computer',
