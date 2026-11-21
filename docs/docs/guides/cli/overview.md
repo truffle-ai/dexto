@@ -354,6 +354,7 @@ dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan
 dexto workspace artifacts list --chat <id> --json
 dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
+dexto workspace gigs search "landing page" --json
 dexto workspace email send --to a@b.c --yes
 dexto workspace tools --search calendar    # every tool, by MCP name
 dexto workspace call dexto_search --data '{"query":"invoices"}'
@@ -363,6 +364,8 @@ dexto find "share a file"                  # the command for what you want to do
 An operation that acts, approves or spends asks first; pass `--yes` only once your person has agreed (without it, and with no one to ask, the command exits 4 with the command that goes ahead). Workspace tools act as a person, so an API key can't use them. An operation your sign-in can't use yet names the `dexto login --scope` that grants it.
 
 `dexto workspace artifacts` saves HTML files as Artifacts in your library (`list`, `get`, `create`, `replace`, `share`). HTML comes from a file or `-` for stdin, never an argument; `get --out` writes it back to a file. `create --idempotency-key` makes a retry return the first Artifact instead of a copy, `replace` keeps the title, kind, summary, surface and renderer you don't change, and every write takes `--dry-run`.
+
+`dexto workspace gigs` reads Dexto Gigs as you and needs `gigs:read`: `search [query]` finds open Gigs (up to 50, newest first), `get <gig_id>` shows one, `posted` lists the Gigs you posted, `proposals <gig_id>` the proposals on one of them, `bids` the proposals you sent, `match <gig_id>` your match on a Gig and `thread <gig_id>` its conversation. A Gig you can't see exits 5. With `--json` each prints the Gigs reply as is, its `contentNotice` and each item's `contentTrust` included, since Gigs content is written by other people. Posting, bidding, messages, terms and delivery have no named commands yet.
 
 ## Next Steps
 

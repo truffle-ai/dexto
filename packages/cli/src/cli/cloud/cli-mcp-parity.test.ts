@@ -206,6 +206,7 @@ describe('CLI and MCP capability parity', () => {
         }).map((command) => command.path.join(' '));
         const inventoried = [
             ...Object.keys(inventory.commands),
+            ...Object.keys(inventory.actionCommands),
             ...inventory.localOnly
                 .filter((entry) => entry.registry === 'cloud')
                 .map((entry) => entry.command),
@@ -245,6 +246,21 @@ describe('CLI and MCP capability parity', () => {
         expect([...new Set(direct.concat(inventory.passthroughOnly, pending))].sort()).toEqual(
             catalog.tools.map((tool) => tool.name).sort()
         );
+    });
+
+    it('maps action commands to passthrough-only tools in the catalog', () => {
+        const mapped = z
+            .record(z.string(), z.object({ tool: z.string(), actions: z.array(z.string()).min(1) }))
+            .parse(inventory.actionCommands);
+        for (const [command, { tool }] of Object.entries(mapped)) {
+            // A tool every action of which has a command moves to commands, not here. The catalog
+            // keeps only top-level input keys: dexto-cloudflare's parity test checks the actions.
+            expect(inventory.passthroughOnly, command).toContain(tool);
+            expect(
+                catalog.tools.map((each) => each.name),
+                command
+            ).toContain(tool);
+        }
     });
 
     it('rejects stale or untracked exceptions', () => {
