@@ -22,6 +22,7 @@ import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
+import { skillLibraryCommands } from './commands/skill-library.js';
 import { skillCommands } from './commands/skills.js';
 import { traceCommands } from './commands/traces.js';
 import { fileCommands } from './commands/files.js';
@@ -88,6 +89,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...profileCommands,
         ...publishCommands,
         ...skillCommands,
+        ...skillLibraryCommands,
         ...traceCommands,
         ...chatCommands,
         ...importCommands,

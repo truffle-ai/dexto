@@ -316,6 +316,20 @@ Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <
 
 Signed in as a person, each session starts by syncing your Dexto Skills library to `~/.dexto/cloud-skills/`, where Skill discovery finds them after your own Skills, so a local Skill of the same name wins. Signed out, or with an API key, that copy is removed. `dexto skills sync` syncs on demand, and `dexto skills push <dir>` adds a local Skill to your library.
 
+Manage the library itself with the other `dexto skills` commands, each over the Dexto MCP's own Skill tool:
+
+```bash
+dexto skills get "$SKILL_ID" --json                   # SKILL.md, manifest and release; @publisher/name for a Store Skill
+dexto skills file "$SKILL_ID" references/style.md     # one file the bundle declares; --out writes it
+dexto skills validate ./my-skill --json               # check a folder without saving it
+dexto skills create ./my-skill --yes --json           # or: update <skill_id> <folder>, delete <id|slug>
+dexto skills install @publisher/name --yes --json  # or a library Skill's id or slug; uninstall <id|slug>
+dexto skills versions "$SKILL_ID" --json              # then: restore <skill_id> <version_id>
+dexto skills publish "$SKILL_ID" --summary "..." --yes --json
+```
+
+Reading needs `skills:read` and changing needs `skills:write`. `create`, `update` and `validate` send the folder's files as text, each with its role from where it sits (`SKILL.md`, `references/`, `scripts/`, `assets/`, else config); use `skills push` for a folder with binary files. Changes ask first: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it.
+
 Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. A folder of plain pages needs no packer: a `dexto.json` with `slug`, `title` and `assets` (the folder holding `index.html`) deploys with `dexto cloud sites deploy` alone. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
 
 ### Run traces

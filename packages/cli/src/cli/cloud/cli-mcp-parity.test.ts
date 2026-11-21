@@ -167,18 +167,7 @@ dexto_site_record_create
 dexto_site_record_delete
 dexto_site_record_get
 dexto_site_record_update
-dexto_site_records_list
-dexto_skill_create
-dexto_skill_delete
-dexto_skill_file_get
-dexto_skill_get
-dexto_skill_install
-dexto_skill_publish
-dexto_skill_restore
-dexto_skill_uninstall
-dexto_skill_update
-dexto_skill_validate
-dexto_skill_versions`.split('\n');
+dexto_site_records_list`.split('\n');
 
 const approvedLocalOnly = [
     'accounts list',
