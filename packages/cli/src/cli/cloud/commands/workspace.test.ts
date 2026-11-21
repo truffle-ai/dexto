@@ -1630,6 +1630,15 @@ describe('dexto workspace', () => {
         expect(stdout).toBe('');
     });
 
+    it("names an index page after its folder, not 'index'", async () => {
+        const folder = path.join(path.dirname(dir), 'quarterly-report');
+        await mkdir(folder, { recursive: true });
+        const file = path.join(folder, 'index.html');
+        await writeFile(file, '<h1>report</h1>');
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(0);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ name: 'quarterly-report' });
+    });
+
     it('keeps omitted visibility omitted and sends the selected project', async () => {
         const file = path.join(path.dirname(dir), 'page.html');
         await writeFile(file, '<h1>update</h1>');
