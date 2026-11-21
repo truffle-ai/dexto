@@ -163,11 +163,6 @@ dexto_share_received
 dexto_site_collections_list
 dexto_site_get
 dexto_site_promote
-dexto_site_record_create
-dexto_site_record_delete
-dexto_site_record_get
-dexto_site_record_update
-dexto_site_records_list
 dexto_skill_create
 dexto_skill_delete
 dexto_skill_file_get
