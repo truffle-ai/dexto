@@ -149,10 +149,6 @@ dexto_marketplace_search
 dexto_marketplace_uninstall
 dexto_marketplace_unpublish
 dexto_mcp_server_import
-dexto_network_send
-dexto_network_thread_get
-dexto_network_thread_mark_read
-dexto_network_threads_list
 dexto_notification_get
 dexto_notifications_list
 dexto_notifications_mark_read
