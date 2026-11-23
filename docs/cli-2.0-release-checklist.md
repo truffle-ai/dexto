@@ -267,6 +267,8 @@ or accept each gap. Tests of generic `workspace call` do not cover every hosted 
 | `workspace computers keys revoke` | Gap: add a direct behavior test or document the shared-handler evidence.                                                                                                                                                       |
 | `workspace describe`              | Gap: add a direct behavior test or document the shared-handler evidence.                                                                                                                                                       |
 | `workspace drive put`             | Gap: add a direct behavior test or document the shared-handler evidence.                                                                                                                                                       |
+| `workspace share access`          | [share.test.ts](../packages/cli/src/cli/cloud/commands/share.test.ts)                                                                                                                                                          |
+| `workspace share received`        | [share.test.ts](../packages/cli/src/cli/cloud/commands/share.test.ts)                                                                                                                                                          |
 | `workspace tools`                 | [workspace.test.ts](../packages/cli/src/cli/cloud/commands/workspace.test.ts)                                                                                                                                                  |
 
 Draft additions are outside that 127-command snapshot: `connect <connector>` has start/wait,

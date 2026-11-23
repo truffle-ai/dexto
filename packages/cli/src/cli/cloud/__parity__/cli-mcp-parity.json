@@ -95,6 +95,8 @@
         "workspace network mark-read": ["dexto_network_thread_mark_read"],
         "workspace network read": ["dexto_network_thread_get"],
         "workspace network send": ["dexto_network_send"],
+        "workspace share access": ["dexto_share_access"],
+        "workspace share received": ["dexto_share_received"],
         "workspace sites records create": ["dexto_site_record_create"],
         "workspace sites records delete": ["dexto_site_record_delete"],
         "workspace sites records get": ["dexto_site_record_get"],
@@ -544,8 +546,6 @@
         "dexto_mcp_server_import",
         "dexto_open",
         "dexto_share",
-        "dexto_share_access",
-        "dexto_share_received",
         "dexto_site_collections_list",
         "dexto_site_get",
         "dexto_site_promote"
