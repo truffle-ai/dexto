@@ -77,8 +77,6 @@ dexto_apps_list
 dexto_apps_uninstalled_list
 dexto_automation_create
 dexto_automation_delete
-dexto_automation_recipe_install
-dexto_automation_recipes_list
 dexto_automation_trigger
 dexto_automation_update
 dexto_capabilities_search

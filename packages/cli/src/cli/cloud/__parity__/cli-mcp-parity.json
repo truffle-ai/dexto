@@ -171,7 +171,9 @@
         "projects delete": ["dexto_project_delete"],
         "projects move": ["dexto_project_chat_move"],
         "projects start": ["dexto_project_chat_start"],
-        "projects run": ["dexto_chat_send"]
+        "projects run": ["dexto_chat_send"],
+        "projects recipes": ["dexto_automation_recipes_list"],
+        "projects install-recipe": ["dexto_automation_recipe_install"]
     },
     "localOnly": [
         {
@@ -508,8 +510,6 @@
         "dexto_apps_uninstalled_list",
         "dexto_automation_create",
         "dexto_automation_delete",
-        "dexto_automation_recipe_install",
-        "dexto_automation_recipes_list",
         "dexto_automation_trigger",
         "dexto_automation_update",
         "dexto_capabilities_search",

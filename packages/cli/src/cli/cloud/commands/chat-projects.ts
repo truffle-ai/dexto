@@ -84,6 +84,18 @@ async function projectLink(context: CommandContext, project: string): Promise<st
     ).toString();
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const PROJECT_PATH = /\/desktop\/apps\/chat\/projects\/([^/?#]+)\/?(?:[?#].*)?$/u;
+
+/** The Project's id, from its id or its page's link, for tools that take only the id. */
+function projectId(project: string): string {
+    const trimmed = project.trim();
+    const id = UUID.test(trimmed) ? trimmed : PROJECT_PATH.exec(trimmed)?.[1];
+    if (id === undefined || !UUID.test(id))
+        throw new UsageError(`${project} isn't a Project's id or link.`);
+    return id.toLowerCase();
+}
+
 function projectLine(project: z.output<typeof ProjectSchema>): string {
     return `${project.name} (${project.id})`;
 }
@@ -443,6 +455,103 @@ const run: Command = {
     },
 };
 
+const RecipeSchema = z
+    .object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        schedule: z
+            .object({
+                cadence: z.string().optional(),
+                time: z.string().optional(),
+                cronExpression: z.string().optional(),
+            })
+            .passthrough(),
+    })
+    .passthrough();
+
+const recipes: Command = {
+    path: ['projects', 'recipes'],
+    summary:
+        'List the Loop recipes a Project can install, with their default schedules. Listing installs nothing.',
+    async run(context) {
+        await requireLoginScopes(context, ['automations:read']);
+        const result = parsed(
+            z.object({ recipes: z.array(RecipeSchema) }).passthrough(),
+            await queryWorkspaceTool(context, 'dexto_automation_recipes_list', {}),
+            'Loop recipe list'
+        );
+        context.output.list({ data: result.recipes }, [
+            { header: 'id', value: (recipe) => recipe.id },
+            { header: 'name', value: (recipe) => recipe.name },
+            {
+                header: 'schedule',
+                value: ({ schedule }) =>
+                    [schedule.cadence, schedule.time ?? schedule.cronExpression]
+                        .filter((part) => part !== undefined)
+                        .join(' '),
+            },
+            { header: 'description', value: (recipe) => recipe.description },
+        ]);
+    },
+};
+
+const InstalledSchema = z
+    .object({
+        automation: z
+            .object({
+                id: z.string(),
+                name: z.string(),
+                enabled: z.boolean(),
+                nextRunAt: z.string().nullable(),
+            })
+            .passthrough(),
+    })
+    .passthrough();
+
+const installRecipe: Command = {
+    path: ['projects', 'install-recipe'],
+    arguments: `${PROJECT_ARGUMENT} <recipe>`,
+    summary:
+        'Install a Loop recipe in a Project (its id or link), or resume it when paused, keeping its edits. It schedules future runs; nothing runs now.',
+    options: {
+        timezone: {
+            type: 'string',
+            valueName: 'ZONE',
+            description: "IANA time zone for its schedule (default: this computer's).",
+        },
+        ...YES_OPTION,
+    },
+    async run(context, input) {
+        const project = projectId(argument(input, 0, 'project'));
+        const recipeId = argument(input, 1, 'recipe');
+        const timezone =
+            stringOption(input, 'timezone') ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+        await requireLoginScopes(context, ['automations:write']);
+        await requireConsent(
+            context,
+            flag(input, 'yes'),
+            `Install the Loop recipe ${recipeId} in the Project ${project}, or resume it if paused? It runs on its schedule in ${timezone}.`
+        );
+        const result = parsed(
+            InstalledSchema,
+            await queryWorkspaceTool(context, 'dexto_automation_recipe_install', {
+                recipeId,
+                scope: { type: 'project', chatProjectId: project },
+                timezone,
+            }),
+            'Loop recipe install result'
+        );
+        const { automation } = result;
+        context.output.result(
+            result,
+            automation.enabled
+                ? `${automation.name} (${automation.id}) is on in Project ${project}. Next run: ${automation.nextRunAt ?? 'not scheduled'}.`
+                : `${automation.name} (${automation.id}) is installed in Project ${project} but paused.`
+        );
+    },
+};
+
 export const chatProjectCommands: readonly Command[] = [
     list,
     get,
@@ -452,4 +561,6 @@ export const chatProjectCommands: readonly Command[] = [
     move,
     start,
     run,
+    recipes,
+    installRecipe,
 ];
