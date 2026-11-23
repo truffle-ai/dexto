@@ -49,17 +49,16 @@ export function registerCloudCommand(program: Command): void {
             .allowUnknownOption()
             .allowExcessArguments()
             .argument('[args...]')
-            .action(async (args: string[]) => {
-                await withAnalytics(word, async () => {
-                    const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
-                        import('../../cloud/run.js'),
-                        import('../../cloud/host.js'),
-                    ]);
-                    const code = await runCloud(nodeCloudHost(new AbortController().signal), [
-                        word,
-                        ...args,
-                    ]);
-                    safeExit(word, code);
-                })();
-            });
+            .action((args: string[]) => runEngineCommand(word, [word, ...args]));
+}
+
+/** Runs `argv` on the cloud command engine and exits with its code, recorded as `name`. */
+export async function runEngineCommand(name: string, argv: string[]): Promise<void> {
+    await withAnalytics(name, async () => {
+        const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
+            import('../../cloud/run.js'),
+            import('../../cloud/host.js'),
+        ]);
+        safeExit(name, await runCloud(nodeCloudHost(new AbortController().signal), argv));
+    })();
 }

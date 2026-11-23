@@ -28,6 +28,13 @@
     "examples": false
   },
   {
+    "command": "acp login",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "applications get",
     "json": true,
     "dryRun": false,

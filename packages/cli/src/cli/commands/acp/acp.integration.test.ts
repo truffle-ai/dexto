@@ -171,6 +171,7 @@ type Recorded = {
     order: string[];
     forms: acp.CreateElicitationRequest[];
     capabilities: acp.AgentCapabilities | undefined;
+    authMethods: acp.AuthMethod[];
 };
 
 /** How the test client answers forms; without one it does not advertise form support. */
@@ -376,7 +377,13 @@ tools:
             config = configPath,
             flags = [],
             env = {},
-        }: { config?: string; flags?: string[]; env?: Record<string, string> } = {}
+            capabilities = {},
+        }: {
+            config?: string;
+            flags?: string[];
+            env?: Record<string, string>;
+            capabilities?: acp.ClientCapabilities;
+        } = {}
     ): Promise<T> {
         const child = spawn(
             process.execPath,
@@ -409,6 +416,7 @@ tools:
             order: [],
             forms: [],
             capabilities: undefined,
+            authMethods: [],
         };
         return await acp
             .client({ name: 'acp-test' })
@@ -429,10 +437,14 @@ tools:
             .connectWith(stream, async (cx) => {
                 const init = await cx.request(acp.methods.agent.initialize, {
                     protocolVersion: acp.PROTOCOL_VERSION,
-                    clientCapabilities: form ? { elicitation: { form: {} } } : {},
+                    clientCapabilities: {
+                        ...capabilities,
+                        ...(form ? { elicitation: { form: {} } } : {}),
+                    },
                 });
                 expect(init.agentCapabilities?.loadSession).toBe(true);
                 recorded.capabilities = init.agentCapabilities;
+                recorded.authMethods = init.authMethods ?? [];
                 return await op(cx, recorded);
             });
     }
@@ -1427,4 +1439,67 @@ setup:
         if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
         return `http://127.0.0.1:${address.port}`;
     }
+
+    const DEXTO_LOGIN_METHOD = {
+        id: 'dexto-login',
+        type: 'terminal',
+        args: ['login', '--scope', 'cloud:write'],
+    };
+
+    it('offers Dexto sign-in in a terminal to clients that can run one', async () => {
+        for (const capabilities of [
+            { auth: { terminal: true } },
+            // The older marker, which the ACP Registry's checks still send.
+            { terminal: true, _meta: { 'terminal-auth': true } },
+        ]) {
+            const authMethods = await withAgent(
+                allow,
+                async (_cx, recorded) => recorded.authMethods,
+                undefined,
+                { capabilities }
+            );
+            expect(authMethods).toEqual([expect.objectContaining(DEXTO_LOGIN_METHOD)]);
+        }
+        // A client that doesn't declare terminal sign-in is offered none, even with a terminal.
+        for (const capabilities of [undefined, { terminal: true }]) {
+            await expect(
+                withAgent(
+                    allow,
+                    async (_cx, recorded) => recorded.authMethods,
+                    undefined,
+                    capabilities ? { capabilities } : undefined
+                )
+            ).resolves.toEqual([]);
+        }
+    }, 60000);
+
+    it('runs dexto login for dexto acp login, whichever way the client adds the args', async () => {
+        const run = (args: string[]) =>
+            new Promise<{ code: number | null; output: string }>((done) => {
+                const child = spawn(process.execPath, ['--import', tsx, entrypoint, ...args], {
+                    cwd: directory,
+                    env: {
+                        PATH: process.env.PATH,
+                        HOME: home,
+                        USERPROFILE: home,
+                        DEXTO_ANALYTICS_DISABLED: '1',
+                    },
+                });
+                let output = '';
+                child.stdout.on('data', (chunk) => (output += chunk));
+                child.stderr.on('data', (chunk) => (output += chunk));
+                child.on('close', (code) => done({ code, output }));
+            });
+        // An unknown option shows both reach the same login command, without signing in.
+        for (const args of [
+            ['--no-such-option', '--json'],
+            ['--json', '--no-such-option'],
+            ['--scope', 'cloud:write', '--no-such-option', '--json'],
+        ]) {
+            const viaAcp = await run(['acp', 'login', ...args]);
+            const direct = await run(['login', ...args]);
+            expect(direct.output).toContain('"code": "usage"');
+            expect(viaAcp).toEqual(direct);
+        }
+    }, 60000);
 });

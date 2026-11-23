@@ -1,4 +1,5 @@
 import { inspect } from 'node:util';
+import { runEngineCommand } from '../cloud/register.js';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
 
 export function registerAcpCommand({
@@ -6,7 +7,7 @@ export function registerAcpCommand({
     cliVersion,
     bootstrapAgentFromGlobalOpts,
 }: RuntimeCommandRegisterContext): void {
-    program
+    const acp = program
         .command('acp')
         .description('Serve the Dexto agent over the Agent Client Protocol on stdio (preview)')
         .option('-m, --model <model>', 'Start sessions on this model')
@@ -33,4 +34,19 @@ Stdout carries only ACP messages; logs go to stderr.
             );
             process.exit(0);
         });
+    acp.enablePositionalOptions();
+
+    // ACP apps sign you in by running the agent's command with the sign-in method's args, either
+    // after `acp` or in place of it, so `dexto acp login` is exactly `dexto login`.
+    acp.command('login')
+        .description('Sign in to Dexto, the same as dexto login (ACP apps run it to sign you in)')
+        .helpOption(false)
+        .passThroughOptions()
+        .allowUnknownOption()
+        .allowExcessArguments()
+        .option('--json', 'Print the result as JSON')
+        .argument('[args...]')
+        .action((args: string[], options: { json?: boolean }) =>
+            runEngineCommand('acp login', ['login', ...(options.json ? ['--json'] : []), ...args])
+        );
 }
