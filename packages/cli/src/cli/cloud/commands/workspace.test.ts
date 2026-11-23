@@ -1652,7 +1652,7 @@ describe('dexto workspace', () => {
         };
         const file = path.join(path.dirname(dir), 'interactive.html');
         await writeFile(file, '<h1>hello</h1>');
-        expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(0);
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
         expect(granted).toEqual([['sites:write', 'cloud:write']]);
     });
 

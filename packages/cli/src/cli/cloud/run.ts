@@ -172,6 +172,7 @@ async function run(
         const error = asMissingScope(signIn, thrown);
         if (
             mayGrant &&
+            !globals.yes &&
             error instanceof MissingScopeFailure &&
             runtime.prompt !== null &&
             !output.json &&
@@ -227,6 +228,7 @@ async function runWorkspace(
         const error = asMissingScope(context, thrown);
         if (
             mayGrant &&
+            !globals.yes &&
             error instanceof MissingScopeFailure &&
             host.runtime.prompt !== null &&
             !output.json &&
@@ -270,7 +272,10 @@ function workspaceHelp(host: CloudHost, apps: readonly WorkspaceApp[] | null): s
     ].join('\n');
 }
 
-/** At a terminal, offers to sign in again for the permission; true once that sign-in succeeded. */
+/**
+ * At a terminal and without --yes, offers to sign in again for the permission; true once that
+ * sign-in succeeded. Under --yes the failure stands, with the sign-in that grants it as its fix.
+ */
 async function askToGrant(
     host: CloudHost,
     overrides: ConnectionOverrides,
@@ -438,6 +443,8 @@ interface Globals {
     readonly invocation: readonly string[];
     readonly overrides: ConnectionOverrides;
     readonly rest: readonly string[];
+    /** `--yes` was passed: never ask anything, fail with the fix instead. */
+    readonly yes: boolean;
 }
 
 /**
@@ -454,6 +461,7 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
     let help = false;
     let json = false;
     let table = false;
+    let yes = false;
     const invocation: string[] = [];
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index] ?? '';
@@ -503,6 +511,8 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
             }
             continue;
         }
+        // `--yes` stays for the command to read as well.
+        if (token === '--yes') yes = true;
         if (token === '--json') json = true;
         else if (token === '--table') table = true;
         else if (token === '--help' || token === '-h') help = true;
@@ -516,6 +526,7 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
         invocation,
         overrides: { apiBaseUrl, apiKey, cloudProject, profile },
         rest,
+        yes,
     };
 }
 
