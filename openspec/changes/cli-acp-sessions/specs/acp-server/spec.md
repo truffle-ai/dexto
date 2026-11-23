@@ -17,13 +17,13 @@
 
 #### Scenario: Unknown session resumed
 
-- **WHEN** the client resumes a session that does not exist
+- **WHEN** the client resumes a session that does not exist, or one created in another project
 - **THEN** the request fails with `sessionNotFound`
 
 #### Scenario: Closed
 
 - **WHEN** the client closes a session with a running turn
-- **THEN** the turn ends `cancelled`, the session is ended, and later prompts in it fail with `sessionNotFound`
+- **THEN** the turn ends `cancelled`, the session is ended, no title update follows, and later prompts in it fail with `sessionNotFound`
 - **AND** its history stays stored, so it can be loaded or resumed again
 
 ### Requirement: Session titles
@@ -37,5 +37,5 @@
 
 #### Scenario: Already titled
 
-- **WHEN** a later prompt in a titled session ends
-- **THEN** no title update is sent
+- **WHEN** a later prompt ends in a session that is titled, or whose title is still being made
+- **THEN** no further title update is sent

@@ -75,8 +75,9 @@ export async function serveAcp(
     };
     // The ACP connection that owns each session's running prompt, for approvals raised mid-turn.
     const turns = new Map<string, Turn>();
-    // Each running prompt, so closing a session can wait for its run to wind down.
+    // Each session's running prompt and title generation, so closing it can wait for both.
     const runs = new Map<string, Promise<acp.PromptResponse>>();
+    const titles = new Map<string, Promise<void>>();
     // Sessions opened or loaded on this connection.
     const sessions = new Set<string>();
 
@@ -117,11 +118,27 @@ export async function serveAcp(
     /** A stored session of this project, opened on this connection (load and resume). */
     async function restoreSession(sessionId: string, cwd: string): Promise<DextoAgent> {
         const running = await agentFor(cwd);
+        const metadata = await running.getSessionMetadata(sessionId);
+        if (metadata?.workspaceId !== (await workspaceId(running))) {
+            throw acp.RequestError.sessionNotFound(sessionId);
+        }
         if (!(await running.getSession(sessionId))) {
             throw acp.RequestError.sessionNotFound(sessionId);
         }
         sessions.add(sessionId);
         return running;
+    }
+
+    /** Titles an open session after a prompt, unless a title is already being made. */
+    function startTitle(agent: DextoAgent, turn: Turn): void {
+        const { sessionId } = turn;
+        if (!sessions.has(sessionId) || titles.has(sessionId)) return;
+        const titling = titleSession(agent, turn, () => sessions.has(sessionId))
+            .catch((error: unknown) =>
+                console.error('dexto acp: could not title the session', error)
+            )
+            .finally(() => titles.delete(sessionId));
+        titles.set(sessionId, titling);
     }
 
     function startedRuntime(): Runtime {
@@ -178,7 +195,8 @@ export async function serveAcp(
             knownSession(params.sessionId);
             sessions.delete(params.sessionId);
             turns.get(params.sessionId)?.abort.abort();
-            await Promise.allSettled([runs.get(params.sessionId)]);
+            // No new title starts once the session is gone from `sessions`.
+            await Promise.allSettled([runs.get(params.sessionId), titles.get(params.sessionId)]);
             // Ends the session in memory; its history stays for a later load or resume.
             await agent.endSession(params.sessionId);
             return {};
@@ -222,9 +240,7 @@ export async function serveAcp(
             runs.set(params.sessionId, run);
             try {
                 const response = await run;
-                titleSession(agent, turn).catch((error: unknown) =>
-                    console.error('dexto acp: could not title the session', error)
-                );
+                startTitle(agent, turn);
                 return response;
             } finally {
                 turns.delete(params.sessionId);
@@ -240,14 +256,21 @@ export async function serveAcp(
     await state.runtime?.agent.stop();
 }
 
+/** The workspace the CLI set at start: the project root. Sessions record it. */
+async function workspaceId(agent: DextoAgent): Promise<string> {
+    const workspace = await agent.getWorkspace();
+    if (workspace === undefined) throw new Error('dexto acp started without a workspace');
+    return workspace.id;
+}
+
 /** This project's stored sessions as ACP session info, most recently active first. */
 async function projectSessions(agent: DextoAgent, root: string): Promise<acp.SessionInfo[]> {
-    const workspace = await agent.getWorkspace();
+    const workspace = await workspaceId(agent);
     const found: Array<{ info: acp.SessionInfo; lastActivity: number }> = [];
     for (const sessionId of await agent.listSessions()) {
         const metadata = await agent.getSessionMetadata(sessionId);
         // The session store is shared by every project this agent runs in.
-        if (metadata === undefined || metadata.workspaceId !== workspace?.id) continue;
+        if (metadata?.workspaceId !== workspace) continue;
         found.push({
             lastActivity: metadata.lastActivity,
             info: {
@@ -262,9 +285,9 @@ async function projectSessions(agent: DextoAgent, root: string): Promise<acp.Ses
 }
 
 /** Titles a session after its first prompt, the way the Dexto TUI does, and tells the client. */
-async function titleSession(agent: DextoAgent, turn: Turn): Promise<void> {
+async function titleSession(agent: DextoAgent, turn: Turn, open: () => boolean): Promise<void> {
     const details = await agent.generateSessionTitleDetails(turn.sessionId);
-    if (details === null || details.source === 'existing') return;
+    if (details === null || details.source === 'existing' || !open()) return;
     await sendUpdate(turn, {
         sessionUpdate: 'session_info_update',
         title: details.title,

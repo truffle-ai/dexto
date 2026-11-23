@@ -171,6 +171,8 @@ describe('dexto acp over stdio', () => {
             const input = JSON.parse(body);
             if (input.stream !== true) {
                 // Session titles are asked for without streaming.
+                // Slow enough that a second prompt can end while the first title is made.
+                await new Promise((done) => setTimeout(done, 300));
                 response.writeHead(200, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify(titleReply));
                 return;
@@ -809,6 +811,8 @@ tools:
         await withAgent(allow, async (cx, recorded) => {
             const sessionId = await newSession(cx);
             await prompt(cx, sessionId, 'say hello');
+            // This prompt ends while the first title is still being made: one title only.
+            await prompt(cx, sessionId, 'say hello');
             await titled(recorded);
             const update = recorded.updates.find((u) => u.sessionUpdate === 'session_info_update');
             expect(update).toMatchObject({ updatedAt: expect.any(String) });
@@ -823,12 +827,13 @@ tools:
 
     it("lists and resumes the project's sessions in a later process", async () => {
         const persistent = { config: persistentConfigPath };
-        await withAgent(
+        const otherId = await withAgent(
             allow,
             async (cx, recorded) => {
                 const sessionId = await newSession(cx, otherDirectory);
                 await prompt(cx, sessionId, 'say hello');
                 await titled(recorded);
+                return sessionId;
             },
             undefined,
             persistent
@@ -876,12 +881,12 @@ tools:
                 await expect(prompt(cx, titledId, 'say hello')).resolves.toEqual({
                     stopReason: 'end_turn',
                 });
-                await expect(
-                    cx.request(acp.methods.agent.session.resume, {
-                        sessionId: 'missing-session',
-                        cwd: directory,
-                    })
-                ).rejects.toMatchObject({ code: -32002 });
+                for (const sessionId of ['missing-session', otherId]) {
+                    // Another project's session is not this project's to resume.
+                    await expect(
+                        cx.request(acp.methods.agent.session.resume, { sessionId, cwd: directory })
+                    ).rejects.toMatchObject({ code: -32002 });
+                }
             },
             undefined,
             persistent
@@ -902,6 +907,11 @@ tools:
             await expect(prompt(cx, sessionId, 'say hello')).rejects.toMatchObject({
                 code: -32002,
             });
+            // A closed session is not titled.
+            await new Promise((done) => setTimeout(done, 800));
+            expect(recorded.updates).not.toContainEqual(
+                expect.objectContaining({ sessionUpdate: 'session_info_update' })
+            );
         });
     }, 60000);
 });
