@@ -75,6 +75,8 @@ export async function serveAcp(
     };
     // The ACP connection that owns each session's running prompt, for approvals raised mid-turn.
     const turns = new Map<string, Turn>();
+    // Each running prompt, so closing a session can wait for its run to wind down.
+    const runs = new Map<string, Promise<acp.PromptResponse>>();
     // Sessions opened or loaded on this connection.
     const sessions = new Set<string>();
 
@@ -112,6 +114,16 @@ export async function serveAcp(
         if (!sessions.has(sessionId)) throw acp.RequestError.sessionNotFound(sessionId);
     }
 
+    /** A stored session of this project, opened on this connection (load and resume). */
+    async function restoreSession(sessionId: string, cwd: string): Promise<DextoAgent> {
+        const running = await agentFor(cwd);
+        if (!(await running.getSession(sessionId))) {
+            throw acp.RequestError.sessionNotFound(sessionId);
+        }
+        sessions.add(sessionId);
+        return running;
+    }
+
     function startedRuntime(): Runtime {
         if (state.runtime === null) throw acp.RequestError.invalidRequest({}, 'No session yet');
         return state.runtime;
@@ -130,6 +142,7 @@ export async function serveAcp(
                 protocolVersion: acp.PROTOCOL_VERSION,
                 agentCapabilities: {
                     loadSession: true,
+                    sessionCapabilities: { list: {}, resume: {}, close: {} },
                     promptCapabilities: { image: false, audio: false, embeddedContext: true },
                 },
                 agentInfo: { name: 'dexto', title: 'Dexto', version },
@@ -147,13 +160,28 @@ export async function serveAcp(
             };
         })
         .onRequest('session/load', async ({ params, client }) => {
-            const running = await agentFor(params.cwd);
-            if (!(await running.getSession(params.sessionId))) {
-                throw acp.RequestError.sessionNotFound(params.sessionId);
-            }
-            sessions.add(params.sessionId);
+            const running = await restoreSession(params.sessionId, params.cwd);
             await replayHistory(running, params.sessionId, client);
             return { configOptions: await modelOptions(running, params.sessionId) };
+        })
+        .onRequest('session/resume', async ({ params }) => {
+            const running = await restoreSession(params.sessionId, params.cwd);
+            return { configOptions: await modelOptions(running, params.sessionId) };
+        })
+        .onRequest('session/list', async ({ params }) => {
+            // Without a cwd, the project this process serves (or the one it starts in).
+            const running = await agentFor(params.cwd ?? state.runtime?.root ?? process.cwd());
+            return { sessions: await projectSessions(running, startedRuntime().root) };
+        })
+        .onRequest('session/close', async ({ params }) => {
+            const { agent } = startedRuntime();
+            knownSession(params.sessionId);
+            sessions.delete(params.sessionId);
+            turns.get(params.sessionId)?.abort.abort();
+            await Promise.allSettled([runs.get(params.sessionId)]);
+            // Ends the session in memory; its history stays for a later load or resume.
+            await agent.endSession(params.sessionId);
+            return {};
         })
         .onRequest('session/set_config_option', async ({ params }) => {
             const running = startedRuntime().agent;
@@ -190,10 +218,17 @@ export async function serveAcp(
                 abort: new AbortController(),
             };
             turns.set(params.sessionId, turn);
+            const run = runPrompt(agent, params, turn);
+            runs.set(params.sessionId, run);
             try {
-                return await runPrompt(agent, params, turn);
+                const response = await run;
+                titleSession(agent, turn).catch((error: unknown) =>
+                    console.error('dexto acp: could not title the session', error)
+                );
+                return response;
             } finally {
                 turns.delete(params.sessionId);
+                runs.delete(params.sessionId);
             }
         })
         .onNotification('session/cancel', async ({ params }) => {
@@ -203,6 +238,38 @@ export async function serveAcp(
 
     await connection.closed;
     await state.runtime?.agent.stop();
+}
+
+/** This project's stored sessions as ACP session info, most recently active first. */
+async function projectSessions(agent: DextoAgent, root: string): Promise<acp.SessionInfo[]> {
+    const workspace = await agent.getWorkspace();
+    const found: Array<{ info: acp.SessionInfo; lastActivity: number }> = [];
+    for (const sessionId of await agent.listSessions()) {
+        const metadata = await agent.getSessionMetadata(sessionId);
+        // The session store is shared by every project this agent runs in.
+        if (metadata === undefined || metadata.workspaceId !== workspace?.id) continue;
+        found.push({
+            lastActivity: metadata.lastActivity,
+            info: {
+                sessionId,
+                cwd: root,
+                updatedAt: new Date(metadata.lastActivity).toISOString(),
+                ...(metadata.title !== undefined ? { title: metadata.title } : {}),
+            },
+        });
+    }
+    return found.sort((a, b) => b.lastActivity - a.lastActivity).map(({ info }) => info);
+}
+
+/** Titles a session after its first prompt, the way the Dexto TUI does, and tells the client. */
+async function titleSession(agent: DextoAgent, turn: Turn): Promise<void> {
+    const details = await agent.generateSessionTitleDetails(turn.sessionId);
+    if (details === null || details.source === 'existing') return;
+    await sendUpdate(turn, {
+        sessionUpdate: 'session_info_update',
+        title: details.title,
+        updatedAt: new Date().toISOString(),
+    });
 }
 
 async function runPrompt(

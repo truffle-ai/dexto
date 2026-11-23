@@ -122,12 +122,29 @@ async function streamReply(response: ServerResponse, chunks: Chunk[], delayMs: n
     response.end('data: [DONE]\n\n');
 }
 
+const TITLE = 'Greeting From Test';
+const titleReply = {
+    id: 'acp-title',
+    object: 'chat.completion',
+    created: 1,
+    model: 'acp-model',
+    choices: [
+        {
+            index: 0,
+            message: { role: 'assistant', content: TITLE },
+            finish_reason: 'stop',
+        },
+    ],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+};
+
 type Recorded = {
     updates: acp.SessionUpdate[];
     permissions: acp.RequestPermissionRequest[];
     /** Tool-call updates and permission requests in arrival order. */
     order: string[];
     forms: acp.CreateElicitationRequest[];
+    capabilities: acp.AgentCapabilities | undefined;
 };
 
 /** How the test client answers forms; without one it does not advertise form support. */
@@ -143,6 +160,7 @@ describe('dexto acp over stdio', () => {
     let home: string;
     let configPath: string;
     let formTimeoutConfigPath: string;
+    let persistentConfigPath: string;
     let effectPath: string;
     const children: ChildProcess[] = [];
 
@@ -150,7 +168,14 @@ describe('dexto acp over stdio', () => {
         server = createServer(async (request, response) => {
             let body = '';
             for await (const chunk of request) body += chunk;
-            const { chunks, delayMs } = scriptedReply(JSON.parse(body));
+            const input = JSON.parse(body);
+            if (input.stream !== true) {
+                // Session titles are asked for without streaming.
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(titleReply));
+                return;
+            }
+            const { chunks, delayMs } = scriptedReply(input);
             await streamReply(response, chunks, delayMs);
         });
         await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
@@ -237,6 +262,14 @@ tools:
 `;
         configPath = join(directory, 'agent.yml');
         await writeFile(configPath, agentYaml);
+        persistentConfigPath = join(directory, 'agent-persistent.yml');
+        await writeFile(
+            persistentConfigPath,
+            agentYaml.replace(
+                '  database:\n    type: in-memory',
+                `  database:\n    type: sqlite\n    path: ${JSON.stringify(join(home, 'sessions.db'))}`
+            )
+        );
         formTimeoutConfigPath = join(directory, 'agent-form-timeout.yml');
         await writeFile(formTimeoutConfigPath, `${agentYaml}elicitation:\n  timeout: 300\n`);
     });
@@ -285,7 +318,13 @@ tools:
             Writable.toWeb(child.stdin),
             Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>
         );
-        const recorded: Recorded = { updates: [], permissions: [], order: [], forms: [] };
+        const recorded: Recorded = {
+            updates: [],
+            permissions: [],
+            order: [],
+            forms: [],
+            capabilities: undefined,
+        };
         return await acp
             .client({ name: 'acp-test' })
             .onNotification('session/update', ({ params }) => {
@@ -308,6 +347,7 @@ tools:
                     clientCapabilities: form ? { elicitation: { form: {} } } : {},
                 });
                 expect(init.agentCapabilities?.loadSession).toBe(true);
+                recorded.capabilities = init.agentCapabilities;
                 return await op(cx, recorded);
             });
     }
@@ -736,6 +776,8 @@ tools:
         await withAgent(allow, async (cx, recorded) => {
             const sessionId = await newSession(cx);
             await prompt(cx, sessionId, 'say hello');
+            // The title arrives after the first prompt; wait for it so it isn't in the replay.
+            await titled(recorded);
             recorded.updates.length = 0;
             await cx.request(acp.methods.agent.session.load, {
                 sessionId,
@@ -752,6 +794,114 @@ tools:
                     content: { type: 'text', text: 'hello there' },
                 },
             ]);
+        });
+    }, 60000);
+
+    async function titled(recorded: Recorded) {
+        await expect
+            .poll(() => recorded.updates, { timeout: 20000 })
+            .toContainEqual(
+                expect.objectContaining({ sessionUpdate: 'session_info_update', title: TITLE })
+            );
+    }
+
+    it('titles a session after its first prompt', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await prompt(cx, sessionId, 'say hello');
+            await titled(recorded);
+            const update = recorded.updates.find((u) => u.sessionUpdate === 'session_info_update');
+            expect(update).toMatchObject({ updatedAt: expect.any(String) });
+            // A titled session gets no new title from later prompts.
+            await prompt(cx, sessionId, 'say hello');
+            await new Promise((done) => setTimeout(done, 500));
+            expect(
+                recorded.updates.filter((u) => u.sessionUpdate === 'session_info_update')
+            ).toHaveLength(1);
+        });
+    }, 60000);
+
+    it("lists and resumes the project's sessions in a later process", async () => {
+        const persistent = { config: persistentConfigPath };
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const sessionId = await newSession(cx, otherDirectory);
+                await prompt(cx, sessionId, 'say hello');
+                await titled(recorded);
+            },
+            undefined,
+            persistent
+        );
+        const [titledId, emptyId] = await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const first = await newSession(cx);
+                await prompt(cx, first, 'say hello');
+                await titled(recorded);
+                return [first, await newSession(cx)];
+            },
+            undefined,
+            persistent
+        );
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                expect(recorded.capabilities?.sessionCapabilities).toMatchObject({
+                    list: {},
+                    resume: {},
+                    close: {},
+                });
+                // Listing before any session starts the agent for the process directory.
+                const { sessions } = await cx.request(acp.methods.agent.session.list, {});
+                expect(sessions).toHaveLength(2);
+                expect(sessions).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            sessionId: titledId,
+                            cwd: directory,
+                            title: TITLE,
+                            updatedAt: expect.any(String),
+                        }),
+                        expect.objectContaining({ sessionId: emptyId, cwd: directory }),
+                    ])
+                );
+                const resumed = await cx.request(acp.methods.agent.session.resume, {
+                    sessionId: titledId,
+                    cwd: directory,
+                });
+                expect(resumed.configOptions).toBeDefined();
+                // Resume restores the session without replaying it.
+                expect(recorded.updates).toEqual([]);
+                await expect(prompt(cx, titledId, 'say hello')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+                await expect(
+                    cx.request(acp.methods.agent.session.resume, {
+                        sessionId: 'missing-session',
+                        cwd: directory,
+                    })
+                ).rejects.toMatchObject({ code: -32002 });
+            },
+            undefined,
+            persistent
+        );
+    }, 120000);
+
+    it('closes a session and cancels its running turn', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            const turn = prompt(cx, sessionId, 'slow answer');
+            await expect
+                .poll(() => agentText(recorded.updates).length, { timeout: 20000 })
+                .toBeGreaterThan(0);
+            await expect(
+                cx.request(acp.methods.agent.session.close, { sessionId })
+            ).resolves.toEqual({});
+            await expect(turn).resolves.toEqual({ stopReason: 'cancelled' });
+            await expect(prompt(cx, sessionId, 'say hello')).rejects.toMatchObject({
+                code: -32002,
+            });
         });
     }, 60000);
 });
