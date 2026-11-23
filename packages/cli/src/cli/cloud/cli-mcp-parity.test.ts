@@ -95,15 +95,9 @@ dexto_automation_trigger
 dexto_automation_update
 dexto_automations_list
 dexto_capabilities_search
-dexto_channel_get
-dexto_channel_send
-dexto_channels_list
 dexto_chat_cancel
 dexto_chat_computer
 dexto_chat_continue
-dexto_chat_get
-dexto_chat_list
-dexto_chat_models
 dexto_contacts_block
 dexto_contacts_connect
 dexto_contacts_invite_link
@@ -149,9 +143,6 @@ dexto_marketplace_search
 dexto_marketplace_uninstall
 dexto_marketplace_unpublish
 dexto_mcp_server_import
-dexto_notification_get
-dexto_notifications_list
-dexto_notifications_mark_read
 dexto_open
 dexto_share
 dexto_share_access
