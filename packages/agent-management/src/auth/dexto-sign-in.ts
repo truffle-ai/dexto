@@ -25,6 +25,8 @@ export const CLI_LOGIN_SCOPES = [
     'computers:read',
     'computers:write',
     'connections:read',
+    'contacts:read',
+    'contacts:write',
     'drive:read',
     'drive:write',
     'functions:read',
