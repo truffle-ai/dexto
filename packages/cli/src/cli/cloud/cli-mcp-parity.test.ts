@@ -88,25 +88,14 @@ dexto_autobot_status
 dexto_autobots_list
 dexto_automation_create
 dexto_automation_delete
-dexto_automation_get
 dexto_automation_recipe_install
 dexto_automation_recipes_list
 dexto_automation_trigger
 dexto_automation_update
-dexto_automations_list
 dexto_capabilities_search
 dexto_chat_cancel
 dexto_chat_computer
 dexto_chat_continue
-dexto_contacts_block
-dexto_contacts_connect
-dexto_contacts_invite_link
-dexto_contacts_people_list
-dexto_contacts_people_search
-dexto_contacts_remove
-dexto_contacts_request_answer
-dexto_contacts_requests_list
-dexto_contacts_unblock
 dexto_cos_report
 dexto_direct_conversation_get
 dexto_direct_conversations_list
@@ -135,30 +124,14 @@ dexto_gpu_sandbox_provision
 dexto_gpu_sandbox_start
 dexto_gpu_sandbox_stop
 dexto_gpu_sandboxes_list
-dexto_marketplace_get
-dexto_marketplace_install
-dexto_marketplace_preview
-dexto_marketplace_publish
-dexto_marketplace_search
-dexto_marketplace_uninstall
-dexto_marketplace_unpublish
 dexto_mcp_server_import
-dexto_network_send
-dexto_network_thread_get
-dexto_network_thread_mark_read
-dexto_network_threads_list
 dexto_open
 dexto_share
 dexto_share_access
 dexto_share_received
 dexto_site_collections_list
 dexto_site_get
-dexto_site_promote
-dexto_site_record_create
-dexto_site_record_delete
-dexto_site_record_get
-dexto_site_record_update
-dexto_site_records_list`.split('\n');
+dexto_site_promote`.split('\n');
 
 const approvedLocalOnly = [
     'accounts list',

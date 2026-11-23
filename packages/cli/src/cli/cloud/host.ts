@@ -7,6 +7,9 @@ import { accountCommands, type SignInFor } from './commands/account.js';
 import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { artifactCommands } from './commands/artifacts.js';
+import { contactCommands } from './commands/contacts.js';
+import { marketplaceCommands } from './commands/marketplace.js';
+import { networkCommands } from './commands/network.js';
 import { publicArtifactCommands } from './commands/public-artifacts.js';
 import { notificationCommands } from './commands/notifications.js';
 import { connectionCommands } from './commands/connections.js';
@@ -23,6 +26,7 @@ import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
 import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
+import { loopCommands } from './commands/loops.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
 import { skillLibraryCommands } from './commands/skill-library.js';
@@ -33,6 +37,7 @@ import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
 import { sandboxCommands } from './commands/sandboxes.js';
 import { secretCommands } from './commands/secrets.js';
+import { siteRecordCommands } from './commands/site-records.js';
 import { webCommands } from './commands/web.js';
 import { workspaceCommands } from './commands/workspace.js';
 import { resolveConnection } from './connection.js';
@@ -87,9 +92,14 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...computerKeyCommands,
         ...driveCommands,
         ...artifactCommands,
+        ...contactCommands,
+        ...networkCommands,
         ...publicArtifactCommands,
         ...notificationCommands,
+        ...marketplaceCommands,
+        ...siteRecordCommands,
         ...findCommands,
+        ...loopCommands,
         ...profileCommands,
         ...publishCommands,
         ...skillCommands,
