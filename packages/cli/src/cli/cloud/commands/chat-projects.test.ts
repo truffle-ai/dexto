@@ -364,6 +364,22 @@ describe('projects over the Dexto MCP', () => {
         expect(stdout).toContain('paused');
     });
 
+    it("takes the Project by its link and sends the recipe tool the Project's id", async () => {
+        await signIn(['automations:write']);
+        expect(
+            await cli('projects', 'install-recipe', 'my-project', 'dreams', '--yes'),
+            stderr
+        ).toBe(2);
+        expect(stderr).toContain("isn't a Project's id or link");
+        expect(calls).toEqual([]);
+        replies = [{ automation }];
+        const link = `https://app.dexto.ai/desktop/apps/chat/projects/${PROJECT_ID.toUpperCase()}/`;
+        expect(await cli('projects', 'install-recipe', link, 'dreams', '--yes'), stderr).toBe(0);
+        expect(calls[0]?.arguments).toMatchObject({
+            scope: { type: 'project', chatProjectId: PROJECT_ID },
+        });
+    });
+
     it("passes the server's refusal of an unknown recipe through as invalid input", async () => {
         await signIn(['automations:write']);
         replies = [

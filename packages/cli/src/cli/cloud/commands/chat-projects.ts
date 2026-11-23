@@ -84,6 +84,18 @@ async function projectLink(context: CommandContext, project: string): Promise<st
     ).toString();
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const PROJECT_PATH = /\/desktop\/apps\/chat\/projects\/([^/?#]+)\/?(?:[?#].*)?$/u;
+
+/** The Project's id, from its id or its page's link, for tools that take only the id. */
+function projectId(project: string): string {
+    const trimmed = project.trim();
+    const id = UUID.test(trimmed) ? trimmed : PROJECT_PATH.exec(trimmed)?.[1];
+    if (id === undefined || !UUID.test(id))
+        throw new UsageError(`${project} isn't a Project's id or link.`);
+    return id.toLowerCase();
+}
+
 function projectLine(project: z.output<typeof ProjectSchema>): string {
     return `${project.name} (${project.id})`;
 }
@@ -501,7 +513,7 @@ const installRecipe: Command = {
     path: ['projects', 'install-recipe'],
     arguments: `${PROJECT_ARGUMENT} <recipe>`,
     summary:
-        'Install a Loop recipe in a Project by its id, or resume it when paused, keeping its edits. It schedules future runs; nothing runs now.',
+        'Install a Loop recipe in a Project (its id or link), or resume it when paused, keeping its edits. It schedules future runs; nothing runs now.',
     options: {
         timezone: {
             type: 'string',
@@ -511,7 +523,7 @@ const installRecipe: Command = {
         ...YES_OPTION,
     },
     async run(context, input) {
-        const project = argument(input, 0, 'project');
+        const project = projectId(argument(input, 0, 'project'));
         const recipeId = argument(input, 1, 'recipe');
         const timezone =
             stringOption(input, 'timezone') ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
