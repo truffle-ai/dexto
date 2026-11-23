@@ -28,6 +28,8 @@ describe('CLI_LOGIN_SCOPES', () => {
             'sessions:write',
             'sites:read',
             'sites:write',
+            'skills:read',
+            'skills:write',
         ]);
     });
 

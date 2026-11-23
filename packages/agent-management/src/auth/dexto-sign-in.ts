@@ -38,6 +38,8 @@ export const CLI_LOGIN_SCOPES = [
     'sessions:write',
     'sites:read',
     'sites:write',
+    'skills:read',
+    'skills:write',
 ] as const;
 
 /** A scope the CLI asks for by name. */
