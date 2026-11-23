@@ -11,6 +11,52 @@ mockValidateModelFileSupport.mockReturnValue({ isSupported: true, fileType: 'pdf
 const mockLogger = createMockLogger();
 
 describe('VercelMessageFormatter', () => {
+    test('continues a tool turn with withheld reasoning as ordinary conversation for Anthropic', () => {
+        const history: InternalMessage[] = [
+            { role: 'user', content: [{ type: 'text', text: 'Question' }] },
+            {
+                role: 'assistant',
+                content: [],
+                assistantOutput: { status: 'complete' },
+                metadata: { reasoningWithheld: true },
+                toolCalls: [
+                    { id: 'a', type: 'function', function: { name: 'lookup', arguments: '{}' } },
+                    { id: 'b', type: 'function', function: { name: 'read', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'tool',
+                name: 'lookup',
+                toolCallId: 'a',
+                success: true,
+                content: [{ type: 'text', text: 'first result' }],
+            },
+            {
+                role: 'tool',
+                name: 'read',
+                toolCallId: 'b',
+                success: true,
+                content: [{ type: 'text', text: 'second result' }],
+            },
+        ];
+        const result = new VercelMessageFormatter(mockLogger).format(
+            history,
+            { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+            null
+        );
+        const serialized = JSON.stringify(result);
+        expect(result.map((message) => message.role)).toEqual([
+            'user',
+            'assistant',
+            'user',
+            'user',
+        ]);
+        expect(serialized).not.toContain('tool-call');
+        expect(serialized).not.toContain('tool-result');
+        expect(serialized).toContain('first result');
+        expect(serialized).toContain('second result');
+    });
+
     test('keeps the pre-change output for a normal parallel-tool history', () => {
         const formatter = new VercelMessageFormatter(mockLogger);
         const history: InternalMessage[] = [

@@ -6,7 +6,10 @@ import type {
     ToolMessage,
     FilePart,
 } from '../../context/types.js';
-import { IMPORTED_TRANSCRIPT_METADATA_KEY } from '../../context/types.js';
+import {
+    IMPORTED_TRANSCRIPT_METADATA_KEY,
+    REASONING_WITHHELD_METADATA_KEY,
+} from '../../context/types.js';
 import {
     getImageData,
     getFileData,
@@ -20,6 +23,46 @@ import { buildUnsendableFileNote, isFileMediaTypeSendable } from './provider-fil
 type RemoteToolMedia =
     | { type: 'image'; image: URL; mediaType: string }
     | { type: 'file'; data: URL; mediaType: string; filename?: string };
+
+/** A tool turn without its signed trace cannot be sent as a provider tool continuation. */
+function projectWithheldReasoningTurns(history: InternalMessage[]): InternalMessage[] {
+    const pending = new Set<string>();
+    return history.map((message): InternalMessage => {
+        if (
+            message.role === 'assistant' &&
+            message.metadata?.[REASONING_WITHHELD_METADATA_KEY] === true &&
+            message.toolCalls?.length
+        ) {
+            const { toolCalls, ...rest } = message;
+            for (const call of toolCalls) pending.add(call.id);
+            return {
+                ...rest,
+                content: [
+                    ...(message.content ?? []),
+                    {
+                        type: 'text',
+                        text: toolCalls
+                            .map(
+                                (call) =>
+                                    `[Called ${call.function.name} with input ${call.function.arguments}; signed reasoning was withheld.]`
+                            )
+                            .join('\n'),
+                    },
+                ],
+            };
+        }
+        if (message.role === 'tool' && pending.delete(message.toolCallId)) {
+            return {
+                role: 'user',
+                content: [
+                    { type: 'text', text: `[Result of ${message.name}:]` },
+                    ...message.content,
+                ],
+            };
+        }
+        return message;
+    });
+}
 
 /** Providers require results directly after calls; system and unmarked messages end the imported region. */
 function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMessage[] {
@@ -306,7 +349,9 @@ export class VercelMessageFormatter {
             }
         };
 
-        for (const msg of normalizeInterleavedToolHistory(filteredHistory)) {
+        for (const msg of projectWithheldReasoningTurns(
+            normalizeInterleavedToolHistory(filteredHistory)
+        )) {
             if (msg.role !== 'tool' && pendingToolCalls.size > 0) {
                 closePendingToolTurn();
             }

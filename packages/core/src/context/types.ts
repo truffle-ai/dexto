@@ -98,6 +98,9 @@ export type ContentPart = TextPart | ImagePart | FilePart | ResourcePart | UIRes
 /** Marks every message in a contiguous external transcript, including users and tool results. */
 export const IMPORTED_TRANSCRIPT_METADATA_KEY = 'importedTranscript';
 
+/** The host withheld a signed reasoning trace, so its tool turn cannot be replayed verbatim. */
+export const REASONING_WITHHELD_METADATA_KEY = 'reasoningWithheld';
+
 // =============================================================================
 // Content Part Type Guards
 // =============================================================================
