@@ -122,12 +122,9 @@ dexto_docs_search
 dexto_feedback_submit
 dexto_function_credential_configure
 dexto_function_deploy
-dexto_function_get
-dexto_function_invoke
 dexto_function_plan
 dexto_function_promote
 dexto_function_secret_delete
-dexto_functions_list
 dexto_gigs_finding
 dexto_gigs_posting
 dexto_gpu_process_get

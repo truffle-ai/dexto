@@ -931,6 +931,27 @@
     "examples": false
   },
   {
+    "command": "workspace functions get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace functions invoke",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace functions list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "workspace tools",
     "json": true,
     "dryRun": false,
