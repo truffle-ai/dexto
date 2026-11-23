@@ -1,0 +1,67 @@
+import type * as acp from '@agentclientprotocol/sdk';
+import type { ToolDisplayData, ToolPresentationSnapshotV1 } from '@dexto/core';
+import { parsePatch } from 'diff';
+
+/** Dexto tool activity categories that have an ACP tool kind; the rest are `other`. */
+const KIND_BY_CATEGORY: Record<string, acp.ToolKind> = {
+    'file-read': 'read',
+    'file-write': 'edit',
+    'file-create': 'edit',
+    'file-edit': 'edit',
+    'file-search': 'search',
+    'code-search': 'search',
+    'web-search': 'fetch',
+    'http-request': 'fetch',
+    command: 'execute',
+    'command-output': 'execute',
+    process: 'execute',
+};
+
+export function toolKind(snapshot: ToolPresentationSnapshotV1 | undefined): acp.ToolKind {
+    const category = snapshot?.activity?.category;
+    return (category && KIND_BY_CATEGORY[category]) || 'other';
+}
+
+/**
+ * ACP content for the displays clients can render better than text: one ACP diff per hunk of a
+ * file change, and a command with its output. Null for every other display.
+ */
+export function displayContent(display: ToolDisplayData): acp.ToolCallContent[] | null {
+    switch (display.type) {
+        case 'diff':
+            return diffContent(display.filename, display.unified);
+        case 'shell': {
+            const output = [display.stdout, display.stderr]
+                .filter((chunk): chunk is string => Boolean(chunk?.trim()))
+                .map((chunk) => chunk.replace(/\n$/, ''));
+            const text = [`$ ${display.command}`, ...output, `exit code ${display.exitCode}`];
+            return [{ type: 'content', content: { type: 'text', text: text.join('\n') } }];
+        }
+        default:
+            return null;
+    }
+}
+
+/**
+ * Dexto file tools report a unified patch, not whole files, so each hunk becomes one ACP diff
+ * whose texts are the hunk's old and new lines. A hunk adding to an empty file has no old text.
+ */
+function diffContent(path: string, unified: string): acp.ToolCallContent[] {
+    return parsePatch(unified).flatMap((patch) =>
+        patch.hunks.map((hunk) => {
+            const oldLines = hunk.lines.filter((line) => !line.startsWith('+'));
+            const newLines = hunk.lines.filter((line) => !line.startsWith('-'));
+            const text = (lines: string[]) =>
+                lines
+                    .filter((line) => !line.startsWith('\\'))
+                    .map((line) => line.slice(1))
+                    .join('\n');
+            return {
+                type: 'diff' as const,
+                path,
+                oldText: hunk.oldLines === 0 ? null : text(oldLines),
+                newText: text(newLines),
+            };
+        })
+    );
+}
