@@ -22,7 +22,7 @@
 
 #### Scenario: Closed while loading
 
-- **WHEN** the client sends a load or resume of a session and then its close, without waiting
+- **WHEN** the client sends a load or resume of a session and then its close, without waiting, including as the first requests of a process
 - **THEN** the session ends closed, and later prompts in it fail with `sessionNotFound`
 
 #### Scenario: Unknown session resumed

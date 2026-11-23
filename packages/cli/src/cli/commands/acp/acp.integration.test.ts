@@ -955,4 +955,33 @@ tools:
             });
         });
     }, 60000);
+
+    it('closes a session sent right after the load that starts the agent', async () => {
+        const persistent = { config: persistentConfigPath };
+        const sessionId = await withAgent(
+            allow,
+            async (cx) => newSession(cx),
+            undefined,
+            persistent
+        );
+        await withAgent(
+            allow,
+            async (cx) => {
+                // The load starts the agent, so the close arrives while it is still starting.
+                const loaded = cx.request(acp.methods.agent.session.load, {
+                    sessionId,
+                    cwd: directory,
+                    mcpServers: [],
+                });
+                const closed = cx.request(acp.methods.agent.session.close, { sessionId });
+                await loaded;
+                await expect(closed).resolves.toEqual({});
+                await expect(prompt(cx, sessionId, 'say hello')).rejects.toMatchObject({
+                    code: -32002,
+                });
+            },
+            undefined,
+            persistent
+        );
+    }, 120000);
 });

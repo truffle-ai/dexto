@@ -219,8 +219,9 @@ export async function serveAcp(
             return { sessions: await projectSessions(running, startedRuntime().root) };
         })
         .onRequest('session/close', async ({ params }) => {
-            const { agent } = startedRuntime();
             await inOrder(params.sessionId, async () => {
+                // Read inside the queue: a load queued ahead may be what starts the agent.
+                const { agent } = startedRuntime();
                 knownSession(params.sessionId);
                 sessions.delete(params.sessionId);
                 turns.get(params.sessionId)?.abort.abort();
