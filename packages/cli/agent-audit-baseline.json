@@ -931,6 +931,13 @@
     "examples": false
   },
   {
+    "command": "workspace mcp-servers import",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "workspace tools",
     "json": true,
     "dryRun": false,
