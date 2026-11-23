@@ -45,7 +45,7 @@ const elicitation: ApprovalRequest = {
 
 describe('autoApproves', () => {
     const fullAccess: AutoApprovalMode = { kind: 'full-access' };
-    const acceptEdits: AutoApprovalMode = { kind: 'accept-edits', workspace: '/work' };
+    const acceptEdits: AutoApprovalMode = { kind: 'accept-edits', workspace: () => '/work' };
 
     it('approves tool and command approvals in full access', () => {
         expect(autoApproves(toolApproval('bash_exec'), fullAccess)).toBe(true);
@@ -78,6 +78,18 @@ describe('autoApproves', () => {
         ).toBe(false);
         expect(autoApproves(toolApproval('bash_exec'), acceptEdits)).toBe(false);
         expect(autoApproves(commandApproval, acceptEdits)).toBe(false);
+    });
+
+    it('reads the workspace only for an edit it could approve', () => {
+        const unread: AutoApprovalMode = {
+            kind: 'accept-edits',
+            workspace: () => {
+                throw new Error('workspace read');
+            },
+        };
+        expect(autoApproves(toolApproval('bash_exec'), unread)).toBe(false);
+        expect(autoApproves(commandApproval, unread)).toBe(false);
+        expect(autoApproves(elicitation, unread)).toBe(false);
     });
 });
 

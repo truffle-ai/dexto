@@ -2,12 +2,17 @@
 
 ### Requirement: Session modes
 
-Every session SHALL offer the modes Asks you, Plan, Accept edits and Full access, start in the agent's `permissions.mode`, and switch with `session/set_mode`. No mode SHALL approve a request that the TUI's matching mode would ask about.
+Every session SHALL offer the modes Asks you, Plan, Accept edits and Full access, start in the agent's `permissions.mode`, and switch with `session/set_mode`. An agent configured with `permissions.mode: full-access` SHALL offer only Full access. No mode SHALL approve a request that the TUI's matching mode would ask about.
 
 #### Scenario: Modes offered
 
 - **WHEN** the client creates, loads or resumes a session
 - **THEN** the response lists the four modes with the configured mode current, and an unknown mode id is rejected as invalid params
+
+#### Scenario: Configured Full access
+
+- **WHEN** the agent config sets `permissions.mode: full-access`
+- **THEN** the session offers only Full access, and switching to another mode is rejected as invalid params
 
 #### Scenario: Full access keeps limits
 
@@ -27,7 +32,7 @@ Every session SHALL offer the modes Asks you, Plan, Accept edits and Full access
 #### Scenario: Plan
 
 - **WHEN** the client sends a prompt in Plan
-- **THEN** the first prompt carries plan mode's instructions, and an approved plan review moves the session to Asks you with `current_mode_update`
+- **THEN** only the first prompt after entering Plan carries plan mode's instructions, and an approved plan review moves the session to Asks you with `current_mode_update`
 
 ### Requirement: Slash commands
 

@@ -12,6 +12,7 @@ import {
     type ApprovalRequest,
     type ApprovalResponse,
     type ElicitationMetadata,
+    type PermissionsMode,
     type PromptInfo,
     type DextoAgent,
     type StreamingEvent,
@@ -129,7 +130,7 @@ export async function serveAcp(
             // The session's mode may settle the approval without asking, as in the TUI.
             const open =
                 request.sessionId === undefined ? undefined : sessions.get(request.sessionId);
-            const auto = open && autoApprovalMode(open.mode, workspace);
+            const auto = open && autoApprovalMode(open.mode, () => workspace);
             if (auto && autoApproves(request, auto)) {
                 return Promise.resolve({
                     approvalId: request.approvalId,
@@ -173,13 +174,13 @@ export async function serveAcp(
     /** Registers a session on this connection; one already open keeps its mode. */
     function openSession(agent: DextoAgent, sessionId: string): OpenSession {
         const open = sessions.get(sessionId) ?? {
-            mode: initialMode(agent.getEffectiveConfig().permissions.mode),
+            mode: initialMode(permissionsMode(agent)),
         };
         sessions.set(sessionId, open);
         return open;
     }
 
-    /** Tells the client the session's slash commands, once the session's answer has gone out. */
+    /** Tells the client the session's slash commands; call it just before answering, so the answer goes out first. */
     function announceCommands(agent: DextoAgent, cx: acp.AgentContext, sessionId: string): void {
         setImmediate(() => {
             sendCommands(agent, cx, sessionId).catch((error: unknown) =>
@@ -256,35 +257,38 @@ export async function serveAcp(
             const running = await agentFor(params.cwd);
             const session = await running.createSession();
             const open = openSession(running, session.id);
-            announceCommands(running, client, session.id);
-            return {
+            const response = {
                 sessionId: session.id,
-                modes: modeState(open.mode),
+                modes: modeState(open.mode, permissionsMode(running)),
                 configOptions: await modelOptions(running, session.id),
             };
+            announceCommands(running, client, session.id);
+            return response;
         })
         .onRequest('session/load', ({ params, client }) =>
             restoreSession(params.sessionId, params.cwd, async (running, open) => {
                 await replayHistory(running, params.sessionId, client);
-                announceCommands(running, client, params.sessionId);
-                return {
-                    modes: modeState(open.mode),
+                const response = {
+                    modes: modeState(open.mode, permissionsMode(running)),
                     configOptions: await modelOptions(running, params.sessionId),
                 };
+                announceCommands(running, client, params.sessionId);
+                return response;
             })
         )
         .onRequest('session/resume', ({ params, client }) =>
             restoreSession(params.sessionId, params.cwd, async (running, open) => {
-                announceCommands(running, client, params.sessionId);
-                return {
-                    modes: modeState(open.mode),
+                const response = {
+                    modes: modeState(open.mode, permissionsMode(running)),
                     configOptions: await modelOptions(running, params.sessionId),
                 };
+                announceCommands(running, client, params.sessionId);
+                return response;
             })
         )
         .onRequest('session/set_mode', ({ params }) => {
             const open = knownSession(params.sessionId);
-            const mode = parseMode(params.modeId);
+            const mode = parseMode(params.modeId, permissionsMode(startedRuntime().agent));
             if (mode === null) throw acp.RequestError.invalidParams({ modeId: params.modeId });
             open.mode = mode;
             return {};
@@ -449,7 +453,9 @@ async function runPrompt(
             });
         }
     }
-    await sendUsage(agent, turn);
+    await sendUsage(agent, turn).catch((error: unknown) =>
+        console.error('dexto acp: could not report context usage', error)
+    );
     // A cancelled run's stream just ends; ACP requires the cancelled stop reason.
     return { stopReason: signal.aborted ? 'cancelled' : stopReason };
 }
@@ -482,7 +488,8 @@ async function messageFor(
     const { mode } = turn.session;
     if (mode.id === 'plan' && !mode.instructed && (await agent.hasPrompt(PLAN_MODE_PROMPT))) {
         const plan = await agent.resolvePrompt(PLAN_MODE_PROMPT, {});
-        if (plan.text) {
+        // A mode switched while the instructions were read is left as the client set it.
+        if (plan.text && turn.session.mode === mode) {
             message = withPlanMode(message, plan.text);
             turn.session.mode = { id: 'plan', instructed: true };
         }
@@ -500,6 +507,10 @@ async function userPrompts(agent: DextoAgent): Promise<Map<string, PromptInfo>> 
     );
 }
 
+function permissionsMode(agent: DextoAgent): PermissionsMode {
+    return agent.getEffectiveConfig().permissions.mode;
+}
+
 async function sendCommands(agent: DextoAgent, cx: acp.AgentContext, sessionId: string) {
     const availableCommands = [...(await userPrompts(agent))].map(([name, info]) => ({
         name,
@@ -512,14 +523,14 @@ async function sendCommands(agent: DextoAgent, cx: acp.AgentContext, sessionId: 
     });
 }
 
-/** The session's context use against its window, and its cost so far when known. */
+/** The session's context use against the model's context window, and its cost so far when known. */
 async function sendUsage(agent: DextoAgent, turn: Turn): Promise<void> {
     const stats = await agent.getContextStats(turn.sessionId);
     const metadata = await agent.getSessionMetadata(turn.sessionId);
     await sendUpdate(turn, {
         sessionUpdate: 'usage_update',
         used: stats.actualTokens ?? stats.estimatedTokens,
-        size: stats.maxContextTokens,
+        size: stats.modelContextWindow,
         ...(metadata?.estimatedCost !== undefined
             ? { cost: { amount: metadata.estimatedCost, currency: 'USD' } }
             : {}),

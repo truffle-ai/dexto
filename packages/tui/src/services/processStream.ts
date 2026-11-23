@@ -1200,7 +1200,7 @@ export async function processStream(
                         autoApproveEdits &&
                         autoApproves(event, {
                             kind: 'accept-edits',
-                            workspace: realpathSync(process.cwd()),
+                            workspace: () => realpathSync(process.cwd()),
                         })
                     ) {
                         // Auto-approve immediately - emit response and let tool:running handle status

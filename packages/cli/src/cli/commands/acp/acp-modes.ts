@@ -6,7 +6,9 @@ import type { AutoApprovalMode } from '@dexto/tui/host-rules';
  * The TUI's permission modes (Shift+Tab), as ACP session modes. Asks you asks before
  * approval-gated actions; Plan also adds plan mode's instructions to the next prompt and ends when
  * a plan review is approved; Accept edits approves workspace edits; Full access approves tool and
- * command approvals. A request that must always ask still asks in every mode.
+ * command approvals. A request that must always ask still asks in every mode. With
+ * `permissions.mode: full-access`, core approves before any mode is consulted, so Full access is
+ * the only mode offered.
  */
 const MODES = [
     {
@@ -43,19 +45,30 @@ export function initialMode(permissionsMode: PermissionsMode): SessionMode {
     return { id: permissionsMode };
 }
 
-/** The mode an ACP `modeId` names, or null for an unknown one. */
-export function parseMode(modeId: string): SessionMode | null {
-    const mode = MODES.find(({ id }) => id === modeId);
+/** The modes a session can switch between under the agent's configured permissions mode. */
+function availableModes(permissionsMode: PermissionsMode) {
+    return MODES.filter(({ id }) => permissionsMode !== 'full-access' || id === 'full-access');
+}
+
+/** The mode an ACP `modeId` names, or null for an unknown or unavailable one. */
+export function parseMode(modeId: string, permissionsMode: PermissionsMode): SessionMode | null {
+    const mode = availableModes(permissionsMode).find(({ id }) => id === modeId);
     if (mode === undefined) return null;
     return mode.id === 'plan' ? { id: 'plan', instructed: false } : { id: mode.id };
 }
 
-export function modeState(mode: SessionMode): acp.SessionModeState {
-    return { currentModeId: mode.id, availableModes: [...MODES] };
+export function modeState(
+    mode: SessionMode,
+    permissionsMode: PermissionsMode
+): acp.SessionModeState {
+    return { currentModeId: mode.id, availableModes: availableModes(permissionsMode) };
 }
 
 /** How a mode settles approvals without asking, or null when it always asks. */
-export function autoApprovalMode(mode: SessionMode, workspace: string): AutoApprovalMode | null {
+export function autoApprovalMode(
+    mode: SessionMode,
+    workspace: () => string
+): AutoApprovalMode | null {
     switch (mode.id) {
         case 'full-access':
             return { kind: 'full-access' };

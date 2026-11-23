@@ -8,7 +8,8 @@
 - [x] 2.1 Offer the four modes on new, loaded and resumed sessions, starting from `permissions.mode`; handle `session/set_mode`.
 - [x] 2.2 Approve in Full access and Accept edits through `autoApproves`, with the session's workspace.
 - [x] 2.3 Plan: send plan mode's instructions once, and leave Plan on an approved plan review.
-- [x] 2.4 Integration tests: a disallowed tool still asks in Full access; Full access runs an approval-gated tool without asking; Accept edits uses the session's workspace; Plan injects and exits.
+- [x] 2.4 Offer only Full access when the agent is configured with `permissions.mode: full-access`.
+- [x] 2.5 Integration tests: a disallowed tool still asks in Full access; Full access runs an approval-gated tool without asking; Accept edits uses the session's workspace; Plan injects once per entry and exits; configured Full access offers only Full access.
 
 ## 3. Commands and usage
 

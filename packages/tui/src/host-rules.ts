@@ -9,11 +9,12 @@ import { isAutoApprovableInEditMode } from './utils/toolUtils.js';
 
 /**
  * A permission mode that settles approvals without asking. Accept edits checks the edit against
- * `workspace`, which must be canonical (a real path), like the directory in an approval key.
+ * `workspace()`, which must be canonical (a real path), like the directory in an approval key. It
+ * is read only for an edit that could be approved.
  */
 export type AutoApprovalMode =
     | { kind: 'full-access' }
-    | { kind: 'accept-edits'; workspace: string };
+    | { kind: 'accept-edits'; workspace: () => string };
 
 /**
  * Whether `mode` approves `request` without asking. Full access approves tool and command
@@ -31,7 +32,7 @@ export function autoApproves(request: ApprovalRequest, mode: AutoApprovalMode): 
     return (
         request.type === ApprovalType.TOOL_APPROVAL &&
         isAutoApprovableInEditMode(request.metadata.toolName) &&
-        isEditInWorkspace(request.metadata.approvalKey, mode.workspace)
+        isEditInWorkspace(request.metadata.approvalKey, mode.workspace())
     );
 }
 

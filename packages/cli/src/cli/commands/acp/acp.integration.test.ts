@@ -58,6 +58,7 @@ function scriptedReply(input: {
         delayMs: 0,
     });
     if (text.includes('PLAN RULES')) {
+        if (text.includes('keep planning')) return { chunks: say('still planning'), delayMs: 0 };
         if (toolResult) return { chunks: say('planned'), delayMs: 0 };
         return callTool('plan-call', 'plan_review', {});
     }
@@ -182,6 +183,7 @@ describe('dexto acp over stdio', () => {
     let formTimeoutConfigPath: string;
     let persistentConfigPath: string;
     let permissionTimeoutConfigPath: string;
+    let fullAccessConfigPath: string;
     let effectPath: string;
     const children: ChildProcess[] = [];
 
@@ -317,6 +319,11 @@ tools:
         await writeFile(
             permissionTimeoutConfigPath,
             agentYaml.replace('  mode: asks-you\n', '  mode: asks-you\n  timeout: 300\n')
+        );
+        fullAccessConfigPath = join(directory, 'agent-full-access.yml');
+        await writeFile(
+            fullAccessConfigPath,
+            agentYaml.replace('  mode: asks-you\n', '  mode: full-access\n')
         );
         formTimeoutConfigPath = join(directory, 'agent-form-timeout.yml');
         await writeFile(formTimeoutConfigPath, `${agentYaml}elicitation:\n  timeout: 300\n`);
@@ -1104,6 +1111,28 @@ tools:
         });
     }, 60000);
 
+    it('offers only Full access when the agent is configured for it', async () => {
+        await withAgent(
+            allow,
+            async (cx) => {
+                const created = await cx.request(acp.methods.agent.session.new, {
+                    cwd: directory,
+                    mcpServers: [],
+                });
+                // Core approves before any mode is consulted, so no other mode would hold.
+                expect(created.modes).toEqual({
+                    currentModeId: 'full-access',
+                    availableModes: [expect.objectContaining({ id: 'full-access' })],
+                });
+                await expect(setMode(cx, created.sessionId, 'asks-you')).rejects.toMatchObject({
+                    code: -32602,
+                });
+            },
+            undefined,
+            { config: fullAccessConfigPath }
+        );
+    }, 60000);
+
     it('still asks for a tool that must always ask in Full access', async () => {
         await withAgent(allow, async (cx, recorded) => {
             const sessionId = await newSession(cx);
@@ -1149,6 +1178,15 @@ tools:
         await withAgent(allow, async (cx, recorded) => {
             const sessionId = await newSession(cx);
             await setMode(cx, sessionId, 'plan');
+            await prompt(cx, sessionId, 'keep planning');
+            expect(agentText(recorded.updates)).toContain('still planning');
+            // The next prompt in Plan goes without the instructions.
+            recorded.updates.length = 0;
+            await prompt(cx, sessionId, 'keep planning');
+            expect(agentText(recorded.updates)).toContain('hello there');
+            // Entering Plan again sends them again; an approved plan review leaves Plan.
+            await setMode(cx, sessionId, 'plan');
+            recorded.updates.length = 0;
             await prompt(cx, sessionId, 'make a plan');
             expect(agentText(recorded.updates)).toContain('planned');
             expect(recorded.updates).toContainEqual({
