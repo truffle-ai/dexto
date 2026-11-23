@@ -1185,7 +1185,7 @@ describe('dexto workspace', () => {
         expect(stdout).toBe('');
     });
 
-    it.each(['list', 'get', 'models'])(
+    it.each(['list', 'get', 'models', 'send', 'cancel'])(
         'documents chat %s with examples in --help',
         async (verb) => {
             expect(await runCloud(host, ['chat', verb, '--help', '--json'])).toBe(0);

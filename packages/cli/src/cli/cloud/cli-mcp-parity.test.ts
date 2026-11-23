@@ -82,7 +82,6 @@ dexto_automation_recipes_list
 dexto_automation_trigger
 dexto_automation_update
 dexto_capabilities_search
-dexto_chat_cancel
 dexto_chat_computer
 dexto_chat_continue
 dexto_cos_report
