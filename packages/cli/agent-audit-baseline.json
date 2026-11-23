@@ -42,6 +42,55 @@
     "examples": false
   },
   {
+    "command": "autobots chat",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "autobots get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "autobots input",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "autobots list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "autobots publish",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "autobots save",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "autobots status",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "billing",
     "json": true,
     "dryRun": false,

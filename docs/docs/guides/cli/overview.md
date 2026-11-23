@@ -418,6 +418,22 @@ dexto loops get "$LOOP_ID" --execution "$RUN_ID" --json
 
 These read only and need `automations:read`; a sign-in without it is asked to sign in again. With no flag, list returns your account's Loops; `--agent` names an agent's, `--account` or `--in-project` the account's or a Project's (with `--agent`, only that agent's there), and `--enabled` or `--paused` filters by state. List returns `{automations, nextCursor}` and accepts `--limit` and `--after` with the previous `nextCursor`. Get returns `{automation}`; `--history` (or `--history-limit`) adds its recent runs as `executions`, and `--execution` reads one run in full, continued with `--text-offset` and `--payload-offset`. Creating, changing, running and deleting Loops are not CLI commands. These are your Dexto Loops, not the Cloud project automations under `dexto cloud automations`.
 
+## Work with your AutoBots
+
+List the AutoBots you can use, see what they are doing, and change or message them:
+
+```bash
+dexto autobots list --json
+dexto autobots get "$AUTOBOT_ID" --json
+dexto autobots status --limit 10 --json
+dexto autobots save --name Scout --role "Watches competitors" --yes --json
+dexto autobots publish "$AUTOBOT_ID" --distribution unlisted --yes --json
+dexto autobots input "$APPROVAL_ID" --data '{"city":"Paris"}' --yes --json
+dexto autobots chat "$AUTOBOT_ID" "What changed this week?" --json
+```
+
+Reading needs `autobots:read`; saving, publishing, answering and chatting need `autobots:write`, and `publish --publish-skills` also needs `skills:write`. `status` without an id pages with `--limit` (at most 20) and `--after`, the `next_after` cursor of the previous page; its pending input shows the `approvalId` that `input` answers. `save` without an id creates a private AutoBot from `--name` and `--role`; with an id it changes only what you pass. Starters, model and skills go in `--data` or `--file` as the save JSON. `save`, `publish` and `input` ask first, so pass `--yes` once your person has agreed. When publishing would also publish Skills that are not public yet, `publish` stops and exits 4; run it again with `--publish-skills` to publish them too. An AutoBot that is neither yours nor shared with your organization is not found (exit 5).
+
 ## The Marketplace
 
 Find AutoBot templates, Dexto Apps and Skills in the Dexto Marketplace, install them, and publish your own:

@@ -9,6 +9,8 @@ describe('CLI_LOGIN_SCOPES', () => {
             'apps:write',
             'artifacts:read',
             'artifacts:write',
+            'autobots:read',
+            'autobots:write',
             'chats:sync',
             'cloud:read',
             'cloud:write',
