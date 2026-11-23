@@ -1,7 +1,7 @@
 ## 1. ACP server
 
 - [x] 1.1 Integration tests: a real `dexto acp` process against a scripted local model and an ACP client over stdio.
-- [x] 1.2 Sessions, prompts, streamed text and tool calls, todo plans, permissions, cancel, load replay and the model option.
+- [x] 1.2 Sessions, prompts, streamed text and tool calls, permissions, cancel, load replay and the model option, each covered by an integration test. Todo updates also map to ACP `plan` updates; that mapping has no integration test yet.
 - [x] 1.3 Refuse a second prompt while one runs; share one agent start; one project per process; refuse sessions in another project.
 
 ## 2. Validation and release

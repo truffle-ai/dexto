@@ -6,14 +6,14 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as acp from '@agentclientprotocol/sdk';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 const entrypoint = fileURLToPath(new URL('../../../index.ts', import.meta.url));
 const tsx = createRequire(import.meta.url).resolve('tsx');
 const imageLocalUrl = new URL('../../../../../image-local/dist/index.js', import.meta.url).href;
-const zodUrl = new URL(`file://${createRequire(import.meta.url).resolve('zod')}`).href;
+const zodUrl = pathToFileURL(createRequire(import.meta.url).resolve('zod')).href;
 
 type Chunk = { delta: Record<string, unknown>; finish_reason: string | null };
 
@@ -191,7 +191,9 @@ tools:
 
     /** Starts `dexto acp` and runs `op` as an ACP client that answers permissions with `answer`. */
     async function withAgent<T>(
-        answer: (request: acp.RequestPermissionRequest) => acp.RequestPermissionResponse,
+        answer: (
+            request: acp.RequestPermissionRequest
+        ) => acp.RequestPermissionResponse | Promise<acp.RequestPermissionResponse>,
         op: (cx: acp.ClientContext, recorded: Recorded) => Promise<T>
     ): Promise<T> {
         const child = spawn(
@@ -260,6 +262,16 @@ tools:
             sessionId,
             prompt: [{ type: 'text', text }],
         });
+    }
+
+    /** The text a tool result reports, as the client receives it. */
+    function toolText(update: acp.SessionUpdate | undefined): string {
+        if (update?.sessionUpdate !== 'tool_call_update') return '';
+        return (update.content ?? [])
+            .map((item) =>
+                item.type === 'content' && item.content.type === 'text' ? item.content.text : ''
+            )
+            .join('');
     }
 
     function agentText(updates: acp.SessionUpdate[]): string {
@@ -335,6 +347,28 @@ tools:
         });
     }, 60000);
 
+    it('ends a turn cancelled while its permission request goes unanswered', async () => {
+        const never = () => new Promise<acp.RequestPermissionResponse>(() => {});
+        await withAgent(never, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            const turn = prompt(cx, sessionId, 'change state');
+            await expect.poll(() => recorded.permissions.length, { timeout: 20000 }).toBe(1);
+            await cx.notify(acp.methods.agent.session.cancel, { sessionId });
+            await expect(turn).resolves.toEqual({ stopReason: 'cancelled' });
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call_update',
+                    toolCallId: 'ordinary-call',
+                    status: 'failed',
+                })
+            );
+            await expect(access(effectPath)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(prompt(cx, sessionId, 'say hello')).resolves.toEqual({
+                stopReason: 'end_turn',
+            });
+        });
+    }, 60000);
+
     it('stops a turn cancelled before its run starts and frees the session', async () => {
         await withAgent(allow, async (cx) => {
             const sessionId = await newSession(cx);
@@ -385,7 +419,7 @@ tools:
                 (update) =>
                     update.sessionUpdate === 'tool_call_update' && update.status === 'completed'
             );
-            expect(JSON.stringify(result)).toContain(`effect written in ${directory}"`);
+            expect(toolText(result)).toBe(`effect written in ${directory}`);
         });
     }, 60000);
 
