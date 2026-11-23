@@ -21,6 +21,13 @@
     "examples": false
   },
   {
+    "command": "acp",
+    "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "applications get",
     "json": true,
     "dryRun": false,
