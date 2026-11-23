@@ -103,6 +103,19 @@ export function integerOption(input: CommandInput, name: string): number | undef
     return parsed;
 }
 
+/** A whole-number option between `min` and `max`, checked before anything is sent. */
+export function boundedOption(
+    input: CommandInput,
+    name: string,
+    min: number,
+    max: number
+): number | undefined {
+    const value = integerOption(input, name);
+    if (value !== undefined && (value < min || value > max))
+        throw new UsageError(`--${name} must be between ${min} and ${max}.`);
+    return value;
+}
+
 /** A string option that must be one of `values`, checked before anything is sent. */
 export function choiceOption<const T extends string>(
     input: CommandInput,
