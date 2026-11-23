@@ -9,7 +9,7 @@ Under `dexto acp`, the `ask_user` tool always fails: the CLI's non-interactive b
     - an accepted form returns its values to the tool;
     - a declined form denies the request;
     - a cancelled form, or a cancelled turn, cancels it. A cancelled turn withdraws the open form.
-- Fallback: when the client shows no forms, or the form has a field ACP forms cannot show, the request is answered with a message telling the model to ask the person in its reply instead.
+- Fallback: when the client shows no forms, or the form has a field ACP forms cannot show, `ask_user` gets a message telling the model to ask the person in its reply instead, and an MCP server's elicitation is declined.
 
 Part 3 of DEXTO-2849; it builds on `cli-acp-server`.
 

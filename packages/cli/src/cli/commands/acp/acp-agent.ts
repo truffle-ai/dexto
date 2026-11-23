@@ -355,14 +355,17 @@ async function askClient(
     turns: Map<string, Turn>,
     forms: boolean
 ): Promise<ApprovalResponse> {
-    const base = {
-        approvalId: request.approvalId,
-        ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
-    };
-    const turn = request.sessionId === undefined ? undefined : turns.get(request.sessionId);
-    if (turn === undefined || request.sessionId === undefined) {
-        return { ...base, status: ApprovalStatus.DENIED, reason: DenialReason.SYSTEM_DENIED };
+    const { approvalId, sessionId } = request;
+    const turn = sessionId === undefined ? undefined : turns.get(sessionId);
+    if (sessionId === undefined || turn === undefined) {
+        return {
+            approvalId,
+            ...(sessionId !== undefined ? { sessionId } : {}),
+            status: ApprovalStatus.DENIED,
+            reason: DenialReason.SYSTEM_DENIED,
+        };
     }
+    const base: ApprovalBase = { approvalId, sessionId };
     if (request.type === ApprovalType.ELICITATION) {
         return await askForm(request.metadata, turn, forms, base);
     }
@@ -382,7 +385,7 @@ async function askClient(
         };
     }
     const response = await turn.cx.request(acp.methods.client.session.requestPermission, {
-        sessionId: request.sessionId,
+        sessionId,
         toolCall,
         options: [
             { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
@@ -403,7 +406,7 @@ async function askClient(
     }
 }
 
-type ApprovalBase = { readonly approvalId: string; readonly sessionId?: string };
+type ApprovalBase = { readonly approvalId: string; readonly sessionId: string };
 
 /**
  * A Dexto form (ask_user, or an MCP server's elicitation) → ACP `elicitation/create`. A client
@@ -426,6 +429,10 @@ async function askForm(
             reason: DenialReason.ELICITATION_DISABLED,
             message: `${why} Ask the person in your reply instead.`,
         };
+    }
+    // A turn cancelled before its form is sent never shows it.
+    if (turn.abort.signal.aborted) {
+        return { ...base, status: ApprovalStatus.CANCELLED, reason: DenialReason.USER_CANCELLED };
     }
     let response: acp.CreateElicitationResponse;
     try {

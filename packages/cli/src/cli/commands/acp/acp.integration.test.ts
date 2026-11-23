@@ -132,7 +132,8 @@ type Recorded = {
 
 /** How the test client answers forms; without one it does not advertise form support. */
 type FormAnswer = (
-    request: acp.CreateElicitationRequest
+    request: acp.CreateElicitationRequest,
+    signal: AbortSignal
 ) => acp.CreateElicitationResponse | Promise<acp.CreateElicitationResponse>;
 
 describe('dexto acp over stdio', () => {
@@ -294,10 +295,10 @@ tools:
                 recorded.order.push('permission');
                 return answer(params);
             })
-            .onRequest('elicitation/create', ({ params }) => {
+            .onRequest('elicitation/create', ({ params, signal }) => {
                 recorded.forms.push(params);
                 if (!form) throw new Error('This client advertised no form support');
-                return form(params);
+                return form(params, signal);
             })
             .connectWith(stream, async (cx) => {
                 const init = await cx.request(acp.methods.agent.initialize, {
@@ -532,7 +533,8 @@ tools:
         });
     }, 60000);
 
-    it('ends a turn cancelled while a form is open', async () => {
+    it('withdraws the open form when its turn is cancelled', async () => {
+        let withdrawn = false;
         await withAgent(
             allow,
             async (cx, recorded) => {
@@ -541,11 +543,19 @@ tools:
                 await expect.poll(() => recorded.forms.length, { timeout: 20000 }).toBe(1);
                 await cx.notify(acp.methods.agent.session.cancel, { sessionId });
                 await expect(turn).resolves.toEqual({ stopReason: 'cancelled' });
+                await expect.poll(() => withdrawn).toBe(true);
                 await expect(prompt(cx, sessionId, 'say hello')).resolves.toEqual({
                     stopReason: 'end_turn',
                 });
             },
-            () => new Promise<acp.CreateElicitationResponse>(() => {})
+            // The form stays open until the agent withdraws it with $/cancel_request.
+            (_request, signal) =>
+                new Promise<acp.CreateElicitationResponse>((resolve) => {
+                    signal.addEventListener('abort', () => {
+                        withdrawn = true;
+                        resolve({ action: 'cancel' });
+                    });
+                })
         );
     }, 60000);
 

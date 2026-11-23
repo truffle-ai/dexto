@@ -2,7 +2,7 @@
 
 ### Requirement: Questions as forms
 
-When the agent asks the person for structured input (`ask_user`, or an MCP server's elicitation), `dexto acp` SHALL ask it as an ACP `elicitation/create` form if the client supports forms, and otherwise SHALL tell the model to ask in its reply.
+When the agent asks the person for structured input (`ask_user`, or an MCP server's elicitation), `dexto acp` SHALL ask it as an ACP `elicitation/create` form if the client supports forms and the form uses only fields ACP forms can show. Otherwise an `ask_user` call SHALL tell the model to ask in its reply, and an MCP server's elicitation SHALL be declined.
 
 #### Scenario: Answered
 
@@ -19,6 +19,16 @@ When the agent asks the person for structured input (`ask_user`, or an MCP serve
 
 - **WHEN** the client does not advertise form support
 - **THEN** no form is sent, and the tool result tells the model to ask the person in its reply
+
+#### Scenario: A field ACP cannot show
+
+- **WHEN** the client advertises form support and `ask_user` asks for a field ACP forms cannot show, such as a nested object
+- **THEN** no form is sent, and the tool result tells the model to ask the person in its reply
+
+#### Scenario: Multi-select
+
+- **WHEN** `ask_user` asks for a multi-select written as `type: "array"` with `items: { enum: [...] }`
+- **THEN** the form's field carries `items: { type: "string", enum: [...] }`, the shape ACP accepts
 
 #### Scenario: Cancelled while open
 
