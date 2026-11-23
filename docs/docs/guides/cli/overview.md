@@ -167,6 +167,24 @@ dexto chat get "$CHAT_ID"
 dexto chat get "$CHAT_ID" --limit 50 --json
 ```
 
+#### `chat send`
+
+Message a cloud chat. While it works, the message steers its current turn; `--follow-up` queues it for after that turn instead. An idle chat starts its next turn with it. `--wait` follows the turn your message joins and prints only what comes after it. It asks before sending; pass `--yes` when nobody can answer.
+
+```bash
+dexto chat send "$CHAT_ID" "Also update the docs" --yes
+dexto chat send "$CHAT_ID" "Now run the tests" --wait --json --yes
+dexto chat send "$CHAT_ID" "Then open a PR" --follow-up --yes
+```
+
+#### `chat cancel`
+
+Stop a cloud chat's current run. The chat stays, and you can message it again. A chat with nothing running reports `cancelled: false`.
+
+```bash
+dexto chat cancel "$CHAT_ID" --yes
+```
+
 #### `chat models`
 
 List the models your chats can start on or switch to, and how each can be paid for.
@@ -378,6 +396,17 @@ dexto artifacts open "$ARTIFACT_ID" --json
 ```
 
 Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes, title and kind again returns the original Artifact; use a different title to publish a separate copy.
+
+## Read the Dexto docs
+
+Search Dexto's public documentation, then read a page by the path a result gives:
+
+```bash
+dexto docs search "mcp catalog" --limit 3 --json
+dexto docs read cli/output
+```
+
+`search` takes `--limit` (1 to 20, default 5) and returns `{results}`, each with `title`, `path`, `url`, `description` and a `snippet`. `read` prints the page as Markdown, or with `--json` its `{title, path, url, description, markdown}`; with no path it reads the docs home. A path with no page exits with a `not_found` failure. Both need a signed-in user, as other workspace commands do.
 
 ## Your managed Applications
 

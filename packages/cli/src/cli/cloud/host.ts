@@ -27,6 +27,7 @@ import { computerKeyCommands } from './commands/computer-keys.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
+import { docsCommands } from './commands/docs.js';
 import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
 import { loopCommands } from './commands/loops.js';
@@ -104,6 +105,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...marketplaceCommands,
         ...siteRecordCommands,
         ...findCommands,
+        ...docsCommands,
         ...loopCommands,
         ...profileCommands,
         ...publishCommands,

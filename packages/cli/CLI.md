@@ -96,8 +96,10 @@ Use `@` to reference files and resources:
 - **Read one**: `dexto chat get "$CHAT_ID" [--limit N] [--after CURSOR]`, its status and latest messages; `--after` reads older ones
 - **Models**: `dexto chat models`, the models a chat can start on or switch to, and how each is paid for
 - **Start and follow**: `dexto chat start "message" --wait`, `dexto chat follow "$CHAT_ID"`
+- **Continue one**: `dexto chat send "$CHAT_ID" "message" [--follow-up] [--model ID] [--wait] --yes` steers its current turn, or with `--follow-up` queues the message for after it; an idle chat starts its next turn. `--wait` prints only what follows your message
+- **Stop its run**: `dexto chat cancel "$CHAT_ID" --yes`; the chat stays, and an idle one returns `cancelled: false`
 
-Each takes `--json`. They read your chats with the `sessions:read` permission of `dexto login`.
+Each takes `--json`. They read your chats with the `sessions:read` permission of `dexto login`; `send` and `cancel` also need `sessions:write`.
 
 ### Model Switching
 ```bash
