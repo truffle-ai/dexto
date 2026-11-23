@@ -125,10 +125,6 @@ dexto_gpu_sandbox_start
 dexto_gpu_sandbox_stop
 dexto_gpu_sandboxes_list
 dexto_mcp_server_import
-dexto_network_send
-dexto_network_thread_get
-dexto_network_thread_mark_read
-dexto_network_threads_list
 dexto_open
 dexto_share
 dexto_share_access

@@ -1120,6 +1120,34 @@
     "examples": false
   },
   {
+    "command": "workspace network list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace network mark-read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace network read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace network send",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "workspace tools",
     "json": true,
     "dryRun": false,

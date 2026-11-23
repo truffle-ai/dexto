@@ -35,6 +35,8 @@ export const CLI_LOGIN_SCOPES = [
     'marketplace:write',
     'messages:read',
     'messages:write',
+    'network:read',
+    'network:write',
     'notifications:read',
     'notifications:write',
     'projects:read',

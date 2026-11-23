@@ -434,6 +434,10 @@ dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
 dexto workspace contacts search ada --json
 dexto workspace contacts connect ada --user <id> --organization <id> --yes
+dexto workspace network list --json
+dexto workspace network read <thread_id> --before <cursor>
+dexto workspace network mark-read <thread_id> --through <sequence>
+dexto workspace network send <contact_id> "See you at 3." --idempotency-key reply-1 --yes
 dexto workspace email send --to a@b.c --yes
 dexto workspace tools --search calendar    # every tool, by MCP name
 dexto workspace call dexto_search --data '{"query":"invoices"}'
@@ -445,6 +449,8 @@ An operation that acts, approves or spends asks first; pass `--yes` only once yo
 `dexto workspace artifacts` saves HTML files as Artifacts in your library (`list`, `get`, `create`, `replace`, `share`). HTML comes from a file or `-` for stdin, never an argument; `get --out` writes it back to a file. `create --idempotency-key` makes a retry return the first Artifact instead of a copy, `replace` keeps the title, kind, summary, surface and renderer you don't change, and every write takes `--dry-run`.
 
 `dexto workspace contacts` manages your Dexto Contacts in the organization you are signed in to: `list` (`--query`, `--blocked`), `search`, `requests` and `invite-link` read them; `connect`, `accept`, `decline`, `remove`, `block` and `unblock` change them and ask first. Reading needs `contacts:read`; `search` and every change need `contacts:write`, because finding people reaches beyond your saved Contacts. `search` gives the `--user` and `--organization` that `connect` takes, and `list` and `requests` give the contact id the other changes take.
+
+`dexto workspace network` reads and answers your Network conversations (`list`, `read`, `mark-read`, `send`). `read` takes a thread id or `--contact <contact_id>`, pages back with the page's `previousCursor` as `--before`, and reads the rest of a long message with `--message <sequence> --offset <nextTextOffset>`; reading never marks anything read. `mark-read --through <sequence>` marks a conversation read up to the newest message you were told. `send` sends the exact text (or `-` for stdin) to an accepted connection's contact id once your person has agreed, and `--idempotency-key` makes a retry return the first send instead of sending twice. Reading needs `network:read`; marking read and sending need `network:write`.
 
 ## Next Steps
 
