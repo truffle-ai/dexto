@@ -264,4 +264,118 @@ describe('projects over the Dexto MCP', () => {
             { sessionId: link, message: 'After that', queue: 'follow-up' },
         ]);
     });
+
+    const recipe = {
+        id: 'dreams',
+        name: 'Dreams',
+        description: "Reflect on the Project's recent work.",
+        schedule: { cadence: 'daily', time: '03:00', timezone: 'UTC', type: 'recurring' },
+    };
+
+    it('lists Loop recipes with the automations:read permission', async () => {
+        expect(await cli('projects', 'recipes')).toBe(3);
+        expect(stderr).toContain('--scope automations:read');
+        expect(calls).toEqual([]);
+        await signIn(['automations:read']);
+        replies = [{ recipes: [recipe] }];
+        expect(await cli('projects', 'recipes'), stderr).toBe(0);
+        expect(calls).toEqual([{ name: 'dexto_automation_recipes_list', arguments: {} }]);
+        expect(output()).toEqual({ data: [recipe] });
+    });
+
+    it('shows each recipe with its schedule as text', async () => {
+        await signIn(['automations:read']);
+        replies = [{ recipes: [recipe] }];
+        expect(await runCloud(host, ['projects', 'recipes', '--table']), stderr).toBe(0);
+        expect(stdout).toContain('dreams');
+        expect(stdout).toContain('daily 03:00');
+    });
+
+    const automation = {
+        id: 'loop-1',
+        name: 'Dreams',
+        enabled: true,
+        nextRunAt: '2026-11-24T03:00:00.000Z',
+        recipeId: 'dreams',
+        chatProjectId: PROJECT_ID,
+    };
+
+    it('installs a recipe in a Project only with consent and automations:write', async () => {
+        await signIn(['automations:write']);
+        expect(await cli('projects', 'install-recipe', PROJECT_ID, 'dreams')).toBe(4);
+        expect(stderr).toContain('--yes');
+        await signIn(['automations:read']);
+        expect(await cli('projects', 'install-recipe', PROJECT_ID, 'dreams', '--yes')).toBe(3);
+        expect(stderr).toContain('--scope automations:write');
+        expect(await cli('projects', 'install-recipe', PROJECT_ID, '--yes')).toBe(2);
+        expect(calls).toEqual([]);
+        await signIn(['automations:write']);
+        replies = [{ automation }];
+        expect(
+            await cli(
+                'projects',
+                'install-recipe',
+                PROJECT_ID,
+                'dreams',
+                '--timezone',
+                'Asia/Kolkata',
+                '--yes'
+            ),
+            stderr
+        ).toBe(0);
+        expect(calls).toEqual([
+            {
+                name: 'dexto_automation_recipe_install',
+                arguments: {
+                    recipeId: 'dreams',
+                    scope: { type: 'project', chatProjectId: PROJECT_ID },
+                    timezone: 'Asia/Kolkata',
+                },
+            },
+        ]);
+        expect(output()).toEqual({ automation });
+    });
+
+    it("defaults to this computer's time zone and reports a Loop the server left paused", async () => {
+        await signIn(['automations:write']);
+        const paused = { ...automation, enabled: false, nextRunAt: null };
+        replies = [{ automation: paused }];
+        expect(
+            await runCloud(host, [
+                'projects',
+                'install-recipe',
+                PROJECT_ID,
+                'dreams',
+                '--yes',
+                '--table',
+            ]),
+            stderr
+        ).toBe(0);
+        expect(calls[0]?.arguments).toMatchObject({
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        expect(stdout).toContain('paused');
+    });
+
+    it("passes the server's refusal of an unknown recipe through as invalid input", async () => {
+        await signIn(['automations:write']);
+        host.runtime.fetch = async (input, init) => {
+            const request = new globalThis.Request(input, init);
+            if (request.url !== MCP) return Response.json({ resource: MCP, dexto_app_scopes: {} });
+            const message = await request.json();
+            calls.push(message.params);
+            return Response.json({
+                jsonrpc: '2.0',
+                id: message.id,
+                error: {
+                    code: -32602,
+                    message: 'Unknown Project Loop recipe.',
+                    data: { kind: 'invalid_arguments' },
+                },
+            });
+        };
+        expect(await cli('projects', 'install-recipe', PROJECT_ID, 'nope', '--yes')).toBe(2);
+        expect(stderr + stdout).toContain('Unknown Project Loop recipe.');
+        expect(calls).toHaveLength(1);
+    });
 });

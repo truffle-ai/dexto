@@ -18,6 +18,8 @@ export const CLI_LOGIN_SCOPES = [
     'apps:read',
     'artifacts:read',
     'artifacts:write',
+    'automations:read',
+    'automations:write',
     'chats:sync',
     'cloud:read',
     'cloud:write',

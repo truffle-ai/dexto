@@ -742,6 +742,13 @@
     "examples": false
   },
   {
+    "command": "projects install-recipe",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "projects list",
     "json": true,
     "dryRun": false,
@@ -753,6 +760,13 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects recipes",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
     "examples": false
   },
   {
