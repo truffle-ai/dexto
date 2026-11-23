@@ -2,7 +2,7 @@
 
 ### Requirement: Terminal sign-in
 
-`initialize` SHALL offer a terminal auth method that signs the person in to Dexto when the client can run one, and `dexto acp login` SHALL behave exactly like `dexto login`.
+`initialize` SHALL offer a terminal auth method that signs the person in to Dexto when the client can run one, and `dexto acp login <args>` SHALL run the same command, with the same arguments, as `dexto login <args>`.
 
 #### Scenario: Client can run a terminal sign-in
 

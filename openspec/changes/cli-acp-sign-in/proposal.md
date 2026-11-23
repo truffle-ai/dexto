@@ -5,7 +5,7 @@ The ACP Registry lists only agents that offer a sign-in method a client can run,
 ## What Changes
 
 - `initialize` offers a terminal sign-in method, **Sign in to Dexto** (`dexto-login`), to clients that can run one: those that declare `auth.terminal`, or the older `_meta["terminal-auth"]` marker that the registry's checks send. It runs `login --scope cloud:write`.
-- New `dexto acp login` behaves exactly like `dexto login`, so the method works whether the client adds its args after `acp` or in place of it.
+- New `dexto acp login` runs the same command as `dexto login`, with the same arguments, so the method works whether the client adds its args after `acp` or in place of it.
 
 ## Capabilities
 

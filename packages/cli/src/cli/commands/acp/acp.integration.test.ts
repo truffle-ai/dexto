@@ -1440,7 +1440,7 @@ setup:
         return `http://127.0.0.1:${address.port}`;
     }
 
-    const DEXTO_SIGN_IN = {
+    const DEXTO_LOGIN_METHOD = {
         id: 'dexto-login',
         type: 'terminal',
         args: ['login', '--scope', 'cloud:write'],
@@ -1458,7 +1458,7 @@ setup:
                 undefined,
                 { capabilities }
             );
-            expect(authMethods).toEqual([expect.objectContaining(DEXTO_SIGN_IN)]);
+            expect(authMethods).toEqual([expect.objectContaining(DEXTO_LOGIN_METHOD)]);
         }
         // A client that can't run a terminal is offered none.
         await expect(
@@ -1487,6 +1487,7 @@ setup:
         for (const args of [
             ['--no-such-option', '--json'],
             ['--json', '--no-such-option'],
+            ['--scope', 'cloud:write', '--no-such-option', '--json'],
         ]) {
             const viaAcp = await run(['acp', 'login', ...args]);
             const direct = await run(['login', ...args]);

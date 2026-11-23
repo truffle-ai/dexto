@@ -1,5 +1,5 @@
 import { inspect } from 'node:util';
-import { safeExit, withAnalytics } from '../../../analytics/wrapper.js';
+import { runEngineCommand } from '../cloud/register.js';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
 
 export function registerAcpCommand({
@@ -46,18 +46,7 @@ Stdout carries only ACP messages; logs go to stderr.
         .allowExcessArguments()
         .option('--json', 'Print the result as JSON')
         .argument('[args...]')
-        .action(async (args: string[], options: { json?: boolean }) => {
-            await withAnalytics('acp login', async () => {
-                const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
-                    import('../../cloud/run.js'),
-                    import('../../cloud/host.js'),
-                ]);
-                const code = await runCloud(nodeCloudHost(new AbortController().signal), [
-                    'login',
-                    ...(options.json ? ['--json'] : []),
-                    ...args,
-                ]);
-                safeExit('acp login', code);
-            })();
-        });
+        .action((args: string[], options: { json?: boolean }) =>
+            runEngineCommand('acp login', ['login', ...(options.json ? ['--json'] : []), ...args])
+        );
 }
