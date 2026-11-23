@@ -15,6 +15,7 @@ import type { CommandDefinition, CommandContext, CommandHandlerResult } from './
 import { formatForInkCli } from './utils/format-output.js';
 import { createSendMessageMarker, type StyledOutput } from '../services/index.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
+import { promptMessage, splitPromptArguments } from '../host-rules.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
 /**
@@ -192,12 +193,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 const result = await agent.resolvePrompt(internalName, resolveOptions);
 
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
-                let finalText = result.text;
-                if (result.resources.length > 0) {
-                    // Append resource references as @<uri> format
-                    const resourceRefs = result.resources.map((uri) => `@<${uri}>`).join(' ');
-                    finalText = finalText ? `${finalText}\n\n${resourceRefs}` : resourceRefs;
-                }
+                const finalText = promptMessage(result);
 
                 if (finalText.trim()) {
                     return createSendMessageMarker(finalText.trim());
@@ -240,28 +236,4 @@ export async function getDynamicPromptCommands(
         );
         return [];
     }
-}
-
-function splitPromptArguments(args: string[]): {
-    argMap: Record<string, string>;
-    context?: string | undefined;
-} {
-    const map: Record<string, string> = {};
-    const contextParts: string[] = [];
-
-    for (const arg of args) {
-        const equalsIndex = arg.indexOf('=');
-        if (equalsIndex > 0) {
-            const key = arg.slice(0, equalsIndex).trim();
-            const value = arg.slice(equalsIndex + 1);
-            if (key.length > 0) {
-                map[key] = value;
-            }
-        } else if (arg.trim().length > 0) {
-            contextParts.push(arg);
-        }
-    }
-
-    const context = contextParts.length > 0 ? contextParts.join(' ') : undefined;
-    return { argMap: map, context };
 }

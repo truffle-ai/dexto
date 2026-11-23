@@ -57,6 +57,15 @@ function scriptedReply(input: {
         ],
         delayMs: 0,
     });
+    if (text.includes('PLAN RULES')) {
+        if (toolResult) return { chunks: say('planned'), delayMs: 0 };
+        return callTool('plan-call', 'plan_review', {});
+    }
+    if (text.includes('GREETING TEMPLATE')) return { chunks: say('greeted'), delayMs: 0 };
+    if (text.includes('always ask')) {
+        if (toolResult) return { chunks: say('asked'), delayMs: 0 };
+        return callTool('always-call', 'always_ask_operation');
+    }
     if (text.includes('change state')) {
         if (toolResult) return { chunks: say('state handled'), delayMs: 0 };
         return callTool('ordinary-call', 'ordinary_operation');
@@ -119,6 +128,17 @@ async function streamReply(response: ServerResponse, chunks: Chunk[], delayMs: n
         );
         if (delayMs > 0) await new Promise((done) => setTimeout(done, delayMs));
     }
+    // Providers report the turn's token usage in a last chunk.
+    response.write(
+        `data: ${JSON.stringify({
+            id: 'acp',
+            object: 'chat.completion.chunk',
+            created: 1,
+            model: 'acp-model',
+            choices: [],
+            usage: { prompt_tokens: 120, completion_tokens: 2, total_tokens: 122 },
+        })}\n\n`
+    );
     response.end('data: [DONE]\n\n');
 }
 
@@ -235,6 +255,17 @@ export default {
                     result: { type: 'display', resolve: () => noteDiff },
                 },
                 execute: async () => 'note edited',
+            }, {
+                id: 'always_ask_operation',
+                description: 'Asks the person every time, in every mode',
+                inputSchema: z.object({ path: z.string().optional() }).strict(),
+                needsApproval: { kind: 'always-ask' },
+                execute: async () => 'asked and ran',
+            }, {
+                id: 'plan_review',
+                description: 'Stands in for plan review: the plan is approved',
+                inputSchema: z.object({}).strict(),
+                execute: async () => ({ approved: true }),
             }],
         },
     },
@@ -256,6 +287,15 @@ storage:
     type: in-memory
   database:
     type: in-memory
+prompts:
+  - type: inline
+    id: dexto-plan-mode
+    user-invocable: false
+    prompt: PLAN RULES
+  - type: inline
+    id: greet
+    description: Greets someone
+    prompt: GREETING TEMPLATE
 tools:
   - type: ordinary-tools
   - type: filesystem-tools
@@ -833,7 +873,7 @@ tools:
                 cwd: directory,
                 mcpServers: [],
             });
-            expect(recorded.updates).toEqual([
+            expect(recorded.updates.filter(isMessageChunk)).toEqual([
                 {
                     sessionUpdate: 'user_message_chunk',
                     content: { type: 'text', text: 'say hello' },
@@ -845,6 +885,13 @@ tools:
             ]);
         });
     }, 60000);
+
+    function isMessageChunk(update: acp.SessionUpdate) {
+        return (
+            update.sessionUpdate === 'user_message_chunk' ||
+            update.sessionUpdate === 'agent_message_chunk'
+        );
+    }
 
     async function titled(recorded: Recorded) {
         await expect
@@ -924,7 +971,7 @@ tools:
                 });
                 expect(resumed.configOptions).toBeDefined();
                 // Resume restores the session without replaying it.
-                expect(recorded.updates).toEqual([]);
+                expect(recorded.updates.filter(isMessageChunk)).toEqual([]);
                 await expect(prompt(cx, titledId, 'say hello')).resolves.toEqual({
                     stopReason: 'end_turn',
                 });
@@ -1031,4 +1078,121 @@ tools:
             persistent
         );
     }, 120000);
+
+    function setMode(cx: acp.ClientContext, sessionId: string, modeId: string) {
+        return cx.request(acp.methods.agent.session.setMode, { sessionId, modeId });
+    }
+
+    it('offers the four permission modes, starting in Asks you', async () => {
+        await withAgent(allow, async (cx) => {
+            const created = await cx.request(acp.methods.agent.session.new, {
+                cwd: directory,
+                mcpServers: [],
+            });
+            expect(created.modes).toEqual({
+                currentModeId: 'asks-you',
+                availableModes: [
+                    expect.objectContaining({ id: 'asks-you', name: 'Asks you' }),
+                    expect.objectContaining({ id: 'plan', name: 'Plan' }),
+                    expect.objectContaining({ id: 'accept-edits', name: 'Accept edits' }),
+                    expect.objectContaining({ id: 'full-access', name: 'Full access' }),
+                ],
+            });
+            await expect(setMode(cx, created.sessionId, 'yolo')).rejects.toMatchObject({
+                code: -32602,
+            });
+        });
+    }, 60000);
+
+    it('still asks for a tool that must always ask in Full access', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await setMode(cx, sessionId, 'full-access');
+            await prompt(cx, sessionId, 'always ask');
+            expect(recorded.permissions).toHaveLength(1);
+            expect(recorded.permissions[0]?.toolCall.toolCallId).toBe('always-call');
+        });
+    }, 60000);
+
+    it('runs approval-gated tools without asking in Full access', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await setMode(cx, sessionId, 'full-access');
+            await prompt(cx, sessionId, 'change state');
+            expect(recorded.permissions).toEqual([]);
+            await expect(access(effectPath)).resolves.toBeUndefined();
+        });
+    }, 60000);
+
+    it("accepts edits inside the session's workspace, not the process directory", async () => {
+        // The process directory is /repo2/pkg (the session's cwd); the workspace is /repo2.
+        const project = join(directory, 'repo2');
+        const sessionDirectory = join(project, 'pkg');
+        await mkdir(join(project, '.dexto'), { recursive: true });
+        await writeFile(join(project, '.dexto', 'deploy.json'), '{}');
+        await mkdir(sessionDirectory);
+        const note = join(project, 'note.txt');
+        await writeFile(note, 'old line\n');
+        await withAgent(reject, async (cx, recorded) => {
+            const sessionId = await newSession(cx, sessionDirectory);
+            await setMode(cx, sessionId, 'accept-edits');
+            await prompt(cx, sessionId, 'real edit');
+            expect(recorded.permissions).toEqual([]);
+            await expect(readFile(note, 'utf8')).resolves.toBe('new line\n');
+            // Other approval-gated tools still ask.
+            await prompt(cx, sessionId, 'change state');
+            expect(recorded.permissions).toHaveLength(1);
+        });
+    }, 60000);
+
+    it('adds the plan-mode instructions once and leaves Plan when the plan is approved', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await setMode(cx, sessionId, 'plan');
+            await prompt(cx, sessionId, 'make a plan');
+            expect(agentText(recorded.updates)).toContain('planned');
+            expect(recorded.updates).toContainEqual({
+                sessionUpdate: 'current_mode_update',
+                currentModeId: 'asks-you',
+            });
+        });
+    }, 60000);
+
+    it('lists prompts as slash commands and runs one', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await expect
+                .poll(() => recorded.updates, { timeout: 20000 })
+                .toContainEqual(
+                    expect.objectContaining({ sessionUpdate: 'available_commands_update' })
+                );
+            const commands = recorded.updates.find(
+                (u) => u.sessionUpdate === 'available_commands_update'
+            );
+            expect(commands).toMatchObject({
+                availableCommands: expect.arrayContaining([
+                    expect.objectContaining({ name: 'greet', description: 'Greets someone' }),
+                ]),
+            });
+            // Prompts that are not user-invocable are not commands.
+            expect(JSON.stringify(commands)).not.toContain('dexto-plan-mode');
+            await prompt(cx, sessionId, '/greet the team');
+            expect(agentText(recorded.updates)).toContain('greeted');
+        });
+    }, 60000);
+
+    it("reports the session's context usage after each turn", async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await prompt(cx, sessionId, 'say hello');
+            const usage = recorded.updates.find((u) => u.sessionUpdate === 'usage_update');
+            expect(usage).toMatchObject({
+                used: expect.any(Number),
+                size: expect.any(Number),
+            });
+            if (usage?.sessionUpdate !== 'usage_update') throw new Error('Expected usage');
+            expect(usage.used).toBeGreaterThan(0);
+            expect(usage.size).toBeGreaterThan(usage.used);
+        });
+    }, 60000);
 });

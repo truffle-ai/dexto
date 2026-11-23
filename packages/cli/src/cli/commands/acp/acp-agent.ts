@@ -1,4 +1,5 @@
-/* global ReadableStream */
+/* global ReadableStream, setImmediate */
+import { realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import * as acp from '@agentclientprotocol/sdk';
@@ -11,6 +12,7 @@ import {
     type ApprovalRequest,
     type ApprovalResponse,
     type ElicitationMetadata,
+    type PromptInfo,
     type DextoAgent,
     type StreamingEvent,
     type ToolPresentationSnapshotV1,
@@ -23,7 +25,22 @@ import {
     recordRecentModel,
     type ModelPickerModel,
 } from '@dexto/agent-management';
+import {
+    autoApproves,
+    planApproved,
+    PLAN_MODE_PROMPT,
+    promptInvocation,
+    promptMessage,
+    withPlanMode,
+} from '@dexto/tui/host-rules';
 import { formSchema } from './acp-elicitation.js';
+import {
+    autoApprovalMode,
+    initialMode,
+    modeState,
+    parseMode,
+    type SessionMode,
+} from './acp-modes.js';
 import { displayContent, toolKind } from './acp-tool-content.js';
 
 /**
@@ -43,8 +60,14 @@ const TodoUpdateSchema = z.object({
     todos: z.array(z.object({ content: z.string(), status: z.string() })),
 });
 
-/** The running agent and the Dexto project root it was set up for. */
-type Runtime = { readonly agent: DextoAgent; readonly root: string };
+/**
+ * The running agent and the Dexto project root it was set up for; `workspace` is that root's
+ * real path, which approval keys use.
+ */
+type Runtime = { readonly agent: DextoAgent; readonly root: string; readonly workspace: string };
+
+/** A session open on this connection, and its permission mode. */
+type OpenSession = { mode: SessionMode };
 
 /** One running session/prompt: where its updates go and which tool calls are still open. */
 type Turn = {
@@ -55,6 +78,7 @@ type Turn = {
     readonly openToolCalls: Set<string>;
     /** Aborted by session/cancel; stops the Dexto run even before it has started. */
     readonly abort: AbortController;
+    readonly session: OpenSession;
 };
 
 export async function serveAcp(
@@ -92,15 +116,31 @@ export async function serveAcp(
         return result;
     }
     // Sessions opened or loaded on this connection.
-    const sessions = new Set<string>();
+    const sessions = new Map<string, OpenSession>();
 
     async function startAgent(cwd: string): Promise<Runtime> {
         // The CLI bootstrap reads the project from the process directory and sets up that
         // project's instructions, prompts, plugins and storage.
         process.chdir(cwd);
         const agent = await bootstrap();
-        agent.setApprovalHandler((request) => askClient(request, turns, state.forms));
-        state.runtime = { agent, root: projectRoot(cwd) };
+        const root = projectRoot(cwd);
+        const workspace = await realpath(root);
+        agent.setApprovalHandler((request) => {
+            // The session's mode may settle the approval without asking, as in the TUI.
+            const open =
+                request.sessionId === undefined ? undefined : sessions.get(request.sessionId);
+            const auto = open && autoApprovalMode(open.mode, workspace);
+            if (auto && autoApproves(request, auto)) {
+                return Promise.resolve({
+                    approvalId: request.approvalId,
+                    ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
+                    status: ApprovalStatus.APPROVED,
+                    data: {},
+                });
+            }
+            return askClient(request, turns, state.forms);
+        });
+        state.runtime = { agent, root, workspace };
         return state.runtime;
     }
 
@@ -124,15 +164,35 @@ export async function serveAcp(
         return agent;
     }
 
-    function knownSession(sessionId: string): void {
-        if (!sessions.has(sessionId)) throw acp.RequestError.sessionNotFound(sessionId);
+    function knownSession(sessionId: string): OpenSession {
+        const open = sessions.get(sessionId);
+        if (open === undefined) throw acp.RequestError.sessionNotFound(sessionId);
+        return open;
+    }
+
+    /** Registers a session on this connection; one already open keeps its mode. */
+    function openSession(agent: DextoAgent, sessionId: string): OpenSession {
+        const open = sessions.get(sessionId) ?? {
+            mode: initialMode(agent.getEffectiveConfig().permissions.mode),
+        };
+        sessions.set(sessionId, open);
+        return open;
+    }
+
+    /** Tells the client the session's slash commands, once the session's answer has gone out. */
+    function announceCommands(agent: DextoAgent, cx: acp.AgentContext, sessionId: string): void {
+        setImmediate(() => {
+            sendCommands(agent, cx, sessionId).catch((error: unknown) =>
+                console.error('dexto acp: could not list commands', error)
+            );
+        });
     }
 
     /** Opens a stored session of this project on this connection, then runs `reopen` (load and resume) before the next load, resume or close of it. */
     function restoreSession<T>(
         sessionId: string,
         cwd: string,
-        reopen: (agent: DextoAgent) => Promise<T>
+        reopen: (agent: DextoAgent, open: OpenSession) => Promise<T>
     ): Promise<T> {
         return inOrder(sessionId, async () => {
             const running = await agentFor(cwd);
@@ -143,8 +203,7 @@ export async function serveAcp(
             if (!(await running.getSession(sessionId))) {
                 throw acp.RequestError.sessionNotFound(sessionId);
             }
-            sessions.add(sessionId);
-            return await reopen(running);
+            return await reopen(running, openSession(running, sessionId));
         });
     }
 
@@ -193,26 +252,43 @@ export async function serveAcp(
             };
         })
         .onRequest('authenticate', () => ({}))
-        .onRequest('session/new', async ({ params }) => {
+        .onRequest('session/new', async ({ params, client }) => {
             const running = await agentFor(params.cwd);
             const session = await running.createSession();
-            sessions.add(session.id);
+            const open = openSession(running, session.id);
+            announceCommands(running, client, session.id);
             return {
                 sessionId: session.id,
+                modes: modeState(open.mode),
                 configOptions: await modelOptions(running, session.id),
             };
         })
         .onRequest('session/load', ({ params, client }) =>
-            restoreSession(params.sessionId, params.cwd, async (running) => {
+            restoreSession(params.sessionId, params.cwd, async (running, open) => {
                 await replayHistory(running, params.sessionId, client);
-                return { configOptions: await modelOptions(running, params.sessionId) };
+                announceCommands(running, client, params.sessionId);
+                return {
+                    modes: modeState(open.mode),
+                    configOptions: await modelOptions(running, params.sessionId),
+                };
             })
         )
-        .onRequest('session/resume', ({ params }) =>
-            restoreSession(params.sessionId, params.cwd, async (running) => ({
-                configOptions: await modelOptions(running, params.sessionId),
-            }))
+        .onRequest('session/resume', ({ params, client }) =>
+            restoreSession(params.sessionId, params.cwd, async (running, open) => {
+                announceCommands(running, client, params.sessionId);
+                return {
+                    modes: modeState(open.mode),
+                    configOptions: await modelOptions(running, params.sessionId),
+                };
+            })
         )
+        .onRequest('session/set_mode', ({ params }) => {
+            const open = knownSession(params.sessionId);
+            const mode = parseMode(params.modeId);
+            if (mode === null) throw acp.RequestError.invalidParams({ modeId: params.modeId });
+            open.mode = mode;
+            return {};
+        })
         .onRequest('session/list', async ({ params }) => {
             // Without a cwd, the project this process serves (or the one it starts in).
             const running = await agentFor(params.cwd ?? state.runtime?.root ?? process.cwd());
@@ -249,7 +325,7 @@ export async function serveAcp(
         })
         .onRequest('session/prompt', async ({ params, client }) => {
             const { agent, root } = startedRuntime();
-            knownSession(params.sessionId);
+            const open = knownSession(params.sessionId);
             if (turns.has(params.sessionId)) {
                 throw acp.RequestError.invalidRequest(
                     { sessionId: params.sessionId },
@@ -262,6 +338,7 @@ export async function serveAcp(
                 root,
                 openToolCalls: new Set(),
                 abort: new AbortController(),
+                session: open,
             };
             turns.set(params.sessionId, turn);
             const run = runPrompt(agent, params, turn);
@@ -334,14 +411,30 @@ async function runPrompt(
     // Cancel stops the run, but the turn keeps reading until the run has ended, so the session
     // is free again when the prompt answers (without a disconnect signal, abort ends the
     // stream at once while the run is still winding down).
-    const events = await agent.stream(promptText(params.prompt), turn.sessionId, {
-        signal,
-        disconnectSignal: new AbortController().signal,
-    });
+    const events = await agent.stream(
+        await messageFor(agent, params.prompt, turn),
+        turn.sessionId,
+        {
+            signal,
+            disconnectSignal: new AbortController().signal,
+        }
+    );
     try {
         for await (const event of events) {
             const finished = await forwardEvent(event, turn);
             if (finished !== null) stopReason = finished;
+            if (
+                event.name === 'llm:tool-result' &&
+                turn.session.mode.id === 'plan' &&
+                planApproved(event.toolName, event.success, event.rawResult)
+            ) {
+                // An approved plan ends plan mode, as in the TUI.
+                turn.session.mode = { id: 'asks-you' };
+                await sendUpdate(turn, {
+                    sessionUpdate: 'current_mode_update',
+                    currentModeId: 'asks-you',
+                });
+            }
         }
     } catch (error) {
         // An abort error escaping the run still ends a cancelled turn as `cancelled`.
@@ -356,8 +449,81 @@ async function runPrompt(
             });
         }
     }
+    await sendUsage(agent, turn);
     // A cancelled run's stream just ends; ACP requires the cancelled stop reason.
     return { stopReason: signal.aborted ? 'cancelled' : stopReason };
+}
+
+/**
+ * The message a prompt sends: a slash command runs its prompt (with `key=value` arguments and
+ * context, as in the TUI), and the first prompt in Plan carries plan mode's instructions.
+ */
+async function messageFor(
+    agent: DextoAgent,
+    blocks: acp.ContentBlock[],
+    turn: Turn
+): Promise<string> {
+    let message = promptText(blocks);
+    const invocation = promptInvocation(message);
+    const prompt = invocation && (await userPrompts(agent)).get(invocation.commandName);
+    if (invocation && prompt) {
+        const result = await agent.resolvePrompt(prompt.name, {
+            ...(Object.keys(invocation.args).length > 0 ? { args: invocation.args } : {}),
+            ...(invocation.context !== undefined ? { context: invocation.context } : {}),
+        });
+        message = promptMessage(result).trim();
+        if (message.length === 0) {
+            throw acp.RequestError.invalidParams(
+                { command: invocation.commandName },
+                `The /${invocation.commandName} prompt has no content`
+            );
+        }
+    }
+    const { mode } = turn.session;
+    if (mode.id === 'plan' && !mode.instructed && (await agent.hasPrompt(PLAN_MODE_PROMPT))) {
+        const plan = await agent.resolvePrompt(PLAN_MODE_PROMPT, {});
+        if (plan.text) {
+            message = withPlanMode(message, plan.text);
+            turn.session.mode = { id: 'plan', instructed: true };
+        }
+    }
+    return message;
+}
+
+/** The prompts a person can run as slash commands, by command name, as the TUI lists them. */
+async function userPrompts(agent: DextoAgent): Promise<Map<string, PromptInfo>> {
+    const prompts = Object.values(await agent.listPrompts()).filter(
+        (info) => info.userInvocable !== false
+    );
+    return new Map(
+        prompts.map((info) => [info.commandName || info.displayName || info.name, info])
+    );
+}
+
+async function sendCommands(agent: DextoAgent, cx: acp.AgentContext, sessionId: string) {
+    const availableCommands = [...(await userPrompts(agent))].map(([name, info]) => ({
+        name,
+        description: info.description || `Execute ${info.displayName || info.name} prompt`,
+        input: { hint: 'context' },
+    }));
+    await cx.notify(acp.methods.client.session.update, {
+        sessionId,
+        update: { sessionUpdate: 'available_commands_update', availableCommands },
+    });
+}
+
+/** The session's context use against its window, and its cost so far when known. */
+async function sendUsage(agent: DextoAgent, turn: Turn): Promise<void> {
+    const stats = await agent.getContextStats(turn.sessionId);
+    const metadata = await agent.getSessionMetadata(turn.sessionId);
+    await sendUpdate(turn, {
+        sessionUpdate: 'usage_update',
+        used: stats.actualTokens ?? stats.estimatedTokens,
+        size: stats.maxContextTokens,
+        ...(metadata?.estimatedCost !== undefined
+            ? { cost: { amount: metadata.estimatedCost, currency: 'USD' } }
+            : {}),
+    });
 }
 
 function sendUpdate(turn: Turn, update: acp.SessionUpdate): Promise<void> {
