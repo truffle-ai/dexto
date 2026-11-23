@@ -36,6 +36,7 @@ import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
 import { sandboxCommands } from './commands/sandboxes.js';
 import { secretCommands } from './commands/secrets.js';
+import { siteRecordCommands } from './commands/site-records.js';
 import { webCommands } from './commands/web.js';
 import { workspaceCommands } from './commands/workspace.js';
 import { resolveConnection } from './connection.js';
@@ -95,6 +96,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...publicArtifactCommands,
         ...notificationCommands,
         ...marketplaceCommands,
+        ...siteRecordCommands,
         ...findCommands,
         ...loopCommands,
         ...profileCommands,
