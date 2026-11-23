@@ -502,7 +502,7 @@ dexto apps get "$APP_ID" --json
 dexto apps uninstalled --json
 ```
 
-These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run an App action with `dexto workspace <app> <operation>`; installing Apps and removing kept data are not `apps` commands.
+These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps and removing kept data are not `apps` commands.
 
 ## Your Dexto Workspace
 
