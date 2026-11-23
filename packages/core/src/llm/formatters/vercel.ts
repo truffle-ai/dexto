@@ -44,7 +44,7 @@ function projectWithheldReasoningTurns(history: InternalMessage[]): InternalMess
                         text: toolCalls
                             .map(
                                 (call) =>
-                                    `[Called ${call.function.name} with input ${call.function.arguments}; signed reasoning was withheld.]`
+                                    `[Called ${call.function.name}; signed reasoning was withheld.]`
                             )
                             .join('\n'),
                     },
@@ -352,9 +352,15 @@ export class VercelMessageFormatter {
             }
         };
 
-        for (const msg of projectWithheldReasoningTurns(
-            normalizeInterleavedToolHistory(filteredHistory)
-        )) {
+        const normalizedHistory = normalizeInterleavedToolHistory(filteredHistory);
+        const isClaude = context.model.toLowerCase().includes('claude');
+        const needsSignedThinking =
+            context.provider === 'anthropic' ||
+            (isClaude && (context.provider === 'bedrock' || context.provider === 'vertex'));
+        const replayHistory = needsSignedThinking
+            ? projectWithheldReasoningTurns(normalizedHistory)
+            : normalizedHistory;
+        for (const msg of replayHistory) {
             if (msg.role !== 'tool' && pendingToolCalls.size > 0) {
                 closePendingToolTurn();
             }

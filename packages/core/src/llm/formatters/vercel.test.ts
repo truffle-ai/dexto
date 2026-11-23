@@ -20,7 +20,11 @@ describe('VercelMessageFormatter', () => {
                 assistantOutput: { status: 'complete' },
                 metadata: { reasoningWithheld: true },
                 toolCalls: [
-                    { id: 'a', type: 'function', function: { name: 'lookup', arguments: '{}' } },
+                    {
+                        id: 'a',
+                        type: 'function',
+                        function: { name: 'lookup', arguments: '{"key":"synthetic-secret"}' },
+                    },
                     { id: 'b', type: 'function', function: { name: 'read', arguments: '{}' } },
                 ],
             },
@@ -56,6 +60,18 @@ describe('VercelMessageFormatter', () => {
         expect(serialized).toContain('first result');
         expect(serialized).toContain('second result');
         expect(serialized).toContain('Untrusted error from lookup');
+        expect(serialized).not.toContain('synthetic-secret');
+        const gateway = new VercelMessageFormatter(mockLogger).format(
+            history,
+            { provider: 'dexto-nova', model: 'anthropic/claude-sonnet-4-6' },
+            null
+        );
+        expect(gateway.map((message) => message.role)).toEqual([
+            'user',
+            'assistant',
+            'tool',
+            'tool',
+        ]);
     });
 
     test('keeps the pre-change output for a normal parallel-tool history', () => {
