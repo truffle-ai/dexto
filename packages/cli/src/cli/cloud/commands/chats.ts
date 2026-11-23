@@ -794,6 +794,63 @@ const cancel: Command = {
     },
 };
 
+const fork: Command = {
+    path: ['chat', 'fork'],
+    arguments: '<chat_id>',
+    summary:
+        'Fork your cloud chat from a message, leaving the original unchanged. Requires sessions:write.',
+    examples: [
+        'dexto chat fork "$CHAT_ID" --yes --json',
+        'dexto chat fork "$CHAT_ID" --message "$MESSAGE_ID" --yes',
+        'dexto chat fork "$CHAT_ID" --dry-run',
+    ],
+    jsonOutput: {
+        description: 'The new chat, including its id, title and URL.',
+        schema: z.toJSONSchema(z.object({ session: ChatSessionSchema }).passthrough()),
+    },
+    options: {
+        message: {
+            type: 'string',
+            valueName: 'MESSAGE_ID',
+            description: 'Fork through this message instead of the latest.',
+        },
+        'dry-run': { type: 'boolean', description: 'Show the call without sending it.' },
+        ...YES_OPTION,
+    },
+    async run(context, input) {
+        const sessionId = argument(input, 0, 'chat_id');
+        const messageId = stringOption(input, 'message');
+        const call = { sessionId, ...(messageId === undefined ? {} : { messageId }) };
+        if (flag(input, 'dry-run')) {
+            context.output.result(
+                { dryRun: true, tool: 'dexto_chat_fork', arguments: call },
+                `Would call dexto_chat_fork with ${JSON.stringify(call)}.`
+            );
+            return 0;
+        }
+        await requireLoginScopes(context, ['sessions:write']);
+        await requireConsent(
+            consentContext(context),
+            flag(input, 'yes'),
+            `Fork the chat ${sessionId}?`
+        );
+        const raw = await queryWorkspaceTool(context, 'dexto_chat_fork', call);
+        const parsed = z.object({ session: ChatSessionSchema }).passthrough().safeParse(raw);
+        if (!parsed.success)
+            throw new CommandFailure(
+                'failed',
+                "Dexto didn't return a valid chat fork result.",
+                null
+            );
+        const result = parsed.data;
+        context.output.result(
+            result,
+            `Forked ${result.session.title ?? result.session.id}.\n${result.session.id}\n${result.session.url}`
+        );
+        return 0;
+    },
+};
+
 const start: Command = {
     path: ['chat', 'start'],
     arguments: '<message>',
@@ -1017,6 +1074,7 @@ export const chatCommands: readonly Command[] = [
     follow,
     send,
     cancel,
+    fork,
     computers,
     agents,
     browserProfiles,
