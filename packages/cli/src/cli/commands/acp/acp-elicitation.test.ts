@@ -39,6 +39,10 @@ describe('formSchema', () => {
             { type: 'object', properties: { a: { type: 'string', format: 'uuid' } } },
         ],
         [
+            'a length ACP cannot carry',
+            { type: 'object', properties: { a: { type: 'string', maxLength: 5e9 } } },
+        ],
+        [
             'numeric choices',
             { type: 'object', properties: { a: { type: 'string', enum: [1, 2] } } },
         ],

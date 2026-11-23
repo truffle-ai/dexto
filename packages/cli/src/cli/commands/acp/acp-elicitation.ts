@@ -7,6 +7,7 @@ import { z } from 'zod';
  * accepts; any other field means the form cannot be shown and gives null. Keys ACP does not
  * know (such as `x-dexto`) are dropped.
  */
+const UINT32_MAX = 4294967295;
 const Text = { title: z.string().optional(), description: z.string().optional() };
 const EnumOption = z.object({
     const: z.string(),
@@ -18,8 +19,8 @@ const Property = z.discriminatedUnion('type', [
     z.object({
         type: z.literal('string'),
         ...Text,
-        minLength: z.number().int().nonnegative().optional(),
-        maxLength: z.number().int().nonnegative().optional(),
+        minLength: z.number().int().nonnegative().max(UINT32_MAX).optional(),
+        maxLength: z.number().int().nonnegative().max(UINT32_MAX).optional(),
         pattern: z.string().optional(),
         format: z.enum(['email', 'uri', 'date', 'date-time']).optional(),
         default: z.string().optional(),
