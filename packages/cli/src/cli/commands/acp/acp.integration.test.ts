@@ -1,7 +1,7 @@
 /* global ReadableStream */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer, type Server, type ServerResponse } from 'node:http';
-import { access, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,7 +33,11 @@ function scriptedReply(input: {
         { delta: { role: 'assistant', content }, finish_reason: null },
         { delta: {}, finish_reason: 'stop' },
     ];
-    const callTool = (id: string, name: string): ScriptedReply => ({
+    const callTool = (
+        id: string,
+        name: string,
+        args: Record<string, string> = { path: 'note.txt' }
+    ): ScriptedReply => ({
         chunks: [
             {
                 delta: {
@@ -43,7 +47,7 @@ function scriptedReply(input: {
                             index: 0,
                             id,
                             type: 'function',
-                            function: { name, arguments: '{"path":"note.txt"}' },
+                            function: { name, arguments: JSON.stringify(args) },
                         },
                     ],
                 },
@@ -60,6 +64,14 @@ function scriptedReply(input: {
     if (text.includes('edit note')) {
         if (toolResult) return { chunks: say('note edited'), delayMs: 0 };
         return callTool('edit-call', 'edit_note');
+    }
+    if (text.includes('real edit')) {
+        if (toolResult) return { chunks: say('file edited'), delayMs: 0 };
+        return callTool('real-edit-call', 'edit_file', {
+            file_path: 'note.txt',
+            old_string: 'old line',
+            new_string: 'new line',
+        });
     }
     if (text.includes('slow')) {
         const words = Array.from({ length: 40 }, (_, i) => ({
@@ -199,6 +211,8 @@ storage:
     type: in-memory
 tools:
   - type: ordinary-tools
+  - type: filesystem-tools
+    enabledTools: [edit_file]
 `
         );
     });
@@ -374,6 +388,44 @@ tools:
                     content: [diff],
                 })
             );
+        });
+    }, 60000);
+
+    it('names the file the real edit tool changes when the session sits inside a Dexto project', async () => {
+        // A session in /repo/pkg under the Dexto project /repo: the workspace is /repo, and
+        // edit_file resolves a relative path against it.
+        const project = join(directory, 'repo');
+        const sessionDirectory = join(project, 'pkg');
+        await mkdir(join(project, '.dexto'), { recursive: true });
+        await writeFile(join(project, '.dexto', 'deploy.json'), '{}');
+        await mkdir(sessionDirectory);
+        const note = join(project, 'note.txt');
+        await writeFile(note, 'old line\n');
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx, sessionDirectory);
+            await prompt(cx, sessionId, 'real edit');
+            const diff = { type: 'diff', path: note, oldText: 'old line', newText: 'new line' };
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call',
+                    toolCallId: 'real-edit-call',
+                    kind: 'edit',
+                    locations: [{ path: note }],
+                })
+            );
+            expect(recorded.permissions[0]?.toolCall).toMatchObject({
+                toolCallId: 'real-edit-call',
+                content: [diff],
+            });
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call_update',
+                    toolCallId: 'real-edit-call',
+                    status: 'completed',
+                    content: [diff],
+                })
+            );
+            await expect(readFile(note, 'utf8')).resolves.toBe('new line\n');
         });
     }, 60000);
 
