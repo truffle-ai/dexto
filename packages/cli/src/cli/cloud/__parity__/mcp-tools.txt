@@ -3946,6 +3946,37 @@
     },
     {
       "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "access": {
+            "description": "private: only you. view: the organization can open and read it. prompt: the organization can also send messages.",
+            "enum": [
+              "private",
+              "view",
+              "prompt"
+            ],
+            "type": "string"
+          },
+          "sessionId": {
+            "description": "The chat's id or link.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "confirm": {
+            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sessionId",
+          "access"
+        ],
+        "type": "object"
+      },
+      "name": "dexto_chat_share"
+    },
+    {
+      "inputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {

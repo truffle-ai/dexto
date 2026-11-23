@@ -29,7 +29,10 @@ export interface ResolveConnectionInput {
     readonly dir: string;
     readonly environment: Readonly<Record<string, string | undefined>>;
     readonly overrides: ConnectionOverrides;
-    readonly refresh: (login: dextoAccounts.OAuthLogin) => Promise<dextoAccounts.OAuthLogin>;
+    readonly refresh: (
+        login: dextoAccounts.OAuthLogin,
+        signal: AbortSignal
+    ) => Promise<dextoAccounts.OAuthLogin>;
 }
 
 /** --api-key, then DEXTO_API_KEY, then the profile's sign-in, refreshed when due; null when none. */
