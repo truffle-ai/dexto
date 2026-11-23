@@ -335,6 +335,18 @@ tools:
         });
     }, 60000);
 
+    it('stops a turn cancelled before its run starts and frees the session', async () => {
+        await withAgent(allow, async (cx) => {
+            const sessionId = await newSession(cx);
+            const turn = prompt(cx, sessionId, 'slow answer');
+            await cx.notify(acp.methods.agent.session.cancel, { sessionId });
+            await expect(turn).resolves.toEqual({ stopReason: 'cancelled' });
+            await expect(prompt(cx, sessionId, 'say hello')).resolves.toEqual({
+                stopReason: 'end_turn',
+            });
+        });
+    }, 60000);
+
     it('refuses a second prompt while a turn runs and keeps the first turn intact', async () => {
         await withAgent(allow, async (cx, recorded) => {
             const sessionId = await newSession(cx);
@@ -367,6 +379,30 @@ tools:
                     update.sessionUpdate === 'tool_call_update' && update.status === 'completed'
             );
             expect(JSON.stringify(result)).toContain(`effect written in ${directory}"`);
+        });
+    }, 60000);
+
+    it('switches the workspace to each prompted session and back', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const first = await newSession(cx);
+            const second = await newSession(cx, otherDirectory);
+            await prompt(cx, second, 'change state');
+            await prompt(cx, first, 'change state');
+            const results = recorded.updates
+                .filter(
+                    (update) =>
+                        update.sessionUpdate === 'tool_call_update' && update.status === 'completed'
+                )
+                .map((update) => JSON.stringify(update));
+            expect(results).toHaveLength(2);
+            expect(results[0]).toContain(`effect written in ${otherDirectory}"`);
+            expect(results[1]).toContain(`effect written in ${directory}"`);
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call',
+                    locations: [{ path: join(otherDirectory, 'note.txt') }],
+                })
+            );
         });
     }, 60000);
 

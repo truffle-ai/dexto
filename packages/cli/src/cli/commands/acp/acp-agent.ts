@@ -13,6 +13,8 @@ import {
     type DextoAgent,
     type StreamingEvent,
 } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/llm';
+import { z } from 'zod';
 import {
     findDextoProjectRoot,
     loadModelPickerState,
@@ -33,13 +35,21 @@ import { applyWorkspaceToAgent } from '../../../utils/workspace.js';
 
 const MODEL_CONFIG_ID = 'model';
 
+const TodoUpdateSchema = z.object({
+    todos: z.array(z.object({ content: z.string(), status: z.string() })),
+});
+
+/** A session's directory and the workspace root Dexto resolves its tool paths against. */
+type SessionDirectory = { readonly cwd: string; readonly root: string };
+
 /** One running session/prompt: where its updates go and which tool calls are still open. */
 type Turn = {
     readonly cx: acp.AgentContext;
     readonly sessionId: string;
-    readonly cwd: string;
+    readonly directory: SessionDirectory;
     readonly openToolCalls: Set<string>;
-    cancelled: boolean;
+    /** Aborted by session/cancel; stops the Dexto run even before it has started. */
+    readonly abort: AbortController;
 };
 
 export async function serveAcp(
@@ -52,31 +62,50 @@ export async function serveAcp(
     // The ACP connection that owns each session's running prompt, for approvals raised mid-turn.
     const turns = new Map<string, Turn>();
     // Each session's directory, from session/new or session/load.
-    const sessionCwds = new Map<string, string>();
-    // The directory the agent's workspace currently points at.
-    let workspaceCwd: string | null = null;
+    const sessions = new Map<string, SessionDirectory>();
+    // The directory the agent's workspace points at, and the switch to it.
+    let workspace: { cwd: string; ready: Promise<void> } | null = null;
 
     async function startAgent(cwd: string): Promise<DextoAgent> {
         // The CLI bootstrap reads the workspace from the process directory.
         process.chdir(cwd);
-        workspaceCwd = cwd;
+        workspace = { cwd, ready: Promise.resolve() };
         const running = await bootstrap();
         running.setApprovalHandler((request) => askClient(request, turns));
         agent = running;
         return running;
     }
 
-    async function agentFor(cwd: string): Promise<DextoAgent> {
-        started ??= startAgent(cwd);
-        return await started;
+    function agentFor(cwd: string): Promise<DextoAgent> {
+        if (started === null) {
+            const starting = startAgent(cwd);
+            started = starting;
+            // A failed start (bad directory, missing sign-in) is retried by the next session.
+            starting.catch(() => {
+                if (started === starting) started = null;
+            });
+        }
+        return started;
     }
 
-    async function useWorkspace(running: DextoAgent, cwd: string): Promise<void> {
-        if (workspaceCwd === cwd) return;
-        process.chdir(cwd);
-        workspaceCwd = cwd;
-        // The same root the CLI bootstrap picks for the first session.
-        await applyWorkspaceToAgent(running, findDextoProjectRoot(cwd) ?? cwd);
+    function useWorkspace(running: DextoAgent, directory: SessionDirectory): Promise<void> {
+        if (workspace?.cwd === directory.cwd) return workspace.ready;
+        process.chdir(directory.cwd);
+        const switching = {
+            cwd: directory.cwd,
+            ready: applyWorkspaceToAgent(running, directory.root),
+        };
+        workspace = switching;
+        switching.ready.catch(() => {
+            if (workspace === switching) workspace = null;
+        });
+        return switching.ready;
+    }
+
+    function knownSession(sessionId: string): SessionDirectory {
+        const directory = sessions.get(sessionId);
+        if (directory === undefined) throw acp.RequestError.resourceNotFound(sessionId);
+        return directory;
     }
 
     function startedAgent(): DextoAgent {
@@ -104,7 +133,7 @@ export async function serveAcp(
         .onRequest('session/new', async ({ params }) => {
             const running = await agentFor(params.cwd);
             const session = await running.createSession();
-            sessionCwds.set(session.id, params.cwd);
+            sessions.set(session.id, sessionDirectory(params.cwd));
             return {
                 sessionId: session.id,
                 configOptions: await modelOptions(running, session.id),
@@ -115,12 +144,13 @@ export async function serveAcp(
             if (!(await running.getSession(params.sessionId))) {
                 throw acp.RequestError.resourceNotFound(params.sessionId);
             }
-            sessionCwds.set(params.sessionId, params.cwd);
+            sessions.set(params.sessionId, sessionDirectory(params.cwd));
             await replayHistory(running, params.sessionId, client);
             return { configOptions: await modelOptions(running, params.sessionId) };
         })
         .onRequest('session/set_config_option', async ({ params }) => {
             const running = startedAgent();
+            knownSession(params.sessionId);
             if (params.configId !== MODEL_CONFIG_ID || typeof params.value !== 'string') {
                 throw acp.RequestError.invalidParams({ configId: params.configId });
             }
@@ -138,15 +168,14 @@ export async function serveAcp(
         })
         .onRequest('session/prompt', async ({ params, client }) => {
             const running = startedAgent();
-            const cwd = sessionCwds.get(params.sessionId);
-            if (cwd === undefined) throw acp.RequestError.resourceNotFound(params.sessionId);
+            const directory = knownSession(params.sessionId);
             if (turns.has(params.sessionId)) {
                 throw acp.RequestError.invalidRequest(
                     { sessionId: params.sessionId },
                     'A prompt is already running in this session'
                 );
             }
-            if ([...turns.values()].some((turn) => turn.cwd !== cwd)) {
+            if ([...turns.values()].some((turn) => turn.directory.cwd !== directory.cwd)) {
                 throw acp.RequestError.invalidRequest(
                     { sessionId: params.sessionId },
                     'A prompt is running in another directory'
@@ -155,22 +184,20 @@ export async function serveAcp(
             const turn: Turn = {
                 cx: client,
                 sessionId: params.sessionId,
-                cwd,
+                directory,
                 openToolCalls: new Set(),
-                cancelled: false,
+                abort: new AbortController(),
             };
             turns.set(params.sessionId, turn);
             try {
-                await useWorkspace(running, cwd);
+                await useWorkspace(running, directory);
                 return await runPrompt(running, params, turn);
             } finally {
                 turns.delete(params.sessionId);
             }
         })
         .onNotification('session/cancel', async ({ params }) => {
-            const turn = turns.get(params.sessionId);
-            if (turn) turn.cancelled = true;
-            await agent?.cancel(params.sessionId);
+            turns.get(params.sessionId)?.abort.abort();
         })
         .connect(stream);
 
@@ -183,20 +210,33 @@ async function runPrompt(
     params: acp.PromptRequest,
     turn: Turn
 ): Promise<acp.PromptResponse> {
+    const signal = turn.abort.signal;
+    if (signal.aborted) return { stopReason: 'cancelled' };
     let stopReason: acp.StopReason = 'end_turn';
-    const events = await agent.stream(promptText(params.prompt), turn.sessionId);
-    // A cancel that arrived before the run started found nothing to stop.
-    if (turn.cancelled) await agent.cancel(turn.sessionId);
-    for await (const event of events) {
-        const finished = await forwardEvent(event, turn);
-        if (finished !== null) stopReason = finished;
-    }
-    // v1 has no cancelled tool status: anything left open ends as failed.
-    for (const toolCallId of turn.openToolCalls) {
-        await sendUpdate(turn, { sessionUpdate: 'tool_call_update', toolCallId, status: 'failed' });
+    // Cancel stops the run, but the turn keeps reading until the run has ended, so the session
+    // is free again when the prompt answers (without a disconnect signal, abort ends the
+    // stream at once while the run is still winding down).
+    const events = await agent.stream(promptText(params.prompt), turn.sessionId, {
+        signal,
+        disconnectSignal: new AbortController().signal,
+    });
+    try {
+        for await (const event of events) {
+            const finished = await forwardEvent(event, turn);
+            if (finished !== null) stopReason = finished;
+        }
+    } finally {
+        // v1 has no cancelled tool status: anything left open ends as failed.
+        for (const toolCallId of turn.openToolCalls) {
+            await sendUpdate(turn, {
+                sessionUpdate: 'tool_call_update',
+                toolCallId,
+                status: 'failed',
+            });
+        }
     }
     // A cancelled run's stream just ends; ACP requires the cancelled stop reason.
-    return { stopReason: turn.cancelled ? 'cancelled' : stopReason };
+    return { stopReason: signal.aborted ? 'cancelled' : stopReason };
 }
 
 function sendUpdate(turn: Turn, update: acp.SessionUpdate): Promise<void> {
@@ -225,7 +265,7 @@ async function openToolCall(
         kind: toolKind(toolName),
         status: 'pending',
         rawInput: args,
-        locations: toolLocations(turn.cwd, args),
+        locations: toolLocations(turn.directory.root, args),
     });
 }
 
@@ -263,12 +303,11 @@ async function forwardEvent(event: StreamingEvent, turn: Turn): Promise<acp.Stop
         }
         case 'service:event': {
             if (event.service !== 'todo' || event.event !== 'updated') return null;
-            const todos = (event.data as { todos?: Array<{ content: string; status: string }> })
-                .todos;
-            if (!todos) return null;
+            const parsed = TodoUpdateSchema.safeParse(event.data);
+            if (!parsed.success) return null;
             await update({
                 sessionUpdate: 'plan',
-                entries: todos.map((todo) => ({
+                entries: parsed.data.todos.map((todo) => ({
                     content: todo.content,
                     priority: 'medium',
                     status: planStatus(todo.status),
@@ -306,7 +345,10 @@ async function askClient(
     let toolCall: acp.ToolCallUpdate;
     if (request.type === ApprovalType.TOOL_APPROVAL) {
         const { toolCallId, toolName, args } = request.metadata;
-        await openToolCall(turn, toolCallId, toolName, args);
+        // A sub-agent's tool runs in its own session; its result never reaches this stream.
+        if (!('delegatedFromSessionId' in request.metadata)) {
+            await openToolCall(turn, toolCallId, toolName, args);
+        }
         toolCall = {
             toolCallId,
             title: toolTitle(toolName, args),
@@ -407,9 +449,11 @@ function parseModelValue(value: string): ModelPickerModel {
     if (!Array.isArray(parsed) || typeof parsed[0] !== 'string' || typeof parsed[1] !== 'string') {
         throw acp.RequestError.invalidParams({ value });
     }
-    const [provider, model, baseURL] = parsed;
+    const [name, model, baseURL] = parsed;
+    const provider = LLM_PROVIDERS.find((known) => known === name);
+    if (provider === undefined) throw acp.RequestError.invalidParams({ value });
     return {
-        provider: provider as ModelPickerModel['provider'],
+        provider,
         model,
         ...(typeof baseURL === 'string' ? { baseURL } : {}),
     };
@@ -453,10 +497,15 @@ function toolTitle(toolName: string, args: Record<string, unknown>): string {
     return detail === undefined ? toolName : `${toolName} ${detail}`;
 }
 
-function toolLocations(cwd: string, args: Record<string, unknown>): acp.ToolCallLocation[] {
+function toolLocations(root: string, args: Record<string, unknown>): acp.ToolCallLocation[] {
     const path = pathArg(args);
-    // ACP locations are absolute; Dexto tools take paths relative to the session directory.
-    return path === undefined ? [] : [{ path: resolve(cwd, path) }];
+    // ACP locations are absolute; Dexto tools take paths relative to the workspace root.
+    return path === undefined ? [] : [{ path: resolve(root, path) }];
+}
+
+function sessionDirectory(cwd: string): SessionDirectory {
+    // The same root the CLI bootstrap picks for the first session.
+    return { cwd, root: findDextoProjectRoot(cwd) ?? cwd };
 }
 
 function pathArg(args: Record<string, unknown>): string | undefined {
