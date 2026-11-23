@@ -1,36 +1,17 @@
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
-import type { RuntimeCommandRegisterContext } from '../register-context.js';
+import type { BootstrapAgentMode, RuntimeCommandRegisterContext } from '../register-context.js';
 import { HELD_COMMANDS } from '../../cloud/held-commands.js';
+
+const LOCAL_AGENT_MODES: Readonly<Record<string, BootstrapAgentMode>> = {
+    move: 'non-interactive',
+    list: 'headless-run',
+};
 
 export function registerSessionCommand({
     program,
     bootstrapAgentFromGlobalOpts,
 }: RuntimeCommandRegisterContext): void {
     const chatCommand = program.command('chat').description('Your local and cloud chats');
-
-    chatCommand
-        .command('list')
-        .description("List this machine's chats. For cloud chats, run dexto workspace chat list.")
-        .action(
-            withAnalytics('chat list', async () => {
-                let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
-                try {
-                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
-
-                    const { handleSessionListCommand } = await import('../session-commands.js');
-                    await handleSessionListCommand(agent);
-                    safeExit('chat list', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto chat list command failed: ${err}`);
-                    safeExit('chat list', 1, 'error');
-                } finally {
-                    if (agent) {
-                        await agent.stop().catch(() => {});
-                    }
-                }
-            })
-        );
 
     chatCommand
         .command('history')
@@ -87,6 +68,11 @@ export function registerSessionCommand({
         local: 'List Claude Code and Codex chats on this machine that Dexto can import',
         import: 'Import Claude Code or Codex chats into Dexto',
         start: 'Start a cloud chat on your chosen connected computer and browser profile',
+        list: "List your cloud chats, or this machine's with --local",
+        follow: "Follow a cloud chat's events until it finishes",
+        get: "Read a cloud chat's status and messages",
+        models: 'List the models your cloud chats can use',
+        outputs: 'List the files and resources a cloud chat produced',
         computers: 'List your connected computers for a cloud chat',
         'browser-profiles': 'List your browser profiles for a cloud chat',
         move: 'Move a synced chat and its working tree to cloud or local',
@@ -113,13 +99,16 @@ export function registerSessionCommand({
                         agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null;
                     } = { agent: null };
                     const cloudHost = nodeCloudHost(controller.signal);
+                    // chat move and chat list --local read this machine's chats through the local
+                    // agent; a list runs it silent so its --json stays parseable.
+                    const localMode = LOCAL_AGENT_MODES[word];
                     const host =
-                        word === 'move'
+                        localMode !== undefined
                             ? {
                                   ...cloudHost,
                                   openLocalAgent: async () => {
                                       local.agent ??= await bootstrapAgentFromGlobalOpts({
-                                          mode: 'non-interactive',
+                                          mode: localMode,
                                       });
                                       return local.agent;
                                   },

@@ -624,7 +624,7 @@ const start: Command = {
         model: {
             type: 'string',
             valueName: 'ID',
-            description: 'Model from workspace chat models.',
+            description: 'Model from dexto chat models.',
         },
         route: {
             type: 'string',
