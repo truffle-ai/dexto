@@ -7,10 +7,10 @@ import { argument, stringOption, UsageError, type Command } from '../command.js'
 import { queryWorkspaceTool } from './workspace.js';
 
 /** The kinds of thing Sharing names, as the Dexto MCP takes them. */
-const KINDS = ['app', 'drive', 'skill', 'project', 'loop', 'chat'] as const;
+const KINDS = ['app', 'drive', 'skill', 'project', 'loop', 'chat', 'site'] as const;
 type Kind = (typeof KINDS)[number];
 
-const KIND_HELP = 'app, drive, skill, project, loop or chat';
+const KIND_HELP = 'app, drive, skill, project, loop, chat or site';
 
 function kindOf(value: string): Kind {
     const kind = KINDS.find((each) => each === value);

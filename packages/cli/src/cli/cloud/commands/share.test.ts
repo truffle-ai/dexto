@@ -196,7 +196,7 @@ describe('sharing reads over the Dexto MCP', () => {
         });
 
         it('takes every kind Sharing names', async () => {
-            for (const kind of ['app', 'drive', 'skill', 'project', 'loop', 'chat']) {
+            for (const kind of ['app', 'drive', 'skill', 'project', 'loop', 'chat', 'site']) {
                 replies = [{ result: access }];
                 expect(
                     await cli('workspace', 'share', 'access', kind, 'thing-1', '--json'),
@@ -204,7 +204,7 @@ describe('sharing reads over the Dexto MCP', () => {
                 ).toBe(0);
             }
             expect(calls.map((call) => call.arguments)).toEqual(
-                ['app', 'drive', 'skill', 'project', 'loop', 'chat'].map((kind) => ({
+                ['app', 'drive', 'skill', 'project', 'loop', 'chat', 'site'].map((kind) => ({
                     kind,
                     id: 'thing-1',
                 }))
@@ -212,8 +212,8 @@ describe('sharing reads over the Dexto MCP', () => {
         });
 
         it('refuses an unknown kind or a missing id before calling', async () => {
-            expect(await cli('workspace', 'share', 'access', 'site', 'site-1', '--json')).toBe(2);
-            expect(stderr).toContain('app, drive, skill, project, loop or chat');
+            expect(await cli('workspace', 'share', 'access', 'page', 'page-1', '--json')).toBe(2);
+            expect(stderr).toContain('app, drive, skill, project, loop, chat or site');
             expect(await cli('workspace', 'share', 'access', 'drive', '--json')).toBe(2);
             expect(calls).toEqual([]);
         });
@@ -295,8 +295,17 @@ describe('sharing reads over the Dexto MCP', () => {
             expect(calls).toEqual([{ name: 'dexto_share_received', arguments: { kind: 'drive' } }]);
         });
 
+        it('narrows to Sites', async () => {
+            replies = [{ result: { invitations: [], shared: [] } }];
+            expect(
+                await cli('workspace', 'share', 'received', '--kind', 'site', '--json'),
+                stderr
+            ).toBe(0);
+            expect(calls).toEqual([{ name: 'dexto_share_received', arguments: { kind: 'site' } }]);
+        });
+
         it('refuses an unknown kind before calling', async () => {
-            expect(await cli('workspace', 'share', 'received', '--kind', 'site', '--json')).toBe(2);
+            expect(await cli('workspace', 'share', 'received', '--kind', 'page', '--json')).toBe(2);
             expect(calls).toEqual([]);
         });
 
