@@ -8,6 +8,7 @@
 ## 2. Setup
 
 - [x] 2.1 Start `dexto acp` on the saved model preference, including with `--agent`.
+- [x] 2.1a Drop the agent's endpoint and key when the saved provider differs, with a test.
 - [x] 2.2 Rename `invoke_skill` to `skill_load` when an agent config loads, with a loader test.
 
 ## 3. Tests

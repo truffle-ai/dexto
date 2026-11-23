@@ -1,10 +1,5 @@
 import * as acp from '@agentclientprotocol/sdk';
-import {
-    DextoRuntimeError,
-    DextoValidationError,
-    LLMErrorCode,
-    type DextoAgent,
-} from '@dexto/core';
+import { DextoRuntimeError, LLMErrorCode, type DextoAgent } from '@dexto/core';
 import { getReasoningProfile, LLM_PROVIDERS, type LLMProvider } from '@dexto/llm';
 import {
     canUseDextoProvider,
@@ -167,12 +162,10 @@ export function keyRequired(error: unknown): unknown {
 
 /** The provider an error says has no key, or null for any other error. */
 function providerMissingKey(error: unknown): LLMProvider | null {
-    const context =
-        error instanceof DextoValidationError
-            ? error.issues.find((issue) => issue.code === LLMErrorCode.API_KEY_MISSING)?.context
-            : error instanceof DextoRuntimeError && error.code === LLMErrorCode.API_KEY_MISSING
-              ? error.context
-              : undefined;
+    if (!(error instanceof DextoRuntimeError) || error.code !== LLMErrorCode.API_KEY_MISSING) {
+        return null;
+    }
+    const { context } = error;
     if (typeof context !== 'object' || context === null || !('provider' in context)) return null;
     return LLM_PROVIDERS.find((known) => known === context.provider) ?? null;
 }

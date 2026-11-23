@@ -194,10 +194,15 @@ export async function serveAcp(
             if (metadata?.workspaceId !== (await workspaceId(running))) {
                 throw acp.RequestError.sessionNotFound(sessionId);
             }
-            if (!(await running.getSession(sessionId))) {
-                throw acp.RequestError.sessionNotFound(sessionId);
+            try {
+                if (!(await running.getSession(sessionId))) {
+                    throw acp.RequestError.sessionNotFound(sessionId);
+                }
+                return await reopen(running, openSession(running, sessionId));
+            } catch (error) {
+                // A stored session whose model has no key can't be restored either.
+                throw keyRequired(error);
             }
-            return await reopen(running, openSession(running, sessionId));
         });
     }
 
