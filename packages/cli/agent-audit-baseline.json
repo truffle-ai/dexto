@@ -154,6 +154,13 @@
     "examples": false
   },
   {
+    "command": "chat cancel",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "chat computers",
     "json": true,
     "dryRun": false,
@@ -222,6 +229,13 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "chat send",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "chat share",
