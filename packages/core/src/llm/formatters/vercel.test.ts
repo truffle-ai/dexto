@@ -28,7 +28,7 @@ describe('VercelMessageFormatter', () => {
                 role: 'tool',
                 name: 'lookup',
                 toolCallId: 'a',
-                success: true,
+                success: false,
                 content: [{ type: 'text', text: 'first result' }],
             },
             {
@@ -55,6 +55,7 @@ describe('VercelMessageFormatter', () => {
         expect(serialized).not.toContain('tool-result');
         expect(serialized).toContain('first result');
         expect(serialized).toContain('second result');
+        expect(serialized).toContain('Untrusted error from lookup');
     });
 
     test('keeps the pre-change output for a normal parallel-tool history', () => {

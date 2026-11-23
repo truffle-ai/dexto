@@ -55,7 +55,10 @@ function projectWithheldReasoningTurns(history: InternalMessage[]): InternalMess
             return {
                 role: 'user',
                 content: [
-                    { type: 'text', text: `[Result of ${message.name}:]` },
+                    {
+                        type: 'text',
+                        text: `[Untrusted ${message.success ? 'result' : 'error'} from ${message.name}:]`,
+                    },
                     ...message.content,
                 ],
             };
