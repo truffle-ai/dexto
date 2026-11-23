@@ -25,6 +25,10 @@ import { applyWorkspaceToAgent } from '../../../utils/workspace.js';
  * `dexto acp`: the Dexto CLI agent over the Agent Client Protocol (v1) on stdio, so an ACP
  * client (T3 Code, Zed) drives the same agent loop `dexto run` uses. One agent per process;
  * every ACP session is a Dexto session in the CLI's own session store.
+ *
+ * The agent's workspace is process-wide, so each session remembers its directory and a prompt
+ * switches the workspace to it. A prompt whose directory differs from a running turn's is
+ * refused rather than moving that turn's tools to another folder.
  */
 
 const MODEL_CONFIG_ID = 'model';
@@ -33,6 +37,7 @@ const MODEL_CONFIG_ID = 'model';
 type Turn = {
     readonly cx: acp.AgentContext;
     readonly sessionId: string;
+    readonly cwd: string;
     readonly openToolCalls: Set<string>;
     cancelled: boolean;
 };
@@ -46,10 +51,15 @@ export async function serveAcp(
     let agent: DextoAgent | null = null;
     // The ACP connection that owns each session's running prompt, for approvals raised mid-turn.
     const turns = new Map<string, Turn>();
+    // Each session's directory, from session/new or session/load.
+    const sessionCwds = new Map<string, string>();
+    // The directory the agent's workspace currently points at.
+    let workspaceCwd: string | null = null;
 
     async function startAgent(cwd: string): Promise<DextoAgent> {
         // The CLI bootstrap reads the workspace from the process directory.
         process.chdir(cwd);
+        workspaceCwd = cwd;
         const running = await bootstrap();
         running.setApprovalHandler((request) => askClient(request, turns));
         agent = running;
@@ -58,13 +68,15 @@ export async function serveAcp(
 
     async function agentFor(cwd: string): Promise<DextoAgent> {
         started ??= startAgent(cwd);
-        const running = await started;
-        if (process.cwd() !== cwd) {
-            process.chdir(cwd);
-            // The same root the CLI bootstrap picks for the first session.
-            await applyWorkspaceToAgent(running, findDextoProjectRoot(cwd) ?? cwd);
-        }
-        return running;
+        return await started;
+    }
+
+    async function useWorkspace(running: DextoAgent, cwd: string): Promise<void> {
+        if (workspaceCwd === cwd) return;
+        process.chdir(cwd);
+        workspaceCwd = cwd;
+        // The same root the CLI bootstrap picks for the first session.
+        await applyWorkspaceToAgent(running, findDextoProjectRoot(cwd) ?? cwd);
     }
 
     function startedAgent(): DextoAgent {
@@ -92,6 +104,7 @@ export async function serveAcp(
         .onRequest('session/new', async ({ params }) => {
             const running = await agentFor(params.cwd);
             const session = await running.createSession();
+            sessionCwds.set(session.id, params.cwd);
             return {
                 sessionId: session.id,
                 configOptions: await modelOptions(running, session.id),
@@ -102,6 +115,7 @@ export async function serveAcp(
             if (!(await running.getSession(params.sessionId))) {
                 throw acp.RequestError.resourceNotFound(params.sessionId);
             }
+            sessionCwds.set(params.sessionId, params.cwd);
             await replayHistory(running, params.sessionId, client);
             return { configOptions: await modelOptions(running, params.sessionId) };
         })
@@ -124,20 +138,30 @@ export async function serveAcp(
         })
         .onRequest('session/prompt', async ({ params, client }) => {
             const running = startedAgent();
+            const cwd = sessionCwds.get(params.sessionId);
+            if (cwd === undefined) throw acp.RequestError.resourceNotFound(params.sessionId);
             if (turns.has(params.sessionId)) {
                 throw acp.RequestError.invalidRequest(
                     { sessionId: params.sessionId },
                     'A prompt is already running in this session'
                 );
             }
+            if ([...turns.values()].some((turn) => turn.cwd !== cwd)) {
+                throw acp.RequestError.invalidRequest(
+                    { sessionId: params.sessionId },
+                    'A prompt is running in another directory'
+                );
+            }
             const turn: Turn = {
                 cx: client,
                 sessionId: params.sessionId,
+                cwd,
                 openToolCalls: new Set(),
                 cancelled: false,
             };
             turns.set(params.sessionId, turn);
             try {
+                await useWorkspace(running, cwd);
                 return await runPrompt(running, params, turn);
             } finally {
                 turns.delete(params.sessionId);
@@ -160,7 +184,10 @@ async function runPrompt(
     turn: Turn
 ): Promise<acp.PromptResponse> {
     let stopReason: acp.StopReason = 'end_turn';
-    for await (const event of await agent.stream(promptText(params.prompt), turn.sessionId)) {
+    const events = await agent.stream(promptText(params.prompt), turn.sessionId);
+    // A cancel that arrived before the run started found nothing to stop.
+    if (turn.cancelled) await agent.cancel(turn.sessionId);
+    for await (const event of events) {
         const finished = await forwardEvent(event, turn);
         if (finished !== null) stopReason = finished;
     }
@@ -198,7 +225,7 @@ async function openToolCall(
         kind: toolKind(toolName),
         status: 'pending',
         rawInput: args,
-        locations: toolLocations(args),
+        locations: toolLocations(turn.cwd, args),
     });
 }
 
@@ -426,10 +453,10 @@ function toolTitle(toolName: string, args: Record<string, unknown>): string {
     return detail === undefined ? toolName : `${toolName} ${detail}`;
 }
 
-function toolLocations(args: Record<string, unknown>): acp.ToolCallLocation[] {
+function toolLocations(cwd: string, args: Record<string, unknown>): acp.ToolCallLocation[] {
     const path = pathArg(args);
-    // ACP locations are absolute; Dexto tools take paths relative to the workspace.
-    return path === undefined ? [] : [{ path: resolve(process.cwd(), path) }];
+    // ACP locations are absolute; Dexto tools take paths relative to the session directory.
+    return path === undefined ? [] : [{ path: resolve(cwd, path) }];
 }
 
 function pathArg(args: Record<string, unknown>): string | undefined {

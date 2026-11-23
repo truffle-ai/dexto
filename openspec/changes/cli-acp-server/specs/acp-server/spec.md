@@ -28,6 +28,12 @@ Each ACP session SHALL be a Dexto session; a prompt SHALL run the Dexto agent lo
 - **WHEN** a client prompts a session whose previous prompt is still running
 - **THEN** the new prompt is refused and the running prompt is unaffected
 
+#### Scenario: Sessions in different directories
+
+- **WHEN** a client opens sessions in two directories and prompts one of them
+- **THEN** that prompt's tools run in its own session's directory
+- **AND** a prompt in the other directory is refused while that turn runs
+
 ### Requirement: Tool calls and permissions
 
 Dexto tool calls SHALL be reported as ACP tool calls, and Dexto approvals SHALL be asked through `session/request_permission`.
