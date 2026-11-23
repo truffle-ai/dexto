@@ -62,30 +62,7 @@ describe('command exit', () => {
 
     it('writes all of a large output to a slow pipe before the process exits', async () => {
         const bytes = 1024 * 1024;
-        const runtime = new URL('../cli/cloud/runtime.ts', import.meta.url).href;
-        const wrapper = new URL('./wrapper.ts', import.meta.url).href;
-        // The real output and exit path: the cloud runtime writes stdout without waiting, then the
-        // command ends through safeExit, as every engine command does.
-        const script = `
-            const { nodeCloudRuntime } = await import(${JSON.stringify(runtime)});
-            const { withAnalytics, safeExit } = await import(${JSON.stringify(wrapper)});
-            nodeCloudRuntime(new AbortController().signal).writeOutput('x'.repeat(${bytes}));
-            await withAnalytics('large-output', () => safeExit('large-output', 0), { timeoutMs: 0 })();
-        `;
-        const child = spawn(
-            process.execPath,
-            [
-                '--import',
-                createRequire(import.meta.url).resolve('tsx'),
-                '--input-type=module',
-                '-e',
-                script,
-            ],
-            {
-                env: { ...process.env, DEXTO_ANALYTICS_DISABLED: '1' },
-                stdio: ['ignore', 'pipe', 'inherit'],
-            }
-        );
+        const child = spawnCommandWritingOutput(bytes, 0);
         // A slow reader, like `| (sleep 1; wc -c)`: the pipe fills while the child finishes.
         await new Promise((resolve) => setTimeout(resolve, 1000));
         let received = 0;
@@ -94,4 +71,35 @@ describe('command exit', () => {
         expect(code).toBe(0);
         expect(received).toBe(bytes);
     }, 30_000);
+
+    it('exits with the command code when the reader closes early', async () => {
+        const child = spawnCommandWritingOutput(1024 * 1024, 3);
+        let stderr = '';
+        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+        // A reader that stops early, like `| head -c 10`: close the pipe at its first bytes.
+        child.stdout.once('data', () => child.stdout.destroy());
+        const code = await new Promise((resolve) => child.on('close', resolve));
+        expect(stderr).toBe('');
+        expect(code).toBe(3);
+    }, 30_000);
 });
+
+/**
+ * Runs the real output and exit path in a child: the cloud runtime writes `bytes` to stdout
+ * without waiting, then the command ends through safeExit with `code`, as every engine command does.
+ */
+function spawnCommandWritingOutput(bytes: number, code: number) {
+    const runtime = new URL('../cli/cloud/runtime.ts', import.meta.url).href;
+    const wrapper = new URL('./wrapper.ts', import.meta.url).href;
+    const script = `
+        const { nodeCloudRuntime } = await import(${JSON.stringify(runtime)});
+        const { withAnalytics, safeExit } = await import(${JSON.stringify(wrapper)});
+        nodeCloudRuntime(new AbortController().signal).writeOutput('x'.repeat(${bytes}));
+        await withAnalytics('output', () => safeExit('output', ${code}), { timeoutMs: 0 })();
+    `;
+    const tsx = createRequire(import.meta.url).resolve('tsx');
+    return spawn(process.execPath, ['--import', tsx, '--input-type=module', '-e', script], {
+        env: { ...process.env, DEXTO_ANALYTICS_DISABLED: '1' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+}

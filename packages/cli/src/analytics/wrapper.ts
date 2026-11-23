@@ -128,8 +128,12 @@ function flushed(stream: NodeJS.WriteStream): Promise<void> {
     // raise EPIPE on macOS and crash `dexto ... --json | head -1`.
     if (stream.writableLength === 0) return Promise.resolve();
     // Writes complete in order, so an empty write's callback runs after every earlier write's.
-    // It also runs, with an error, when the reader has gone; nothing is left to flush then.
-    return new Promise((resolve) => stream.write('', () => resolve()));
+    // When the reader has gone (`| head`), a queued write fails with EPIPE and the stream emits
+    // 'error'; nothing can be flushed then, so take that as done instead of crashing the exit.
+    return new Promise((resolve) => {
+        stream.once('error', () => resolve());
+        stream.write('', () => resolve());
+    });
 }
 
 export class ExitSignal extends Error {
