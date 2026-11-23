@@ -21,6 +21,7 @@
         "notifications get": ["dexto_notification_get"],
         "notifications list": ["dexto_notifications_list"],
         "notifications mark-read": ["dexto_notifications_mark_read"],
+        "chat share": ["dexto_chat_share"],
         "marketplace search": ["dexto_marketplace_search"],
         "marketplace get": ["dexto_marketplace_get"],
         "marketplace install": ["dexto_marketplace_install"],

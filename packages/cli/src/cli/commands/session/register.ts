@@ -75,6 +75,7 @@ export function registerSessionCommand({
         outputs: 'List the files and resources a cloud chat produced',
         computers: 'List your connected computers for a cloud chat',
         'browser-profiles': 'List your browser profiles for a cloud chat',
+        share: 'Set who in your organization can open one of your cloud chats',
         move: 'Move a synced chat and its working tree to cloud or local',
         watch: 'Stay attached to a chat on its cloud computer',
     }).filter(([word]) => !HELD_COMMANDS.has(`chat ${word}`)))
