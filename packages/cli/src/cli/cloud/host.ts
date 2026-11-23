@@ -10,6 +10,7 @@ import { artifactCommands } from './commands/artifacts.js';
 import { publicArtifactCommands } from './commands/public-artifacts.js';
 import { notificationCommands } from './commands/notifications.js';
 import { connectionCommands } from './commands/connections.js';
+import { channelCommands } from './commands/channels.js';
 import { chatCommands } from './commands/chats.js';
 import { importCommands } from './commands/import.js';
 import { creditCommands } from './commands/credits.js';
@@ -92,6 +93,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...publishCommands,
         ...skillCommands,
         ...traceCommands,
+        ...channelCommands,
         ...chatCommands,
         ...chatReadCommands,
         ...importCommands,

@@ -49,6 +49,27 @@
     "examples": false
   },
   {
+    "command": "channels list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "channels read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "channels send",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "chat browser-profiles",
     "json": true,
     "dryRun": false,
