@@ -6,8 +6,8 @@ import { CommandFailure } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
 import {
     argument,
+    boundedOption,
     flag,
-    integerOption,
     listOption,
     UsageError,
     YES_OPTION,
@@ -36,18 +36,6 @@ function parsed<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
     if (!result.success)
         throw new CommandFailure('failed', `Dexto didn't return a valid ${what}.`, null);
     return result.data;
-}
-
-function boundedOption(
-    input: Parameters<Command['run']>[1],
-    name: string,
-    min: number,
-    max: number
-): number | undefined {
-    const value = integerOption(input, name);
-    if (value !== undefined && (value < min || value > max))
-        throw new UsageError(`--${name} must be between ${min} and ${max}.`);
-    return value;
 }
 
 const list: Command = {
