@@ -1,7 +1,7 @@
 ## 1. Sign-in
 
 - [x] 1.1 Offer **Sign in to Dexto** as a terminal auth method to clients that declare `auth.terminal` or `_meta["terminal-auth"]`.
-- [x] 1.2 Add `dexto acp login`, identical to `dexto login`, and its CLI audit row.
+- [x] 1.2 Add `dexto acp login`, running `dexto login` through the shared `runEngineCommand`, and its CLI audit row.
 
 ## 2. Tests and docs
 

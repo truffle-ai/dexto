@@ -1460,10 +1460,17 @@ setup:
             );
             expect(authMethods).toEqual([expect.objectContaining(DEXTO_LOGIN_METHOD)]);
         }
-        // A client that can't run a terminal is offered none.
-        await expect(
-            withAgent(allow, async (_cx, recorded) => recorded.authMethods)
-        ).resolves.toEqual([]);
+        // A client that doesn't declare terminal sign-in is offered none, even with a terminal.
+        for (const capabilities of [undefined, { terminal: true }]) {
+            await expect(
+                withAgent(
+                    allow,
+                    async (_cx, recorded) => recorded.authMethods,
+                    undefined,
+                    capabilities ? { capabilities } : undefined
+                )
+            ).resolves.toEqual([]);
+        }
     }, 60000);
 
     it('runs dexto login for dexto acp login, whichever way the client adds the args', async () => {
