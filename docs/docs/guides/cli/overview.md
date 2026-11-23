@@ -339,6 +339,20 @@ Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <
 
 Signed in as a person, each session starts by syncing your Dexto Skills library to `~/.dexto/cloud-skills/`, where Skill discovery finds them after your own Skills, so a local Skill of the same name wins. Signed out, or with an API key, that copy is removed. `dexto skills sync` syncs on demand, and `dexto skills push <dir>` adds a local Skill to your library.
 
+Manage the library itself with the other `dexto skills` commands, each over the Dexto MCP's own Skill tool:
+
+```bash
+dexto skills get "$SKILL_ID" --json                   # SKILL.md, manifest and release; @publisher/name for a Store Skill
+dexto skills file "$SKILL_ID" references/style.md     # one file the bundle declares; --out writes it
+dexto skills validate ./my-skill --json               # check a folder without saving it
+dexto skills create ./my-skill --yes --json           # or: update <skill_id> <folder>, delete <id|slug>
+dexto skills install @publisher/name --yes --json  # or a library Skill's id or slug; uninstall <id|slug>
+dexto skills versions "$SKILL_ID" --json              # then: restore <skill_id> <version_id>
+dexto skills publish "$SKILL_ID" --summary "..." --yes --json
+```
+
+Reading needs `skills:read` and changing needs `skills:write`. `create`, `update` and `validate` send the folder's files as text, each with its role from where it sits (`SKILL.md`, `references/`, `scripts/`, `assets/`, else config); use `skills push` for a folder with binary files. Changes ask first: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it.
+
 Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. A folder of plain pages needs no packer: a `dexto.json` with `slug`, `title` and `assets` (the folder holding `index.html`) deploys with `dexto cloud sites deploy` alone. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
 
 ### Run traces
@@ -420,6 +434,22 @@ dexto autobots chat "$AUTOBOT_ID" "What changed this week?" --json
 
 Reading needs `autobots:read`; saving, publishing, answering and chatting need `autobots:write`, and `publish --publish-skills` also needs `skills:write`. `status` without an id pages with `--limit` (at most 20) and `--after`, the `next_after` cursor of the previous page; its pending input shows the `approvalId` that `input` answers. `save` without an id creates a private AutoBot from `--name` and `--role`; with an id it changes only what you pass. Starters, model and skills go in `--data` or `--file` as the save JSON. `save`, `publish` and `input` ask first, so pass `--yes` once your person has agreed. When publishing would also publish Skills that are not public yet, `publish` stops and exits 4; run it again with `--publish-skills` to publish them too. An AutoBot that is neither yours nor shared with your organization is not found (exit 5).
 
+## The Marketplace
+
+Find AutoBot templates, Dexto Apps and Skills in the Dexto Marketplace, install them, and publish your own:
+
+```bash
+dexto marketplace search invoices --kind dexto-app --json
+dexto marketplace get "$LISTING_ID" --kind dexto-app --json
+dexto marketplace install "$LISTING_ID" --kind dexto-app --release "$RELEASE_ID" --yes --json
+dexto marketplace uninstall "$APP_ID" --yes --json
+dexto marketplace preview --slug my-skill --json
+dexto marketplace publish --slug my-skill --release "$RELEASE_ID" --title "My Skill" --summary "Does one thing well" --yes --json
+dexto marketplace unpublish --slug my-skill --yes --json
+```
+
+These act as you, so they need your own sign-in, not an API key. Search and get need `marketplace:read`; preview also needs `skills:read`. Install, uninstall, publish and unpublish need `marketplace:write`, plus `apps:read` to install or uninstall a Dexto App, `apps:write` to publish or unpublish one, and `skills:write` to publish or unpublish a Skill. A Dexto App installs only at the release you name with `--release`, its `latestRelease.releaseId` from search or get; if a newer release has come out since, nothing is installed. To publish a Skill, run preview first and pass the release id it shows. Every write asks before it runs: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it. Without `--yes` and with no terminal to ask at, the command fails with `needs_confirmation` and changes nothing.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.
@@ -432,6 +462,13 @@ dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan
 dexto workspace artifacts list --chat <id> --json
 dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
+dexto workspace contacts search ada --json
+dexto workspace contacts connect ada --user <id> --organization <id> --yes
+dexto workspace network list --json
+dexto workspace network read <thread_id> --before <cursor>
+dexto workspace network mark-read <thread_id> --through <sequence>
+dexto workspace network send <contact_id> "See you at 3." --idempotency-key reply-1 --yes
+dexto workspace sites records list <site_id> signups --limit 20 --json
 dexto workspace email send --to a@b.c --yes
 dexto workspace tools --search calendar    # every tool, by MCP name
 dexto workspace call dexto_search --data '{"query":"invoices"}'
@@ -441,6 +478,12 @@ dexto find "share a file"                  # the command for what you want to do
 An operation that acts, approves or spends asks first; pass `--yes` only once your person has agreed (without it, and with no one to ask, the command exits 4 with the command that goes ahead). Workspace tools act as a person, so an API key can't use them. An operation your sign-in can't use yet names the `dexto login --scope` that grants it.
 
 `dexto workspace artifacts` saves HTML files as Artifacts in your library (`list`, `get`, `create`, `replace`, `share`). HTML comes from a file or `-` for stdin, never an argument; `get --out` writes it back to a file. `create --idempotency-key` makes a retry return the first Artifact instead of a copy, `replace` keeps the title, kind, summary, surface and renderer you don't change, and every write takes `--dry-run`.
+
+`dexto workspace contacts` manages your Dexto Contacts in the organization you are signed in to: `list` (`--query`, `--blocked`), `search`, `requests` and `invite-link` read them; `connect`, `accept`, `decline`, `remove`, `block` and `unblock` change them and ask first. Reading needs `contacts:read`; `search` and every change need `contacts:write`, because finding people reaches beyond your saved Contacts. `search` gives the `--user` and `--organization` that `connect` takes, and `list` and `requests` give the contact id the other changes take.
+
+`dexto workspace network` reads and answers your Network conversations (`list`, `read`, `mark-read`, `send`). `read` takes a thread id or `--contact <contact_id>`, pages back with the page's `previousCursor` as `--before`, and reads the rest of a long message with `--message <sequence> --offset <nextTextOffset>`; reading never marks anything read. `mark-read --through <sequence>` marks a conversation read up to the newest message you were told. `send` sends the exact text (or `-` for stdin) to an accepted connection's contact id once your person has agreed, and `--idempotency-key` makes a retry return the first send instead of sending twice. Reading needs `network:read`; marking read and sending need `network:write`.
+
+`dexto workspace sites records` reads and changes the records in a Site's data collections, as the Site's owner (`list`, `get`, `create`, `update`, `delete`). Each takes the Site's id and the collection's name; `get`, `update` and `delete` also take the record's id. `list` returns up to `--limit` records (1 to 100, default 50), private ones included. `create` and `update` take the value as JSON with `--data`, or `--file` (`-` for stdin), and the collection's schema checks it. Reading needs `sites:read`; writing needs `sites:write`, asks first and takes `--dry-run`. With `--json` each command prints the tool's result as it comes: `{collection, records, siteId, slug}` for `list`, `{collection, record, siteId, slug}` for the rest.
 
 ## Next Steps
 
