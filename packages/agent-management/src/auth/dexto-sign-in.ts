@@ -30,6 +30,8 @@ export const CLI_LOGIN_SCOPES = [
     'functions:write',
     'messages:read',
     'messages:write',
+    'network:read',
+    'network:write',
     'notifications:read',
     'notifications:write',
     'projects:read',
