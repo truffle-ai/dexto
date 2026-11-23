@@ -128,8 +128,12 @@ export async function serveAcp(
         if (!sessions.has(sessionId)) throw acp.RequestError.sessionNotFound(sessionId);
     }
 
-    /** A stored session of this project, opened on this connection (load and resume). */
-    function restoreSession(sessionId: string, cwd: string): Promise<DextoAgent> {
+    /** Opens a stored session of this project on this connection, then runs `reopen` (load and resume) before the next load, resume or close of it. */
+    function restoreSession<T>(
+        sessionId: string,
+        cwd: string,
+        reopen: (agent: DextoAgent) => Promise<T>
+    ): Promise<T> {
         return inOrder(sessionId, async () => {
             const running = await agentFor(cwd);
             const metadata = await running.getSessionMetadata(sessionId);
@@ -140,7 +144,7 @@ export async function serveAcp(
                 throw acp.RequestError.sessionNotFound(sessionId);
             }
             sessions.add(sessionId);
-            return running;
+            return await reopen(running);
         });
     }
 
@@ -198,15 +202,17 @@ export async function serveAcp(
                 configOptions: await modelOptions(running, session.id),
             };
         })
-        .onRequest('session/load', async ({ params, client }) => {
-            const running = await restoreSession(params.sessionId, params.cwd);
-            await replayHistory(running, params.sessionId, client);
-            return { configOptions: await modelOptions(running, params.sessionId) };
-        })
-        .onRequest('session/resume', async ({ params }) => {
-            const running = await restoreSession(params.sessionId, params.cwd);
-            return { configOptions: await modelOptions(running, params.sessionId) };
-        })
+        .onRequest('session/load', ({ params, client }) =>
+            restoreSession(params.sessionId, params.cwd, async (running) => {
+                await replayHistory(running, params.sessionId, client);
+                return { configOptions: await modelOptions(running, params.sessionId) };
+            })
+        )
+        .onRequest('session/resume', ({ params }) =>
+            restoreSession(params.sessionId, params.cwd, async (running) => ({
+                configOptions: await modelOptions(running, params.sessionId),
+            }))
+        )
         .onRequest('session/list', async ({ params }) => {
             // Without a cwd, the project this process serves (or the one it starts in).
             const running = await agentFor(params.cwd ?? state.runtime?.root ?? process.cwd());
