@@ -30,6 +30,16 @@ When the agent asks the person for structured input (`ask_user`, or an MCP serve
 - **WHEN** `ask_user` asks for a multi-select written as `type: "array"` with `items: { enum: [...] }`
 - **THEN** the form's field carries `items: { type: "string", enum: [...] }`, the shape ACP accepts
 
+#### Scenario: Turned off
+
+- **WHEN** the agent config sets `elicitation.enabled: false`, or `dexto --no-elicitation acp` is run
+- **THEN** no form is sent and `ask_user` fails as elicitation is disabled
+
+#### Scenario: Timed out
+
+- **WHEN** the agent config sets `elicitation.timeout` and the form is not answered in time
+- **THEN** the form request is withdrawn and the tool call fails as timed out, and the turn continues
+
 #### Scenario: Cancelled while open
 
 - **WHEN** the client cancels the turn while a form is open

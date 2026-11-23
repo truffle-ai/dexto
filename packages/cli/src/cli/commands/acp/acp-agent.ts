@@ -367,7 +367,7 @@ async function askClient(
     }
     const base: ApprovalBase = { approvalId, sessionId };
     if (request.type === ApprovalType.ELICITATION) {
-        return await askForm(request.metadata, turn, forms, base);
+        return await askForm(request.metadata, request.timeout, turn, forms, base);
     }
     let toolCall: acp.ToolCallUpdate;
     if (request.type === ApprovalType.TOOL_APPROVAL) {
@@ -410,10 +410,11 @@ type ApprovalBase = { readonly approvalId: string; readonly sessionId: string };
 
 /**
  * A Dexto form (ask_user, or an MCP server's elicitation) → ACP `elicitation/create`. A client
- * without form support, or a form ACP cannot show, is answered so the model asks in chat.
+ * without form support, or a form ACP cannot show, is denied with an ask-in-chat message.
  */
 async function askForm(
     metadata: ElicitationMetadata,
+    timeout: number | undefined,
     turn: Turn,
     forms: boolean,
     base: ApprovalBase
@@ -434,6 +435,8 @@ async function askForm(
     if (turn.abort.signal.aborted) {
         return { ...base, status: ApprovalStatus.CANCELLED, reason: DenialReason.USER_CANCELLED };
     }
+    // A form left open past the configured elicitation timeout is withdrawn, as the CLI does.
+    const timedOut = timeout === undefined ? undefined : AbortSignal.timeout(timeout);
     let response: acp.CreateElicitationResponse;
     try {
         response = await turn.cx.request(
@@ -445,9 +448,23 @@ async function askForm(
                 requestedSchema,
             },
             // A cancelled turn withdraws its open form.
-            { cancellationSignal: turn.abort.signal, stopWaitingOnCancel: true }
+            {
+                cancellationSignal: timedOut
+                    ? AbortSignal.any([turn.abort.signal, timedOut])
+                    : turn.abort.signal,
+                stopWaitingOnCancel: true,
+            }
         );
     } catch (error) {
+        if (timeout !== undefined && timedOut?.aborted && !turn.abort.signal.aborted) {
+            return {
+                ...base,
+                status: ApprovalStatus.CANCELLED,
+                reason: DenialReason.TIMEOUT,
+                message: `The form timed out after ${timeout}ms.`,
+                timeoutMs: timeout,
+            };
+        }
         if (!turn.abort.signal.aborted) throw error;
         return { ...base, status: ApprovalStatus.CANCELLED, reason: DenialReason.USER_CANCELLED };
     }

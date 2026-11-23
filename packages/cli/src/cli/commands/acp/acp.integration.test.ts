@@ -142,6 +142,7 @@ describe('dexto acp over stdio', () => {
     let otherDirectory: string;
     let home: string;
     let configPath: string;
+    let formTimeoutConfigPath: string;
     let effectPath: string;
     const children: ChildProcess[] = [];
 
@@ -212,10 +213,7 @@ export default {
 };
 `
         );
-        configPath = join(directory, 'agent.yml');
-        await writeFile(
-            configPath,
-            `image: ${JSON.stringify(imagePath)}
+        const agentYaml = `image: ${JSON.stringify(imagePath)}
 systemPrompt: Answer briefly.
 permissions:
   mode: asks-you
@@ -236,8 +234,11 @@ tools:
     enabledTools: [edit_file]
   - type: builtin-tools
     enabledTools: [ask_user]
-`
-        );
+`;
+        configPath = join(directory, 'agent.yml');
+        await writeFile(configPath, agentYaml);
+        formTimeoutConfigPath = join(directory, 'agent-form-timeout.yml');
+        await writeFile(formTimeoutConfigPath, `${agentYaml}elicitation:\n  timeout: 300\n`);
     });
 
     afterEach(async () => {
@@ -257,11 +258,12 @@ tools:
             request: acp.RequestPermissionRequest
         ) => acp.RequestPermissionResponse | Promise<acp.RequestPermissionResponse>,
         op: (cx: acp.ClientContext, recorded: Recorded) => Promise<T>,
-        form?: FormAnswer
+        form?: FormAnswer,
+        { config = configPath, flags = [] }: { config?: string; flags?: string[] } = {}
     ): Promise<T> {
         const child = spawn(
             process.execPath,
-            ['--import', tsx, entrypoint, '--agent', configPath, 'acp'],
+            ['--import', tsx, entrypoint, '--agent', config, ...flags, 'acp'],
             {
                 cwd: directory,
                 stdio: ['pipe', 'pipe', 'pipe'],
@@ -531,6 +533,46 @@ tools:
             expect(recorded.forms).toEqual([]);
             expect(toolResultText(recorded, 'ask-call')).toMatch(/cannot show forms/i);
         });
+    }, 60000);
+
+    it('keeps ask_user off when elicitation is turned off', async () => {
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const sessionId = await newSession(cx);
+                await expect(prompt(cx, sessionId, 'ask size')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+                expect(recorded.forms).toEqual([]);
+                expect(toolResultText(recorded, 'ask-call')).toMatch(/elicitation is disabled/i);
+            },
+            () => ({ action: 'accept', content: { size: 'large' } }),
+            { flags: ['--no-elicitation'] }
+        );
+    }, 60000);
+
+    it('withdraws a form left open past the elicitation timeout', async () => {
+        let withdrawn = false;
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const sessionId = await newSession(cx);
+                await expect(prompt(cx, sessionId, 'ask size')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+                expect(recorded.forms).toHaveLength(1);
+                expect(withdrawn).toBe(true);
+                expect(toolResultText(recorded, 'ask-call')).toMatch(/timed out/i);
+            },
+            (_request, signal) =>
+                new Promise<acp.CreateElicitationResponse>((resolve) => {
+                    signal.addEventListener('abort', () => {
+                        withdrawn = true;
+                        resolve({ action: 'cancel' });
+                    });
+                }),
+            { config: formTimeoutConfigPath }
+        );
     }, 60000);
 
     it('withdraws the open form when its turn is cancelled', async () => {

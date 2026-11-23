@@ -413,8 +413,9 @@ async function bootstrapAgentFromGlobalOpts(options: {
     }
 
     enrichedConfig.elicitation = {
-        // Only an ACP client can answer ask_user and MCP elicitation forms.
-        enabled: mode === 'acp',
+        // Only an ACP client can answer ask_user and MCP elicitation forms; an explicit
+        // `enabled: false` (or --no-elicitation) still turns them off.
+        enabled: mode === 'acp' && enrichedConfig.elicitation?.enabled !== false,
         ...(enrichedConfig.elicitation?.timeout !== undefined && {
             timeout: enrichedConfig.elicitation.timeout,
         }),
