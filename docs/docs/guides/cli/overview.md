@@ -379,6 +379,17 @@ dexto artifacts open "$ARTIFACT_ID" --json
 
 Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes, title and kind again returns the original Artifact; use a different title to publish a separate copy.
 
+## Read the Dexto docs
+
+Search Dexto's public documentation, then read a page by the path a result gives:
+
+```bash
+dexto docs search "mcp catalog" --limit 3 --json
+dexto docs read cli/output
+```
+
+`search` takes `--limit` (1 to 20, default 5) and returns `{results}`, each with `title`, `path`, `url`, `description` and a `snippet`. `read` prints the page as Markdown, or with `--json` its `{title, path, url, description, markdown}`; with no path it reads the docs home. A path with no page exits with a `not_found` failure. Both need a signed-in user, as other workspace commands do.
+
 ## Your managed Applications
 
 Inspect the Dockerfile Applications you own in the signed-in organization, one release, and its logs:
