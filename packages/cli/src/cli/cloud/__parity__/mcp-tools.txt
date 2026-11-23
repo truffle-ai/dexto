@@ -6120,6 +6120,376 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "buildId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The build's id, as dexto_cloud_environments_builds_list or dexto_cloud_environments_rebuild returns it."
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Environment's id, as dexto_cloud_environments_list returns it."
+          }
+        },
+        "required": [
+          "buildId",
+          "environmentId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_environments_builds_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Environment's id, as dexto_cloud_environments_list returns it."
+          }
+        },
+        "required": [
+          "environmentId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_environments_builds_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "spec": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "default": {
+                  "mode": "full"
+                },
+                "description": "{ \"mode\": \"full\" }, or { \"mode\": \"allowlist\", \"hosts\": [...] } to narrow the organization's network policy to those hostnames.",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "full"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "allowlist"
+                      },
+                      "hosts": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 253,
+                          "pattern": "^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "hosts"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "repos": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "repository": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*\\/[A-Za-z0-9_.-]+$"
+                    },
+                    "ref": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  },
+                  "required": [
+                    "repository"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos."
+              },
+              "setup_script": {
+                "default": "",
+                "description": "A shell script, at most 16 KiB, run once in each build after the clones.",
+                "type": "string"
+              },
+              "tools": {
+                "default": [],
+                "description": "Up to 50 named one-line install commands, run in order after the setup script.",
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "install": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "install"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "repos"
+            ],
+            "additionalProperties": false,
+            "description": "What a build installs. It holds no secret values: builds reach private registries through the organization's connections."
+          },
+          "visibility": {
+            "default": "personal",
+            "description": "Defaults to personal; a team Environment made by the organization's only member is stored personal.",
+            "type": "string",
+            "enum": [
+              "personal",
+              "team"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "spec"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_environments_create"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Environment's id, as dexto_cloud_environments_list returns it."
+          }
+        },
+        "required": [
+          "environmentId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_environments_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_environments_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Environment's id, as dexto_cloud_environments_list returns it."
+          }
+        },
+        "required": [
+          "environmentId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_environments_rebuild"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "spec": {
+            "description": "Replaces the whole spec and queues a build.",
+            "type": "object",
+            "properties": {
+              "network": {
+                "default": {
+                  "mode": "full"
+                },
+                "description": "{ \"mode\": \"full\" }, or { \"mode\": \"allowlist\", \"hosts\": [...] } to narrow the organization's network policy to those hostnames.",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "full"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "const": "allowlist"
+                      },
+                      "hosts": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 253,
+                          "pattern": "^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "hosts"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "repos": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "repository": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*\\/[A-Za-z0-9_.-]+$"
+                    },
+                    "ref": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  },
+                  "required": [
+                    "repository"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Up to 20 GitHub repositories, owner/name with an optional ref, cloned under /workspace/repos."
+              },
+              "setup_script": {
+                "default": "",
+                "description": "A shell script, at most 16 KiB, run once in each build after the clones.",
+                "type": "string"
+              },
+              "tools": {
+                "default": [],
+                "description": "Up to 50 named one-line install commands, run in order after the setup script.",
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "install": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "install"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "repos"
+            ],
+            "additionalProperties": false
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "team"
+            ],
+            "description": "personal: only its owner sees it. team: the organization's members use it."
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Environment's id, as dexto_cloud_environments_list returns it."
+          }
+        },
+        "required": [
+          "environmentId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_environments_update"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
           "cloudProjectId": {
             "type": "string",
             "format": "uuid",
@@ -10457,6 +10827,14 @@
           "timezone": {
             "type": "string",
             "minLength": 1
+          },
+          "repository": {
+            "description": "A GitHub repository (owner/name or https://github.com/owner/name) the Project's chats start with, cloned on their computer. It reuses the person's Environment for that repository alone, or makes a personal one whose first build is metered compute (needs computers:write and money consent).",
+            "type": "string"
+          },
+          "confirm": {
+            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+            "type": "boolean"
           }
         },
         "required": [

@@ -54,9 +54,10 @@ function pullRequest(line: Record<string, unknown>): LocalPullRequest | null {
 
 /**
  * A Claude Code session file: one Agent SDK message per line (`type` `user` or `assistant`, with
- * Anthropic `message.content`), plus title, `pr-link` and bookkeeping lines. Sidechain (subagent),
- * meta and compact-summary lines are left out, as is thinking. An assistant line's `message.model`
- * names who answered; Claude Code records no effort, and `<synthetic>` marks a line no model wrote.
+ * Anthropic `message.content`), plus title, `pr-link` and bookkeeping lines. A compact-summary line
+ * is a `summary` message. Sidechain (subagent) and meta lines are left out, as is thinking. An
+ * assistant line's `message.model` names who answered; Claude Code records no effort, and
+ * `<synthetic>` marks a line no model wrote.
  */
 export function parseClaudeCodeTranscript(text: string, file: string): ParsedChat | null {
     const turns = createTurns();
@@ -74,9 +75,7 @@ export function parseClaudeCodeTranscript(text: string, file: string): ParsedCha
             continue;
         }
         if (line.type !== 'user' && line.type !== 'assistant') continue;
-        // A compact summary is Claude Code's own recap of the turns before it, written as `user`.
-        if (line.isSidechain === true || line.isMeta === true || line.isCompactSummary === true)
-            continue;
+        if (line.isSidechain === true || line.isMeta === true) continue;
         const message = line.message;
         const at = validTime(stringField(line, 'timestamp'));
         if (!isRecord(message) || at === null) continue;
@@ -88,6 +87,12 @@ export function parseClaudeCodeTranscript(text: string, file: string): ParsedCha
                 ? answeredBy(message.model, null)
                 : null;
         const content = message.content;
+        // A compact summary is Claude Code's own recap of the turns before it, written as `user`;
+        // the imported chat continues from the latest one.
+        if (line.isCompactSummary === true) {
+            turns.summary(claudeContentText(content), at);
+            continue;
+        }
         if (typeof content === 'string') {
             if (line.type === 'assistant') turns.assistant(content, at, by);
             else if (!CLAUDE_CODE_INJECTED.test(content)) turns.user(content, at);
@@ -106,7 +111,7 @@ export function parseClaudeCodeTranscript(text: string, file: string): ParsedCha
                     by
                 );
             } else if (block.type === 'tool_result') {
-                turns.assistant(toolResultText(claudeToolResultText(block.content)), at, by);
+                turns.assistant(toolResultText(claudeContentText(block.content)), at, by);
             } else if (block.type === 'image' && line.type === 'user') {
                 turns.user('[An image was attached here; it was not imported.]', at);
             }
@@ -127,7 +132,7 @@ export function parseClaudeCodeTranscript(text: string, file: string): ParsedCha
     );
 }
 
-function claudeToolResultText(content: unknown): string {
+function claudeContentText(content: unknown): string {
     if (typeof content === 'string') return content;
     if (!Array.isArray(content)) return '';
     return content

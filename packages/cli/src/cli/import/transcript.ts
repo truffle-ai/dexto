@@ -14,6 +14,8 @@ export interface AnsweredBy {
 
 export type LocalChatMessage =
     | { readonly createdAt: string; readonly role: 'user'; readonly text: string }
+    /** The agent's own recap of every message before it, sent where it was made. */
+    | { readonly createdAt: string; readonly role: 'summary'; readonly text: string }
     | ({
           readonly createdAt: string;
           readonly role: 'assistant';
@@ -112,6 +114,13 @@ export function createTurns() {
         done(): Turns {
             flush();
             return { lastAt, messages };
+        },
+        /** A compaction summary: it closes the turn before it, like the person's next message. */
+        summary(text: string, createdAt: string) {
+            if (text.trim() === '') return;
+            flush();
+            messages.push({ createdAt, role: 'summary', text: text.trim() });
+            lastAt = createdAt;
         },
         user(text: string, createdAt: string) {
             if (text.trim() === '') return;

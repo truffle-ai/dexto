@@ -336,6 +336,55 @@
     "examples": false
   },
   {
+    "command": "cloud environments builds get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud environments builds list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud environments create",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud environments get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud environments list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud environments rebuild",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "cloud environments update",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "cloud fetch",
     "json": true,
     "dryRun": false,
