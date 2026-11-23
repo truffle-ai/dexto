@@ -8,11 +8,14 @@ import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { artifactCommands } from './commands/artifacts.js';
 import { publicArtifactCommands } from './commands/public-artifacts.js';
+import { notificationCommands } from './commands/notifications.js';
 import { connectionCommands } from './commands/connections.js';
+import { channelCommands } from './commands/channels.js';
 import { chatCommands } from './commands/chats.js';
 import { importCommands } from './commands/import.js';
 import { creditCommands } from './commands/credits.js';
 import { chatOutputsCommand } from './commands/chat-outputs.js';
+import { chatReadCommands } from './commands/chat-read.js';
 import { chatShareCommand } from './commands/chat-share.js';
 import { chatProjectCommands } from './commands/chat-projects.js';
 import { computerKeyCommands } from './commands/computer-keys.js';
@@ -21,6 +24,7 @@ import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
 import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
+import { loopCommands } from './commands/loops.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
 import { skillCommands } from './commands/skills.js';
@@ -85,12 +89,16 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...driveCommands,
         ...artifactCommands,
         ...publicArtifactCommands,
+        ...notificationCommands,
         ...findCommands,
+        ...loopCommands,
         ...profileCommands,
         ...publishCommands,
         ...skillCommands,
         ...traceCommands,
+        ...channelCommands,
         ...chatCommands,
+        ...chatReadCommands,
         ...importCommands,
         chatOutputsCommand,
         chatShareCommand,

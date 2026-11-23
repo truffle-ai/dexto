@@ -37,7 +37,7 @@ export interface DextoSignIn {
     readonly signInWithBrowser: (input: BrowserSignInInput) => Promise<OAuthLogin>;
     readonly signInWithDevice: (input: SignInInput) => Promise<OAuthLogin>;
     readonly endSignIn: (login: OAuthLogin) => Promise<EndedSignIn>;
-    readonly refreshSignIn: (login: OAuthLogin) => Promise<OAuthLogin>;
+    readonly refreshSignIn: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
     /** The Cloud projects the signed-in organization has. */
     readonly listProjects: (login: OAuthLogin) => Promise<readonly CloudProject[]>;
     /** Whether the public API accepts the key; false on 401. */
