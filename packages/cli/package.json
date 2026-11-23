@@ -28,6 +28,7 @@
     "dexto": "./dist/index.js"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "2.9.1",
     "@clack/prompts": "^0.10.1",
     "@dexto/agent-config": "workspace:*",
     "@dexto/agent-management": "workspace:*",
