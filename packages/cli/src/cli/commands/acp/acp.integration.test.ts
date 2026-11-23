@@ -711,13 +711,21 @@ tools:
     }, 60000);
 
     it('ends a turn cancelled while its permission request goes unanswered', async () => {
-        const never = () => new Promise<acp.RequestPermissionResponse>(() => {});
+        let withdrawn = false;
+        // Never answered; the agent withdraws it with $/cancel_request.
+        const never = (_request: acp.RequestPermissionRequest, signal: AbortSignal) =>
+            new Promise<acp.RequestPermissionResponse>(() => {
+                signal.addEventListener('abort', () => {
+                    withdrawn = true;
+                });
+            });
         await withAgent(never, async (cx, recorded) => {
             const sessionId = await newSession(cx);
             const turn = prompt(cx, sessionId, 'change state');
             await expect.poll(() => recorded.permissions.length, { timeout: 20000 }).toBe(1);
             await cx.notify(acp.methods.agent.session.cancel, { sessionId });
             await expect(turn).resolves.toEqual({ stopReason: 'cancelled' });
+            await expect.poll(() => withdrawn).toBe(true);
             expect(recorded.updates).toContainEqual(
                 expect.objectContaining({
                     sessionUpdate: 'tool_call_update',

@@ -18,3 +18,8 @@ Dexto tool calls SHALL be reported as ACP tool calls, and Dexto approvals SHALL 
 
 - **WHEN** the agent config sets `permissions.timeout` and the client does not answer the permission request in time
 - **THEN** the request is withdrawn with `$/cancel_request`, the tool does not run, its call ends `failed` as timed out, and the turn continues
+
+#### Scenario: Cancelled while asking
+
+- **WHEN** the client cancels the turn while a permission request is unanswered
+- **THEN** the request is withdrawn with `$/cancel_request`, the tool does not run, and the prompt ends `cancelled`
