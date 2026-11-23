@@ -931,6 +931,20 @@
     "examples": false
   },
   {
+    "command": "workspace share access",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace share received",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "workspace tools",
     "json": true,
     "dryRun": false,
