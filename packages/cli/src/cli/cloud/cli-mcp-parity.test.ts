@@ -98,9 +98,6 @@ dexto_capabilities_search
 dexto_chat_cancel
 dexto_chat_computer
 dexto_chat_continue
-dexto_chat_get
-dexto_chat_list
-dexto_chat_models
 dexto_contacts_block
 dexto_contacts_connect
 dexto_contacts_invite_link
@@ -150,9 +147,6 @@ dexto_network_send
 dexto_network_thread_get
 dexto_network_thread_mark_read
 dexto_network_threads_list
-dexto_notification_get
-dexto_notifications_list
-dexto_notifications_mark_read
 dexto_open
 dexto_share
 dexto_share_access

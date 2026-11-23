@@ -13,6 +13,7 @@ const ENGINE_WORDS = {
     whoami: 'Show who Dexto commands act as',
     accounts: 'List, switch and remove saved sign-ins, one per account and organization',
     models: 'Models Dexto serves on your sign-in',
+    notifications: 'List and read your Dexto notifications, and mark them read',
     billing: "Show the organization's credit balance and recent spending",
     cloud: 'Build in Dexto Cloud: projects, agents, files, sandboxes and more',
     projects:

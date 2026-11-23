@@ -157,7 +157,7 @@ describe('dexto cloud', () => {
 
     it('distinguishes the model catalog from account-available chat models', async () => {
         expect(await runCloud(host, ['models', 'list', '--help', '--json'])).toBe(0);
-        expect(stdout).toContain('workspace chat models');
+        expect(stdout).toContain('dexto chat models');
         expect(stdout).toContain('account');
     });
 

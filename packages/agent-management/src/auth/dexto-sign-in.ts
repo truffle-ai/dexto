@@ -8,8 +8,39 @@ import { type OAuthLogin, SignedInAsSchema } from './dexto-accounts.js';
 /** Dexto's pre-registered public client for this CLI: no secret, no registration. */
 export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
 
+/**
+ * Every scope the Dexto CLI names itself: the base `cloud:read`, what its commands require before
+ * calling Cloud (and tell people to sign in again with), and Chat sync's `chats:sync`. Cloud's
+ * device and browser sign-in must accept each one; its drift test imports this list.
+ */
+export const CLI_LOGIN_SCOPES = [
+    'apps:execute',
+    'apps:read',
+    'artifacts:read',
+    'artifacts:write',
+    'chats:sync',
+    'cloud:read',
+    'cloud:write',
+    'computers:read',
+    'computers:write',
+    'connections:read',
+    'drive:read',
+    'drive:write',
+    'functions:read',
+    'functions:write',
+    'projects:read',
+    'projects:write',
+    'sessions:read',
+    'sessions:write',
+    'sites:read',
+    'sites:write',
+] as const;
+
+/** A scope the CLI asks for by name. */
+export type CliLoginScope = (typeof CLI_LOGIN_SCOPES)[number];
+
 /** A sign-in starts with reading the workspace and Cloud; more is asked for by name. */
-const BASE_CLOUD_SCOPES = ['cloud:read'] as const;
+const BASE_CLOUD_SCOPES: readonly CliLoginScope[] = ['cloud:read'];
 
 const DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
