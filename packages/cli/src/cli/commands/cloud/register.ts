@@ -4,6 +4,7 @@ import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 /** The top-level words the cloud command engine owns, and what each is for. */
 const ENGINE_WORDS = {
     artifacts: 'Publish, list and open organization Artifacts',
+    autobots: 'List your AutoBots, see their status, and save, publish and talk to them',
     import: 'Import local Claude Code and Codex chats',
     connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
     channels: 'List and read your Dexto channels, and send messages to them',
@@ -14,6 +15,8 @@ const ENGINE_WORDS = {
     accounts: 'List, switch and remove saved sign-ins, one per account and organization',
     models: 'Models Dexto serves on your sign-in',
     notifications: 'List and read your Dexto notifications, and mark them read',
+    marketplace:
+        'Find, install and publish Dexto Marketplace listings: AutoBot templates, Dexto Apps and Skills',
     billing: "Show the organization's credit balance and recent spending",
     cloud: 'Build in Dexto Cloud: projects, agents, files, sandboxes and more',
     projects:
@@ -23,7 +26,7 @@ const ENGINE_WORDS = {
     loops: "List and inspect your account's, agents' and Projects' Loops and their runs",
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',
     profile: 'Show and change your Dexto profile: handle, name, bio and who can see it',
-    skills: 'Push a local Skill to your Dexto Skills library, or sync the library to this computer',
+    skills: 'Read, check, author, install, version and publish your Dexto Skills; push a local Skill or sync the library here',
     trace: "List your run traces and show one run's trace from Dexto",
     span: "List one run's spans from Dexto",
 } as const;

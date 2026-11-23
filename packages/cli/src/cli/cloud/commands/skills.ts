@@ -1,24 +1,15 @@
 // `skills push` packs a local Skill folder into the person's library; `skills sync` copies the
-// library to this computer, where local skill discovery finds it.
+// library to this computer, where local skill discovery finds it. The other `skills` verbs are in
+// skill-library.ts.
 
 import { CommandFailure } from '../../failure.js';
-
-import path from 'node:path';
 
 import { getStandaloneSkillPaths } from '@dexto/agent-management';
 import { createCloudClient } from '@dexto/cloud-client';
 import { z } from 'zod';
 
-import {
-    argument,
-    flag,
-    stringOption,
-    UsageError,
-    YES_OPTION,
-    type Command,
-    type CommandContext,
-} from '../command.js';
-import { readSkillFolder, skillHeader, titleFromSlug, SLUG } from '../skill-bundle.js';
+import { argument, flag, YES_OPTION, type Command, type CommandContext } from '../command.js';
+import { readSkillBundle, SKILL_BUNDLE_OPTIONS } from '../skill-bundle.js';
 import { syncCloudSkills } from '../skills-sync.js';
 import { tarArchive } from '../tar.js';
 import { uploadSkillBundle } from './skill-transport.js';
@@ -43,20 +34,7 @@ const ImportedSchema = z.object({
 const push: Command = {
     arguments: '<folder>',
     options: {
-        description: {
-            description: "What the Skill does (default: description in SKILL.md's header).",
-            type: 'string',
-        },
-        slug: {
-            description:
-                "The Skill's slug (default: slug or name in SKILL.md's header, else the folder's name).",
-            type: 'string',
-        },
-        title: {
-            description:
-                "The Skill's title (default: title in SKILL.md's header, else from the slug).",
-            type: 'string',
-        },
+        ...SKILL_BUNDLE_OPTIONS,
         update: {
             description:
                 'Update your Skill with this slug (default: update it if you have one, else create it).',
@@ -68,30 +46,10 @@ const push: Command = {
     summary:
         'Pack a local Skill folder (SKILL.md at its root, dotfiles left out) and create or update it in your library.',
     async run(context, input) {
-        const folder = argument(input, 0, 'folder');
-        const files = await readSkillFolder(folder);
-        const header = skillHeader(new globalThis.TextDecoder().decode(files[0]?.bytes));
-        const named = header.name !== undefined && SLUG.test(header.name) ? header.name : null;
-        const slug =
-            stringOption(input, 'slug') ??
-            header.slug ??
-            named ??
-            path.basename(path.resolve(folder));
-        if (!SLUG.test(slug))
-            throw new UsageError(
-                `${slug} can't be a Skill's slug: use up to 80 lowercase letters, digits, dots, dashes and underscores. Pass --slug.`
-            );
-        const title =
-            stringOption(input, 'title') ??
-            header.title ??
-            (named === null ? header.name : undefined) ??
-            titleFromSlug(slug);
-        const description = stringOption(input, 'description') ?? header.description;
-        if (description === undefined)
-            throw new UsageError(
-                "SKILL.md's header has no description. Add one there, or pass --description."
-            );
-
+        const { description, files, slug, title } = await readSkillBundle(
+            input,
+            argument(input, 0, 'folder')
+        );
         const mode =
             flag(input, 'update') || (await ownsSkill(context, slug)) ? 'update' : 'create';
         const metadata = { description, mode, slug, title } satisfies {
