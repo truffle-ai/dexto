@@ -1,5 +1,60 @@
 # dexto
 
+## 2.3.0
+
+### Minor Changes
+
+- ed1c456: Add `dexto applications list`, `get`, `release` and `logs` to inspect your managed Applications, one release, and its bounded, redacted logs.
+- 0689ed2: Add `dexto autobots` commands to list your AutoBots, read their configuration and status, and save, publish, answer and message them.
+- af8f5d5: `dexto acp` asks `ask_user` questions and MCP elicitations as ACP forms when the client supports them. When it cannot show the form, `ask_user` tells the model to ask in chat, and an MCP elicitation is declined.
+- 304d911: Add `dexto acp`, which serves the Dexto agent over the Agent Client Protocol on stdio so ACP clients such as T3 Code and Zed can drive it: sessions, streamed replies and tool calls, permission requests, cancel and model selection.
+- bf5ec0e: `dexto acp` lists, resumes and closes sessions, and titles a session after its first prompt.
+- d0f3d0f: `dexto acp` shows file edits as ACP diffs (also in permission requests), shell results as the command with its output, and tool kinds from Dexto's activity categories.
+- 606fcc5: Add `dexto docs search` and `dexto docs read` to search Dexto's public documentation and read a page as Markdown.
+- 2792485: Add `dexto loops list` and `dexto loops get` to inspect your account's, an agent's or a Project's Loops and their runs over the Dexto MCP (DEXTO-3482).
+- 9c1b4ce: Add `dexto workspace share access <kind> <id>` to see who can open something you own (its organization, people, public link and access level), and `dexto workspace share received [--kind]` to list what others shared with you, newest first, with invitations you have not answered.
+- 754aca2: Fork a cloud chat from the terminal with `dexto chat fork`, optionally choosing the message to fork through.
+- 368e293: Read your cloud chats from the terminal: `dexto chat list` lists and searches them, `dexto chat get` reads one's messages, and `dexto chat models` lists the models a chat can use. `dexto chat list --local` lists this machine's chats, which `dexto chat list` showed before. `dexto chat follow` and `dexto chat outputs` now run from `dexto` itself.
+- e7b851c: Continue and stop a cloud chat from the terminal: `dexto chat send` messages a chat (steering its current turn, or after it with `--follow-up`; `--wait` follows the answer), and `dexto chat cancel` stops its current run.
+- 95e5daa: Add `dexto chat share <chat-id> private|view|prompt` to set who in your organization can open one of your cloud chats. It always asks first, and for `prompt` it says that members' turns use your organization's credits.
+- 1c0e47d: Add `dexto channels list`, `read` and `send` to list your Dexto channels, read their messages and reply threads, and send a message to one.
+- 6565c8e: Add `dexto skills` commands to read a Skill and its files, check a Skill folder, create, update and delete your Skills, install and uninstall them, list and restore their versions, and publish one to the Store.
+- 7cc877f: Add `dexto marketplace search`, `get`, `install`, `uninstall`, `preview`, `publish` and `unpublish` to find and install Marketplace listings and publish your own Dexto Apps and Skills from the terminal.
+- 476529c: Add `dexto notifications list`, `get` and `mark-read` to list your Dexto notifications, read one without marking it read, and mark the ones you name read.
+- c33a527: Add `dexto workspace sites records` commands to list, read, create, update and delete the records in a Site's data collections.
+
+### Patch Changes
+
+- 9a3ee21: Say in `dexto acp --help` that the command is in preview.
+- c9943e3: `dexto chat agents` lists the agent profiles you can chat with, for `dexto chat start --agent`, from the Dexto MCP's `dexto_agents_list`. `--limit` takes 1 to 50 (default 20) and `--json` prints the tool's result; a sign-in without `agents:read` is asked to sign in again with it (DEXTO-3481).
+- 80e53da: `dexto connections list` and `dexto connections status` now ask a sign-in without `connections:read` to sign in again, instead of listing only the model sign-ins and hiding the person's connectors (DEXTO-2923). `connections:read` joins `CLI_LOGIN_SCOPES`.
+- f4475d7: Add `dexto workspace contacts` to list, search, connect with, answer, remove, block and unblock your Dexto Contacts, and show your invite link.
+- 7299d0c: A command's whole output now reaches a pipe before the CLI exits, so a large `--json` result such as `dexto workspace tools --json | jq` is no longer cut off (DEXTO-3501). The CLI waits for stdout and stderr to flush before it exits.
+- 0572e3d: Add `dexto workspace network list`, `read`, `mark-read` and `send` to read and answer Network conversations from the terminal.
+- fb815eb: `dexto projects recipes` lists the Loop recipes a Project can install, and `dexto projects install-recipe <project> <recipe>` installs one, or resumes it when paused, after asking (or with `--yes`). It schedules future runs only; `--timezone` defaults to this computer's (DEXTO-3483). `automations:read` and `automations:write` join `CLI_LOGIN_SCOPES`.
+- c4faec8: A command run with `--yes` no longer asks to sign in again when the sign-in lacks a permission. It fails with exit 3 (`needs_permission`) and the sign-in that grants the permission as its fix, in `{"error":{"code","message","fix"}}` under `--json` (DEXTO-3589).
+- Updated dependencies [80e53da]
+- Updated dependencies [f4475d7]
+- Updated dependencies [7cc877f]
+- Updated dependencies [0572e3d]
+- Updated dependencies [0689ed2]
+- Updated dependencies [ed1c456]
+- Updated dependencies [1c0e47d]
+- Updated dependencies [fb815eb]
+- Updated dependencies [eec24ce]
+    - @dexto/agent-management@1.19.5
+    - @dexto/core@1.19.5
+    - @dexto/analytics@1.19.5
+    - @dexto/image-local@1.19.5
+    - @dexto/image-logger-agent@1.19.5
+    - @dexto/tui@1.19.5
+    - @dexto/agent-config@1.19.5
+    - @dexto/client-sdk@1.19.5
+    - @dexto/storage@1.19.5
+    - @dexto/llm@1.19.5
+    - @dexto/cloud-client@1.19.5
+    - @dexto/registry@1.19.5
+
 ## 2.2.3
 
 ### Patch Changes

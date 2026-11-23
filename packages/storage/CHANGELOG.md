@@ -1,5 +1,12 @@
 # @dexto/storage
 
+## 1.19.5
+
+### Patch Changes
+
+- Updated dependencies [eec24ce]
+    - @dexto/core@1.19.5
+
 ## 1.19.4
 
 ### Patch Changes

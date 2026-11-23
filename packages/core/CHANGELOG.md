@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.19.5
+
+### Patch Changes
+
+- eec24ce: Feature only Dexto models the gateway serves: the curated `dexto-nova` list named retired models such as `qwen/qwen3-coder:free` and `google/gemini-3-flash-preview`, which the gateway rejects with "Request validation failed".
+    - @dexto/llm@1.19.5
+
 ## 1.19.4
 
 ### Patch Changes
