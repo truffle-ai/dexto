@@ -1,0 +1,21 @@
+## ADDED Requirements
+
+### Requirement: Tool display
+
+Tool calls SHALL carry an ACP tool kind from the tool's Dexto activity category, and file changes and shell results SHALL be shown as ACP diff and command content.
+
+#### Scenario: Edit
+
+- **WHEN** an approval-gated tool that edits a file runs
+- **THEN** its tool call has kind `edit`
+- **AND** the permission request and the completed result carry an ACP diff for the file's absolute path
+
+#### Scenario: Shell command
+
+- **WHEN** a shell tool completes
+- **THEN** its result shows the command, its output and its exit code
+
+#### Scenario: Other tools
+
+- **WHEN** a tool has no activity category that maps to an ACP kind
+- **THEN** its kind is `other` and its result is text

@@ -12,6 +12,7 @@ import {
     type ApprovalResponse,
     type DextoAgent,
     type StreamingEvent,
+    type ToolPresentationSnapshotV1,
 } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/llm';
 import { z } from 'zod';
@@ -22,6 +23,7 @@ import {
     type ModelPickerModel,
 } from '@dexto/agent-management';
 import { applyWorkspaceToAgent } from '../../../utils/workspace.js';
+import { displayContent, toolKind } from './acp-tool-content.js';
 
 /**
  * `dexto acp`: the Dexto CLI agent over the Agent Client Protocol (v1) on stdio, so an ACP
@@ -104,7 +106,7 @@ export async function serveAcp(
 
     function knownSession(sessionId: string): SessionDirectory {
         const directory = sessions.get(sessionId);
-        if (directory === undefined) throw acp.RequestError.resourceNotFound(sessionId);
+        if (directory === undefined) throw acp.RequestError.sessionNotFound(sessionId);
         return directory;
     }
 
@@ -142,7 +144,7 @@ export async function serveAcp(
         .onRequest('session/load', async ({ params, client }) => {
             const running = await agentFor(params.cwd);
             if (!(await running.getSession(params.sessionId))) {
-                throw acp.RequestError.resourceNotFound(params.sessionId);
+                throw acp.RequestError.sessionNotFound(params.sessionId);
             }
             sessions.set(params.sessionId, sessionDirectory(params.cwd));
             await replayHistory(running, params.sessionId, client);
@@ -225,6 +227,9 @@ async function runPrompt(
             const finished = await forwardEvent(event, turn);
             if (finished !== null) stopReason = finished;
         }
+    } catch (error) {
+        // An abort error escaping the run still ends a cancelled turn as `cancelled`.
+        if (!signal.aborted) throw error;
     } finally {
         // v1 has no cancelled tool status: anything left open ends as failed.
         for (const toolCallId of turn.openToolCalls) {
@@ -246,26 +251,35 @@ function sendUpdate(turn: Turn, update: acp.SessionUpdate): Promise<void> {
     });
 }
 
+/** A Dexto tool call as both the tool-call event and a tool approval describe it. */
+type DextoToolCall = {
+    readonly toolCallId: string;
+    readonly toolName: string;
+    readonly args: Record<string, unknown>;
+    readonly presentationSnapshot?: ToolPresentationSnapshotV1 | undefined;
+};
+
+function toolCallFields(turn: Turn, call: DextoToolCall) {
+    return {
+        toolCallId: call.toolCallId,
+        title: toolTitle(call.toolName, call.args),
+        kind: toolKind(call.presentationSnapshot),
+        rawInput: call.args,
+        locations: toolLocations(turn.directory.root, call.args),
+    };
+}
+
 /**
  * Reports a tool call once. Dexto raises an approval before its tool-call event reaches the
  * stream, so whichever comes first opens the call.
  */
-async function openToolCall(
-    turn: Turn,
-    toolCallId: string,
-    toolName: string,
-    args: Record<string, unknown>
-): Promise<void> {
-    if (turn.openToolCalls.has(toolCallId)) return;
-    turn.openToolCalls.add(toolCallId);
+async function openToolCall(turn: Turn, call: DextoToolCall): Promise<void> {
+    if (turn.openToolCalls.has(call.toolCallId)) return;
+    turn.openToolCalls.add(call.toolCallId);
     await sendUpdate(turn, {
         sessionUpdate: 'tool_call',
-        toolCallId,
-        title: toolTitle(toolName, args),
-        kind: toolKind(toolName),
+        ...toolCallFields(turn, call),
         status: 'pending',
-        rawInput: args,
-        locations: toolLocations(turn.directory.root, args),
     });
 }
 
@@ -281,7 +295,12 @@ async function forwardEvent(event: StreamingEvent, turn: Turn): Promise<acp.Stop
             });
             return null;
         case 'llm:tool-call':
-            await openToolCall(turn, event.callId, event.toolName, event.args);
+            await openToolCall(turn, {
+                toolCallId: event.callId,
+                toolName: event.toolName,
+                args: event.args,
+                presentationSnapshot: event.presentationSnapshot,
+            });
             return null;
         case 'tool:running':
             await update({
@@ -292,12 +311,15 @@ async function forwardEvent(event: StreamingEvent, turn: Turn): Promise<acp.Stop
             return null;
         case 'llm:tool-result': {
             turn.openToolCalls.delete(event.callId);
+            const display = event.success ? event.sanitized?.meta.display : undefined;
             const text = event.success ? resultText(event) : (event.error ?? 'Tool failed');
             await update({
                 sessionUpdate: 'tool_call_update',
                 toolCallId: event.callId,
                 status: event.success ? 'completed' : 'failed',
-                content: [{ type: 'content', content: { type: 'text', text } }],
+                content: (display && displayContent(display, turn.directory.root)) ?? [
+                    { type: 'content', content: { type: 'text', text } },
+                ],
             });
             return null;
         }
@@ -344,17 +366,13 @@ async function askClient(
     }
     let toolCall: acp.ToolCallUpdate;
     if (request.type === ApprovalType.TOOL_APPROVAL) {
-        const { toolCallId, toolName, args } = request.metadata;
+        const call = request.metadata;
         // A sub-agent's tool runs in its own session; its result never reaches this stream.
-        if (!('delegatedFromSessionId' in request.metadata)) {
-            await openToolCall(turn, toolCallId, toolName, args);
-        }
-        toolCall = {
-            toolCallId,
-            title: toolTitle(toolName, args),
-            kind: toolKind(toolName),
-            rawInput: args,
-        };
+        if (!('delegatedFromSessionId' in call)) await openToolCall(turn, call);
+        // The approval carries a preview of the change, such as the diff an edit would make.
+        const preview =
+            call.displayPreview && displayContent(call.displayPreview, turn.directory.root);
+        toolCall = { ...toolCallFields(turn, call), ...(preview ? { content: preview } : {}) };
     } else {
         toolCall = {
             toolCallId: request.approvalId,
@@ -445,7 +463,12 @@ function modelValue(model: ModelPickerModel): string {
 }
 
 function parseModelValue(value: string): ModelPickerModel {
-    const parsed: unknown = JSON.parse(value);
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        throw acp.RequestError.invalidParams({ value });
+    }
     if (!Array.isArray(parsed) || typeof parsed[0] !== 'string' || typeof parsed[1] !== 'string') {
         throw acp.RequestError.invalidParams({ value });
     }
@@ -477,17 +500,6 @@ function promptText(blocks: acp.ContentBlock[]): string {
         })
         .filter((text) => text.length > 0)
         .join('\n');
-}
-
-function toolKind(toolName: string): acp.ToolKind {
-    const name = toolName.toLowerCase();
-    if (/read|glob|list|view/.test(name)) return 'read';
-    if (/grep|search|find/.test(name)) return 'search';
-    if (/write|edit|patch|replace|create_file/.test(name)) return 'edit';
-    if (/delete|remove/.test(name)) return 'delete';
-    if (/bash|shell|exec|command|process/.test(name)) return 'execute';
-    if (/fetch|http|web/.test(name)) return 'fetch';
-    return 'other';
 }
 
 function toolTitle(toolName: string, args: Record<string, unknown>): string {

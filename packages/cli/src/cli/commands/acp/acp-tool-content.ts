@@ -1,5 +1,6 @@
 import type * as acp from '@agentclientprotocol/sdk';
 import type { ToolDisplayData, ToolPresentationSnapshotV1 } from '@dexto/core';
+import { resolve } from 'node:path';
 import { parsePatch } from 'diff';
 
 /** Dexto tool activity categories that have an ACP tool kind; the rest are `other`. */
@@ -26,10 +27,14 @@ export function toolKind(snapshot: ToolPresentationSnapshotV1 | undefined): acp.
  * ACP content for the displays clients can render better than text: one ACP diff per hunk of a
  * file change, and a command with its output. Null for every other display.
  */
-export function displayContent(display: ToolDisplayData): acp.ToolCallContent[] | null {
+export function displayContent(
+    display: ToolDisplayData,
+    root: string
+): acp.ToolCallContent[] | null {
     switch (display.type) {
         case 'diff':
-            return diffContent(display.filename, display.unified);
+            // ACP paths are absolute; Dexto file tools may report them relative to the workspace.
+            return diffContent(resolve(root, display.filename), display.unified);
         case 'shell': {
             const output = [display.stdout, display.stderr]
                 .filter((chunk): chunk is string => Boolean(chunk?.trim()))
@@ -48,7 +53,7 @@ export function displayContent(display: ToolDisplayData): acp.ToolCallContent[] 
  */
 function diffContent(path: string, unified: string): acp.ToolCallContent[] {
     return parsePatch(unified).flatMap((patch) =>
-        patch.hunks.map((hunk) => {
+        patch.hunks.map((hunk): acp.ToolCallContent => {
             const oldLines = hunk.lines.filter((line) => !line.startsWith('+'));
             const newLines = hunk.lines.filter((line) => !line.startsWith('-'));
             const text = (lines: string[]) =>
@@ -57,7 +62,7 @@ function diffContent(path: string, unified: string): acp.ToolCallContent[] {
                     .map((line) => line.slice(1))
                     .join('\n');
             return {
-                type: 'diff' as const,
+                type: 'diff',
                 path,
                 oldText: hunk.oldLines === 0 ? null : text(oldLines),
                 newText: text(newLines),

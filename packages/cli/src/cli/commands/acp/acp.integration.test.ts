@@ -21,10 +21,11 @@ type Chunk = { delta: Record<string, unknown>; finish_reason: string | null };
  * A local OpenAI-compatible model whose reply depends on the latest user message, so each test
  * scripts its own turn. No provider credentials or remote calls.
  */
-function scriptedReply(input: { messages: Array<{ role: string; content: unknown }> }): {
-    chunks: Chunk[];
-    delayMs: number;
-} {
+type ScriptedReply = { chunks: Chunk[]; delayMs: number };
+
+function scriptedReply(input: {
+    messages: Array<{ role: string; content: unknown }>;
+}): ScriptedReply {
     const user = [...input.messages].reverse().find((message) => message.role === 'user');
     const text = JSON.stringify(user?.content ?? '');
     const toolResult = input.messages.at(-1)?.role === 'tool';
@@ -32,31 +33,33 @@ function scriptedReply(input: { messages: Array<{ role: string; content: unknown
         { delta: { role: 'assistant', content }, finish_reason: null },
         { delta: {}, finish_reason: 'stop' },
     ];
+    const callTool = (id: string, name: string): ScriptedReply => ({
+        chunks: [
+            {
+                delta: {
+                    role: 'assistant',
+                    tool_calls: [
+                        {
+                            index: 0,
+                            id,
+                            type: 'function',
+                            function: { name, arguments: '{"path":"note.txt"}' },
+                        },
+                    ],
+                },
+                finish_reason: null,
+            },
+            { delta: {}, finish_reason: 'tool_calls' },
+        ],
+        delayMs: 0,
+    });
     if (text.includes('change state')) {
         if (toolResult) return { chunks: say('state handled'), delayMs: 0 };
-        return {
-            chunks: [
-                {
-                    delta: {
-                        role: 'assistant',
-                        tool_calls: [
-                            {
-                                index: 0,
-                                id: 'ordinary-call',
-                                type: 'function',
-                                function: {
-                                    name: 'ordinary_operation',
-                                    arguments: '{"path":"note.txt"}',
-                                },
-                            },
-                        ],
-                    },
-                    finish_reason: null,
-                },
-                { delta: {}, finish_reason: 'tool_calls' },
-            ],
-            delayMs: 0,
-        };
+        return callTool('ordinary-call', 'ordinary_operation');
+    }
+    if (text.includes('edit note')) {
+        if (toolResult) return { chunks: say('note edited'), delayMs: 0 };
+        return callTool('edit-call', 'edit_note');
     }
     if (text.includes('slow')) {
         const words = Array.from({ length: 40 }, (_, i) => ({
@@ -133,6 +136,13 @@ describe('dexto acp over stdio', () => {
 import imageLocal from ${JSON.stringify(imageLocalUrl)};
 import { z } from ${JSON.stringify(zodUrl)};
 import { writeFile } from 'node:fs/promises';
+const noteDiff = {
+    type: 'diff',
+    unified: '--- note.txt\\n+++ note.txt\\n@@ -1 +1 @@\\n-old line\\n+new line\\n',
+    filename: 'note.txt',
+    additions: 1,
+    deletions: 1,
+};
 export default {
     ...imageLocal,
     tools: {
@@ -148,6 +158,21 @@ export default {
                     await writeFile(${JSON.stringify(effectPath)}, 'effect');
                     return 'effect written in ' + process.cwd();
                 },
+            }, {
+                id: 'edit_note',
+                description: 'Edits a note after approval',
+                inputSchema: z.object({ path: z.string() }).strict(),
+                needsApproval: true,
+                presentation: {
+                    activity: {
+                        category: 'file-edit',
+                        label: { running: 'Editing', completed: 'Edited' },
+                        summary: { verb: 'Edited', singular: 'file', plural: 'files' },
+                    },
+                    preview: () => noteDiff,
+                    result: { type: 'display', resolve: () => noteDiff },
+                },
+                execute: async () => 'note edited',
             }],
         },
     },
@@ -304,6 +329,39 @@ tools:
             );
             await expect(access(effectPath)).resolves.toBeUndefined();
             expect(agentText(recorded.updates)).toBe('state handled');
+        });
+    }, 60000);
+
+    it('shows an edit as an ACP diff in the permission request and the result', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await prompt(cx, sessionId, 'edit note');
+            const diff = {
+                type: 'diff',
+                path: join(directory, 'note.txt'),
+                oldText: 'old line',
+                newText: 'new line',
+            };
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call',
+                    toolCallId: 'edit-call',
+                    kind: 'edit',
+                })
+            );
+            expect(recorded.permissions[0]?.toolCall).toMatchObject({
+                toolCallId: 'edit-call',
+                kind: 'edit',
+                content: [diff],
+            });
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call_update',
+                    toolCallId: 'edit-call',
+                    status: 'completed',
+                    content: [diff],
+                })
+            );
         });
     }, 60000);
 
