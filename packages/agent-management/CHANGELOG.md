@@ -1,5 +1,48 @@
 # @dexto/agent-management
 
+## 1.19.4
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/tools-builtins@1.19.4
+    - @dexto/llm@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- 0cd288b: Export `dextoSignIn.CLI_LOGIN_SCOPES`, every scope the CLI asks a sign-in for by name, so Dexto Cloud can test that its sign-in accepts each one. The CLI's own scope checks now only accept scopes from that list.
+- Updated dependencies [023c262]
+    - @dexto/core@1.19.3
+    - @dexto/agent-config@1.19.3
+    - @dexto/tools-builtins@1.19.3
+    - @dexto/llm@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- 5293e60: Refresh a saved Dexto sign-in one at a time: concurrent requests in a process share one refresh, and other processes wait on a lock file beside the login and use the tokens it saved, so two refreshes of one rotating token no longer race (DEXTO-3437). Each refresh is bounded at 10 s whatever its caller, the lock names its holder and only the holder releases it, and a crashed process's lock is taken over atomically.
+    - @dexto/core@1.19.2
+    - @dexto/llm@1.19.2
+    - @dexto/agent-config@1.19.2
+    - @dexto/tools-builtins@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/tools-builtins@1.19.1
+    - @dexto/llm@1.19.1
+
 ## 1.19.0
 
 ### Minor Changes

@@ -1,5 +1,58 @@
 # @dexto/webui
 
+## 1.19.4
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/analytics@1.19.4
+    - @dexto/client-sdk@1.19.4
+    - @dexto/storage@1.19.4
+    - @dexto/llm@1.19.4
+    - @dexto/registry@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- Updated dependencies [023c262]
+    - @dexto/core@1.19.3
+    - @dexto/agent-config@1.19.3
+    - @dexto/analytics@1.19.3
+    - @dexto/client-sdk@1.19.3
+    - @dexto/storage@1.19.3
+    - @dexto/llm@1.19.3
+    - @dexto/registry@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- @dexto/analytics@1.19.2
+- @dexto/client-sdk@1.19.2
+- @dexto/core@1.19.2
+- @dexto/storage@1.19.2
+- @dexto/llm@1.19.2
+- @dexto/agent-config@1.19.2
+- @dexto/registry@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/analytics@1.19.1
+    - @dexto/client-sdk@1.19.1
+    - @dexto/storage@1.19.1
+    - @dexto/llm@1.19.1
+    - @dexto/registry@1.19.1
+
 ## 1.19.0
 
 ### Minor Changes

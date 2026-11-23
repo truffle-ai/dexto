@@ -721,6 +721,111 @@ describe('StreamProcessor', () => {
             ]);
         });
 
+        test('keeps the gateway reasoning items on dexto-nova tool calls, without the [REDACTED] placeholder', async () => {
+            const mocks = createMocks();
+            const config: StreamProcessorConfig = { ...mocks.config, provider: 'dexto-nova' };
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                config,
+                mocks.logger,
+                true
+            );
+            const encrypted = {
+                type: 'reasoning.encrypted',
+                id: 'rs_1',
+                data: 'enc-1',
+                format: 'openai-responses-v1',
+                index: 0,
+            };
+
+            const events = [
+                { type: 'reasoning-start', id: 'r1' },
+                { type: 'reasoning-delta', id: 'r1', text: 'Checking the weather' },
+                // The OpenRouter client's text for an encrypted detail.
+                {
+                    type: 'reasoning-delta',
+                    id: 'r1',
+                    text: '[REDACTED]',
+                    providerMetadata: { openrouter: { reasoning_details: [encrypted] } },
+                },
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-1',
+                    toolName: 'test_tool',
+                    input: { arg: 'value' },
+                    providerMetadata: { openrouter: { reasoning_details: [encrypted] } },
+                },
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-2',
+                    toolName: 'test_tool',
+                    input: { arg: 'other' },
+                    providerMetadata: { openrouter: { reasoning_details: [] } },
+                },
+                {
+                    type: 'finish',
+                    finishReason: 'tool-calls',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.addToolCall).toHaveBeenNthCalledWith(1, 'msg-1', {
+                id: 'call-1',
+                type: 'function',
+                function: { name: 'test_tool', arguments: JSON.stringify({ arg: 'value' }) },
+                providerOptions: { openrouter: { reasoning_details: [encrypted] } },
+            });
+            expect(mocks.contextManager.addToolCall).toHaveBeenNthCalledWith(2, 'msg-1', {
+                id: 'call-2',
+                type: 'function',
+                function: { name: 'test_tool', arguments: JSON.stringify({ arg: 'other' }) },
+            });
+            const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
+            expect((responseEvent?.payload as { reasoning: string }).reasoning).toBe(
+                'Checking the weather'
+            );
+        });
+
+        test('keeps no tool call metadata for OpenAI, whose Responses item ids break follow-ups', async () => {
+            const mocks = createMocks();
+            const config: StreamProcessorConfig = { ...mocks.config, provider: 'openai' };
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-1',
+                    toolName: 'test_tool',
+                    input: {},
+                    providerMetadata: { openai: { itemId: 'fc_1' } },
+                },
+                {
+                    type: 'finish',
+                    finishReason: 'tool-calls',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith('msg-1', {
+                id: 'call-1',
+                type: 'function',
+                function: { name: 'test_tool', arguments: '{}' },
+            });
+        });
+
         test('persists tool call to context without emitting UI tool-call event', async () => {
             // TurnExecutor emits llm:tool-call after preparation so the UI receives
             // normalized presentation metadata before approval handling starts.
