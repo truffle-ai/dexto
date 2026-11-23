@@ -16,6 +16,7 @@ export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
 export const CLI_LOGIN_SCOPES = [
     'apps:execute',
     'apps:read',
+    'apps:write',
     'artifacts:read',
     'artifacts:write',
     'chats:sync',
@@ -24,12 +25,18 @@ export const CLI_LOGIN_SCOPES = [
     'computers:read',
     'computers:write',
     'connections:read',
+    'contacts:read',
+    'contacts:write',
     'drive:read',
     'drive:write',
     'functions:read',
     'functions:write',
+    'marketplace:read',
+    'marketplace:write',
     'messages:read',
     'messages:write',
+    'network:read',
+    'network:write',
     'notifications:read',
     'notifications:write',
     'projects:read',
@@ -38,6 +45,8 @@ export const CLI_LOGIN_SCOPES = [
     'sessions:write',
     'sites:read',
     'sites:write',
+    'skills:read',
+    'skills:write',
 ] as const;
 
 /** A scope the CLI asks for by name. */
