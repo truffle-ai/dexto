@@ -1,3 +1,4 @@
+/* global ReadableStream */
 import { resolve } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import * as acp from '@agentclientprotocol/sdk';
@@ -13,6 +14,7 @@ import {
     type StreamingEvent,
 } from '@dexto/core';
 import {
+    findDextoProjectRoot,
     loadModelPickerState,
     recordRecentModel,
     type ModelPickerModel,
@@ -39,24 +41,30 @@ export async function serveAcp(
     version: string,
     bootstrap: () => Promise<DextoAgent>
 ): Promise<void> {
+    // One agent per process, started by the first session; concurrent first sessions share it.
+    let started: Promise<DextoAgent> | null = null;
     let agent: DextoAgent | null = null;
     // The ACP connection that owns each session's running prompt, for approvals raised mid-turn.
     const turns = new Map<string, Turn>();
 
+    async function startAgent(cwd: string): Promise<DextoAgent> {
+        // The CLI bootstrap reads the workspace from the process directory.
+        process.chdir(cwd);
+        const running = await bootstrap();
+        running.setApprovalHandler((request) => askClient(request, turns));
+        agent = running;
+        return running;
+    }
+
     async function agentFor(cwd: string): Promise<DextoAgent> {
-        if (agent === null) {
-            // The CLI bootstrap reads the workspace from the process directory.
-            process.chdir(cwd);
-            agent = await bootstrap();
-            const running = agent;
-            running.setApprovalHandler((request) => askClient(request, turns));
-            return running;
-        }
+        started ??= startAgent(cwd);
+        const running = await started;
         if (process.cwd() !== cwd) {
             process.chdir(cwd);
-            await applyWorkspaceToAgent(agent, cwd);
+            // The same root the CLI bootstrap picks for the first session.
+            await applyWorkspaceToAgent(running, findDextoProjectRoot(cwd) ?? cwd);
         }
-        return agent;
+        return running;
     }
 
     function startedAgent(): DextoAgent {
@@ -116,6 +124,12 @@ export async function serveAcp(
         })
         .onRequest('session/prompt', async ({ params, client }) => {
             const running = startedAgent();
+            if (turns.has(params.sessionId)) {
+                throw acp.RequestError.invalidRequest(
+                    { sessionId: params.sessionId },
+                    'A prompt is already running in this session'
+                );
+            }
             const turn: Turn = {
                 cx: client,
                 sessionId: params.sessionId,
@@ -137,7 +151,7 @@ export async function serveAcp(
         .connect(stream);
 
     await connection.closed;
-    if (agent !== null) await (agent as DextoAgent).stop();
+    await agent?.stop();
 }
 
 async function runPrompt(
