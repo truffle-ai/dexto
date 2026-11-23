@@ -1,5 +1,6 @@
 // `marketplace`: find, install and publish Dexto Marketplace listings, as you, over the Dexto MCP.
 
+import type { dextoSignIn } from '@dexto/agent-management';
 import { z } from 'zod';
 
 import {
@@ -390,7 +391,7 @@ async function write(
         what,
     }: {
         call: Record<string, unknown>;
-        scopes: readonly string[];
+        scopes: readonly dextoSignIn.CliLoginScope[];
         tool: string;
         what: string;
     }
