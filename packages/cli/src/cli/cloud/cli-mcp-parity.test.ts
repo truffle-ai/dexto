@@ -88,12 +88,10 @@ dexto_autobot_status
 dexto_autobots_list
 dexto_automation_create
 dexto_automation_delete
-dexto_automation_get
 dexto_automation_recipe_install
 dexto_automation_recipes_list
 dexto_automation_trigger
 dexto_automation_update
-dexto_automations_list
 dexto_capabilities_search
 dexto_channel_get
 dexto_channel_send

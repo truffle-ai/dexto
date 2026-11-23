@@ -1,16 +1,16 @@
 ---
 sidebar_position: 1
-title: "Overview"
+title: 'Overview'
 ---
 
 # CLI Overview
 
 The Dexto CLI provides two ways to interact with AI agents:
 
-| Mode | What It Is | How to Use |
-|------|------------|------------|
-| **CLI Tool** | Terminal commands for chats, headless runs, your sign-in, Dexto Cloud and your workspace | `dexto run`, `dexto chat list`, `dexto login` |
-| **Interactive Mode** | Chat session with slash commands for real-time control | `/model switch`, `/mcp add`, `/search` |
+| Mode                 | What It Is                                                                               | How to Use                                    |
+| -------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------- |
+| **CLI Tool**         | Terminal commands for chats, headless runs, your sign-in, Dexto Cloud and your workspace | `dexto run`, `dexto chat list`, `dexto login` |
+| **Interactive Mode** | Chat session with slash commands for real-time control                                   | `/model switch`, `/mcp add`, `/search`        |
 
 This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
 
@@ -66,19 +66,19 @@ The first start needs a model: a provider key in the environment (such as `ANTHR
 
 ### Main Command Options
 
-| Flag | Description | Example |
-|------|-------------|---------|
-| `-v, --version` | Show version | `dexto --version` |
-| `-a, --agent <id\|path>` | Use agent ID or path to config file | `dexto -a nano-banana-agent` |
-| `-p, --prompt <text>` | Start the interactive CLI and run the prompt | `dexto -p "list files"` |
-| `-m, --model <model>` | Specify LLM model | `dexto -m gpt-5-mini` |
-| `-c, --continue` | Continue most recent conversation | `dexto -c` |
-| `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
-| `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
-| `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
-| `--no-interactive` | Disable interactive prompts | `dexto --no-interactive` |
-| `--permissions-mode` | Select `asks-you` (Asks you) or `full-access` (Full access) in TUI or headless mode. `manual` and `auto-approve` still work for one release with a deprecation warning | `dexto --permissions-mode asks-you` |
-| `--auto-approve` / `--bypass-permissions` | Select `full-access`; mandatory approvals still apply | `dexto --auto-approve` |
+| Flag                                      | Description                                                                                                                                                            | Example                             |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `-v, --version`                           | Show version                                                                                                                                                           | `dexto --version`                   |
+| `-a, --agent <id\|path>`                  | Use agent ID or path to config file                                                                                                                                    | `dexto -a nano-banana-agent`        |
+| `-p, --prompt <text>`                     | Start the interactive CLI and run the prompt                                                                                                                           | `dexto -p "list files"`             |
+| `-m, --model <model>`                     | Specify LLM model                                                                                                                                                      | `dexto -m gpt-5-mini`               |
+| `-c, --continue`                          | Continue most recent conversation                                                                                                                                      | `dexto -c`                          |
+| `-r, --resume <sessionId>`                | Resume a specific session by ID                                                                                                                                        | `dexto --resume my-session`         |
+| `-s, --strict`                            | Require all MCP servers to connect                                                                                                                                     | `dexto --strict`                    |
+| `--no-verbose`                            | Disable verbose output                                                                                                                                                 | `dexto --no-verbose`                |
+| `--no-interactive`                        | Disable interactive prompts                                                                                                                                            | `dexto --no-interactive`            |
+| `--permissions-mode`                      | Select `asks-you` (Asks you) or `full-access` (Full access) in TUI or headless mode. `manual` and `auto-approve` still work for one release with a deprecation warning | `dexto --permissions-mode asks-you` |
+| `--auto-approve` / `--bypass-permissions` | Select `full-access`; mandatory approvals still apply                                                                                                                  | `dexto --auto-approve`              |
 
 **Note:** The `-a, --agent` flag accepts bundled agent IDs and paths to agent config files. See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
@@ -118,6 +118,7 @@ dexto upgrade
 ```
 
 **Options:**
+
 - `--dry-run` - Print install/migration commands without executing
 - `--force` - Force reinstall for native install target
 
@@ -137,6 +138,7 @@ dexto uninstall --purge
 ```
 
 **Options:**
+
 - `--purge` - Remove `~/.dexto` completely
 - `--dry-run` - Show what would be removed
 
@@ -187,16 +189,16 @@ Imports keep which model answered each turn, and continuing an imported chat use
 
 These 1.x local-agent commands are gone in 2.0:
 
-| 1.x | Use instead |
-| --- | --- |
-| `dexto setup`, `dexto connect` (1.x provider setup) | `dexto login`, or a provider key in an env var |
-| `dexto agents install\|list` | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
-| `dexto init skill` | `dexto skills push` / `dexto skills sync` |
-| `dexto mcp call\|tools` | `dexto workspace call` / `dexto workspace tools` |
-| `dexto search` | `dexto chat history` |
-| `dexto --mode web` | the Dexto dashboard |
-| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK |
-| `dexto --agent triage-agent` (bundled demo) | removed: it ran its sub-agents with `--mode mcp` |
+| 1.x                                                                        | Use instead                                                     |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `dexto setup`, `dexto connect` (1.x provider setup)                        | `dexto login`, or a provider key in an env var                  |
+| `dexto agents install\|list`                                               | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
+| `dexto init skill`                                                         | `dexto skills push` / `dexto skills sync`                       |
+| `dexto mcp call\|tools`                                                    | `dexto workspace call` / `dexto workspace tools`                |
+| `dexto search`                                                             | `dexto chat history`                                            |
+| `dexto --mode web`                                                         | the Dexto dashboard                                             |
+| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK       |
+| `dexto --agent triage-agent` (bundled demo)                                | removed: it ran its sub-agents with `--mode mcp`                |
 
 The rest of `agents`, `init` and `mcp`, plus `create-image`, `--image`, `--no-auto-install`, `--skip-setup`, `--dev` and `--port`, are removed without a replacement. 2.0's `dexto connect claude` and `dexto connect codex` are different, new commands: they sign Claude Code or Codex in on Dexto Cloud.
 
@@ -341,6 +343,20 @@ dexto artifacts open "$ARTIFACT_ID" --json
 ```
 
 Publishing needs a user credential with `artifacts:write`; listing and opening need `artifacts:read`. Publish returns `{id, object, title, url}` and shares the Artifact with your organization. List returns `{object, data, has_more, next_after}` and accepts `--limit` and `--after`. Open returns the same Artifact fields as publish, with its link. Use `--dry-run` to check the file before publishing. Publishing the same file bytes, title and kind again returns the original Artifact; use a different title to publish a separate copy.
+
+## Your Loops
+
+List and inspect the Loops on your account, an agent or a Dexto Project, and their runs:
+
+```bash
+dexto loops list --json
+dexto loops list --agent "$AGENT_ID" --json
+dexto loops list --in-project "$PROJECT_ID" --paused --json
+dexto loops get "$LOOP_ID" --history --json
+dexto loops get "$LOOP_ID" --execution "$RUN_ID" --json
+```
+
+These read only and need `automations:read`; a sign-in without it is asked to sign in again. With no flag, list returns your account's Loops; `--agent` names an agent's, `--account` or `--in-project` the account's or a Project's (with `--agent`, only that agent's there), and `--enabled` or `--paused` filters by state. List returns `{automations, nextCursor}` and accepts `--limit` and `--after` with the previous `nextCursor`. Get returns `{automation}`; `--history` (or `--history-limit`) adds its recent runs as `executions`, and `--execution` reads one run in full, continued with `--text-offset` and `--payload-offset`. Creating, changing, running and deleting Loops are not CLI commands. These are your Dexto Loops, not the Cloud project automations under `dexto cloud automations`.
 
 ## Your Dexto Workspace
 
