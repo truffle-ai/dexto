@@ -316,7 +316,7 @@ Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <
 
 Signed in as a person, each session starts by syncing your Dexto Skills library to `~/.dexto/cloud-skills/`, where Skill discovery finds them after your own Skills, so a local Skill of the same name wins. Signed out, or with an API key, that copy is removed. `dexto skills sync` syncs on demand, and `dexto skills push <dir>` adds a local Skill to your library.
 
-Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. A folder of plain pages needs no packer: a `dexto.json` with `slug`, `title` and `assets` (the folder holding `index.html`) deploys with `dexto cloud sites deploy` alone. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
+Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. A folder of plain pages needs no packer: a `dexto.json` with `slug`, `title` and `assets` (the folder holding `index.html`) deploys with `dexto cloud sites deploy` alone. `dexto cloud sites get <site-id>` shows a Site with its newest deployments, and `dexto cloud sites promote <site-id> <deployment-id>` makes a ready one live (it asks first; pass `--yes` once agreed). Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
 
 ### Run traces
 

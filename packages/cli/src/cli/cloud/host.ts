@@ -29,6 +29,7 @@ import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
 import { sandboxCommands } from './commands/sandboxes.js';
 import { secretCommands } from './commands/secrets.js';
+import { siteCommands } from './commands/sites.js';
 import { webCommands } from './commands/web.js';
 import { workspaceCommands } from './commands/workspace.js';
 import { resolveConnection } from './connection.js';
@@ -47,7 +48,7 @@ export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
         { name: 'files', summary: "Upload, download, share and delete the project's files" },
         { name: 'sandboxes', summary: 'Create sandboxes, run commands in them and move files' },
         { name: 'secrets', summary: 'Credentials agents use without seeing them' },
-        { name: 'sites', summary: 'Deploy, list and delete Sites, packed with their own packer' },
+        { name: 'sites', summary: 'Deploy, list, show, promote and delete Sites' },
         { name: 'functions', summary: 'Deploy and list Functions, packed with their own packer' },
         { name: 'models', summary: 'Run text and media models, and see media runs' },
         { name: 'search', summary: 'Search the web' },
@@ -75,6 +76,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...sandboxCommands,
         ...secretCommands,
         ...deployCommands,
+        ...siteCommands,
         ...modelCommands,
         ...webCommands,
         ...dataDeletionCommands,
