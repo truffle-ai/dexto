@@ -21,6 +21,13 @@
     "examples": false
   },
   {
+    "command": "acp",
+    "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "applications get",
     "json": true,
     "dryRun": false,
@@ -1355,6 +1362,20 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "workspace share access",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace share received",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
     "examples": true
   },
   {
