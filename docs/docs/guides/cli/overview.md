@@ -492,6 +492,18 @@ dexto marketplace unpublish --slug my-skill --yes --json
 
 These act as you, so they need your own sign-in, not an API key. Search and get need `marketplace:read`; preview also needs `skills:read`. Install, uninstall, publish and unpublish need `marketplace:write`, plus `apps:read` to install or uninstall a Dexto App, `apps:write` to publish or unpublish one, and `skills:write` to publish or unpublish a Skill. A Dexto App installs only at the release you name with `--release`, its `latestRelease.releaseId` from search or get; if a newer release has come out since, nothing is installed. To publish a Skill, run preview first and pass the release id it shows. Every write asks before it runs: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it. Without `--yes` and with no terminal to ask at, the command fails with `needs_confirmation` and changes nothing.
 
+## Your Dexto Apps
+
+See the Dexto Apps available to you, one App's actions, and the data Dexto keeps for Apps you uninstalled:
+
+```bash
+dexto apps list --json
+dexto apps get "$APP_ID" --json
+dexto apps uninstalled --json
+```
+
+These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps and removing kept data are not `apps` commands.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.

@@ -63,6 +63,27 @@
     "examples": true
   },
   {
+    "command": "apps get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps uninstalled",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "artifacts list",
     "json": true,
     "dryRun": false,

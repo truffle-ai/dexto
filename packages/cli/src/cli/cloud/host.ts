@@ -6,6 +6,7 @@ import type { Command } from './command.js';
 import { accountCommands, type SignInFor } from './commands/account.js';
 import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
+import { appCommands } from './commands/apps.js';
 import { applicationCommands } from './commands/applications.js';
 import { artifactCommands } from './commands/artifacts.js';
 import { autobotCommands } from './commands/autobots.js';
@@ -97,6 +98,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...computerKeyCommands,
         ...shareCommands,
         ...driveCommands,
+        ...appCommands,
         ...applicationCommands,
         ...artifactCommands,
         ...autobotCommands,

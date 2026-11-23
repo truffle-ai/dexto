@@ -3,6 +3,7 @@ import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 
 /** The top-level words the cloud command engine owns, and what each is for. */
 export const ENGINE_WORDS = {
+    apps: 'Inspect the Dexto Apps available to you and the data kept for uninstalled Apps',
     applications: 'Inspect your managed Applications, their releases and release logs',
     artifacts: 'Publish, list and open organization Artifacts',
     autobots: 'List your AutoBots, see their status, and save, publish and talk to them',
