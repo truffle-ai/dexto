@@ -1861,7 +1861,7 @@ export class TurnExecutor {
                     !historyLengthChanged &&
                     !this.stepAbortController.signal.aborted &&
                     isRejectedModelRequest(error)
-                        ? withholdRequestMedia(attemptRequest.messages)
+                        ? withholdRequestMedia(attemptRequest.messages, error)
                         : null;
                 if (withoutMedia !== null) {
                     media = 'retried';

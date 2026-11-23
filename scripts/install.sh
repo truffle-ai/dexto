@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs the Dexto CLI for the current user, without sudo.
 #
-#   curl -fsSL https://dexto.ai/install | sh -s -- --version next
+#   curl -fsSL https://dexto.ai/install | sh
 #   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0
 #
 # Needs npm; Node.js 20 or later works, 22 is recommended. It installs the `dexto` npm package into
@@ -53,7 +53,6 @@ After install and PATH setup: dexto login --device
 Then check your account: dexto whoami --json
 
 Examples:
-  curl -fsSL https://dexto.ai/install | sh -s -- --version next
   curl -fsSL https://dexto.ai/install | sh
   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0 --yes
 EOF

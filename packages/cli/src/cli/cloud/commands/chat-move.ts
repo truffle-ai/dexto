@@ -15,6 +15,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
+import { CHAT_SYNC_SCOPE } from '../../chat-sync/host.js';
 import { nodeChatSyncStore, startNodeChatSync } from '../../chat-sync/node.js';
 import {
     buildWorkingTree,
@@ -55,10 +56,10 @@ async function localChat(context: CommandContext, id: string) {
             'Chat hand-off needs your saved OAuth sign-in.',
             'dexto login'
         );
-    if (!connection.login.scopes.includes('chats:sync'))
+    if (!connection.login.scopes.includes(CHAT_SYNC_SCOPE))
         throw new CommandFailure(
             'needs_permission',
-            'Chat hand-off needs chats:sync permission.',
+            `Chat hand-off needs ${CHAT_SYNC_SCOPE} permission.`,
             'dexto login'
         );
     const who = connection.login.signedInAs;
