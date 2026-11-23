@@ -124,8 +124,11 @@ export function withAnalytics<A extends unknown[], R = unknown>(
 
 /** Resolves once everything written to the stream so far has been handed to the OS. */
 function flushed(stream: NodeJS.WriteStream): Promise<void> {
+    // Nothing queued: write nothing. A zero-length write to a pipe whose reader has gone can
+    // raise EPIPE on macOS and crash `dexto ... --json | head -1`.
+    if (stream.writableLength === 0) return Promise.resolve();
     // Writes complete in order, so an empty write's callback runs after every earlier write's.
-    // It also runs, with an error, when the reader has gone (EPIPE); nothing is left to flush then.
+    // It also runs, with an error, when the reader has gone; nothing is left to flush then.
     return new Promise((resolve) => stream.write('', () => resolve()));
 }
 

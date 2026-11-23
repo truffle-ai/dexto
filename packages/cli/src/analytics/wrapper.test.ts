@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { buildArgsPayload, withAnalytics } from './wrapper.js';
+import { buildArgsPayload, safeExit, withAnalytics } from './wrapper.js';
 import { vi } from 'vitest';
 
 vi.mock('./index.js', () => ({
@@ -38,6 +38,28 @@ describe('command analytics metadata', () => {
 });
 
 describe('command exit', () => {
+    it('exits without writing again when nothing is left to flush', async () => {
+        // A zero-length write to a pipe whose reader has gone can raise EPIPE on macOS, so an
+        // already flushed stream must not be written to at all (`dexto ... --json | head -1`).
+        vi.spyOn(process.stdout, 'writableLength', 'get').mockReturnValue(0);
+        vi.spyOn(process.stderr, 'writableLength', 'get').mockReturnValue(0);
+        const stdoutWrite = vi.spyOn(process.stdout, 'write');
+        const stderrWrite = vi.spyOn(process.stderr, 'write');
+        const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+        try {
+            // process.exit is stubbed, so the wrapper goes on to rethrow the exit signal.
+            await expect(
+                withAnalytics('flushed', () => safeExit('flushed', 0), { timeoutMs: 0 })()
+            ).rejects.toThrow('ExitSignal');
+            expect(exit).toHaveBeenCalledWith(0);
+            expect(stdoutWrite).not.toHaveBeenCalled();
+            expect(stderrWrite).not.toHaveBeenCalled();
+        } finally {
+            vi.restoreAllMocks();
+            process.exitCode = 0;
+        }
+    });
+
     it('writes all of a large output to a slow pipe before the process exits', async () => {
         const bytes = 1024 * 1024;
         const runtime = new URL('../cli/cloud/runtime.ts', import.meta.url).href;
