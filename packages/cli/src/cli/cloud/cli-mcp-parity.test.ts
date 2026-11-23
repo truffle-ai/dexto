@@ -95,15 +95,9 @@ dexto_automation_trigger
 dexto_automation_update
 dexto_automations_list
 dexto_capabilities_search
-dexto_channel_get
-dexto_channel_send
-dexto_channels_list
 dexto_chat_cancel
 dexto_chat_computer
 dexto_chat_continue
-dexto_chat_get
-dexto_chat_list
-dexto_chat_models
 dexto_cos_report
 dexto_direct_conversation_get
 dexto_direct_conversations_list
@@ -144,9 +138,6 @@ dexto_network_send
 dexto_network_thread_get
 dexto_network_thread_mark_read
 dexto_network_threads_list
-dexto_notification_get
-dexto_notifications_list
-dexto_notifications_mark_read
 dexto_open
 dexto_share
 dexto_share_access

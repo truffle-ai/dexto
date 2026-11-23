@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { withRefreshLock } from './refresh-lock.js';
 
 export const DEFAULT_PROFILE = 'default';
 
@@ -262,7 +263,7 @@ export interface ResolveCredentialInput {
     /** The global --profile value. */
     readonly profile: string | null;
     readonly environment: Readonly<Record<string, string | undefined>>;
-    readonly refresh: (login: OAuthLogin) => Promise<OAuthLogin>;
+    readonly refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
 }
 
 /**
@@ -292,29 +293,85 @@ function isExpiring(login: OAuthLogin): boolean {
     return Date.parse(login.expiresAt) - Date.now() < REFRESH_MARGIN_MS;
 }
 
+/** Refreshes in flight in this process, by login file, so concurrent requests share one. */
+const refreshesInFlight = new Map<string, Promise<OAuthLogin>>();
+/** refreshSaved ends every refresh by then, whatever its caller's own timeout. */
+const REFRESH_TIMEOUT_MS = 10_000;
+
 /**
- * Refreshes and saves the login. Refresh tokens rotate, so when another process refreshed the
- * same login first this refresh fails; the tokens that process saved are used instead.
+ * Refreshes and saves the login, one refresh at a time per login: refresh tokens rotate, and the
+ * server ends the sign-in when a rotated token is presented again outside its short grace window.
+ * Requests in this process share one refresh; other processes wait on a lock file beside the login
+ * and then use the tokens the first one saved.
  */
-async function refreshSaved(
+function refreshSaved(
     dir: string,
     profile: string,
     stored: OAuthLogin,
-    refresh: (login: OAuthLogin) => Promise<OAuthLogin>
+    refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>
 ): Promise<OAuthLogin> {
+    const file = loginFile(dir, profile);
+    const inFlight = refreshesInFlight.get(file);
+    if (inFlight !== undefined) return inFlight;
+    const refreshing = withRefreshLock(`${file.slice(0, -'.json'.length)}.refresh.lock`, () =>
+        refreshUnlessSaved(dir, profile, stored, refresh)
+    ).finally(() => refreshesInFlight.delete(file));
+    refreshesInFlight.set(file, refreshing);
+    return refreshing;
+}
+
+/**
+ * Uses the tokens another process saved since `stored` was read, or refreshes. When the refresh
+ * fails because another process without the lock (an older CLI) won the race, its saved tokens are
+ * used instead.
+ */
+async function refreshUnlessSaved(
+    dir: string,
+    profile: string,
+    stored: OAuthLogin,
+    refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>
+): Promise<OAuthLogin> {
+    const savedByOther = async () => {
+        const current = await readLogin(dir, profile);
+        return current?.kind === 'oauth' &&
+            current.refreshToken !== stored.refreshToken &&
+            !isExpiring(current)
+            ? current
+            : null;
+    };
+    const saved = await savedByOther();
+    if (saved !== null) return saved;
     try {
-        const refreshed = await refresh(stored);
+        const refreshed = await withDeadline(REFRESH_TIMEOUT_MS, (signal) =>
+            refresh(stored, signal)
+        );
         await writeLogin(dir, profile, refreshed);
         return refreshed;
     } catch (error) {
-        const current = await readLogin(dir, profile);
-        if (
-            current?.kind === 'oauth' &&
-            current.refreshToken !== stored.refreshToken &&
-            !isExpiring(current)
-        )
-            return current;
+        const current = await savedByOther();
+        if (current !== null) return current;
         throw error;
+    }
+}
+
+/**
+ * Runs `work` with a signal that aborts after `ms`, and rejects then even if `work` ignores it, so
+ * no refresh outlives the lock it holds.
+ */
+async function withDeadline<T>(ms: number, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+            const error = new Error(`Refreshing the Dexto sign-in timed out after ${ms} ms.`);
+            controller.abort(error);
+            reject(error);
+        }, ms);
+    });
+    try {
+        return await Promise.race([work(controller.signal), deadline]);
+    } finally {
+        clearTimeout(timer);
     }
 }
 

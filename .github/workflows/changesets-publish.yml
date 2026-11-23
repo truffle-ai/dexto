@@ -81,6 +81,108 @@ jobs:
           version: pnpm run changeset:version
           publish: pnpm -w changeset publish
 
+  # `next` is the newest of `latest` and the newest beta, so it must never sit below `latest`
+  # (DEXTO-2518). A stable publish moves `latest` only, so for `dexto` and `@dexto/core`, each on
+  # its own, move `next` up to `latest` when `next` is missing or older. A package that was not
+  # published, or was published as a prerelease (pre mode leaves `latest` alone), is skipped;
+  # publish-cli-beta.yml moves `next` for betas. This is its own job, not a step of `release`, so a
+  # newer push cancelling `release` cannot cut it short, and a failed tag move never holds up the
+  # standalone binaries. It needs no GitHub token.
+  move-next-up-to-latest:
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+      - name: Move next up to latest if it fell behind
+        env:
+          PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Read anonymously, as npm-dist-tag.yml does.
+          view_tag() { NPM_CONFIG_USERCONFIG=/dev/null npm view "$1" "dist-tags.$2"; }
+
+          # Semver precedence with prereleases, so 2.3.0-beta.1 > 2.2.3 > 2.2.3-beta.9.
+          # Prints "behind" when next ($1) is missing or lower than latest ($2), else "ok".
+          compare_next() {
+            NEXT="$1" LATEST="$2" node -e '
+            const parse = (v) => {
+              const [core, pre] = v.split("+")[0].split(/-(.*)/s);
+              return { core: core.split(".").map(Number), pre: pre ? pre.split(".") : [] };
+            };
+            const comparePart = (a, b) => {
+              const [an, bn] = [/^\d+$/.test(a), /^\d+$/.test(b)];
+              if (an && bn) return Number(a) - Number(b);
+              if (an !== bn) return an ? -1 : 1;
+              return a < b ? -1 : a > b ? 1 : 0;
+            };
+            const compare = (x, y) => {
+              const [a, b] = [parse(x), parse(y)];
+              const core = a.core.map((n, i) => n - b.core[i]).find((d) => d !== 0) ?? 0;
+              if (core !== 0) return core;
+              if (!a.pre.length || !b.pre.length) return b.pre.length - a.pre.length;
+              for (let i = 0; i < Math.min(a.pre.length, b.pre.length); i++) {
+                const d = comparePart(a.pre[i], b.pre[i]);
+                if (d !== 0) return d;
+              }
+              return a.pre.length - b.pre.length;
+            };
+            const { LATEST, NEXT } = process.env;
+            console.log(!NEXT || compare(NEXT, LATEST) < 0 ? "behind" : "ok");
+          '
+          }
+
+          # Called in an `||` list, where bash ignores `set -e`, so every command that can fail
+          # returns explicitly.
+          move_next_up() {
+            local package="$1" version latest next behind attempt
+            version="$(jq -r --arg name "${package}" 'map(select(.name == $name)) | .[0].version // empty' <<< "${PUBLISHED_PACKAGES}")" || return 1
+            if [[ -z "${version}" ]]; then
+              echo "${package} was not published; next stays where it is."
+              return 0
+            fi
+            if [[ "${version}" == *-* ]]; then
+              echo "${package}@${version} is a prerelease, so latest did not move; next stays where it is."
+              return 0
+            fi
+
+            # The registry can serve the tags from before the publish for a short while, so wait
+            # for latest to show this version.
+            for attempt in {1..12}; do
+              latest="$(view_tag "${package}" latest)" || return 1
+              [[ "${latest}" == "${version}" ]] && break
+              echo "${package}: latest is '${latest}', waiting for ${version} (attempt ${attempt}/12)..."
+              sleep 10
+            done
+            if [[ "${latest}" != "${version}" ]]; then
+              echo "::warning::${package}: latest is '${latest}', not the published ${version}; leaving next alone."
+              return 0
+            fi
+            next="$(view_tag "${package}" next)" || return 1
+            behind="$(compare_next "${next}" "${latest}")" || return 1
+
+            if [[ "${behind}" != behind ]]; then
+              echo "${package}: next is ${next}, not below latest ${latest}; next stays where it is."
+              return 0
+            fi
+            echo "${package}: next is '${next:-missing}', below latest ${latest}; moving next to ${latest}."
+            npm dist-tag add "${package}@${latest}" next || return 1
+            echo "${package} dist-tags after the move:"
+            NPM_CONFIG_USERCONFIG=/dev/null npm dist-tag ls "${package}" || return 1
+          }
+
+          failed=0
+          for package in dexto @dexto/core; do
+            move_next_up "${package}" || { echo "::error::Could not check or move next for ${package}."; failed=1; }
+          done
+          exit "${failed}"
+
   derive-dexto-release-tag:
     needs: release
     if: needs.release.outputs.published == 'true'

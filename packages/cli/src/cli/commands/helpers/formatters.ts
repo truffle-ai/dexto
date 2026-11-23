@@ -6,50 +6,8 @@
  */
 
 import chalk from 'chalk';
-import type { SessionMetadata, InternalMessage, ToolCall } from '@dexto/core';
+import type { InternalMessage, ToolCall } from '@dexto/core';
 import { isAssistantMessage } from '@dexto/core';
-
-/**
- * Helper to format session information consistently
- */
-export function formatSessionInfo(
-    sessionId: string,
-    metadata?: SessionMetadata,
-    isCurrent: boolean = false
-): string {
-    const prefix = isCurrent ? chalk.green('→') : ' ';
-    const name = isCurrent ? chalk.green.bold(sessionId) : chalk.cyan(sessionId);
-
-    let info = `${prefix} ${name}`;
-
-    if (metadata) {
-        const title = typeof metadata.title === 'string' ? metadata.title.trim() : '';
-        const displayTitle = title.length > 0 ? title : 'Untitled';
-        info += chalk.white(` "${displayTitle}"`);
-
-        const parentSessionId =
-            'parentSessionId' in metadata && typeof metadata.parentSessionId === 'string'
-                ? metadata.parentSessionId
-                : undefined;
-        if (parentSessionId) {
-            info += chalk.magenta(` [forked from ${parentSessionId.slice(0, 8)}]`);
-        }
-
-        const messages = metadata.messageCount || 0;
-        const activity =
-            metadata.lastActivity && metadata.lastActivity > 0
-                ? new Date(metadata.lastActivity).toLocaleString()
-                : 'Never';
-
-        info += chalk.gray(` (${messages} messages, last: ${activity})`);
-
-        if (isCurrent) {
-            info += chalk.rgb(255, 165, 0)(' [ACTIVE]');
-        }
-    }
-
-    return info;
-}
 
 /**
  * Helper to format conversation history
