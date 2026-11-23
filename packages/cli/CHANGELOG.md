@@ -1,5 +1,33 @@
 # dexto
 
+## 2.4.0
+
+### Minor Changes
+
+- 234787b: `dexto acp` offers the Dexto account's models and reasoning effort, explains a model that needs a key or sign-in, and starts on the saved model even with `--agent`. A saved model on another provider no longer keeps the agent's endpoint or key. Installed agents that still enable `invoke_skill` load with `skill_load`. A model switch to another provider no longer keeps the previous provider's `baseURL`.
+- 1b3fe94: `dexto acp` sessions offer the TUI's four modes (Asks you, Plan, Accept edits, Full access), list and run the agent's slash commands, and report context usage after each turn. `@dexto/tui` exports the shared rules as `@dexto/tui/host-rules`.
+- e5b010d: `dexto acp` offers **Sign in to Dexto** to ACP apps that can open a terminal, which runs `dexto login --scope cloud:write`. New `dexto acp login` is the same as `dexto login`.
+
+### Patch Changes
+
+- aa8605d: `dexto acp` withdraws a tool permission request left unanswered past `permissions.timeout`, or when its turn is cancelled.
+- 4d958f5: `dexto cloud import` redacts a quoted password or secret whole, spaces included, before it uploads a chat (DEXTO-3596).
+- Updated dependencies [234787b]
+- Updated dependencies [1b3fe94]
+- Updated dependencies [197b5f5]
+    - @dexto/agent-management@1.19.6
+    - @dexto/core@1.19.6
+    - @dexto/tui@1.19.6
+    - @dexto/analytics@1.19.6
+    - @dexto/image-local@1.19.6
+    - @dexto/image-logger-agent@1.19.6
+    - @dexto/agent-config@1.19.6
+    - @dexto/client-sdk@1.19.6
+    - @dexto/storage@1.19.6
+    - @dexto/llm@1.19.6
+    - @dexto/cloud-client@1.19.6
+    - @dexto/registry@1.19.6
+
 ## 2.3.0
 
 ### Minor Changes
