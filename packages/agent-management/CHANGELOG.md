@@ -1,5 +1,17 @@
 # @dexto/agent-management
 
+## 1.19.6
+
+### Patch Changes
+
+- 234787b: `dexto acp` offers the Dexto account's models and reasoning effort, explains a model that needs a key or sign-in, and starts on the saved model even with `--agent`. A saved model on another provider no longer keeps the agent's endpoint or key. Installed agents that still enable `invoke_skill` load with `skill_load`. A model switch to another provider no longer keeps the previous provider's `baseURL`.
+- Updated dependencies [234787b]
+- Updated dependencies [197b5f5]
+    - @dexto/core@1.19.6
+    - @dexto/agent-config@1.19.6
+    - @dexto/tools-builtins@1.19.6
+    - @dexto/llm@1.19.6
+
 ## 1.19.5
 
 ### Patch Changes

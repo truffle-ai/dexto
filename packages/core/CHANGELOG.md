@@ -1,5 +1,13 @@
 # @dexto/core
 
+## 1.19.6
+
+### Patch Changes
+
+- 234787b: `dexto acp` offers the Dexto account's models and reasoning effort, explains a model that needs a key or sign-in, and starts on the saved model even with `--agent`. A saved model on another provider no longer keeps the agent's endpoint or key. Installed agents that still enable `invoke_skill` load with `skill_load`. A model switch to another provider no longer keeps the previous provider's `baseURL`.
+- 197b5f5: A run aborted before its turn starts (for example in a `beforeLLMRequest` hook) now ends with `run:complete` (`finishReason: 'cancelled'`) and frees the session, and the `DextoAgent.stream` iterator always ends once the run settles.
+    - @dexto/llm@1.19.6
+
 ## 1.19.5
 
 ### Patch Changes
