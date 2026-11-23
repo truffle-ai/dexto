@@ -161,6 +161,7 @@ describe('dexto acp over stdio', () => {
     let configPath: string;
     let formTimeoutConfigPath: string;
     let persistentConfigPath: string;
+    let permissionTimeoutConfigPath: string;
     let effectPath: string;
     const children: ChildProcess[] = [];
 
@@ -272,6 +273,11 @@ tools:
                 `  database:\n    type: sqlite\n    path: ${JSON.stringify(join(home, 'sessions.db'))}`
             )
         );
+        permissionTimeoutConfigPath = join(directory, 'agent-permission-timeout.yml');
+        await writeFile(
+            permissionTimeoutConfigPath,
+            agentYaml.replace('  mode: asks-you\n', '  mode: asks-you\n  timeout: 300\n')
+        );
         formTimeoutConfigPath = join(directory, 'agent-form-timeout.yml');
         await writeFile(formTimeoutConfigPath, `${agentYaml}elicitation:\n  timeout: 300\n`);
     });
@@ -290,7 +296,8 @@ tools:
     /** Starts `dexto acp` and runs `op` as an ACP client that answers permissions with `answer`. */
     async function withAgent<T>(
         answer: (
-            request: acp.RequestPermissionRequest
+            request: acp.RequestPermissionRequest,
+            signal: AbortSignal
         ) => acp.RequestPermissionResponse | Promise<acp.RequestPermissionResponse>,
         op: (cx: acp.ClientContext, recorded: Recorded) => Promise<T>,
         form?: FormAnswer,
@@ -333,10 +340,10 @@ tools:
                 recorded.updates.push(params.update);
                 if (params.update.sessionUpdate === 'tool_call') recorded.order.push('tool_call');
             })
-            .onRequest('session/request_permission', ({ params }) => {
+            .onRequest('session/request_permission', ({ params, signal }) => {
                 recorded.permissions.push(params);
                 recorded.order.push('permission');
-                return answer(params);
+                return answer(params, signal);
             })
             .onRequest('elicitation/create', ({ params, signal }) => {
                 recorded.forms.push(params);
@@ -656,6 +663,38 @@ tools:
             );
             await expect(access(effectPath)).rejects.toMatchObject({ code: 'ENOENT' });
         });
+    }, 60000);
+
+    it('withdraws a permission request left unanswered past the permissions timeout', async () => {
+        let withdrawn = false;
+        await withAgent(
+            (_request, signal) =>
+                new Promise<acp.RequestPermissionResponse>((resolve) => {
+                    signal.addEventListener('abort', () => {
+                        withdrawn = true;
+                        resolve({ outcome: { outcome: 'cancelled' } });
+                    });
+                }),
+            async (cx, recorded) => {
+                const sessionId = await newSession(cx);
+                await expect(prompt(cx, sessionId, 'change state')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+                expect(recorded.permissions).toHaveLength(1);
+                expect(withdrawn).toBe(true);
+                expect(recorded.updates).toContainEqual(
+                    expect.objectContaining({
+                        sessionUpdate: 'tool_call_update',
+                        toolCallId: 'ordinary-call',
+                        status: 'failed',
+                    })
+                );
+                expect(toolResultText(recorded, 'ordinary-call')).toMatch(/timed out/i);
+                await expect(access(effectPath)).rejects.toMatchObject({ code: 'ENOENT' });
+            },
+            undefined,
+            { config: permissionTimeoutConfigPath }
+        );
     }, 60000);
 
     it('ends a cancelled turn with the cancelled stop reason', async () => {

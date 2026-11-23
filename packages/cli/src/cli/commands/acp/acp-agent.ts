@@ -502,15 +502,27 @@ async function askClient(
             kind: 'other',
         };
     }
-    const response = await turn.cx.request(acp.methods.client.session.requestPermission, {
-        sessionId,
-        toolCall,
-        options: [
-            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
-            { optionId: 'allow_session', name: 'Allow for this session', kind: 'allow_always' },
-            { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
-        ],
-    });
+    const asked = await askWithin(turn, request.timeout, base, (options) =>
+        turn.cx.request(
+            acp.methods.client.session.requestPermission,
+            {
+                sessionId,
+                toolCall,
+                options: [
+                    { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+                    {
+                        optionId: 'allow_session',
+                        name: 'Allow for this session',
+                        kind: 'allow_always',
+                    },
+                    { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
+                ],
+            },
+            options
+        )
+    );
+    if (asked.kind === 'withdrawn') return asked.response;
+    const response = asked.answer;
     if (response.outcome.outcome === 'cancelled') {
         return { ...base, status: ApprovalStatus.CANCELLED, reason: DenialReason.USER_CANCELLED };
     }
@@ -525,6 +537,58 @@ async function askClient(
 }
 
 type ApprovalBase = { readonly approvalId: string; readonly sessionId: string };
+
+type RequestOptions = { cancellationSignal: AbortSignal; stopWaitingOnCancel: true };
+
+/** The client's answer, or Dexto's response for a question withdrawn unanswered. */
+type Asked<T> = { kind: 'answered'; answer: T } | { kind: 'withdrawn'; response: ApprovalResponse };
+
+/**
+ * Asks the client a question (a permission or a form) and withdraws it when the turn is
+ * cancelled or the configured timeout (`permissions.timeout` or `elicitation.timeout`) passes,
+ * as the CLI's own approval prompt does. A turn already cancelled sends nothing.
+ */
+async function askWithin<T>(
+    turn: Turn,
+    timeout: number | undefined,
+    base: ApprovalBase,
+    send: (options: RequestOptions) => Promise<T>
+): Promise<Asked<T>> {
+    const cancelled: Asked<T> = {
+        kind: 'withdrawn',
+        response: {
+            ...base,
+            status: ApprovalStatus.CANCELLED,
+            reason: DenialReason.USER_CANCELLED,
+        },
+    };
+    if (turn.abort.signal.aborted) return cancelled;
+    const timedOut = timeout === undefined ? undefined : AbortSignal.timeout(timeout);
+    try {
+        const answer = await send({
+            cancellationSignal: timedOut
+                ? AbortSignal.any([turn.abort.signal, timedOut])
+                : turn.abort.signal,
+            stopWaitingOnCancel: true,
+        });
+        return { kind: 'answered', answer };
+    } catch (error) {
+        if (timeout !== undefined && timedOut?.aborted && !turn.abort.signal.aborted) {
+            return {
+                kind: 'withdrawn',
+                response: {
+                    ...base,
+                    status: ApprovalStatus.CANCELLED,
+                    reason: DenialReason.TIMEOUT,
+                    message: `The question timed out after ${timeout}ms.`,
+                    timeoutMs: timeout,
+                },
+            };
+        }
+        if (!turn.abort.signal.aborted) throw error;
+        return cancelled;
+    }
+}
 
 /**
  * A Dexto form (ask_user, or an MCP server's elicitation) → ACP `elicitation/create`. A client
@@ -549,43 +613,15 @@ async function askForm(
             message: `${why} Ask the person in your reply instead.`,
         };
     }
-    // A turn cancelled before its form is sent never shows it.
-    if (turn.abort.signal.aborted) {
-        return { ...base, status: ApprovalStatus.CANCELLED, reason: DenialReason.USER_CANCELLED };
-    }
-    // A form left open past the configured elicitation timeout is withdrawn, as the CLI does.
-    const timedOut = timeout === undefined ? undefined : AbortSignal.timeout(timeout);
-    let response: acp.CreateElicitationResponse;
-    try {
-        response = await turn.cx.request(
+    const asked = await askWithin(turn, timeout, base, (options) =>
+        turn.cx.request(
             acp.methods.client.elicitation.create,
-            {
-                mode: 'form',
-                sessionId: turn.sessionId,
-                message: metadata.prompt,
-                requestedSchema,
-            },
-            // A cancelled turn withdraws its open form.
-            {
-                cancellationSignal: timedOut
-                    ? AbortSignal.any([turn.abort.signal, timedOut])
-                    : turn.abort.signal,
-                stopWaitingOnCancel: true,
-            }
-        );
-    } catch (error) {
-        if (timeout !== undefined && timedOut?.aborted && !turn.abort.signal.aborted) {
-            return {
-                ...base,
-                status: ApprovalStatus.CANCELLED,
-                reason: DenialReason.TIMEOUT,
-                message: `The form timed out after ${timeout}ms.`,
-                timeoutMs: timeout,
-            };
-        }
-        if (!turn.abort.signal.aborted) throw error;
-        return { ...base, status: ApprovalStatus.CANCELLED, reason: DenialReason.USER_CANCELLED };
-    }
+            { mode: 'form', sessionId: turn.sessionId, message: metadata.prompt, requestedSchema },
+            options
+        )
+    );
+    if (asked.kind === 'withdrawn') return asked.response;
+    const response = asked.answer;
     switch (response.action) {
         case 'accept':
             return {
