@@ -157,7 +157,7 @@ describe('dexto cloud', () => {
 
     it('distinguishes the model catalog from account-available chat models', async () => {
         expect(await runCloud(host, ['models', 'list', '--help', '--json'])).toBe(0);
-        expect(stdout).toContain('workspace chat models');
+        expect(stdout).toContain('dexto chat models');
         expect(stdout).toContain('account');
     });
 
@@ -296,6 +296,45 @@ describe('dexto cloud', () => {
             fix: 'dexto login --device --scope cloud:write',
         });
         expect(granted).toEqual([]);
+    });
+
+    it.each([
+        [['cloud', 'secrets', 'delete', 'sec_1', '--yes', '--table']],
+        [['workspace', 'drive', 'list', '--yes', '--table']],
+    ])('never asks to grant a missing permission under --yes: %j', async (argv) => {
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        const asked: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                prompt: async (question) => {
+                    asked.push(question);
+                    return 'yes';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: 'forbidden',
+                        message: 'This needs cloud:write.',
+                        requestId: 'req_1',
+                        retryable: false,
+                        details: { scope: 'cloud:write' },
+                    },
+                },
+                { status: 403 }
+            );
+
+        const code = await runCloud(host, argv);
+
+        expect(asked).toEqual([]);
+        expect(granted).toEqual([]);
+        expect(code).toBe(3);
+        expect(stderr).toContain('Run: dexto login --scope cloud:write');
     });
 
     it('strips control characters from the API error on the plain stderr notes', async () => {

@@ -291,6 +291,28 @@ describe('applyUserPreferences', () => {
         expect(result.llm.baseURL).toBe('http://localhost:8080/v1');
     });
 
+    test("drops the agent's endpoint and key when the saved provider differs", () => {
+        const customAgent: AgentConfig = {
+            systemPrompt: 'test agent',
+            llm: {
+                provider: 'openai-compatible',
+                model: 'local-model',
+                apiKey: 'local-key',
+                baseURL: 'http://localhost:8080/v1',
+            },
+        };
+        const preferences = {
+            llm: { provider: 'anthropic' as const, model: 'claude-sonnet-4-5-20250929' },
+        };
+
+        const result = applyUserPreferences(clone(customAgent), preferences);
+
+        expect(result.llm).toEqual({
+            provider: 'anthropic',
+            model: 'claude-sonnet-4-5-20250929',
+        });
+    });
+
     test('does not mutate original config', () => {
         const originalConfig = clone(baseAgentConfig);
         const preferences = {

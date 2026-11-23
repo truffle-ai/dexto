@@ -143,4 +143,45 @@ describe('resolveAndValidateLLMConfig', () => {
             expect(result.data.reasoning).toBeUndefined();
         }
     });
+
+    it("drops the previous endpoint's baseURL when switching to another provider", async () => {
+        const custom = LLMConfigSchema.parse({
+            provider: 'openai-compatible',
+            model: 'local-model',
+            apiKey: 'local-key',
+            baseURL: 'http://127.0.0.1:9999/v1',
+            maxInputTokens: 32768,
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            custom,
+            { provider: 'dexto-nova', model: 'openai/gpt-5', apiKey: TEST_DEXTO_API_KEY },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.provider).toBe('dexto-nova');
+            expect(result.data.baseURL).toBeUndefined();
+        }
+    });
+
+    it('keeps the baseURL when switching models on the same provider', async () => {
+        const custom = LLMConfigSchema.parse({
+            provider: 'openai-compatible',
+            model: 'local-model',
+            apiKey: 'local-key',
+            baseURL: 'http://127.0.0.1:9999/v1',
+            maxInputTokens: 32768,
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            custom,
+            { model: 'other-local-model' },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.data.baseURL).toBe('http://127.0.0.1:9999/v1');
+    });
 });

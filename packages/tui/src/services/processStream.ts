@@ -31,8 +31,7 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
 import { backgroundFailure } from '../utils/tool-step.js';
 import { formatToolHeader } from '../utils/messageFormatting.js';
-import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
-import { isEditInWorkspace } from '../utils/approvalScope.js';
+import { autoApproves, planApproved } from '../host-rules.js';
 import { captureAnalytics } from '../host/index.js';
 import chalk from 'chalk';
 
@@ -967,22 +966,13 @@ export async function processStream(
                     }
 
                     // Handle plan_review tool results - update UI state when plan is approved
-                    if (event.toolName === 'plan_review' && event.success !== false) {
-                        try {
-                            const planReviewResult = event.rawResult as {
-                                approved?: boolean;
-                            } | null;
-                            if (planReviewResult?.approved) {
-                                // User approved the plan - disable plan mode
-                                setUi((prev) => ({
-                                    ...prev,
-                                    planModeActive: false,
-                                    planModeInitialized: false,
-                                }));
-                            }
-                        } catch {
-                            // Silently ignore parsing errors - plan mode state remains unchanged
-                        }
+                    if (planApproved(event.toolName, event.success, event.rawResult)) {
+                        // User approved the plan - disable plan mode
+                        setUi((prev) => ({
+                            ...prev,
+                            planModeActive: false,
+                            planModeInitialized: false,
+                        }));
                     }
 
                     // Track tool result analytics
@@ -1184,12 +1174,7 @@ export async function processStream(
                     const autoApproveEdits = options.autoApproveEditsRef.current;
                     const { eventBus } = options;
 
-                    if (
-                        bypassPermissions &&
-                        event.autoApproval !== 'disallowed' &&
-                        (event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
-                            event.type === ApprovalTypeEnum.COMMAND_APPROVAL)
-                    ) {
+                    if (bypassPermissions && autoApproves(event, { kind: 'full-access' })) {
                         if (event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
                             const { toolName } = event.metadata;
                             if (toolName === 'plan_create' || toolName === 'plan_review') {
@@ -1213,26 +1198,20 @@ export async function processStream(
 
                     if (
                         autoApproveEdits &&
-                        event.autoApproval !== 'disallowed' &&
-                        event.type === ApprovalTypeEnum.TOOL_APPROVAL
+                        autoApproves(event, {
+                            kind: 'accept-edits',
+                            workspace: () => realpathSync(process.cwd()),
+                        })
                     ) {
-                        // Type is narrowed - metadata is now ToolApprovalMetadata
-                        const { toolName, approvalKey } = event.metadata;
-
-                        if (
-                            isAutoApprovableInEditMode(toolName) &&
-                            isEditInWorkspace(approvalKey, realpathSync(process.cwd()))
-                        ) {
-                            // Auto-approve immediately - emit response and let tool:running handle status
-                            eventBus.emit('approval:response', {
-                                approvalId: event.approvalId,
-                                status: ApprovalStatus.APPROVED,
-                                sessionId: event.sessionId,
-                                hostRuntime: event.hostRuntime,
-                                data: {},
-                            });
-                            break;
-                        }
+                        // Auto-approve immediately - emit response and let tool:running handle status
+                        eventBus.emit('approval:response', {
+                            approvalId: event.approvalId,
+                            status: ApprovalStatus.APPROVED,
+                            sessionId: event.sessionId,
+                            hostRuntime: event.hostRuntime,
+                            data: {},
+                        });
+                        break;
                     }
 
                     // Manual approval needed - update tool status to 'pending_approval'

@@ -1,5 +1,35 @@
 # @dexto/tui
 
+## 1.19.6
+
+### Patch Changes
+
+- 1b3fe94: `dexto acp` sessions offer the TUI's four modes (Asks you, Plan, Accept edits, Full access), list and run the agent's slash commands, and report context usage after each turn. `@dexto/tui` exports the shared rules as `@dexto/tui/host-rules`.
+- Updated dependencies [234787b]
+- Updated dependencies [197b5f5]
+    - @dexto/agent-management@1.19.6
+    - @dexto/core@1.19.6
+    - @dexto/llm@1.19.6
+    - @dexto/registry@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- Updated dependencies [80e53da]
+- Updated dependencies [f4475d7]
+- Updated dependencies [7cc877f]
+- Updated dependencies [0572e3d]
+- Updated dependencies [0689ed2]
+- Updated dependencies [ed1c456]
+- Updated dependencies [1c0e47d]
+- Updated dependencies [fb815eb]
+- Updated dependencies [eec24ce]
+    - @dexto/agent-management@1.19.5
+    - @dexto/core@1.19.5
+    - @dexto/llm@1.19.5
+    - @dexto/registry@1.19.5
+
 ## 1.19.4
 
 ### Patch Changes

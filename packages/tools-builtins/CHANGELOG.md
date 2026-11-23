@@ -1,5 +1,22 @@
 # @dexto/tools-builtins
 
+## 1.19.6
+
+### Patch Changes
+
+- Updated dependencies [234787b]
+- Updated dependencies [197b5f5]
+    - @dexto/core@1.19.6
+    - @dexto/agent-config@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- Updated dependencies [eec24ce]
+    - @dexto/core@1.19.5
+    - @dexto/agent-config@1.19.5
+
 ## 1.19.4
 
 ### Patch Changes

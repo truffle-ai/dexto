@@ -141,10 +141,11 @@ export async function resolveLLMConfig(
 
     // BaseURL resolution
     // Note: OpenRouter baseURL is handled by the factory (fixed endpoint, no user override)
+    // A previous endpoint belongs to its provider, so another provider never inherits it.
     let baseURL: string | undefined;
     if (updates.baseURL) {
         baseURL = updates.baseURL;
-    } else if (registry.supportsBaseURL(provider)) {
+    } else if (provider === previous.provider && registry.supportsBaseURL(provider)) {
         baseURL = previous.baseURL;
     } else {
         baseURL = undefined;

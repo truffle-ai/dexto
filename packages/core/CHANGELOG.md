@@ -1,5 +1,20 @@
 # @dexto/core
 
+## 1.19.6
+
+### Patch Changes
+
+- 234787b: `dexto acp` offers the Dexto account's models and reasoning effort, explains a model that needs a key or sign-in, and starts on the saved model even with `--agent`. A saved model on another provider no longer keeps the agent's endpoint or key. Installed agents that still enable `invoke_skill` load with `skill_load`. A model switch to another provider no longer keeps the previous provider's `baseURL`.
+- 197b5f5: A run aborted before its turn starts (for example in a `beforeLLMRequest` hook) now ends with `run:complete` (`finishReason: 'cancelled'`) and frees the session, and the `DextoAgent.stream` iterator always ends once the run settles.
+    - @dexto/llm@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- eec24ce: Feature only Dexto models the gateway serves: the curated `dexto-nova` list named retired models such as `qwen/qwen3-coder:free` and `google/gemini-3-flash-preview`, which the gateway rejects with "Request validation failed".
+    - @dexto/llm@1.19.5
+
 ## 1.19.4
 
 ### Patch Changes

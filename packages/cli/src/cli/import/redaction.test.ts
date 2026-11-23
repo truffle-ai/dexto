@@ -52,6 +52,21 @@ describe('redactSecrets', () => {
             0
         );
     });
+    it.each([
+        'password = "my long pass phrase"',
+        "DB_PASSWORD='my long pass phrase'",
+        'clientSecret: "my long pass phrase" then more words',
+        '{\\"password\\":\\"my long pass phrase\\"}',
+    ])('redacts the whole quoted multi-word value in %s', (input) => {
+        const result = redactSecrets(input);
+        expect(result.text).not.toMatch(/my|long|pass phrase/u);
+        expect(result.counts).toEqual({ assignment: 1 });
+    });
+    it('keeps the quotes and the text after a redacted quoted value', () => {
+        expect(redactSecrets('password = "my long pass phrase" then more').text).toBe(
+            'password = "[redacted:assignment]" then more'
+        );
+    });
     it('replaces credentials and counts them by kind', () => {
         const { counts, text } = redactSecrets(
             [
@@ -94,6 +109,25 @@ describe('toImportInput', () => {
             title: 'Tool',
             messages: [{ createdAt: '2026-10-01T00:00:00.000Z', role: 'assistant', text }],
         });
+        expect(prepared.kind === 'ready' && prepared.redactions).toEqual({ assignment: 1 });
+    });
+
+    it('redacts a quoted multi-word password from the prepared chat', () => {
+        const prepared = toImportInput({
+            cwd: null,
+            gitBranch: null,
+            id: 's',
+            source: 'codex',
+            title: 'Login',
+            messages: [
+                {
+                    createdAt: '2026-10-01T00:00:00.000Z',
+                    role: 'user',
+                    text: 'Use password = "my long pass phrase" to sign in.',
+                },
+            ],
+        });
+        expect(JSON.stringify(prepared)).not.toContain('pass phrase');
         expect(prepared.kind === 'ready' && prepared.redactions).toEqual({ assignment: 1 });
     });
 

@@ -183,6 +183,31 @@ export async function loadAgentConfig(configPath: string, logger?: Logger): Prom
         );
     }
 
+    renameBuiltinTools(config);
+
     // Return expanded config - environment variable expansion handled by Zod schema
     return config as AgentConfig;
+}
+
+/** Builtin tools renamed since an agent could have been installed, by old name. */
+const RENAMED_BUILTIN_TOOLS: ReadonlyMap<string, string> = new Map([
+    ['invoke_skill', 'skill_load'],
+]);
+
+/**
+ * Installed agents are copies made by older releases, so one can still enable a builtin tool by
+ * a name it has since lost. Enable it by its current name instead of failing validation.
+ */
+function renameBuiltinTools(config: unknown): void {
+    if (typeof config !== 'object' || config === null || !('tools' in config)) return;
+    if (!Array.isArray(config.tools)) return;
+    for (const tool of config.tools) {
+        if (typeof tool !== 'object' || tool === null) continue;
+        if (!('type' in tool) || tool.type !== 'builtin-tools') continue;
+        if (!('enabledTools' in tool) || !Array.isArray(tool.enabledTools)) continue;
+        const names: unknown[] = tool.enabledTools.map((name: unknown) =>
+            typeof name === 'string' ? (RENAMED_BUILTIN_TOOLS.get(name) ?? name) : name
+        );
+        tool.enabledTools = [...new Set(names)];
+    }
 }
