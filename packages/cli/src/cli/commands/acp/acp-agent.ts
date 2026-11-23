@@ -18,14 +18,9 @@ import {
     type StreamingEvent,
     type ToolPresentationSnapshotV1,
 } from '@dexto/core';
-import { LLM_PROVIDERS } from '@dexto/llm';
 import { z } from 'zod';
-import {
-    findDextoProjectRoot,
-    loadModelPickerState,
-    recordRecentModel,
-    type ModelPickerModel,
-} from '@dexto/agent-management';
+import { findDextoProjectRoot } from '@dexto/agent-management';
+import { chooseConfigOption, keyRequired, modelConfigOptions } from './acp-models.js';
 import {
     autoApproves,
     planApproved,
@@ -52,8 +47,6 @@ import { displayContent, toolKind } from './acp-tool-content.js';
  * The bootstrap sets the agent up for one Dexto project (its instructions, prompts, plugins and
  * storage), so a process serves one project: sessions in another project are refused.
  */
-
-const MODEL_CONFIG_ID = 'model';
 
 const FormDataSchema = z.record(z.string(), z.unknown()).nullish();
 
@@ -255,12 +248,14 @@ export async function serveAcp(
         .onRequest('authenticate', () => ({}))
         .onRequest('session/new', async ({ params, client }) => {
             const running = await agentFor(params.cwd);
-            const session = await running.createSession();
+            const session = await running.createSession().catch((error: unknown) => {
+                throw keyRequired(error);
+            });
             const open = openSession(running, session.id);
             const response = {
                 sessionId: session.id,
                 modes: modeState(open.mode, permissionsMode(running)),
-                configOptions: await modelOptions(running, session.id),
+                configOptions: await modelConfigOptions(running, session.id),
             };
             announceCommands(running, client, session.id);
             return response;
@@ -270,7 +265,7 @@ export async function serveAcp(
                 await replayHistory(running, params.sessionId, client);
                 const response = {
                     modes: modeState(open.mode, permissionsMode(running)),
-                    configOptions: await modelOptions(running, params.sessionId),
+                    configOptions: await modelConfigOptions(running, params.sessionId),
                 };
                 announceCommands(running, client, params.sessionId);
                 return response;
@@ -280,7 +275,7 @@ export async function serveAcp(
             restoreSession(params.sessionId, params.cwd, async (running, open) => {
                 const response = {
                     modes: modeState(open.mode, permissionsMode(running)),
-                    configOptions: await modelOptions(running, params.sessionId),
+                    configOptions: await modelConfigOptions(running, params.sessionId),
                 };
                 announceCommands(running, client, params.sessionId);
                 return response;
@@ -312,20 +307,8 @@ export async function serveAcp(
         .onRequest('session/set_config_option', async ({ params }) => {
             const running = startedRuntime().agent;
             knownSession(params.sessionId);
-            if (params.configId !== MODEL_CONFIG_ID || typeof params.value !== 'string') {
-                throw acp.RequestError.invalidParams({ configId: params.configId });
-            }
-            const model = parseModelValue(params.value);
-            await running.switchLLM(
-                {
-                    provider: model.provider,
-                    model: model.model,
-                    ...(model.baseURL ? { baseURL: model.baseURL } : {}),
-                },
-                params.sessionId
-            );
-            await recordRecentModel(model);
-            return { configOptions: await modelOptions(running, params.sessionId) };
+            await chooseConfigOption(running, params.sessionId, params.configId, params.value);
+            return { configOptions: await modelConfigOptions(running, params.sessionId) };
         })
         .onRequest('session/prompt', async ({ params, client }) => {
             const { agent, root } = startedRuntime();
@@ -840,62 +823,6 @@ async function replayHistory(
             },
         });
     }
-}
-
-/** The model picker: the session's model plus the person's Dexto favorites and recents. */
-async function modelOptions(
-    agent: DextoAgent,
-    sessionId: string
-): Promise<acp.SessionConfigOption[]> {
-    const current = agent.getCurrentLLMConfig(sessionId);
-    const currentModel: ModelPickerModel = {
-        provider: current.provider,
-        model: current.model,
-        ...(current.baseURL ? { baseURL: current.baseURL } : {}),
-    };
-    const state = await loadModelPickerState();
-    const seen = new Set<string>();
-    const options: acp.SessionConfigSelectOption[] = [];
-    for (const model of [currentModel, ...state.favorites, ...state.recents]) {
-        const value = modelValue(model);
-        if (seen.has(value)) continue;
-        seen.add(value);
-        options.push({ value, name: model.model, description: model.provider });
-    }
-    return [
-        {
-            id: MODEL_CONFIG_ID,
-            name: 'Model',
-            category: 'model',
-            type: 'select',
-            currentValue: modelValue(currentModel),
-            options,
-        },
-    ];
-}
-
-function modelValue(model: ModelPickerModel): string {
-    return JSON.stringify([model.provider, model.model, model.baseURL ?? null]);
-}
-
-function parseModelValue(value: string): ModelPickerModel {
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(value);
-    } catch {
-        throw acp.RequestError.invalidParams({ value });
-    }
-    if (!Array.isArray(parsed) || typeof parsed[0] !== 'string' || typeof parsed[1] !== 'string') {
-        throw acp.RequestError.invalidParams({ value });
-    }
-    const [name, model, baseURL] = parsed;
-    const provider = LLM_PROVIDERS.find((known) => known === name);
-    if (provider === undefined) throw acp.RequestError.invalidParams({ value });
-    return {
-        provider,
-        model,
-        ...(typeof baseURL === 'string' ? { baseURL } : {}),
-    };
 }
 
 function promptText(blocks: acp.ContentBlock[]): string {
