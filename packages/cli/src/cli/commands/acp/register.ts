@@ -1,3 +1,4 @@
+import { inspect } from 'node:util';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
 
 export function registerAcpCommand({
@@ -20,6 +21,8 @@ Stdout carries only ACP messages; logs go to stderr.
             // stdout is the protocol channel: keep stray console output off it.
             console.log = console.error;
             console.info = console.error;
+            console.debug = console.error;
+            console.dir = (item, options) => console.error(inspect(item, options));
             const { serveAcp } = await import('./acp-agent.js');
             await serveAcp(cliVersion, () =>
                 bootstrapAgentFromGlobalOpts({
