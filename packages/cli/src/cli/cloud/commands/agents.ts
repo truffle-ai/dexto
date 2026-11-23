@@ -1,5 +1,7 @@
 // `cloud agents`: define agents, chat with them, and read their sessions, messages and runs.
 
+import { randomUUID } from 'node:crypto';
+
 import { EXIT_CODES } from '../../failure.js';
 import { confirm, requireConsent } from '../../interaction.js';
 
@@ -107,14 +109,41 @@ const get: Command = {
 };
 
 const create: Command = {
-    options: DEFINITION_OPTIONS,
+    options: {
+        ...DEFINITION_OPTIONS,
+        'idempotency-key': {
+            description:
+                'Reuse this key with the same definition to retry without creating another agent.',
+            type: 'string',
+            valueName: 'KEY',
+        },
+        'dry-run': {
+            description: 'Show the definition without creating an agent.',
+            type: 'boolean',
+        },
+    },
     path: ['cloud', 'agents', 'create'],
-    summary: 'Create an agent from flags, or from a full definition with --file or --data.',
+    summary:
+        'Create an agent from flags, or from a full definition with --file or --data. Example: dexto cloud agents create --name Helper --instructions "Be helpful"',
     async run(context, input) {
         const body = await readJsonBody(context, input);
         const definition = mergeDefinition(body === null ? null : asDefinition(body), input);
+        const key = (stringOption(input, 'idempotency-key') ?? randomUUID()).trim();
+        if (key.length === 0 || key.length > 200)
+            throw new UsageError('--idempotency-key must be between 1 and 200 characters.');
+        if (flag(input, 'dry-run'))
+            return context.output.result(
+                { dryRun: true, body: definition, idempotencyKey: key },
+                `Would create agent ${definition.name}.`
+            );
+        context.output.note(`Request key: ${key} (retry with --idempotency-key ${key})`);
         const agent = await unwrap(
-            await (await context.client()).POST('/v1/agents', { body: definition })
+            await (
+                await context.client()
+            ).POST('/v1/agents', {
+                body: definition,
+                headers: { 'Idempotency-Key': key },
+            })
         );
         context.output.result(agent, `Created agent ${agent.id} (${agent.name}).`);
     },

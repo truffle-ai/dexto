@@ -644,6 +644,58 @@ describe('cloud secrets, web and data-deletions', () => {
     });
 
     describe('agents and automations', () => {
+        it('prints a reusable key before creating an agent and accepts it on retry', async () => {
+            reply = () => {
+                expect(stderr).toContain(
+                    `Request key: ${requests.at(-1)?.headers.get('Idempotency-Key')}`
+                );
+                return Response.json({ id: 'agt_1', name: 'Helper' }, { status: 201 });
+            };
+            const args = [
+                'cloud',
+                'agents',
+                'create',
+                '--name',
+                'Helper',
+                '--instructions',
+                'Help',
+                '--json',
+            ];
+            expect(await runCloud(host, args)).toBe(0);
+            const key = requests[0]?.headers.get('Idempotency-Key');
+            expect(key).toMatch(/^[0-9a-f-]{36}$/);
+            expect(stderr).toContain(`Request key: ${key}`);
+            expect(key).not.toBeNull();
+            stdout = '';
+            stderr = '';
+            expect(await runCloud(host, [...args, '--idempotency-key', key ?? ''])).toBe(0);
+            expect(requests[1]?.headers.get('Idempotency-Key')).toBe(key);
+            expect(stderr).toContain(`Request key: ${key}`);
+        });
+
+        it('previews an agent create without sending a request', async () => {
+            const code = await runCloud(host, [
+                'cloud',
+                'agents',
+                'create',
+                '--name',
+                'Helper',
+                '--instructions',
+                'Help',
+                '--idempotency-key',
+                'retry-1',
+                '--dry-run',
+                '--json',
+            ]);
+            expect(code).toBe(0);
+            expect(requests).toEqual([]);
+            expect(JSON.parse(stdout)).toMatchObject({
+                dryRun: true,
+                idempotencyKey: 'retry-1',
+                body: { name: 'Helper', instructions: 'Help' },
+            });
+        });
+
         function sse(events: readonly object[]): Response {
             return new Response(
                 events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''),
