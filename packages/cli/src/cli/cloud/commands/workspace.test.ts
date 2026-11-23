@@ -68,6 +68,7 @@ describe('dexto workspace', () => {
     let chatResponse: unknown;
     let computersResponse: unknown;
     let profilesResponse: unknown;
+    let agentsResponse: unknown;
     let followResponses: unknown[];
     let creditResponses: unknown[];
     let chatInspection: unknown;
@@ -107,6 +108,18 @@ describe('dexto workspace', () => {
         chatInspection = {};
         appScopes = {};
         profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
+        agentsResponse = {
+            agents: [
+                {
+                    id: 'agent-1',
+                    name: 'Researcher',
+                    description: 'Finds sources',
+                    isSystem: false,
+                    createdAt: '2026-11-01T00:00:00.000Z',
+                    updatedAt: '2026-11-02T00:00:00.000Z',
+                },
+            ],
+        };
         publishStatus = 200;
         publishProject = null;
         await dextoAccounts.writeLogin(dir, 'default', {
@@ -190,7 +203,9 @@ describe('dexto workspace', () => {
                                   ? computersResponse
                                   : tool === 'dexto_chat_browser_profiles_list'
                                     ? profilesResponse
-                                    : { status: 'sent' };
+                                    : tool === 'dexto_agents_list'
+                                      ? agentsResponse
+                                      : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
@@ -1336,18 +1351,20 @@ describe('dexto workspace', () => {
     it.each([
         ['computers', 'Desk'],
         ['browser-profiles', 'Work'],
+        ['agents', 'Researcher'],
     ])('prints a readable table for chat %s', async (verb, name) => {
         expect(await runCloud(host, ['chat', verb, '--table'])).toBe(0);
         expect(stdout).toContain(name);
         expect(stdout).not.toContain('{');
     });
 
-    it.each(['start', 'computers', 'browser-profiles'])(
+    it.each(['start', 'computers', 'browser-profiles', 'agents'])(
         'rejects malformed output from chat %s',
         async (verb) => {
             chatResponse = { session: { id: 123 } };
             computersResponse = { computers: [{ id: 123 }] };
             profilesResponse = { profiles: [{ id: 123 }] };
+            agentsResponse = { agents: [{ id: 123 }] };
             expect(
                 await runCloud(host, ['chat', verb, ...(verb === 'start' ? ['Hello'] : [])])
             ).toBe(1);
@@ -1355,6 +1372,50 @@ describe('dexto workspace', () => {
             expect(JSON.parse(stderr).error.message).toContain("Dexto didn't return a valid");
         }
     );
+
+    it('lists agent profiles with the default limit and returns them as JSON', async () => {
+        expect(await runCloud(host, ['chat', 'agents', '--json'])).toBe(0);
+        expect(calls).toEqual([
+            {
+                method: 'tools/call',
+                params: { name: 'dexto_agents_list', arguments: {} },
+            },
+        ]);
+        expect(JSON.parse(stdout)).toEqual(agentsResponse);
+    });
+
+    it('passes a bounded limit and rejects one outside 1 to 50 before calling', async () => {
+        expect(await runCloud(host, ['chat', 'agents', '--limit', '50', '--json'])).toBe(0);
+        expect(calls[0]?.params).toEqual({ name: 'dexto_agents_list', arguments: { limit: 50 } });
+        calls = [];
+        for (const limit of ['0', '51', '2.5'])
+            expect(await runCloud(host, ['chat', 'agents', '--limit', limit, '--json'])).toBe(2);
+        expect(calls).toEqual([]);
+        expect(stderr).toContain('--limit must be between 1 and 50.');
+    });
+
+    it('asks for agents:read when the sign-in lacks it', async () => {
+        const refusingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async () =>
+                    Response.json({
+                        jsonrpc: '2.0',
+                        id: 1,
+                        error: {
+                            code: -32003,
+                            message: 'Missing required scope: agents:read',
+                            data: { kind: 'forbidden', scope: 'agents:read' },
+                        },
+                    }),
+            },
+        };
+        expect(await runCloud(refusingHost, ['chat', 'agents', '--json'])).toBe(3);
+        const error = JSON.parse(stderr).error;
+        expect(error.code).toBe('needs_permission');
+        expect(error.fix).toContain('--scope agents:read');
+    });
 
     it("lists the workspace's apps, from the tools the Dexto MCP lists", async () => {
         expect(await runCloud(host, ['workspace'])).toBe(0);

@@ -17,6 +17,7 @@ beforeEach(() => vi.clearAllMocks());
 it.each([
     ['start', 'Investigate', '--computer', 'computer-1', '--browser-profile', 'profile-1'],
     ['computers'],
+    ['agents', '--limit', '5'],
     ['browser-profiles'],
 ])('registers public chat %s and forwards its arguments to the cloud engine', async (...args) => {
     const program = new Command().name('dexto').enablePositionalOptions().exitOverride();

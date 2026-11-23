@@ -88,6 +88,7 @@ export function registerSessionCommand({
         import: 'Import Claude Code or Codex chats into Dexto',
         start: 'Start a cloud chat on your chosen connected computer and browser profile',
         computers: 'List your connected computers for a cloud chat',
+        agents: 'List the agent profiles you can chat with in the cloud',
         'browser-profiles': 'List your browser profiles for a cloud chat',
         move: 'Move a synced chat and its working tree to cloud or local',
         watch: 'Stay attached to a chat on its cloud computer',

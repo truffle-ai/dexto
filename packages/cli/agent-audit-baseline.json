@@ -49,6 +49,13 @@
     "examples": false
   },
   {
+    "command": "chat agents",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "chat browser-profiles",
     "json": true,
     "dryRun": false,
