@@ -14,6 +14,7 @@ export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
  * device and browser sign-in must accept each one; its drift test imports this list.
  */
 export const CLI_LOGIN_SCOPES = [
+    'applications:read',
     'apps:execute',
     'apps:read',
     'apps:write',
