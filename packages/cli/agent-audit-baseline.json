@@ -735,6 +735,20 @@
     "examples": false
   },
   {
+    "command": "loops get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "loops list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "models list",
     "json": true,
     "dryRun": false,

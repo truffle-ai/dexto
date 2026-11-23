@@ -20,6 +20,7 @@ const ENGINE_WORDS = {
         'Your Dexto Projects: list and change them, message their coordinators, start their chats',
     workspace: 'Use your Dexto workspace as yourself: its apps and tools, over the Dexto MCP',
     find: 'Find the command for something you want to do in Dexto',
+    loops: "List and inspect your account's, agents' and Projects' Loops and their runs",
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',
     profile: 'Show and change your Dexto profile: handle, name, bio and who can see it',
     skills: 'Push a local Skill to your Dexto Skills library, or sync the library to this computer',
