@@ -917,6 +917,48 @@
     "examples": true
   },
   {
+    "command": "skills create",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills delete",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills file",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "skills get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "skills install",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills publish",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "skills push",
     "json": true,
     "dryRun": false,
@@ -924,11 +966,46 @@
     "examples": false
   },
   {
+    "command": "skills restore",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "skills sync",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "skills uninstall",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills update",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills validate",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "skills versions",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "span list",

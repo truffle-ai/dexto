@@ -131,18 +131,7 @@ dexto_share_access
 dexto_share_received
 dexto_site_collections_list
 dexto_site_get
-dexto_site_promote
-dexto_skill_create
-dexto_skill_delete
-dexto_skill_file_get
-dexto_skill_get
-dexto_skill_install
-dexto_skill_publish
-dexto_skill_restore
-dexto_skill_uninstall
-dexto_skill_update
-dexto_skill_validate
-dexto_skill_versions`.split('\n');
+dexto_site_promote`.split('\n');
 
 const approvedLocalOnly = [
     'accounts list',
