@@ -4662,7 +4662,7 @@ describe('TurnExecutor Integration Tests', () => {
             const requests = vi.mocked(streamText).mock.calls.map(([options]) => options.messages);
             expect(requests.map(carriesMedia)).toEqual([true, false, false]);
             expect(JSON.stringify(requests[1])).toContain(
-                '[Image withheld: the model provider rejected the request that carried it]'
+                '[Image not read: the model provider could not open it because it is damaged or not a valid file.'
             );
             const history = await contextManager.getHistory();
             expect(history.find((message) => message.role === 'user')).toMatchObject({

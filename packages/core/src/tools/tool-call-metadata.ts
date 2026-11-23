@@ -163,6 +163,9 @@ function flattenObjectUnionSchema(parameters: JSONSchema7): JSONSchema7 | undefi
 
     return {
         ...(parameters.description === undefined ? {} : { description: parameters.description }),
+        // An alternative's $ref points into the root's definitions, so they move with it.
+        ...(parameters.definitions === undefined ? {} : { definitions: parameters.definitions }),
+        ...(parameters.$defs === undefined ? {} : { $defs: parameters.$defs }),
         type: 'object',
         properties,
         ...(required === undefined ? {} : { required }),

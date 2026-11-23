@@ -1,5 +1,7 @@
 // Setting this machine up for Dexto models: whether they can run, and signing in so they can.
 
+import type { dextoSignIn } from '@dexto/agent-management';
+
 export { canUseDextoProvider } from '@dexto/agent-management';
 
 /**
@@ -16,7 +18,7 @@ export async function signInForDextoModels(): Promise<void> {
         org: null,
         device: false,
         browser: true,
-        scopes: ['cloud:write'],
+        scopes: ['cloud:write'] satisfies dextoSignIn.CliLoginScope[],
         apiKey: null,
     });
 }

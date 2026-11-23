@@ -1,5 +1,88 @@
 # dexto
 
+## 2.2.3
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/agent-management@1.19.4
+    - @dexto/analytics@1.19.4
+    - @dexto/client-sdk@1.19.4
+    - @dexto/image-local@1.19.4
+    - @dexto/image-logger-agent@1.19.4
+    - @dexto/storage@1.19.4
+    - @dexto/tui@1.19.4
+    - @dexto/llm@1.19.4
+    - @dexto/cloud-client@1.19.4
+    - @dexto/registry@1.19.4
+
+## 2.2.2
+
+### Patch Changes
+
+- 0cd288b: Export `dextoSignIn.CLI_LOGIN_SCOPES`, every scope the CLI asks a sign-in for by name, so Dexto Cloud can test that its sign-in accepts each one. The CLI's own scope checks now only accept scopes from that list.
+- Updated dependencies [023c262]
+- Updated dependencies [0cd288b]
+    - @dexto/core@1.19.3
+    - @dexto/agent-management@1.19.3
+    - @dexto/agent-config@1.19.3
+    - @dexto/analytics@1.19.3
+    - @dexto/client-sdk@1.19.3
+    - @dexto/image-local@1.19.3
+    - @dexto/image-logger-agent@1.19.3
+    - @dexto/storage@1.19.3
+    - @dexto/tui@1.19.3
+    - @dexto/llm@1.19.3
+    - @dexto/cloud-client@1.19.3
+    - @dexto/registry@1.19.3
+
+## 2.2.1
+
+### Patch Changes
+
+- 5293e60: Refresh a saved Dexto sign-in one at a time: concurrent requests in a process share one refresh, and other processes wait on a lock file beside the login and use the tokens it saved, so two refreshes of one rotating token no longer race (DEXTO-3437). Each refresh is bounded at 10 s whatever its caller, the lock names its holder and only the holder releases it, and a crashed process's lock is taken over atomically.
+- Updated dependencies [5293e60]
+    - @dexto/agent-management@1.19.2
+    - @dexto/analytics@1.19.2
+    - @dexto/image-local@1.19.2
+    - @dexto/image-logger-agent@1.19.2
+    - @dexto/tui@1.19.2
+    - @dexto/client-sdk@1.19.2
+    - @dexto/core@1.19.2
+    - @dexto/storage@1.19.2
+    - @dexto/llm@1.19.2
+    - @dexto/agent-config@1.19.2
+    - @dexto/cloud-client@1.19.2
+    - @dexto/registry@1.19.2
+
+## 2.2.0
+
+### Minor Changes
+
+- 8c1bcfd: Add commands to publish HTML Artifacts to your organization, list them, and print their links.
+
+### Patch Changes
+
+- 4e2ecf7: Add `dexto credits balance`, `dexto credits topup`, and `dexto credits topup status`, and report resumable credit errors with the next command to run.
+- e7198e9: Explain whether logging out ended the sign-in on the server or only forgot an API key locally.
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/agent-management@1.19.1
+    - @dexto/analytics@1.19.1
+    - @dexto/client-sdk@1.19.1
+    - @dexto/image-local@1.19.1
+    - @dexto/image-logger-agent@1.19.1
+    - @dexto/storage@1.19.1
+    - @dexto/tui@1.19.1
+    - @dexto/llm@1.19.1
+    - @dexto/cloud-client@1.19.1
+    - @dexto/registry@1.19.1
+
 ## 2.1.0
 
 ### Minor Changes

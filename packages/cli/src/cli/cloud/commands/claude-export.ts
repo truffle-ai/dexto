@@ -61,12 +61,12 @@ export async function importClaudeExport(context: CommandContext, input: Command
         context.output.record({ sessions: [], projects: [], notices: preview.notices });
         return 0;
     }
-    await requireLoginScopes(context, [
-        'sessions:write',
-        ...(projects.length === 0
-            ? []
-            : ['projects:write', 'projects:read', 'drive:read', 'drive:write']),
-    ]);
+    await requireLoginScopes(
+        context,
+        projects.length === 0
+            ? ['sessions:write']
+            : ['sessions:write', 'projects:write', 'projects:read', 'drive:read', 'drive:write']
+    );
     await requireConsent(
         context,
         flag(input, 'yes'),

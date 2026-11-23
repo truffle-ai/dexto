@@ -8,11 +8,14 @@ import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { artifactCommands } from './commands/artifacts.js';
 import { publicArtifactCommands } from './commands/public-artifacts.js';
+import { notificationCommands } from './commands/notifications.js';
 import { connectionCommands } from './commands/connections.js';
+import { channelCommands } from './commands/channels.js';
 import { chatCommands } from './commands/chats.js';
 import { importCommands } from './commands/import.js';
 import { creditCommands } from './commands/credits.js';
 import { chatOutputsCommand } from './commands/chat-outputs.js';
+import { chatReadCommands } from './commands/chat-read.js';
 import { chatProjectCommands } from './commands/chat-projects.js';
 import { computerKeyCommands } from './commands/computer-keys.js';
 import { automationCommands } from './commands/automations.js';
@@ -85,13 +88,16 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...driveCommands,
         ...artifactCommands,
         ...publicArtifactCommands,
+        ...notificationCommands,
         ...siteRecordCommands,
         ...findCommands,
         ...profileCommands,
         ...publishCommands,
         ...skillCommands,
         ...traceCommands,
+        ...channelCommands,
         ...chatCommands,
+        ...chatReadCommands,
         ...importCommands,
         chatOutputsCommand,
         ...chatProjectCommands,
