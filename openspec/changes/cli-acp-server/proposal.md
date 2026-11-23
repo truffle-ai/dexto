@@ -8,7 +8,7 @@ ACP clients such as T3 Code and Zed drive coding agents over the Agent Client Pr
 - Map ACP sessions to Dexto sessions, prompts to `DextoAgent.stream`, streamed text, reasoning, tool calls and todo plans to `session/update`, Dexto approvals to `session/request_permission`, `session/cancel` to `DextoAgent.cancel`, and the session model to a `model` config option.
 - Refuse a second prompt in a session while one runs.
 
-Scope: the stdio server, sessions (new, load), prompts, permissions, cancel and model selection. Non-goals in this change: ACP diff content, elicitation, session listing, session modes, slash commands, usage updates and ACP Registry listing; later changes add them.
+Scope: the stdio server, sessions (new, load), prompts, permissions, cancel and model selection. Non-goals in this change: ACP diff content, elicitation, session listing, session modes, slash commands, usage updates, client-supplied MCP servers and ACP Registry listing; later changes add them.
 
 ## Capabilities
 

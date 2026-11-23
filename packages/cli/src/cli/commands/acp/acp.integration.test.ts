@@ -1,7 +1,7 @@
 /* global ReadableStream */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer, type Server, type ServerResponse } from 'node:http';
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,7 +44,10 @@ function scriptedReply(input: { messages: Array<{ role: string; content: unknown
                                 index: 0,
                                 id: 'ordinary-call',
                                 type: 'function',
-                                function: { name: 'ordinary_operation', arguments: '{}' },
+                                function: {
+                                    name: 'ordinary_operation',
+                                    arguments: '{"path":"note.txt"}',
+                                },
                             },
                         ],
                     },
@@ -93,11 +96,14 @@ async function streamReply(response: ServerResponse, chunks: Chunk[], delayMs: n
 type Recorded = {
     updates: acp.SessionUpdate[];
     permissions: acp.RequestPermissionRequest[];
+    /** Tool-call updates and permission requests in arrival order. */
+    order: string[];
 };
 
 describe('dexto acp over stdio', () => {
     let server: Server;
     let directory: string;
+    let otherDirectory: string;
     let home: string;
     let configPath: string;
     let effectPath: string;
@@ -114,8 +120,11 @@ describe('dexto acp over stdio', () => {
         const address = server.address();
         if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
         directory = await mkdtemp(join(tmpdir(), 'dexto-acp-'));
+        directory = await realpath(directory);
         home = join(directory, 'home');
         await mkdir(home);
+        otherDirectory = join(directory, 'other');
+        await mkdir(otherDirectory);
         effectPath = join(directory, 'effect');
         const imagePath = join(directory, 'image.mjs');
         await writeFile(
@@ -133,11 +142,11 @@ export default {
             create: () => [{
                 id: 'ordinary_operation',
                 description: 'Changes local state after approval',
-                inputSchema: z.object({}).strict(),
+                inputSchema: z.object({ path: z.string().optional() }).strict(),
                 needsApproval: true,
                 execute: async () => {
                     await writeFile(${JSON.stringify(effectPath)}, 'effect');
-                    return 'effect written';
+                    return 'effect written in ' + process.cwd();
                 },
             }],
         },
@@ -209,21 +218,24 @@ tools:
             Writable.toWeb(child.stdin),
             Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>
         );
-        const recorded: Recorded = { updates: [], permissions: [] };
+        const recorded: Recorded = { updates: [], permissions: [], order: [] };
         return await acp
             .client({ name: 'acp-test' })
             .onNotification('session/update', ({ params }) => {
                 recorded.updates.push(params.update);
+                if (params.update.sessionUpdate === 'tool_call') recorded.order.push('tool_call');
             })
             .onRequest('session/request_permission', ({ params }) => {
                 recorded.permissions.push(params);
+                recorded.order.push('permission');
                 return answer(params);
             })
             .connectWith(stream, async (cx) => {
-                await cx.request(acp.methods.agent.initialize, {
+                const init = await cx.request(acp.methods.agent.initialize, {
                     protocolVersion: acp.PROTOCOL_VERSION,
                     clientCapabilities: {},
                 });
+                expect(init.agentCapabilities?.loadSession).toBe(true);
                 return await op(cx, recorded);
             });
     }
@@ -235,9 +247,9 @@ tools:
         outcome: { outcome: 'selected', optionId: 'reject' },
     });
 
-    async function newSession(cx: acp.ClientContext): Promise<string> {
+    async function newSession(cx: acp.ClientContext, cwd = directory): Promise<string> {
         const { sessionId } = await cx.request(acp.methods.agent.session.new, {
-            cwd: directory,
+            cwd,
             mcpServers: [],
         });
         return sessionId;
@@ -280,6 +292,7 @@ tools:
                 (update) => update.sessionUpdate === 'tool_call'
             );
             expect(opened).toBeGreaterThanOrEqual(0);
+            expect(recorded.order).toEqual(['tool_call', 'permission']);
             expect(recorded.permissions).toHaveLength(1);
             expect(recorded.permissions[0]?.toolCall.toolCallId).toBe('ordinary-call');
             expect(recorded.updates).toContainEqual(
@@ -322,6 +335,18 @@ tools:
         });
     }, 60000);
 
+    it('stops a turn cancelled before its run starts and frees the session', async () => {
+        await withAgent(allow, async (cx) => {
+            const sessionId = await newSession(cx);
+            const turn = prompt(cx, sessionId, 'slow answer');
+            await cx.notify(acp.methods.agent.session.cancel, { sessionId });
+            await expect(turn).resolves.toEqual({ stopReason: 'cancelled' });
+            await expect(prompt(cx, sessionId, 'say hello')).resolves.toEqual({
+                stopReason: 'end_turn',
+            });
+        });
+    }, 60000);
+
     it('refuses a second prompt while a turn runs and keeps the first turn intact', async () => {
         await withAgent(allow, async (cx, recorded) => {
             const sessionId = await newSession(cx);
@@ -334,6 +359,91 @@ tools:
             );
             await cx.notify(acp.methods.agent.session.cancel, { sessionId });
             await expect(first).resolves.toEqual({ stopReason: 'cancelled' });
+        });
+    }, 60000);
+
+    it("runs each session's tools in that session's directory", async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const first = await newSession(cx);
+            await newSession(cx, otherDirectory);
+            await prompt(cx, first, 'change state');
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call',
+                    toolCallId: 'ordinary-call',
+                    locations: [{ path: join(directory, 'note.txt') }],
+                })
+            );
+            const result = recorded.updates.find(
+                (update) =>
+                    update.sessionUpdate === 'tool_call_update' && update.status === 'completed'
+            );
+            expect(JSON.stringify(result)).toContain(`effect written in ${directory}"`);
+        });
+    }, 60000);
+
+    it('switches the workspace to each prompted session and back', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const first = await newSession(cx);
+            const second = await newSession(cx, otherDirectory);
+            await prompt(cx, second, 'change state');
+            await prompt(cx, first, 'change state');
+            const results = recorded.updates
+                .filter(
+                    (update) =>
+                        update.sessionUpdate === 'tool_call_update' && update.status === 'completed'
+                )
+                .map((update) => JSON.stringify(update));
+            expect(results).toHaveLength(2);
+            expect(results[0]).toContain(`effect written in ${otherDirectory}"`);
+            expect(results[1]).toContain(`effect written in ${directory}"`);
+            expect(recorded.updates).toContainEqual(
+                expect.objectContaining({
+                    sessionUpdate: 'tool_call',
+                    locations: [{ path: join(otherDirectory, 'note.txt') }],
+                })
+            );
+        });
+    }, 60000);
+
+    it('refuses a prompt in another directory while a turn runs', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const first = await newSession(cx);
+            const second = await newSession(cx, otherDirectory);
+            const running = prompt(cx, first, 'slow answer');
+            await expect
+                .poll(() => agentText(recorded.updates).length, { timeout: 20000 })
+                .toBeGreaterThan(0);
+            await expect(prompt(cx, second, 'say hello')).rejects.toBeInstanceOf(acp.RequestError);
+            await cx.notify(acp.methods.agent.session.cancel, { sessionId: first });
+            await expect(running).resolves.toEqual({ stopReason: 'cancelled' });
+        });
+    }, 60000);
+
+    it("offers the session's model and keeps it when chosen", async () => {
+        await withAgent(allow, async (cx) => {
+            const created = await cx.request(acp.methods.agent.session.new, {
+                cwd: directory,
+                mcpServers: [],
+            });
+            const option = created.configOptions?.find((entry) => entry.id === 'model');
+            expect(option).toMatchObject({ category: 'model', type: 'select' });
+            if (option?.type !== 'select') throw new Error('Expected a select option');
+            const chosen = await cx.request(acp.methods.agent.session.setConfigOption, {
+                sessionId: created.sessionId,
+                configId: 'model',
+                value: option.currentValue,
+            });
+            expect(chosen.configOptions.find((entry) => entry.id === 'model')).toMatchObject({
+                currentValue: option.currentValue,
+            });
+            await expect(
+                cx.request(acp.methods.agent.session.setConfigOption, {
+                    sessionId: created.sessionId,
+                    configId: 'missing',
+                    value: 'x',
+                })
+            ).rejects.toBeInstanceOf(acp.RequestError);
         });
     }, 60000);
 
