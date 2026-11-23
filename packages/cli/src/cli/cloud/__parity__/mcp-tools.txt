@@ -6923,6 +6923,135 @@
     {
       "inputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "share"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "expiresInHours": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              },
+              "computerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "confirm": {
+                "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "port",
+              "computerId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "publish"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "expiresInHours": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              },
+              "computerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "confirm": {
+                "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "port",
+              "computerId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "list"
+              },
+              "computerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "confirm": {
+                "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "computerId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "revoke"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "computerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "confirm": {
+                "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "port",
+              "computerId"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "type": "object"
+      },
+      "name": "dexto_computer_port_link"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
           "name": {
