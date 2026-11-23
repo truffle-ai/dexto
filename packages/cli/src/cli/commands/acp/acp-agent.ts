@@ -247,7 +247,7 @@ export async function serveAcp(
                     promptCapabilities: { image: false, audio: false, embeddedContext: true },
                 },
                 agentInfo: { name: 'dexto', title: 'Dexto', version },
-                authMethods: [],
+                authMethods: offersTerminalSignIn(params.clientCapabilities) ? [DEXTO_SIGN_IN] : [],
             };
         })
         .onRequest('authenticate', () => ({}))
@@ -493,6 +493,26 @@ async function userPrompts(agent: DextoAgent): Promise<Map<string, PromptInfo>> 
     return new Map(
         prompts.map((info) => [info.commandName || info.displayName || info.name, info])
     );
+}
+
+/**
+ * Dexto sign-in for an ACP app to run in a terminal: `dexto login`, allowed to spend credits on
+ * Dexto models. An app adds these args after `dexto acp` or in place of `acp`; both sign in.
+ */
+const DEXTO_SIGN_IN: acp.AuthMethod = {
+    id: 'dexto-login',
+    name: 'Sign in to Dexto',
+    description: 'Opens Dexto sign-in in your browser, allowing Dexto models to spend credits',
+    type: 'terminal',
+    args: ['login', '--scope', 'cloud:write'],
+};
+
+/**
+ * Whether the client can run a terminal sign-in: `auth.terminal`, or the older
+ * `_meta["terminal-auth"]` marker that some clients and the ACP Registry's checks still send.
+ */
+function offersTerminalSignIn(capabilities: acp.ClientCapabilities | undefined): boolean {
+    return capabilities?.auth?.terminal === true || capabilities?._meta?.['terminal-auth'] === true;
 }
 
 function permissionsMode(agent: DextoAgent): PermissionsMode {

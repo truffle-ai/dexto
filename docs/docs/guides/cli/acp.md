@@ -46,7 +46,7 @@ The app's model picker lists:
 
 When the model can reason, the app also shows its reasoning effort, such as low, medium or high.
 
-If a model needs a key you haven't set, the app tells you which one, for example `Set ANTHROPIC_API_KEY to use anthropic models`. Dexto models need a sign-in that may spend credits: run `dexto login --scope cloud:write`.
+If a model needs a key you haven't set, the app tells you which one, for example `Set ANTHROPIC_API_KEY to use anthropic models`. Dexto models need a sign-in that may spend credits: run `dexto login --scope cloud:write`. Apps that can open a terminal for sign-in also offer **Sign in to Dexto**, which runs it for you.
 
 ## Modes
 
