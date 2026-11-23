@@ -9,6 +9,7 @@ import { CloudApiError } from '@dexto/cloud-client';
 
 import {
     argument,
+    boundedOption,
     flag,
     MissingScopeFailure,
     stringOption,
@@ -338,6 +339,20 @@ const ComputersSchema = z
                     presence: z.enum(['online', 'offline', 'unknown']),
                     compatible: z.boolean(),
                     feature: z.object({ enabled: z.boolean() }).passthrough(),
+                })
+                .passthrough()
+        ),
+    })
+    .passthrough();
+const AgentsSchema = z
+    .object({
+        agents: z.array(
+            z
+                .object({
+                    id: z.string(),
+                    name: z.string(),
+                    description: z.string().nullish(),
+                    isSystem: z.boolean(),
                 })
                 .passthrough()
         ),
@@ -804,7 +819,7 @@ const start: Command = {
         agent: {
             type: 'string',
             valueName: 'ID',
-            description: 'Agent profile; omitted uses your Dexto.',
+            description: 'Agent profile from chat agents; omitted uses your Dexto.',
         },
         model: {
             type: 'string',
@@ -937,6 +952,40 @@ const computers: Command = {
     },
 };
 
+const agents: Command = {
+    path: ['chat', 'agents'],
+    summary:
+        'List the agent profiles you can chat with, for chat start --agent. Requires agents:read.',
+    options: {
+        limit: {
+            type: 'string',
+            valueName: 'N',
+            description: 'Most agents to list, 1 to 50 (default 20).',
+        },
+    },
+    async run(context, input) {
+        const limit = boundedOption(input, 'limit', 1, 50);
+        const parsed = AgentsSchema.safeParse(
+            await queryWorkspaceTool(
+                context,
+                'dexto_agents_list',
+                limit === undefined ? {} : { limit }
+            )
+        );
+        if (!parsed.success)
+            throw new CommandFailure('failed', "Dexto didn't return a valid agent list.", null);
+        const result = parsed.data;
+        if (context.output.json) context.output.result(result, '');
+        else
+            context.output.list({ data: result.agents }, [
+                { header: 'id', value: (row) => row.id },
+                { header: 'name', value: (row) => row.name },
+                { header: 'system', value: (row) => (row.isSystem ? 'yes' : 'no') },
+                { header: 'description', value: (row) => row.description ?? '' },
+            ]);
+    },
+};
+
 const browserProfiles: Command = {
     path: ['chat', 'browser-profiles'],
     summary: 'List your browser profiles and availability for chat start --browser-profile.',
@@ -969,6 +1018,7 @@ export const chatCommands: readonly Command[] = [
     send,
     cancel,
     computers,
+    agents,
     browserProfiles,
     ...chatMoveCommands,
 ];
