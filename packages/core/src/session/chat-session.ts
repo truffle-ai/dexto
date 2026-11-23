@@ -551,14 +551,23 @@ export class ChatSession {
             throw SessionError.busy(this.id);
         }
 
-        // Create an AbortController for this run and expose for cancellation
+        // Create an AbortController for this run and expose for cancellation.
+        // One try/finally covers everything from here so an early abort still frees the session.
         this.currentRunController = new AbortController();
-        const signal = options?.signal
-            ? this.combineSignals(options.signal, this.currentRunController.signal)
-            : this.currentRunController.signal;
-        const detachForwarders = this.attachRunEventForwarders(options?.runContext);
+        const startedAt = Date.now();
+        let runCompleted = false;
+        const markRunCompleted = () => {
+            runCompleted = true;
+        };
+        this.eventBus.on('run:complete', markRunCompleted);
+        let detachForwarders: (() => void) | undefined;
 
         try {
+            const signal = options?.signal
+                ? this.combineSignals(options.signal, this.currentRunController.signal)
+                : this.currentRunController.signal;
+            detachForwarders = this.attachRunEventForwarders(options?.runContext);
+
             const modifiedParts = await this.prepareTurnInput(content, signal, options?.runContext);
             const streamResult = await this.llmService.stream(modifiedParts, {
                 signal,
@@ -582,6 +591,15 @@ export class ChatSession {
                     context: 'user_cancelled',
                     recoverable: true,
                 });
+                // An abort before the turn executor starts (for example in a beforeLLMRequest
+                // hook) never reaches the executor's own run:complete, so end the run here.
+                if (!runCompleted) {
+                    this.eventBus.emit('run:complete', {
+                        finishReason: 'cancelled',
+                        stepCount: 0,
+                        durationMs: Date.now() - startedAt,
+                    });
+                }
 
                 // Return partial content that was persisted during streaming
                 try {
@@ -644,7 +662,8 @@ export class ChatSession {
             );
             throw error;
         } finally {
-            detachForwarders();
+            this.eventBus.off('run:complete', markRunCompleted);
+            detachForwarders?.();
             this.currentRunController = null;
         }
     }

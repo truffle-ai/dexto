@@ -1413,6 +1413,9 @@ export class DextoAgent {
                         ...(signal ? { signal } : {}),
                         runContext,
                     });
+                    // The run is over once session.stream settles, even if no run:complete
+                    // reached this iterator, so it can never outlive the run.
+                    completed = true;
 
                     // Increment message count
                     this.sessionManager
