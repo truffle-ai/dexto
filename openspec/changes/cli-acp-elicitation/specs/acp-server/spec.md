@@ -1,0 +1,26 @@
+## ADDED Requirements
+
+### Requirement: Questions as forms
+
+When the agent asks the person for structured input (`ask_user`, or an MCP server's elicitation), `dexto acp` SHALL ask it as an ACP `elicitation/create` form if the client supports forms, and otherwise SHALL tell the model to ask in its reply.
+
+#### Scenario: Answered
+
+- **WHEN** the client advertises form support and the agent calls `ask_user`
+- **THEN** the client receives a form for the session with the question as its message and the fields as its schema
+- **AND** the values the person submits are returned to the tool
+
+#### Scenario: Declined
+
+- **WHEN** the person declines the form
+- **THEN** the tool call fails and the turn continues
+
+#### Scenario: No form support
+
+- **WHEN** the client does not advertise form support
+- **THEN** no form is sent, and the tool result tells the model to ask the person in its reply
+
+#### Scenario: Cancelled while open
+
+- **WHEN** the client cancels the turn while a form is open
+- **THEN** the form request is withdrawn, the prompt ends with `cancelled`, and the next prompt in that session is accepted

@@ -36,7 +36,7 @@ function scriptedReply(input: {
     const callTool = (
         id: string,
         name: string,
-        args: Record<string, string> = { path: 'note.txt' }
+        args: Record<string, unknown> = { path: 'note.txt' }
     ): ScriptedReply => ({
         chunks: [
             {
@@ -64,6 +64,20 @@ function scriptedReply(input: {
     if (text.includes('edit note')) {
         if (toolResult) return { chunks: say('note edited'), delayMs: 0 };
         return callTool('edit-call', 'edit_note');
+    }
+    if (text.includes('ask size')) {
+        if (toolResult) {
+            const result = JSON.stringify(input.messages.at(-1)?.content ?? '');
+            return { chunks: say(`answer was ${result}`), delayMs: 0 };
+        }
+        return callTool('ask-call', 'ask_user', {
+            question: 'Which size?',
+            schema: {
+                type: 'object',
+                properties: { size: { type: 'string', enum: ['small', 'large'] } },
+                required: ['size'],
+            },
+        });
     }
     if (text.includes('real edit')) {
         if (toolResult) return { chunks: say('file edited'), delayMs: 0 };
@@ -113,7 +127,13 @@ type Recorded = {
     permissions: acp.RequestPermissionRequest[];
     /** Tool-call updates and permission requests in arrival order. */
     order: string[];
+    forms: acp.CreateElicitationRequest[];
 };
+
+/** How the test client answers forms; without one it does not advertise form support. */
+type FormAnswer = (
+    request: acp.CreateElicitationRequest
+) => acp.CreateElicitationResponse | Promise<acp.CreateElicitationResponse>;
 
 describe('dexto acp over stdio', () => {
     let server: Server;
@@ -213,6 +233,8 @@ tools:
   - type: ordinary-tools
   - type: filesystem-tools
     enabledTools: [edit_file]
+  - type: builtin-tools
+    enabledTools: [ask_user]
 `
         );
     });
@@ -233,7 +255,8 @@ tools:
         answer: (
             request: acp.RequestPermissionRequest
         ) => acp.RequestPermissionResponse | Promise<acp.RequestPermissionResponse>,
-        op: (cx: acp.ClientContext, recorded: Recorded) => Promise<T>
+        op: (cx: acp.ClientContext, recorded: Recorded) => Promise<T>,
+        form?: FormAnswer
     ): Promise<T> {
         const child = spawn(
             process.execPath,
@@ -259,7 +282,7 @@ tools:
             Writable.toWeb(child.stdin),
             Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>
         );
-        const recorded: Recorded = { updates: [], permissions: [], order: [] };
+        const recorded: Recorded = { updates: [], permissions: [], order: [], forms: [] };
         return await acp
             .client({ name: 'acp-test' })
             .onNotification('session/update', ({ params }) => {
@@ -271,10 +294,15 @@ tools:
                 recorded.order.push('permission');
                 return answer(params);
             })
+            .onRequest('elicitation/create', ({ params }) => {
+                recorded.forms.push(params);
+                if (!form) throw new Error('This client advertised no form support');
+                return form(params);
+            })
             .connectWith(stream, async (cx) => {
                 const init = await cx.request(acp.methods.agent.initialize, {
                     protocolVersion: acp.PROTOCOL_VERSION,
-                    clientCapabilities: {},
+                    clientCapabilities: form ? { elicitation: { form: {} } } : {},
                 });
                 expect(init.agentCapabilities?.loadSession).toBe(true);
                 return await op(cx, recorded);
@@ -287,6 +315,17 @@ tools:
     const reject = (): acp.RequestPermissionResponse => ({
         outcome: { outcome: 'selected', optionId: 'reject' },
     });
+
+    function toolResultText(recorded: Recorded, toolCallId: string): string {
+        return toolText(
+            recorded.updates.find(
+                (update) =>
+                    update.sessionUpdate === 'tool_call_update' &&
+                    update.toolCallId === toolCallId &&
+                    (update.status === 'completed' || update.status === 'failed')
+            )
+        );
+    }
 
     async function newSession(cx: acp.ClientContext, cwd = directory): Promise<string> {
         const { sessionId } = await cx.request(acp.methods.agent.session.new, {
@@ -427,6 +466,87 @@ tools:
             );
             await expect(readFile(note, 'utf8')).resolves.toBe('new line\n');
         });
+    }, 60000);
+
+    it("asks ask_user's question as an ACP form and returns the answer", async () => {
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const sessionId = await newSession(cx);
+                await expect(prompt(cx, sessionId, 'ask size')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+                expect(recorded.forms).toEqual([
+                    expect.objectContaining({
+                        mode: 'form',
+                        sessionId,
+                        message: 'Which size?',
+                        requestedSchema: expect.objectContaining({
+                            type: 'object',
+                            properties: {
+                                size: expect.objectContaining({
+                                    type: 'string',
+                                    enum: ['small', 'large'],
+                                }),
+                            },
+                            required: ['size'],
+                        }),
+                    }),
+                ]);
+                expect(toolResultText(recorded, 'ask-call')).toContain('large');
+                expect(agentText(recorded.updates)).toContain('large');
+            },
+            () => ({ action: 'accept', content: { size: 'large' } })
+        );
+    }, 60000);
+
+    it('fails ask_user when the person declines the form', async () => {
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const sessionId = await newSession(cx);
+                await expect(prompt(cx, sessionId, 'ask size')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+                expect(recorded.forms).toHaveLength(1);
+                expect(recorded.updates).toContainEqual(
+                    expect.objectContaining({
+                        sessionUpdate: 'tool_call_update',
+                        toolCallId: 'ask-call',
+                        status: 'failed',
+                    })
+                );
+            },
+            () => ({ action: 'decline' })
+        );
+    }, 60000);
+
+    it('tells the model to ask in chat when the client shows no forms', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await expect(prompt(cx, sessionId, 'ask size')).resolves.toEqual({
+                stopReason: 'end_turn',
+            });
+            expect(recorded.forms).toEqual([]);
+            expect(toolResultText(recorded, 'ask-call')).toMatch(/cannot show forms/i);
+        });
+    }, 60000);
+
+    it('ends a turn cancelled while a form is open', async () => {
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const sessionId = await newSession(cx);
+                const turn = prompt(cx, sessionId, 'ask size');
+                await expect.poll(() => recorded.forms.length, { timeout: 20000 }).toBe(1);
+                await cx.notify(acp.methods.agent.session.cancel, { sessionId });
+                await expect(turn).resolves.toEqual({ stopReason: 'cancelled' });
+                await expect(prompt(cx, sessionId, 'say hello')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+            },
+            () => new Promise<acp.CreateElicitationResponse>(() => {})
+        );
     }, 60000);
 
     it('fails the tool call and skips its effect when permission is rejected', async () => {

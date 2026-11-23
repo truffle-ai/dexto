@@ -10,6 +10,7 @@ import {
     safeStringify,
     type ApprovalRequest,
     type ApprovalResponse,
+    type ElicitationMetadata,
     type DextoAgent,
     type StreamingEvent,
     type ToolPresentationSnapshotV1,
@@ -22,6 +23,7 @@ import {
     recordRecentModel,
     type ModelPickerModel,
 } from '@dexto/agent-management';
+import { formSchema } from './acp-elicitation.js';
 import { displayContent, toolKind } from './acp-tool-content.js';
 
 /**
@@ -34,6 +36,8 @@ import { displayContent, toolKind } from './acp-tool-content.js';
  */
 
 const MODEL_CONFIG_ID = 'model';
+
+const FormDataSchema = z.record(z.string(), z.unknown()).nullish();
 
 const TodoUpdateSchema = z.object({
     todos: z.array(z.object({ content: z.string(), status: z.string() })),
@@ -59,9 +63,15 @@ export async function serveAcp(
 ): Promise<void> {
     // The agent and project root, started by the first session; concurrent first sessions share
     // the start. Held in an object: closures assign it after the connection is set up.
-    const state: { started: Promise<Runtime> | null; runtime: Runtime | null } = {
+    const state: {
+        started: Promise<Runtime> | null;
+        runtime: Runtime | null;
+        /** Whether the client renders ACP forms (`elicitation.form` in its capabilities). */
+        forms: boolean;
+    } = {
         started: null,
         runtime: null,
+        forms: false,
     };
     // The ACP connection that owns each session's running prompt, for approvals raised mid-turn.
     const turns = new Map<string, Turn>();
@@ -73,7 +83,7 @@ export async function serveAcp(
         // project's instructions, prompts, plugins and storage.
         process.chdir(cwd);
         const agent = await bootstrap();
-        agent.setApprovalHandler((request) => askClient(request, turns));
+        agent.setApprovalHandler((request) => askClient(request, turns, state.forms));
         state.runtime = { agent, root: projectRoot(cwd) };
         return state.runtime;
     }
@@ -114,15 +124,18 @@ export async function serveAcp(
 
     const connection = acp
         .agent({ name: 'dexto' })
-        .onRequest('initialize', () => ({
-            protocolVersion: acp.PROTOCOL_VERSION,
-            agentCapabilities: {
-                loadSession: true,
-                promptCapabilities: { image: false, audio: false, embeddedContext: true },
-            },
-            agentInfo: { name: 'dexto', title: 'Dexto', version },
-            authMethods: [],
-        }))
+        .onRequest('initialize', ({ params }) => {
+            state.forms = Boolean(params.clientCapabilities?.elicitation?.form);
+            return {
+                protocolVersion: acp.PROTOCOL_VERSION,
+                agentCapabilities: {
+                    loadSession: true,
+                    promptCapabilities: { image: false, audio: false, embeddedContext: true },
+                },
+                agentInfo: { name: 'dexto', title: 'Dexto', version },
+                authMethods: [],
+            };
+        })
         .onRequest('authenticate', () => ({}))
         .onRequest('session/new', async ({ params }) => {
             const running = await agentFor(params.cwd);
@@ -339,7 +352,8 @@ async function forwardEvent(event: StreamingEvent, turn: Turn): Promise<acp.Stop
  */
 async function askClient(
     request: ApprovalRequest,
-    turns: Map<string, Turn>
+    turns: Map<string, Turn>,
+    forms: boolean
 ): Promise<ApprovalResponse> {
     const base = {
         approvalId: request.approvalId,
@@ -348,6 +362,9 @@ async function askClient(
     const turn = request.sessionId === undefined ? undefined : turns.get(request.sessionId);
     if (turn === undefined || request.sessionId === undefined) {
         return { ...base, status: ApprovalStatus.DENIED, reason: DenialReason.SYSTEM_DENIED };
+    }
+    if (request.type === ApprovalType.ELICITATION) {
+        return await askForm(request.metadata, turn, forms, base);
     }
     let toolCall: acp.ToolCallUpdate;
     if (request.type === ApprovalType.TOOL_APPROVAL) {
@@ -383,6 +400,66 @@ async function askClient(
             return { ...base, status: ApprovalStatus.APPROVED, data: { rememberChoice: true } };
         default:
             return { ...base, status: ApprovalStatus.DENIED, reason: DenialReason.USER_DENIED };
+    }
+}
+
+type ApprovalBase = { readonly approvalId: string; readonly sessionId?: string };
+
+/**
+ * A Dexto form (ask_user, or an MCP server's elicitation) → ACP `elicitation/create`. A client
+ * without form support, or a form ACP cannot show, is answered so the model asks in chat.
+ */
+async function askForm(
+    metadata: ElicitationMetadata,
+    turn: Turn,
+    forms: boolean,
+    base: ApprovalBase
+): Promise<ApprovalResponse> {
+    const requestedSchema = forms ? formSchema(metadata.schema) : null;
+    if (requestedSchema === null) {
+        const why = forms
+            ? 'This form has fields the client cannot show.'
+            : 'This client cannot show forms.';
+        return {
+            ...base,
+            status: ApprovalStatus.DENIED,
+            reason: DenialReason.ELICITATION_DISABLED,
+            message: `${why} Ask the person in your reply instead.`,
+        };
+    }
+    let response: acp.CreateElicitationResponse;
+    try {
+        response = await turn.cx.request(
+            acp.methods.client.elicitation.create,
+            {
+                mode: 'form',
+                sessionId: turn.sessionId,
+                message: metadata.prompt,
+                requestedSchema,
+            },
+            // A cancelled turn withdraws its open form.
+            { cancellationSignal: turn.abort.signal, stopWaitingOnCancel: true }
+        );
+    } catch (error) {
+        if (!turn.abort.signal.aborted) throw error;
+        return { ...base, status: ApprovalStatus.CANCELLED, reason: DenialReason.USER_CANCELLED };
+    }
+    switch (response.action) {
+        case 'accept':
+            return {
+                ...base,
+                status: ApprovalStatus.APPROVED,
+                data: { formData: FormDataSchema.parse(response.content) ?? {} },
+            };
+        case 'decline':
+            return { ...base, status: ApprovalStatus.DENIED, reason: DenialReason.USER_DENIED };
+        default:
+            // `cancel`, and any action this version does not know.
+            return {
+                ...base,
+                status: ApprovalStatus.CANCELLED,
+                reason: DenialReason.USER_CANCELLED,
+            };
     }
 }
 
