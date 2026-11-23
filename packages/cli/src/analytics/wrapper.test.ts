@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildArgsPayload, safeExit, withAnalytics } from './wrapper.js';
 import { vi } from 'vitest';
@@ -62,7 +65,7 @@ describe('command exit', () => {
 
     it('writes all of a large output to a slow pipe before the process exits', async () => {
         const bytes = 1024 * 1024;
-        const child = spawnCommandWritingOutput(bytes, 0);
+        const child = spawnCommandWritingOutput(bytes, 0, { analytics: false });
         // A slow reader, like `| (sleep 1; wc -c)`: the pipe fills while the child finishes.
         await new Promise((resolve) => setTimeout(resolve, 1000));
         let received = 0;
@@ -72,34 +75,54 @@ describe('command exit', () => {
         expect(received).toBe(bytes);
     }, 30_000);
 
-    it('exits with the command code when the reader closes early', async () => {
-        const child = spawnCommandWritingOutput(1024 * 1024, 3);
-        let stderr = '';
-        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
-        // A reader that stops early, like `| head -c 10`: close the pipe at its first bytes.
-        child.stdout.once('data', () => child.stdout.destroy());
-        const code = await new Promise((resolve) => child.on('close', resolve));
-        expect(stderr).toBe('');
-        expect(code).toBe(3);
-    }, 30_000);
+    it.each([
+        ['analytics off', false],
+        // Recording the command's end waits on I/O, so the reader's close can land before the flush.
+        ['analytics on', true],
+    ])(
+        'exits with the command code when the reader closes early (%s)',
+        async (_, analytics) => {
+            const child = spawnCommandWritingOutput(1024 * 1024, 3, { analytics });
+            let stderr = '';
+            child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+            // A reader that stops early, like `| head -c 10`: close the pipe at its first bytes.
+            child.stdout.once('data', () => child.stdout.destroy());
+            const code = await new Promise((resolve) => child.on('close', resolve));
+            expect(stderr).toBe('');
+            expect(code).toBe(3);
+        },
+        30_000
+    );
 });
 
 /**
  * Runs the real output and exit path in a child: the cloud runtime writes `bytes` to stdout
  * without waiting, then the command ends through safeExit with `code`, as every engine command does.
+ * With analytics on, its state goes to a temporary home and events to a closed local port.
  */
-function spawnCommandWritingOutput(bytes: number, code: number) {
-    const runtime = new URL('../cli/cloud/runtime.ts', import.meta.url).href;
+function spawnCommandWritingOutput(bytes: number, code: number, options: { analytics: boolean }) {
+    const runtimeModule = new URL('../cli/cloud/runtime.ts', import.meta.url).href;
     const wrapper = new URL('./wrapper.ts', import.meta.url).href;
     const script = `
-        const { nodeCloudRuntime } = await import(${JSON.stringify(runtime)});
+        const { nodeCloudRuntime } = await import(${JSON.stringify(runtimeModule)});
         const { withAnalytics, safeExit } = await import(${JSON.stringify(wrapper)});
-        nodeCloudRuntime(new AbortController().signal).writeOutput('x'.repeat(${bytes}));
-        await withAnalytics('output', () => safeExit('output', ${code}), { timeoutMs: 0 })();
+        const runtime = nodeCloudRuntime(new AbortController().signal);
+        await withAnalytics('output', () => {
+            runtime.writeOutput('x'.repeat(${bytes}));
+            safeExit('output', ${code});
+        }, { timeoutMs: 0 })();
     `;
     const tsx = createRequire(import.meta.url).resolve('tsx');
+    const { DEXTO_ANALYTICS_DISABLED: _, ...env } = process.env;
+    const analyticsEnv = options.analytics
+        ? {
+              HOME: mkdtempSync(path.join(tmpdir(), 'dexto-exit-')),
+              DEXTO_POSTHOG_KEY: 'phc_test',
+              DEXTO_POSTHOG_HOST: 'http://127.0.0.1:9',
+          }
+        : { DEXTO_ANALYTICS_DISABLED: '1' };
     return spawn(process.execPath, ['--import', tsx, '--input-type=module', '-e', script], {
-        env: { ...process.env, DEXTO_ANALYTICS_DISABLED: '1' },
+        env: { ...env, ...analyticsEnv },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
 }

@@ -85,6 +85,11 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             if (err instanceof ExitSignal) {
                 const exitCode = err.code ?? 0;
                 process.exitCode = exitCode;
+                // Exit only once stdout and stderr have reached the OS: on a pipe they are
+                // asynchronous, and exiting first cuts a large --json output short (DEXTO-3501).
+                // Start now, before recording analytics: its I/O gives an early-closing reader's
+                // EPIPE time to arrive, and the flush must already be listening for it.
+                const output = Promise.all([flushed(process.stdout), flushed(process.stderr)]);
                 try {
                     const endMeta: Partial<
                         Omit<CliCommandEndEvent, 'name' | 'phase' | 'success' | 'durationMs'>
@@ -101,9 +106,7 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                 } catch {
                     // Ignore analytics errors when propagating ExitSignal.
                 }
-                // Exit only once stdout and stderr have reached the OS: on a pipe they are
-                // asynchronous, and exiting first cuts a large --json output short (DEXTO-3501).
-                await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+                await output;
                 process.exit(exitCode);
             }
             try {
