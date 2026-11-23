@@ -14,6 +14,9 @@ describe('toolKind', () => {
         ['http-request', 'fetch'],
         ['command', 'execute'],
         ['process', 'execute'],
+        ['skill-read', 'read'],
+        ['history-search', 'search'],
+        ['memory-delete', 'delete'],
         ['user-input', 'other'],
     ] as const)('maps the %s activity to %s', (category, kind) => {
         expect(
@@ -110,6 +113,48 @@ describe('displayContent', () => {
                 content: { type: 'text', text: '$ ls\na.txt\noops\nexit code 1' },
             },
         ]);
+    });
+
+    it('drops the no-newline marker and carriage returns', () => {
+        const unified = createPatch('crlf.txt', 'a\r\nb', 'a\r\nc', '', '');
+        expect(
+            displayContent(
+                { type: 'diff', unified, filename: 'crlf.txt', additions: 1, deletions: 1 },
+                '/w'
+            )
+        ).toEqual([{ type: 'diff', path: '/w/crlf.txt', oldText: 'a\nb', newText: 'a\nc' }]);
+    });
+
+    it('leaves an unchanged file to the text result', () => {
+        const unified = createPatch('same.txt', 'same\n', 'same\n', '', '');
+        expect(
+            displayContent(
+                { type: 'diff', unified, filename: 'same.txt', additions: 0, deletions: 0 },
+                '/w'
+            )
+        ).toBeNull();
+    });
+
+    it('leaves a command that has not finished to the text result', () => {
+        // An approval preview, and a background start, carry no output and exit code 0.
+        expect(
+            displayContent(
+                { type: 'shell', command: 'rm -rf build', exitCode: 0, duration: 0 },
+                '/w'
+            )
+        ).toBeNull();
+        expect(
+            displayContent(
+                {
+                    type: 'shell',
+                    command: 'npm start',
+                    exitCode: 0,
+                    duration: 0,
+                    isBackground: true,
+                },
+                '/w'
+            )
+        ).toBeNull();
     });
 
     it('leaves other displays to the text result', () => {

@@ -529,8 +529,6 @@ function pathArg(args: Record<string, unknown>): string | undefined {
 }
 
 function resultText(event: Extract<StreamingEvent, { name: 'llm:tool-result' }>): string {
-    const display = event.sanitized?.meta.display;
-    if (display?.type === 'diff') return display.unified;
     const text = event.sanitized?.content.filter(isTextPart).map((part) => part.text);
     if (text && text.length > 0) return text.join('\n');
     return safeStringify(event.rawResult ?? '');

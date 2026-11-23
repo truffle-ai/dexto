@@ -12,8 +12,9 @@ Tool calls SHALL carry an ACP tool kind from the tool's Dexto activity category,
 
 #### Scenario: Shell command
 
-- **WHEN** a shell tool completes
+- **WHEN** a foreground shell command finishes
 - **THEN** its result shows the command, its output and its exit code
+- **AND** an approval preview or a background start, which has no output yet, stays text
 
 #### Scenario: Other tools
 

@@ -6,7 +6,7 @@
 
 - Tool kinds come from Dexto's tool activity category: file reads are `read`, file writes and edits are `edit`, searches are `search`, web and HTTP are `fetch`, and commands and processes are `execute`. Every other tool is `other`.
 - A file change becomes ACP `diff` content, one diff per hunk, at the file's absolute path. This applies both to the result and to the permission request's preview.
-- A shell result is shown as the command, its output and its exit code.
+- A finished shell command is shown as the command, its output and its exit code.
 
 Part 2 of DEXTO-2849; it builds on `cli-acp-server`.
 
