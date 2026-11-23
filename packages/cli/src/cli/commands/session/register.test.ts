@@ -20,6 +20,7 @@ it.each([
     ['agents', '--limit', '5'],
     ['browser-profiles'],
     ['share', 'chat-1', 'view', '--yes'],
+    ['fork', 'chat-1', '--message', 'message-2', '--dry-run', '--json'],
 ])('registers public chat %s and forwards its arguments to the cloud engine', async (...args) => {
     const program = new Command().name('dexto').enablePositionalOptions().exitOverride();
     registerSessionCommand({
