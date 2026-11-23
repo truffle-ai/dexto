@@ -10,6 +10,11 @@ import type { CloudRuntime } from '../runtime.js';
 
 const MCP = 'https://app.dexto.ai/mcp';
 const PROJECT_ID = '3f0c9a52-1b7e-4c1a-9d55-0a4f7e2b8c11';
+/** A reply the stubbed MCP sends as a JSON-RPC error instead of a result. */
+class RpcError {
+    constructor(readonly error: { code: number; message: string; data?: unknown }) {}
+}
+
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('No sign-ins in tests');
 };
@@ -74,6 +79,8 @@ describe('projects over the Dexto MCP', () => {
                 calls.push(message.params);
                 const value = replies.shift();
                 if (value === undefined) throw new Error('Unexpected MCP call');
+                if (value instanceof RpcError)
+                    return Response.json({ jsonrpc: '2.0', id: message.id, error: value.error });
                 return Response.json({
                     jsonrpc: '2.0',
                     id: message.id,
@@ -359,21 +366,13 @@ describe('projects over the Dexto MCP', () => {
 
     it("passes the server's refusal of an unknown recipe through as invalid input", async () => {
         await signIn(['automations:write']);
-        host.runtime.fetch = async (input, init) => {
-            const request = new globalThis.Request(input, init);
-            if (request.url !== MCP) return Response.json({ resource: MCP, dexto_app_scopes: {} });
-            const message = await request.json();
-            calls.push(message.params);
-            return Response.json({
-                jsonrpc: '2.0',
-                id: message.id,
-                error: {
-                    code: -32602,
-                    message: 'Unknown Project Loop recipe.',
-                    data: { kind: 'invalid_arguments' },
-                },
-            });
-        };
+        replies = [
+            new RpcError({
+                code: -32602,
+                message: 'Unknown Project Loop recipe.',
+                data: { kind: 'invalid_arguments' },
+            }),
+        ];
         expect(await cli('projects', 'install-recipe', PROJECT_ID, 'nope', '--yes')).toBe(2);
         expect(stderr + stdout).toContain('Unknown Project Loop recipe.');
         expect(calls).toHaveLength(1);
