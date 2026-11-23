@@ -101,9 +101,6 @@ dexto_channels_list
 dexto_chat_cancel
 dexto_chat_computer
 dexto_chat_continue
-dexto_chat_get
-dexto_chat_list
-dexto_chat_models
 dexto_contacts_block
 dexto_contacts_connect
 dexto_contacts_invite_link

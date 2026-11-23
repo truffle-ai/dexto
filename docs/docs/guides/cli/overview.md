@@ -142,14 +142,35 @@ dexto uninstall --purge
 
 ### `chat` - Your Chats
 
-Manage conversation sessions.
+Your cloud chats, and the chats on this machine.
 
 #### `chat list`
 
-List all available sessions.
+List your cloud chats, newest first, with each one's status and how its last run ended. `--local` lists the chats on this machine instead, to resume with `dexto -r`.
 
 ```bash
-dexto chat list
+dexto chat list                          # your cloud chats
+dexto chat list --status running         # only the ones working now
+dexto chat list --query "invoice bug"    # chats whose title or messages match
+dexto chat list --limit 10 --after "$CURSOR"
+dexto chat list --local                  # this machine's chats
+```
+
+#### `chat get`
+
+Read a cloud chat: its status, how its last run ended and its latest messages. `--after` reads older messages, from the cursor the previous page printed.
+
+```bash
+dexto chat get "$CHAT_ID"
+dexto chat get "$CHAT_ID" --limit 50 --json
+```
+
+#### `chat models`
+
+List the models your chats can start on or switch to, and how each can be paid for.
+
+```bash
+dexto chat models
 ```
 
 #### `chat history`
@@ -245,7 +266,7 @@ dexto --continue
 # Continue with a one-shot prompt, then exit
 dexto -c -p "now add error handling"
 
-# Resume specific session (get the id from dexto chat list)
+# Resume specific session (get the id from dexto chat list --local)
 dexto --resume my-project-session
 
 # Resume and run a one-shot prompt
@@ -296,7 +317,7 @@ git diff | dexto -p "generate a conventional commit message for these changes"
 
 ```bash
 # List this machine's chats
-dexto chat list
+dexto chat list --local
 
 # View session history
 dexto chat history my-session-id

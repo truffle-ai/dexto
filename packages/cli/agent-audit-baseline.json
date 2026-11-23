@@ -77,6 +77,13 @@
     "examples": false
   },
   {
+    "command": "chat get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "chat history",
     "json": false,
     "dryRun": false,
@@ -92,10 +99,10 @@
   },
   {
     "command": "chat list",
-    "json": false,
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat local",
@@ -103,6 +110,13 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "chat models",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "chat outputs",
