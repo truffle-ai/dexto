@@ -1,5 +1,6 @@
 /** What kind of thing went wrong; each kind has an exit code an agent can branch on. */
 export type FailureKind =
+    | 'conflict'
     | 'failed'
     | 'invalid_input'
     | 'needs_confirmation'
@@ -9,6 +10,7 @@ export type FailureKind =
     | 'waiting_on_person';
 
 export const EXIT_CODES = {
+    conflict: 1,
     failed: 1,
     invalid_input: 2,
     needs_confirmation: 4,

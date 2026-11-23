@@ -179,6 +179,7 @@
         "projects recipes": ["dexto_automation_recipes_list"],
         "projects install-recipe": ["dexto_automation_recipe_install"]
     },
+    "actionCommands": {},
     "localOnly": [
         {
             "command": "import list",

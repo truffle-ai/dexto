@@ -820,6 +820,8 @@ const fork: Command = {
     async run(context, input) {
         const sessionId = argument(input, 0, 'chat_id');
         const messageId = stringOption(input, 'message');
+        if (messageId !== undefined && messageId.trim().length === 0)
+            throw new UsageError('--message must be a non-empty message id.');
         const call = { sessionId, ...(messageId === undefined ? {} : { messageId }) };
         if (flag(input, 'dry-run')) {
             context.output.result(
@@ -834,7 +836,14 @@ const fork: Command = {
             flag(input, 'yes'),
             `Fork the chat ${sessionId}?`
         );
-        const raw = await queryWorkspaceTool(context, 'dexto_chat_fork', call);
+        let raw: unknown;
+        try {
+            raw = await queryWorkspaceTool(context, 'dexto_chat_fork', call);
+        } catch (error) {
+            if (error instanceof WorkspaceToolFailure && error.data.kind === 'conflict')
+                throw new CommandFailure('conflict', error.message, null);
+            throw error;
+        }
         const parsed = z.object({ session: ChatSessionSchema }).passthrough().safeParse(raw);
         if (!parsed.success)
             throw new CommandFailure(

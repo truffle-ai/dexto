@@ -143,13 +143,44 @@ describe('dexto chat fork', () => {
         expect(calls).toEqual([]);
     });
 
+    it.each(['', '   '])(
+        'rejects a blank message id without sending, including dry runs',
+        async (message) => {
+            expect(
+                await runCloud(host, [
+                    'chat',
+                    'fork',
+                    'chat-1',
+                    '--message',
+                    message,
+                    '--yes',
+                    '--json',
+                ])
+            ).toBe(2);
+            expect(JSON.parse(stderr).error.message).toContain('--message');
+            stderr = '';
+            expect(
+                await runCloud(host, [
+                    'chat',
+                    'fork',
+                    'chat-1',
+                    '--message',
+                    message,
+                    '--dry-run',
+                    '--json',
+                ])
+            ).toBe(2);
+            expect(calls).toEqual([]);
+        }
+    );
+
     it.each([
         ['running', 'Cancel it or wait'],
         ['coordinator', "coordinator conversation can't be forked"],
     ])('returns the %s refusal and nonzero exit', async (id, hint) => {
         expect(await runCloud(host, ['chat', 'fork', id, '--yes', '--json'])).toBe(1);
         expect(JSON.parse(stderr).error).toMatchObject({
-            code: 'failed',
+            code: 'conflict',
             message: expect.stringContaining(hint),
         });
         expect(calls).toEqual([{ sessionId: id }]);
