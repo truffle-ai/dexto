@@ -196,6 +196,13 @@
     "examples": false
   },
   {
+    "command": "chat fork",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "chat get",
     "json": true,
     "dryRun": false,

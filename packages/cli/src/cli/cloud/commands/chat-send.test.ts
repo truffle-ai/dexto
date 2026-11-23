@@ -76,6 +76,44 @@ beforeEach(() => {
     scopes.mockReset();
 });
 
+describe('chat fork', () => {
+    it('forks the latest message and returns the new chat', async () => {
+        const { context, stdout } = harness('json');
+        const result = { session: { ...session, id: 'fork-1' } };
+        query.mockResolvedValueOnce(result);
+        expect(await command('fork').run(context, input(['chat-1'], { yes: true }))).toBe(0);
+        expect(scopes).toHaveBeenCalledWith(context, ['sessions:write']);
+        expect(toolCalls()).toEqual([['dexto_chat_fork', { sessionId: 'chat-1' }]]);
+        expect(JSON.parse(stdout())).toEqual(result);
+    });
+
+    it('passes the selected message to the fork', async () => {
+        const { context } = harness('json');
+        query.mockResolvedValueOnce({ session });
+        await command('fork').run(context, input(['chat-1'], { message: 'msg-2', yes: true }));
+        expect(toolCalls()).toEqual([
+            ['dexto_chat_fork', { sessionId: 'chat-1', messageId: 'msg-2' }],
+        ]);
+    });
+
+    it('previews a fork without signing in, asking or calling the tool', async () => {
+        const { context, stdout } = harness('json');
+        expect(
+            await command('fork').run(
+                context,
+                input(['chat-1'], { message: 'msg-2', 'dry-run': true })
+            )
+        ).toBe(0);
+        expect(JSON.parse(stdout())).toEqual({
+            dryRun: true,
+            tool: 'dexto_chat_fork',
+            arguments: { sessionId: 'chat-1', messageId: 'msg-2' },
+        });
+        expect(scopes).not.toHaveBeenCalled();
+        expect(query).not.toHaveBeenCalled();
+    });
+});
+
 describe('chat send', () => {
     it('steers by default and maps --model to dexto_chat_send', async () => {
         const { context, stdout } = harness('json');

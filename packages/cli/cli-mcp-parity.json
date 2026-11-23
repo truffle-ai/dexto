@@ -121,6 +121,7 @@
         "chat follow": ["dexto_chat_follow"],
         "chat send": ["dexto_chat_send", "dexto_chat_follow"],
         "chat cancel": ["dexto_chat_cancel"],
+        "chat fork": ["dexto_chat_fork"],
         "chat list": ["dexto_chat_list"],
         "chat get": ["dexto_chat_get"],
         "chat models": ["dexto_chat_models"],
@@ -178,6 +179,7 @@
         "projects recipes": ["dexto_automation_recipes_list"],
         "projects install-recipe": ["dexto_automation_recipe_install"]
     },
+    "actionCommands": {},
     "localOnly": [
         {
             "command": "import list",
@@ -551,6 +553,76 @@
         "dexto_site_promote"
     ],
     "pendingCli": [
+        {
+            "tool": "dexto_computer_port_link",
+            "issue": "DEXTO-3103",
+            "reason": "The computer url command follows upstream."
+        },
+        {
+            "tool": "dexto_chat_delete",
+            "issue": "DEXTO-3182",
+            "reason": "The computer command group follows upstream."
+        },
+        {
+            "tool": "dexto_chat_queue_cancel",
+            "issue": "DEXTO-3232",
+            "reason": "The chat queue commands follow upstream."
+        },
+        {
+            "tool": "dexto_chat_queue_edit",
+            "issue": "DEXTO-3232",
+            "reason": "The chat queue commands follow upstream."
+        },
+        {
+            "tool": "dexto_chat_queue_list",
+            "issue": "DEXTO-3232",
+            "reason": "The chat queue commands follow upstream."
+        },
+        {
+            "tool": "dexto_cloud_site_file_read",
+            "issue": "DEXTO-3216",
+            "reason": "The Sites pull command follows upstream."
+        },
+        {
+            "tool": "dexto_cloud_site_files_list",
+            "issue": "DEXTO-3216",
+            "reason": "The Sites pull command follows upstream."
+        },
+        {
+            "tool": "dexto_cloud_environments_builds_get",
+            "issue": "DEXTO-3384",
+            "reason": "Environment commands are being ported to main."
+        },
+        {
+            "tool": "dexto_cloud_environments_builds_list",
+            "issue": "DEXTO-3384",
+            "reason": "Environment commands are being ported to main."
+        },
+        {
+            "tool": "dexto_cloud_environments_create",
+            "issue": "DEXTO-3384",
+            "reason": "Environment commands are being ported to main."
+        },
+        {
+            "tool": "dexto_cloud_environments_get",
+            "issue": "DEXTO-3384",
+            "reason": "Environment commands are being ported to main."
+        },
+        {
+            "tool": "dexto_cloud_environments_list",
+            "issue": "DEXTO-3384",
+            "reason": "Environment commands are being ported to main."
+        },
+        {
+            "tool": "dexto_cloud_environments_rebuild",
+            "issue": "DEXTO-3384",
+            "reason": "Environment commands are being ported to main."
+        },
+        {
+            "tool": "dexto_cloud_environments_update",
+            "issue": "DEXTO-3384",
+            "reason": "Environment commands are being ported to main."
+        },
         {
             "tool": "dexto_subscription_update",
             "issue": "DEXTO-2615",
