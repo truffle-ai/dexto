@@ -33,6 +33,7 @@ import { findCommands } from './commands/find.js';
 import { loopCommands } from './commands/loops.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
+import { shareCommands } from './commands/share.js';
 import { skillLibraryCommands } from './commands/skill-library.js';
 import { skillCommands } from './commands/skills.js';
 import { traceCommands } from './commands/traces.js';
@@ -94,6 +95,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...apiCommands,
         ...workspaceCommands,
         ...computerKeyCommands,
+        ...shareCommands,
         ...driveCommands,
         ...applicationCommands,
         ...artifactCommands,

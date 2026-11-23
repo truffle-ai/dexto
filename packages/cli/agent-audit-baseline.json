@@ -1365,6 +1365,20 @@
     "examples": true
   },
   {
+    "command": "workspace share access",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace share received",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "workspace sites records create",
     "json": true,
     "dryRun": true,

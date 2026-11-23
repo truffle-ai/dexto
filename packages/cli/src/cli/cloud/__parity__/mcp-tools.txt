@@ -11358,15 +11358,18 @@
               "app",
               "drive",
               "skill",
-              "project"
+              "project",
+              "loop",
+              "chat",
+              "site"
             ],
-            "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members."
+            "description": "app: a Dexto App record (give app and collection too); drive: a Drive file or folder; skill: a Skill; project: a chat Project, shared with its whole organization or some of its members; loop: a Loop, shared with some members of its organization; chat: a chat, shared here only with some members of its organization; site: a Site that only people with access open, shared with some members of its organization."
           },
           "id": {
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "The App record's key (an artifact's id), or the Drive item's, Skill's or Project's id."
+            "description": "The App record's key (an artifact's id), or the Drive item's, Skill's, Project's, Loop's, chat's or Site's id."
           },
           "app": {
             "default": null,
@@ -11420,7 +11423,10 @@
                   "app",
                   "drive",
                   "skill",
-                  "project"
+                  "project",
+                  "loop",
+                  "chat",
+                  "site"
                 ]
               },
               {
