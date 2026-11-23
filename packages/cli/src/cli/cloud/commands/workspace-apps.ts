@@ -2,6 +2,7 @@
 
 import { shellWord } from '../../interaction.js';
 
+import type { dextoSignIn } from '@dexto/agent-management';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
@@ -185,7 +186,7 @@ async function requireOperationScopes(
 /** Refuses at once when an OAuth sign-in lacks any of `scopes`, naming the sign-in that has them. */
 async function requireScopes(
     context: CommandContext,
-    scopes: readonly string[],
+    scopes: readonly dextoSignIn.CliLoginScope[],
     what: string
 ): Promise<void> {
     const connection = await context.connection();

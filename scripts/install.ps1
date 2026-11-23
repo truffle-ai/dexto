@@ -1,8 +1,8 @@
 # Installs the Dexto CLI for the current Windows user, without admin rights.
 #
-#   $env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
+#   irm https://dexto.ai/install.ps1 | iex
 #   $env:DEXTO_VERSION = '2.0.0'; irm https://dexto.ai/install.ps1 | iex
-#   & ([scriptblock]::Create((irm https://dexto.ai/install.ps1))) -Version next -Yes
+#   & ([scriptblock]::Create((irm https://dexto.ai/install.ps1))) -Version 2.0.0 -Yes
 #
 # The Windows counterpart of scripts/install.sh, with the same contract.
 # Needs npm; Node.js 20 or later works, 22 is recommended. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
