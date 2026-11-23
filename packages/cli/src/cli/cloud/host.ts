@@ -31,6 +31,7 @@ import { sandboxCommands } from './commands/sandboxes.js';
 import { secretCommands } from './commands/secrets.js';
 import { webCommands } from './commands/web.js';
 import { workspaceCommands } from './commands/workspace.js';
+import { workspaceFunctionCommands } from './commands/workspace-functions.js';
 import { resolveConnection } from './connection.js';
 import { isHeld } from './held-commands.js';
 import type { CloudHost, Group } from './run.js';
@@ -80,6 +81,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...dataDeletionCommands,
         ...apiCommands,
         ...workspaceCommands,
+        ...workspaceFunctionCommands,
         ...computerKeyCommands,
         ...driveCommands,
         ...artifactCommands,

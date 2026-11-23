@@ -16,6 +16,7 @@ describe('CLI_LOGIN_SCOPES', () => {
             'connections:read',
             'drive:read',
             'drive:write',
+            'functions:invoke',
             'functions:read',
             'functions:write',
             'projects:read',
