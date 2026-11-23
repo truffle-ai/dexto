@@ -143,6 +143,11 @@ async function streamReply(response: ServerResponse, chunks: Chunk[], delayMs: n
     response.end('data: [DONE]\n\n');
 }
 
+const ACCOUNT_MODELS = [
+    { id: 'openai/gpt-5', name: 'GPT-5', context_window: 400000 },
+    { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', context_window: 128000 },
+];
+
 const TITLE = 'Greeting From Test';
 const titleReply = {
     id: 'acp-title',
@@ -184,11 +189,22 @@ describe('dexto acp over stdio', () => {
     let persistentConfigPath: string;
     let permissionTimeoutConfigPath: string;
     let fullAccessConfigPath: string;
+    let keylessConfigPath: string;
     let effectPath: string;
     const children: ChildProcess[] = [];
 
     beforeAll(async () => {
         server = createServer(async (request, response) => {
+            if (request.method === 'GET') {
+                // The Dexto account's models; nothing else is served to GET.
+                if (request.url !== '/v1/models') {
+                    response.writeHead(404).end();
+                    return;
+                }
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ data: ACCOUNT_MODELS }));
+                return;
+            }
             let body = '';
             for await (const chunk of request) body += chunk;
             const input = JSON.parse(body);
@@ -320,6 +336,14 @@ tools:
             permissionTimeoutConfigPath,
             agentYaml.replace('  mode: asks-you\n', '  mode: asks-you\n  timeout: 300\n')
         );
+        keylessConfigPath = join(directory, 'agent-keyless.yml');
+        await writeFile(
+            keylessConfigPath,
+            agentYaml.replace(
+                /llm:\n(?: {2}.*\n)+/,
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5-20250929\n'
+            )
+        );
         fullAccessConfigPath = join(directory, 'agent-full-access.yml');
         await writeFile(
             fullAccessConfigPath,
@@ -348,7 +372,11 @@ tools:
         ) => acp.RequestPermissionResponse | Promise<acp.RequestPermissionResponse>,
         op: (cx: acp.ClientContext, recorded: Recorded) => Promise<T>,
         form?: FormAnswer,
-        { config = configPath, flags = [] }: { config?: string; flags?: string[] } = {}
+        {
+            config = configPath,
+            flags = [],
+            env = {},
+        }: { config?: string; flags?: string[]; env?: Record<string, string> } = {}
     ): Promise<T> {
         const child = spawn(
             process.execPath,
@@ -365,6 +393,7 @@ tools:
                     DEXTO_FEATURE_AUTH: 'false',
                     DEXTO_DEV_MODE: 'false',
                     DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                    ...env,
                 },
             }
         );
@@ -1233,4 +1262,169 @@ tools:
             expect(usage.size).toBeGreaterThan(usage.used);
         });
     }, 60000);
+
+    function configOption(options: acp.SessionConfigOption[] | null | undefined, id: string) {
+        const option = options?.find((entry) => entry.id === id);
+        if (option?.type !== 'select') throw new Error(`Expected a select option ${id}`);
+        return option;
+    }
+
+    function optionValues(option: acp.SessionConfigOption & { type: 'select' }) {
+        return option.options.flatMap((entry) =>
+            'group' in entry ? entry.options.map((inner) => inner.value) : [entry.value]
+        );
+    }
+
+    async function setOption(
+        cx: acp.ClientContext,
+        sessionId: string,
+        configId: string,
+        value: string
+    ) {
+        const { configOptions } = await cx.request(acp.methods.agent.session.setConfigOption, {
+            sessionId,
+            configId,
+            value,
+        });
+        return configOptions;
+    }
+
+    it("offers the Dexto account's models and the chosen model's reasoning effort", async () => {
+        await withAgent(
+            allow,
+            async (cx) => {
+                const created = await cx.request(acp.methods.agent.session.new, {
+                    cwd: directory,
+                    mcpServers: [],
+                });
+                const model = configOption(created.configOptions, 'model');
+                const gpt = JSON.stringify(['dexto-nova', 'openai/gpt-5', null]);
+                expect(optionValues(model)).toEqual(
+                    expect.arrayContaining([
+                        gpt,
+                        JSON.stringify(['dexto-nova', 'deepseek/deepseek-v3.2', null]),
+                    ])
+                );
+                // The session's model doesn't reason, so there is no effort to pick.
+                expect(created.configOptions?.some((entry) => entry.id === 'reasoning')).toBe(
+                    false
+                );
+                const chosen = await setOption(cx, created.sessionId, 'model', gpt);
+                expect(configOption(chosen, 'model').currentValue).toBe(gpt);
+                const effort = configOption(chosen, 'reasoning');
+                expect(effort).toMatchObject({ category: 'thought_level', currentValue: 'medium' });
+                expect(optionValues(effort)).toEqual(['minimal', 'low', 'medium', 'high']);
+                const high = await setOption(cx, created.sessionId, 'reasoning', 'high');
+                expect(configOption(high, 'reasoning').currentValue).toBe('high');
+                expect(configOption(high, 'model').currentValue).toBe(gpt);
+                await expect(
+                    setOption(cx, created.sessionId, 'reasoning', 'extreme')
+                ).rejects.toMatchObject({ code: -32602 });
+            },
+            undefined,
+            {
+                env: {
+                    DEXTO_FEATURE_AUTH: 'true',
+                    DEXTO_API_KEY: 'acp-dexto-key',
+                    DEXTO_PUBLIC_API_URL: serverUrl(),
+                },
+            }
+        );
+    }, 60000);
+
+    it('says what a model needs when it has no key or sign-in', async () => {
+        await withAgent(
+            allow,
+            async (cx) => {
+                const { sessionId } = await cx.request(acp.methods.agent.session.new, {
+                    cwd: directory,
+                    mcpServers: [],
+                });
+                await expect(
+                    setOption(
+                        cx,
+                        sessionId,
+                        'model',
+                        JSON.stringify(['anthropic', 'claude-sonnet-4-5-20250929', null])
+                    )
+                ).rejects.toMatchObject({
+                    code: -32000,
+                    message: expect.stringContaining('ANTHROPIC_API_KEY'),
+                });
+                await expect(
+                    setOption(
+                        cx,
+                        sessionId,
+                        'model',
+                        JSON.stringify(['dexto-nova', 'openai/gpt-5', null])
+                    )
+                ).rejects.toMatchObject({
+                    code: -32000,
+                    message: expect.stringContaining('dexto login'),
+                });
+                // The session keeps its model and still answers.
+                await expect(prompt(cx, sessionId, 'say hello')).resolves.toEqual({
+                    stopReason: 'end_turn',
+                });
+            },
+            undefined,
+            { env: { DEXTO_FEATURE_AUTH: 'true' } }
+        );
+    }, 60000);
+
+    it('starts on the saved model preference when --agent names a config', async () => {
+        const preferencesHome = join(directory, 'preferences-home');
+        await mkdir(join(preferencesHome, '.dexto'), { recursive: true });
+        await writeFile(
+            join(preferencesHome, '.dexto', 'preferences.yml'),
+            `llm:
+  provider: openai-compatible
+  model: preferred-model
+  apiKey: $ACP_PREFERRED_KEY
+  baseURL: ${serverUrl()}/v1
+defaults:
+  defaultAgent: coding-agent
+setup:
+  completed: true
+`
+        );
+        await withAgent(
+            allow,
+            async (cx, recorded) => {
+                const created = await cx.request(acp.methods.agent.session.new, {
+                    cwd: directory,
+                    mcpServers: [],
+                });
+                expect(configOption(created.configOptions, 'model').currentValue).toBe(
+                    JSON.stringify(['openai-compatible', 'preferred-model', `${serverUrl()}/v1`])
+                );
+                await prompt(cx, created.sessionId, 'say hello');
+                expect(agentText(recorded.updates)).toContain('hello there');
+            },
+            undefined,
+            { env: { HOME: preferencesHome, USERPROFILE: preferencesHome, ACP_PREFERRED_KEY: 'k' } }
+        );
+    }, 60000);
+
+    it('says which key the configured model needs when a session starts', async () => {
+        await withAgent(
+            allow,
+            async (cx) => {
+                await expect(
+                    cx.request(acp.methods.agent.session.new, { cwd: directory, mcpServers: [] })
+                ).rejects.toMatchObject({
+                    code: -32000,
+                    message: expect.stringContaining('ANTHROPIC_API_KEY'),
+                });
+            },
+            undefined,
+            { config: keylessConfigPath }
+        );
+    }, 60000);
+
+    function serverUrl(): string {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+        return `http://127.0.0.1:${address.port}`;
+    }
 });

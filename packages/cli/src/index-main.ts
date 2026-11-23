@@ -314,6 +314,17 @@ function printPermissionsModeDeprecation(config: AgentConfig): void {
 }
 
 // Helper to bootstrap a minimal agent for non-interactive commands
+/**
+ * The config with the person's saved model choice, once setup has saved one. Unreadable
+ * preferences are skipped, as in the interactive CLI.
+ */
+async function withSavedModel(config: AgentConfig): Promise<AgentConfig> {
+    if (!globalPreferencesExist()) return config;
+    const preferences = await loadGlobalPreferences().catch(() => null);
+    if (!preferences?.setup.completed) return config;
+    return applyUserPreferences(config, preferences);
+}
+
 async function bootstrapAgentFromGlobalOpts(options: {
     mode: BootstrapAgentMode;
     modelOverride?: string;
@@ -353,10 +364,15 @@ async function bootstrapAgentFromGlobalOpts(options: {
     const resolvedPath = await resolveAgentPath(globalOpts.agent);
     const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
     const rawConfig = await loadAgentConfig(resolvedPath);
-    const mergedConfig = applyCLIOverrides(rawConfig, {
+    let mergedConfig = applyCLIOverrides(rawConfig, {
         ...globalOpts,
         ...(modelOverride ? { model: modelOverride } : {}),
     });
+    // An ACP client starts on the person's saved model, for any agent, as the TUI does; an
+    // explicit --model wins.
+    if (mode === 'acp' && !effectiveModel) {
+        mergedConfig = await withSavedModel(mergedConfig);
+    }
     printPermissionsModeDeprecation(mergedConfig);
     if (effectiveModel) {
         mergedConfig.llm.model = effectiveModel;

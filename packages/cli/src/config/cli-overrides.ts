@@ -160,6 +160,11 @@ export function applyUserPreferences(
 
     // Apply user preferences - only override if defined (preferences is Partial)
     if (preferences.llm.provider) {
+        // The agent's endpoint and key belong to its own provider.
+        if (preferences.llm.provider !== mergedConfig.llm.provider) {
+            delete mergedConfig.llm.apiKey;
+            delete mergedConfig.llm.baseURL;
+        }
         mergedConfig.llm.provider = preferences.llm.provider;
     }
     if (preferences.llm.model) {
