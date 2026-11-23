@@ -6,6 +6,7 @@ describe('CLI_LOGIN_SCOPES', () => {
         expect(dextoSignIn.CLI_LOGIN_SCOPES).toEqual([
             'apps:execute',
             'apps:read',
+            'apps:write',
             'artifacts:read',
             'artifacts:write',
             'chats:sync',
@@ -20,6 +21,8 @@ describe('CLI_LOGIN_SCOPES', () => {
             'drive:write',
             'functions:read',
             'functions:write',
+            'marketplace:read',
+            'marketplace:write',
             'messages:read',
             'messages:write',
             'notifications:read',
@@ -30,6 +33,8 @@ describe('CLI_LOGIN_SCOPES', () => {
             'sessions:write',
             'sites:read',
             'sites:write',
+            'skills:read',
+            'skills:write',
         ]);
     });
 

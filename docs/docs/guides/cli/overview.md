@@ -404,6 +404,22 @@ dexto loops get "$LOOP_ID" --execution "$RUN_ID" --json
 
 These read only and need `automations:read`; a sign-in without it is asked to sign in again. With no flag, list returns your account's Loops; `--agent` names an agent's, `--account` or `--in-project` the account's or a Project's (with `--agent`, only that agent's there), and `--enabled` or `--paused` filters by state. List returns `{automations, nextCursor}` and accepts `--limit` and `--after` with the previous `nextCursor`. Get returns `{automation}`; `--history` (or `--history-limit`) adds its recent runs as `executions`, and `--execution` reads one run in full, continued with `--text-offset` and `--payload-offset`. Creating, changing, running and deleting Loops are not CLI commands. These are your Dexto Loops, not the Cloud project automations under `dexto cloud automations`.
 
+## The Marketplace
+
+Find AutoBot templates, Dexto Apps and Skills in the Dexto Marketplace, install them, and publish your own:
+
+```bash
+dexto marketplace search invoices --kind dexto-app --json
+dexto marketplace get "$LISTING_ID" --kind dexto-app --json
+dexto marketplace install "$LISTING_ID" --kind dexto-app --release "$RELEASE_ID" --yes --json
+dexto marketplace uninstall "$APP_ID" --yes --json
+dexto marketplace preview --slug my-skill --json
+dexto marketplace publish --slug my-skill --release "$RELEASE_ID" --title "My Skill" --summary "Does one thing well" --yes --json
+dexto marketplace unpublish --slug my-skill --yes --json
+```
+
+These act as you, so they need your own sign-in, not an API key. Search and get need `marketplace:read`; preview also needs `skills:read`. Install, uninstall, publish and unpublish need `marketplace:write`, plus `apps:read` to install or uninstall a Dexto App, `apps:write` to publish or unpublish one, and `skills:write` to publish or unpublish a Skill. A Dexto App installs only at the release you name with `--release`, its `latestRelease.releaseId` from search or get; if a newer release has come out since, nothing is installed. To publish a Skill, run preview first and pass the release id it shows. Every write asks before it runs: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it. Without `--yes` and with no terminal to ask at, the command fails with `needs_confirmation` and changes nothing.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.
