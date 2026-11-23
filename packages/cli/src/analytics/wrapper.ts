@@ -101,7 +101,9 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                 } catch {
                     // Ignore analytics errors when propagating ExitSignal.
                 }
-                // Actually exit the process after analytics
+                // Exit only once stdout and stderr have reached the OS: on a pipe they are
+                // asynchronous, and exiting first cuts a large --json output short (DEXTO-3501).
+                await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
                 process.exit(exitCode);
             }
             try {
@@ -118,6 +120,13 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             if (timeout) clearTimeout(timeout);
         }
     };
+}
+
+/** Resolves once everything written to the stream so far has been handed to the OS. */
+function flushed(stream: NodeJS.WriteStream): Promise<void> {
+    // Writes complete in order, so an empty write's callback runs after every earlier write's.
+    // It also runs, with an error, when the reader has gone (EPIPE); nothing is left to flush then.
+    return new Promise((resolve) => stream.write('', () => resolve()));
 }
 
 export class ExitSignal extends Error {
