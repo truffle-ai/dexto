@@ -99,6 +99,7 @@ import {
 } from './config/cli-overrides.js';
 import { CommandFailure } from './cli/failure.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
+import { registerAcpCommand } from './cli/commands/acp/register.js';
 import { registerReviewCommand } from './cli/commands/review/register.js';
 import { gitIn, readBundledReviewSkill } from './cli/commands/review/review.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
@@ -462,6 +463,7 @@ const runtimeCommandContext = {
     bootstrapAgentFromGlobalOpts,
 };
 registerRunCommand(runtimeCommandContext);
+registerAcpCommand(runtimeCommandContext);
 registerReviewCommand(runtimeCommandContext, {
     git: gitIn(process.cwd()),
     readSkill: readBundledReviewSkill,
