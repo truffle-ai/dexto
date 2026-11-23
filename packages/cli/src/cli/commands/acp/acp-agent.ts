@@ -78,6 +78,8 @@ export async function serveAcp(
     // Each session's running prompt and title generation, so closing it can wait for both.
     const runs = new Map<string, Promise<acp.PromptResponse>>();
     const titles = new Map<string, Promise<void>>();
+    // Sessions being closed, so a load or resume meanwhile waits for the close to finish.
+    const closing = new Map<string, Promise<void>>();
     // Sessions opened or loaded on this connection.
     const sessions = new Set<string>();
 
@@ -117,6 +119,7 @@ export async function serveAcp(
 
     /** A stored session of this project, opened on this connection (load and resume). */
     async function restoreSession(sessionId: string, cwd: string): Promise<DextoAgent> {
+        await Promise.allSettled([closing.get(sessionId)]);
         const running = await agentFor(cwd);
         const metadata = await running.getSessionMetadata(sessionId);
         if (metadata?.workspaceId !== (await workspaceId(running))) {
@@ -127,6 +130,13 @@ export async function serveAcp(
         }
         sessions.add(sessionId);
         return running;
+    }
+
+    /** Ends a session once its run and title are done; its history stays stored. */
+    async function endWhenIdle(agent: DextoAgent, sessionId: string): Promise<void> {
+        // No new title starts once the session is gone from `sessions`.
+        await Promise.allSettled([runs.get(sessionId), titles.get(sessionId)]);
+        await agent.endSession(sessionId);
     }
 
     /** Titles an open session after a prompt, unless a title is already being made. */
@@ -195,10 +205,13 @@ export async function serveAcp(
             knownSession(params.sessionId);
             sessions.delete(params.sessionId);
             turns.get(params.sessionId)?.abort.abort();
-            // No new title starts once the session is gone from `sessions`.
-            await Promise.allSettled([runs.get(params.sessionId), titles.get(params.sessionId)]);
-            // Ends the session in memory; its history stays for a later load or resume.
-            await agent.endSession(params.sessionId);
+            const closed = endWhenIdle(agent, params.sessionId);
+            closing.set(params.sessionId, closed);
+            try {
+                await closed;
+            } finally {
+                closing.delete(params.sessionId);
+            }
             return {};
         })
         .onRequest('session/set_config_option', async ({ params }) => {

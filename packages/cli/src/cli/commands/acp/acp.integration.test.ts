@@ -914,4 +914,26 @@ tools:
             );
         });
     }, 60000);
+
+    it('reopens a session after a close that waits for its title', async () => {
+        await withAgent(allow, async (cx, recorded) => {
+            const sessionId = await newSession(cx);
+            await prompt(cx, sessionId, 'say hello');
+            // The title is still being made, so the close waits; the session is reopened and
+            // a long prompt started meanwhile, which the close must not end.
+            const closed = cx.request(acp.methods.agent.session.close, { sessionId });
+            await cx.request(acp.methods.agent.session.resume, { sessionId, cwd: directory });
+            recorded.updates.length = 0;
+            const turn = prompt(cx, sessionId, 'slow answer');
+            await expect(closed).resolves.toEqual({});
+            await expect(turn).resolves.toEqual({ stopReason: 'end_turn' });
+            expect(agentText(recorded.updates)).toContain('word39');
+            // The title was stored before the close finished; the reopened session isn't retitled.
+            expect(recorded.updates).not.toContainEqual(
+                expect.objectContaining({ sessionUpdate: 'session_info_update' })
+            );
+            const { sessions } = await cx.request(acp.methods.agent.session.list, {});
+            expect(sessions).toContainEqual(expect.objectContaining({ sessionId, title: TITLE }));
+        });
+    }, 60000);
 });
