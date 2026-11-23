@@ -54,7 +54,6 @@ const approvedPassthroughOnly = `dexto_agents_list
 dexto_app_data_remove
 dexto_app_deploy
 dexto_app_deployment_verify
-dexto_app_get
 dexto_app_open
 dexto_app_request_access
 dexto_app_runtime
@@ -77,8 +76,6 @@ dexto_application_suspend
 dexto_application_usage
 dexto_application_variables_list
 dexto_applications_list
-dexto_apps_list
-dexto_apps_uninstalled_list
 dexto_autobot_chat_start
 dexto_autobot_get
 dexto_autobot_input_submit
