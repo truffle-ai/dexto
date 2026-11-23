@@ -18,6 +18,8 @@ export const CLI_LOGIN_SCOPES = [
     'apps:read',
     'artifacts:read',
     'artifacts:write',
+    'autobots:read',
+    'autobots:write',
     'chats:sync',
     'cloud:read',
     'cloud:write',
@@ -38,6 +40,7 @@ export const CLI_LOGIN_SCOPES = [
     'sessions:write',
     'sites:read',
     'sites:write',
+    'skills:write',
 ] as const;
 
 /** A scope the CLI asks for by name. */
