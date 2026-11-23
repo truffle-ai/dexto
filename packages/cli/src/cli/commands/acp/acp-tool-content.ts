@@ -39,12 +39,13 @@ export function toolKind(snapshot: ToolPresentationSnapshotV1 | undefined): acp.
  */
 export function displayContent(
     display: ToolDisplayData,
-    root: string
+    cwd: string
 ): acp.ToolCallContent[] | null {
     switch (display.type) {
         case 'diff':
-            // ACP paths are absolute; Dexto file tools may report them relative to the workspace.
-            return diffContent(resolve(root, display.filename), display.unified);
+            // ACP paths are absolute; Dexto file tools may report them relative to the folder
+            // they resolve against.
+            return diffContent(resolve(cwd, display.filename), display.unified);
         case 'shell': {
             // Approval previews and background starts carry no output and a placeholder exit
             // code; their text result says what happened.

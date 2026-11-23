@@ -5,7 +5,7 @@ Dexto file tools report changes as a unified patch (`ToolDisplayData` of type `d
 ## Decisions
 
 - Each patch hunk becomes one ACP diff. Its old text is the hunk's context and removed lines, and its new text is the context and added lines. A hunk that adds to an empty file has no old text. Clients can render that without reading the file, and no file is read twice.
-- Diff paths are resolved against the session's workspace root, because ACP paths are absolute.
+- Diff paths and tool locations are resolved against the folder the process started in, because ACP paths are absolute and Dexto's file tools resolve relative paths against that folder. It can sit below the Dexto project root (a session in /repo/pkg inside the project /repo), so the project root is not used. This also corrects the tool locations from `cli-acp-server`.
 - Shell results become one text block, so clients that don't render terminals still show the command and its output.
 - A shell display with no output (an approval preview, or a background start with a placeholder exit code) stays text, so no exit code is shown for a command that has not run. A patch with no hunks (an unchanged file) also stays text.
 - Displays other than diff and shell stay text, as before.

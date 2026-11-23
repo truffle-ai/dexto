@@ -10,6 +10,11 @@ Tool calls SHALL carry an ACP tool kind from the tool's Dexto activity category,
 - **THEN** its tool call has kind `edit`
 - **AND** the permission request and the completed result carry an ACP diff for the file's absolute path
 
+#### Scenario: Session folder inside a Dexto project
+
+- **WHEN** the session folder sits below its Dexto project root and a tool edits a relative path
+- **THEN** the tool call location, the permission preview and the result name the file inside the session folder, where the tool writes it
+
 #### Scenario: Shell command
 
 - **WHEN** a foreground shell command finishes

@@ -39,15 +39,18 @@ const TodoUpdateSchema = z.object({
     todos: z.array(z.object({ content: z.string(), status: z.string() })),
 });
 
-/** The running agent and the Dexto project root it was set up for. */
-type Runtime = { readonly agent: DextoAgent; readonly root: string };
+/**
+ * The running agent, the Dexto project root it was set up for, and the folder the process
+ * started in, which Dexto's file tools resolve relative paths against.
+ */
+type Runtime = { readonly agent: DextoAgent; readonly root: string; readonly cwd: string };
 
 /** One running session/prompt: where its updates go and which tool calls are still open. */
 type Turn = {
     readonly cx: acp.AgentContext;
     readonly sessionId: string;
-    /** The project root tool paths resolve against. */
-    readonly root: string;
+    /** The folder tool paths resolve against: where the process started. */
+    readonly cwd: string;
     readonly openToolCalls: Set<string>;
     /** Aborted by session/cancel; stops the Dexto run even before it has started. */
     readonly abort: AbortController;
@@ -74,7 +77,7 @@ export async function serveAcp(
         process.chdir(cwd);
         const agent = await bootstrap();
         agent.setApprovalHandler((request) => askClient(request, turns));
-        state.runtime = { agent, root: projectRoot(cwd) };
+        state.runtime = { agent, root: projectRoot(cwd), cwd: resolve(cwd) };
         return state.runtime;
     }
 
@@ -161,7 +164,7 @@ export async function serveAcp(
             return { configOptions: await modelOptions(running, params.sessionId) };
         })
         .onRequest('session/prompt', async ({ params, client }) => {
-            const { agent, root } = startedRuntime();
+            const { agent, cwd } = startedRuntime();
             knownSession(params.sessionId);
             if (turns.has(params.sessionId)) {
                 throw acp.RequestError.invalidRequest(
@@ -172,7 +175,7 @@ export async function serveAcp(
             const turn: Turn = {
                 cx: client,
                 sessionId: params.sessionId,
-                root,
+                cwd,
                 openToolCalls: new Set(),
                 abort: new AbortController(),
             };
@@ -250,7 +253,7 @@ function toolCallFields(turn: Turn, call: DextoToolCall) {
         title: toolTitle(call.toolName, call.args),
         kind: toolKind(call.presentationSnapshot),
         rawInput: call.args,
-        locations: toolLocations(turn.root, call.args),
+        locations: toolLocations(turn.cwd, call.args),
     };
 }
 
@@ -302,7 +305,7 @@ async function forwardEvent(event: StreamingEvent, turn: Turn): Promise<acp.Stop
                 sessionUpdate: 'tool_call_update',
                 toolCallId: event.callId,
                 status: event.success ? 'completed' : 'failed',
-                content: (display && displayContent(display, turn.root)) ?? [
+                content: (display && displayContent(display, turn.cwd)) ?? [
                     { type: 'content', content: { type: 'text', text } },
                 ],
             });
@@ -355,7 +358,7 @@ async function askClient(
         // A sub-agent's tool runs in its own session; its result never reaches this stream.
         if (!('delegatedFromSessionId' in call)) await openToolCall(turn, call);
         // The approval carries a preview of the change, such as the diff an edit would make.
-        const preview = call.displayPreview && displayContent(call.displayPreview, turn.root);
+        const preview = call.displayPreview && displayContent(call.displayPreview, turn.cwd);
         toolCall = { ...toolCallFields(turn, call), ...(preview ? { content: preview } : {}) };
     } else {
         toolCall = {
@@ -493,10 +496,11 @@ function toolTitle(toolName: string, args: Record<string, unknown>): string {
     return detail === undefined ? toolName : `${toolName} ${detail}`;
 }
 
-function toolLocations(root: string, args: Record<string, unknown>): acp.ToolCallLocation[] {
+function toolLocations(cwd: string, args: Record<string, unknown>): acp.ToolCallLocation[] {
     const path = pathArg(args);
-    // ACP locations are absolute; Dexto tools take paths relative to the workspace root.
-    return path === undefined ? [] : [{ path: resolve(root, path) }];
+    // ACP locations are absolute; Dexto file tools resolve relative paths against the process
+    // folder, which can sit below the project root.
+    return path === undefined ? [] : [{ path: resolve(cwd, path) }];
 }
 
 /** The same project root the CLI bootstrap picks for a directory. */
