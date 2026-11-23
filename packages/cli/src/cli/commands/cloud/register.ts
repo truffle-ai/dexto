@@ -27,6 +27,8 @@ export const ENGINE_WORDS = {
     find: 'Find the command for something you want to do in Dexto',
     docs: "Search Dexto's public documentation and read a page as Markdown",
     loops: "List and inspect your account's, agents' and Projects' Loops and their runs",
+    computer:
+        'Share a server on one of your Dexto computers as a link, list its links and close them',
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',
     profile: 'Show and change your Dexto profile: handle, name, bio and who can see it',
     skills: 'Read, check, author, install, version and publish your Dexto Skills; push a local Skill or sync the library here',

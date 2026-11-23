@@ -24,6 +24,7 @@ import { chatReadCommands } from './commands/chat-read.js';
 import { chatShareCommand } from './commands/chat-share.js';
 import { chatProjectCommands } from './commands/chat-projects.js';
 import { computerKeyCommands } from './commands/computer-keys.js';
+import { computerUrlCommands } from './commands/computer-urls.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
@@ -95,6 +96,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...apiCommands,
         ...workspaceCommands,
         ...computerKeyCommands,
+        ...computerUrlCommands,
         ...shareCommands,
         ...driveCommands,
         ...applicationCommands,

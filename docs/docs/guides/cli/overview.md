@@ -492,6 +492,19 @@ dexto marketplace unpublish --slug my-skill --yes --json
 
 These act as you, so they need your own sign-in, not an API key. Search and get need `marketplace:read`; preview also needs `skills:read`. Install, uninstall, publish and unpublish need `marketplace:write`, plus `apps:read` to install or uninstall a Dexto App, `apps:write` to publish or unpublish one, and `skills:write` to publish or unpublish a Skill. A Dexto App installs only at the release you name with `--release`, its `latestRelease.releaseId` from search or get; if a newer release has come out since, nothing is installed. To publish a Skill, run preview first and pass the release id it shows. Every write asks before it runs: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it. Without `--yes` and with no terminal to ask at, the command fails with `needs_confirmation` and changes nothing.
 
+## Share a Port on Your Computer
+
+Share a server running on one of your hosted Dexto computers, such as a dev server on port 3000, as a link:
+
+```bash
+dexto computer url "$COMPUTER_ID" 3000 --yes --json
+dexto computer url "$COMPUTER_ID" 8080 --public --expires-in-hours 2 --yes --json
+dexto computer url list "$COMPUTER_ID" --json
+dexto computer url revoke "$COMPUTER_ID" 3000 --yes --json
+```
+
+Sharing returns `{url, port, visibility, expiresAt}`. Only members of your organization open the link, after signing in to Dexto; `--public` lets anyone with it open it, for 24 hours unless `--expires-in-hours` (1 to 720) says otherwise, and is refused while your organization has public links turned off. Sharing a port again replaces its link. `list` returns `{links: [...]}` with the computer's open links; `revoke` closes a port's link at once and returns `{port, status}`. Sharing and revoking ask first: pass `--yes` once you agree, or `--dry-run` to see the call without making it. Sharing and revoking need `computers:write`, listing `computers:read`; a sign-in without it is asked to sign in again. A link to a computer that is asleep shows a page asking to start it from Dexto; it never wakes the computer.
+
 ## Your Dexto Workspace
 
 Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.
