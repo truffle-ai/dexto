@@ -26,7 +26,7 @@ Stdout carries only ACP messages; logs go to stderr.
             const { serveAcp } = await import('./acp-agent.js');
             await serveAcp(cliVersion, () =>
                 bootstrapAgentFromGlobalOpts({
-                    mode: 'headless-run',
+                    mode: 'acp',
                     ...(options.model ? { modelOverride: options.model } : {}),
                 })
             );

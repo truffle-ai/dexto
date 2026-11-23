@@ -319,7 +319,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
     modelOverride?: string;
 }) {
     const { mode, modelOverride } = options;
-    const isHeadlessRun = mode === 'headless-run';
+    const isHeadlessRun = mode === 'headless-run' || mode === 'acp';
     await ensureDextoSignInsCarriedOver();
     await syncCloudSkillsOnce();
     await ensureImageImporterConfigured();
@@ -413,7 +413,9 @@ async function bootstrapAgentFromGlobalOpts(options: {
     }
 
     enrichedConfig.elicitation = {
-        enabled: false,
+        // Only an ACP client can answer ask_user and MCP elicitation forms; an explicit
+        // `enabled: false` (or --no-elicitation) still turns them off.
+        enabled: mode === 'acp' && enrichedConfig.elicitation?.enabled !== false,
         ...(enrichedConfig.elicitation?.timeout !== undefined && {
             timeout: enrichedConfig.elicitation.timeout,
         }),
