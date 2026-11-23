@@ -76,6 +76,7 @@ export function registerSessionCommand({
         models: 'List the models your cloud chats can use',
         outputs: 'List the files and resources a cloud chat produced',
         computers: 'List your connected computers for a cloud chat',
+        agents: 'List the agent profiles you can chat with in the cloud',
         'browser-profiles': 'List your browser profiles for a cloud chat',
         share: 'Set who in your organization can open one of your cloud chats',
         move: 'Move a synced chat and its working tree to cloud or local',

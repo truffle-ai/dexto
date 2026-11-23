@@ -114,6 +114,7 @@
         "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"],
         "chat start": ["dexto_chat_start", "dexto_chat_wait"],
         "chat computers": ["dexto_chat_computers_list"],
+        "chat agents": ["dexto_agents_list"],
         "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
         "chat follow": ["dexto_chat_follow"],
         "chat send": ["dexto_chat_send", "dexto_chat_follow"],
@@ -483,7 +484,6 @@
     ],
     "localOnlyNotes": "Only cloud-host registrations are pinned here. Separately registered local run/upgrade/uninstall/chat helpers, local config/preferences and automatic chat synchronization need no MCP coverage and are outside this registration guard.",
     "passthroughOnly": [
-        "dexto_agents_list",
         "dexto_app_data_remove",
         "dexto_app_deploy",
         "dexto_app_deployment_verify",
