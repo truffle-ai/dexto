@@ -479,7 +479,7 @@ program
             '  dexto -c | -r <id>      Continue the latest chat, or resume one\n' +
             '  dexto -a ./agent.yml    Use an agent file\n' +
             '  dexto run "query"       Run one headless task\n' +
-            "  dexto chat list         This machine's chats\n" +
+            "  dexto chat list         Your cloud chats; --local for this machine's\n" +
             '  dexto login             Sign in for Dexto models and the cloud commands\n\n' +
             'Docs: https://cli.dexto.ai'
     )
