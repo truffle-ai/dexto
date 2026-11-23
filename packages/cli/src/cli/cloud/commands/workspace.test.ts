@@ -132,7 +132,7 @@ describe('dexto workspace', () => {
             apiBaseUrl: 'https://api.dexto.ai',
             resource: MCP,
             tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
-            scopes: ['cloud:read', 'cloud:write', 'email:send', 'sites:write'],
+            scopes: ['cloud:read', 'cloud:write', 'email:send', 'sessions:read', 'sites:write'],
             savedAt: '2026-11-01T00:00:00.000Z',
             signedInAs: null,
             cloudProject: { id: 'project-1', name: 'Main' },
@@ -1142,6 +1142,71 @@ describe('dexto workspace', () => {
             params: { name: tool, arguments: {} },
         });
     });
+
+    it('lists cloud chats with chat list, as JSON with the next cursor', async () => {
+        const lastRun = { id: 'run-1', status: 'failed' };
+        const chat = {
+            id: 'chat-1',
+            title: 'A task',
+            status: 'idle',
+            updatedAt: '2026-11-18T10:00:00.000Z',
+            url: 'https://app.dexto.ai/chat/chat-1',
+            lastRun,
+        };
+        chatInspection = {
+            untrustedContent: true,
+            pagination: { hasMore: true, limit: 1, nextCursor: 'next-1' },
+            sessions: [chat],
+        };
+        expect(
+            await runCloud(host, ['chat', 'list', '--status', 'idle', '--limit', '1', '--json'])
+        ).toBe(0);
+        expect(calls).toContainEqual({
+            method: 'tools/call',
+            params: { name: 'dexto_chat_list', arguments: { status: 'idle', limit: 1 } },
+        });
+        expect(JSON.parse(stdout)).toEqual({ data: [chat], has_more: true, next_after: 'next-1' });
+    });
+
+    it('exits 5 with a not_found error when chat get names no chat', async () => {
+        const missingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    if (request.url === MCP) {
+                        const rpc = JSON.parse(await request.clone().text());
+                        if (rpc.method === 'tools/call')
+                            return Response.json({
+                                jsonrpc: '2.0',
+                                id: rpc.id,
+                                error: {
+                                    code: -32004,
+                                    message: 'Dexto session was not found.',
+                                    data: { kind: 'not_found', retryable: false, resume: null },
+                                },
+                            });
+                    }
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(missingHost, ['chat', 'get', 'missing', '--json'])).toBe(5);
+        expect(JSON.parse(stderr).error).toMatchObject({
+            code: 'not_found',
+            message: 'Dexto session was not found.',
+        });
+        expect(stdout).toBe('');
+    });
+
+    it.each(['list', 'get', 'models', 'send', 'cancel'])(
+        'documents chat %s with examples in --help',
+        async (verb) => {
+            expect(await runCloud(host, ['chat', verb, '--help', '--json'])).toBe(0);
+            expect(JSON.parse(stdout).examples.length).toBeGreaterThan(0);
+        }
+    );
 
     it.each([
         {

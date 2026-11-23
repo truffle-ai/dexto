@@ -31,7 +31,8 @@ import {
     type LocalChat,
     type LocalChatSource,
 } from '../../import/transcript.js';
-import { queryWorkspaceTool } from './workspace.js';
+import { queryWorkspaceTool, WorkspaceToolFailure } from './workspace.js';
+import { requireLoginScopes } from './deploys.js';
 import { safeJson } from '@dexto/tui/signal-text';
 import { importClaudeExport } from './claude-export.js';
 import { ImportedSchema, type ImportedChat } from './import-client.js';
@@ -609,6 +610,190 @@ const follow: Command = {
         ),
 };
 
+const ChatSessionSchema = z
+    .object({ id: z.string(), title: z.string().nullable(), url: z.string() })
+    .passthrough();
+// dexto_chat_send queues a message on a running chat, answers a question it asked, or, when it
+// is idle, continues it: `accepted` started its next turn; `active` found another turn first.
+const ChatSendResultSchema = z.union([
+    z
+        .object({
+            reply: z
+                .object({
+                    delivery: z.enum(['queued', 'answered', 'declined_with_answer']),
+                    queue: z.enum(['steer', 'follow-up']).optional(),
+                })
+                .passthrough(),
+            session: ChatSessionSchema,
+        })
+        .passthrough(),
+    z.object({ status: z.enum(['accepted', 'active']), session: ChatSessionSchema }).passthrough(),
+]);
+const ChatCancelResultSchema = z
+    .object({ run: z.object({ id: z.string() }).passthrough(), session: ChatSessionSchema })
+    .passthrough();
+
+/**
+ * The chat's latest durable event cursor, so a wait after a send prints only what follows it.
+ * Follow has no "from the end" read, so this pages to the end: one call per 100 events.
+ */
+async function latestCursor(context: CommandContext, sessionId: string): Promise<string> {
+    let cursor: string | undefined;
+    for (;;) {
+        const page = FollowResultSchema.parse(
+            await queryWorkspaceTool(context, 'dexto_chat_follow', {
+                sessionId,
+                ...(cursor === undefined ? {} : { cursor }),
+                waitSeconds: 0,
+            })
+        );
+        if (!page.hasMore) return page.cursor;
+        cursor = page.cursor;
+    }
+}
+
+/** Interactive consent at a terminal only: under --json, as without one, --yes is required. */
+function consentContext(context: CommandContext) {
+    return {
+        invocation: context.invocation,
+        runtime: { prompt: context.output.json ? null : context.runtime.prompt },
+    };
+}
+
+const send: Command = {
+    path: ['chat', 'send'],
+    arguments: '<chat_id> <message>',
+    summary:
+        'Message a cloud chat: it steers the current turn, or with --follow-up waits for the next; an idle chat starts its next turn. Requires sessions:write.',
+    options: {
+        ...FOLLOW_OPTIONS,
+        'follow-up': {
+            type: 'boolean',
+            description: 'Wait until the current work ends instead of steering it.',
+        },
+        model: {
+            type: 'string',
+            valueName: 'ID',
+            description: 'Switch the chat to this model from dexto chat models.',
+        },
+        wait: {
+            type: 'boolean',
+            description:
+                'Wait for the turn your message joins to finish; --json prints NDJSON. Not with --follow-up.',
+        },
+        ...YES_OPTION,
+    },
+    examples: [
+        'dexto chat send "$CHAT_ID" "Also update the docs" --yes',
+        'dexto chat send "$CHAT_ID" "Now run the tests" --wait --json --yes',
+        'dexto chat send "$CHAT_ID" "Then open a PR" --follow-up --yes',
+    ],
+    async run(context, input) {
+        const sessionId = argument(input, 0, 'chat_id');
+        const message = argument(input, 1, 'message');
+        const model = stringOption(input, 'model');
+        const followUp = flag(input, 'follow-up');
+        const wait = flag(input, 'wait');
+        // A follow-up joins a turn that has not started, so there is no turn to wait on yet.
+        if (wait && followUp)
+            throw new UsageError(
+                '--wait follows the turn your message joins; a --follow-up starts later. Send it, then run dexto chat follow.'
+            );
+        const deadline = followDeadline(input);
+        await requireLoginScopes(
+            context,
+            wait ? ['sessions:write', 'sessions:read'] : ['sessions:write']
+        );
+        await requireConsent(
+            consentContext(context),
+            flag(input, 'yes'),
+            `Send this message to the chat ${sessionId}?`
+        );
+        // Read before sending: a failed read leaves nothing sent.
+        const cursor = wait ? await latestCursor(context, sessionId) : null;
+        // Send once. The wait below only reads, so a failed read never sends again.
+        const raw = await queryWorkspaceTool(context, 'dexto_chat_send', {
+            sessionId,
+            message,
+            queue: followUp ? 'follow-up' : 'steer',
+            ...(model === undefined ? {} : { model }),
+        });
+        const parsed = ChatSendResultSchema.safeParse(raw);
+        if (!parsed.success)
+            throw new CommandFailure(
+                'failed',
+                "Dexto didn't return a valid chat send result.",
+                null
+            );
+        const result = parsed.data;
+        const name = result.session.title ?? result.session.id;
+        if ('status' in result && result.status === 'active') {
+            if (context.output.json) context.output.result(result, '');
+            throw new CommandFailure(
+                'failed',
+                `Not sent: ${name} started another turn first. Send it again to steer that turn.`,
+                null
+            );
+        }
+        if (cursor !== null) return followChat(context, result.session.id, cursor, deadline);
+        const what =
+            'status' in result
+                ? 'It started its next turn.'
+                : result.reply.delivery === 'queued'
+                  ? result.reply.queue === 'follow-up'
+                      ? 'Queued for after its current work.'
+                      : 'Queued to steer its current turn.'
+                  : 'It answered the question the chat asked.';
+        context.output.result(result, `Sent to ${name}. ${what}\n${result.session.url}`);
+        return 0;
+    },
+};
+
+const cancel: Command = {
+    path: ['chat', 'cancel'],
+    arguments: '<chat_id>',
+    summary:
+        "Stop a cloud chat's current run; the chat stays and can be messaged again. Requires sessions:write.",
+    options: YES_OPTION,
+    examples: ['dexto chat cancel "$CHAT_ID" --yes', 'dexto chat cancel "$CHAT_ID" --json --yes'],
+    async run(context, input) {
+        const sessionId = argument(input, 0, 'chat_id');
+        await requireLoginScopes(context, ['sessions:write']);
+        await requireConsent(
+            consentContext(context),
+            flag(input, 'yes'),
+            `Stop the current run of the chat ${sessionId}?`
+        );
+        let raw: unknown;
+        try {
+            raw = await queryWorkspaceTool(context, 'dexto_chat_cancel', { sessionId });
+        } catch (error) {
+            // dexto_chat_cancel refuses `unavailable` only for a chat with no active run (a missing
+            // one is `not_found`): nothing to stop, which is not a failure.
+            if (!(error instanceof WorkspaceToolFailure) || error.data.kind !== 'unavailable')
+                throw error;
+            context.output.result(
+                { cancelled: false, session: { id: sessionId } },
+                `No run was active in ${sessionId}.`
+            );
+            return 0;
+        }
+        const parsed = ChatCancelResultSchema.safeParse(raw);
+        if (!parsed.success)
+            throw new CommandFailure(
+                'failed',
+                "Dexto didn't return a valid chat cancel result.",
+                null
+            );
+        const result = parsed.data;
+        context.output.result(
+            { cancelled: true, ...result },
+            `Stopped the run of ${result.session.title ?? result.session.id}.`
+        );
+        return 0;
+    },
+};
+
 const start: Command = {
     path: ['chat', 'start'],
     arguments: '<message>',
@@ -639,7 +824,7 @@ const start: Command = {
         model: {
             type: 'string',
             valueName: 'ID',
-            description: 'Model from workspace chat models.',
+            description: 'Model from dexto chat models.',
         },
         route: {
             type: 'string',
@@ -674,10 +859,7 @@ const start: Command = {
         }
         if (args.browserProfileId !== undefined || args.computerId !== undefined) {
             await requireConsent(
-                {
-                    invocation: context.invocation,
-                    runtime: { prompt: context.output.json ? null : context.runtime.prompt },
-                },
+                consentContext(context),
                 flag(input, 'yes'),
                 args.browserProfileId !== undefined && args.computerId !== undefined
                     ? 'Give this chat access to your connected computer and start hosted compute billed to your account to load this browser profile?'
@@ -833,6 +1015,8 @@ export const chatCommands: readonly Command[] = [
     importChats,
     start,
     follow,
+    send,
+    cancel,
     computers,
     agents,
     browserProfiles,

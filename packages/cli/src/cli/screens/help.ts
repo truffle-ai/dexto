@@ -109,6 +109,7 @@ const ROOT_GROUPS: readonly { readonly title: string; readonly names: readonly s
             'cloud',
             'workspace',
             'find',
+            'docs',
             'skills',
             'profile',
             'models',
