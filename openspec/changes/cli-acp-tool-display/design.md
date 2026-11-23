@@ -5,6 +5,7 @@ Dexto file tools report changes as a unified patch (`ToolDisplayData` of type `d
 ## Decisions
 
 - Each patch hunk becomes one ACP diff. Its old text is the hunk's context and removed lines, and its new text is the context and added lines. A hunk that adds to an empty file has no old text. Clients can render that without reading the file, and no file is read twice.
+- Each hunk line keeps its newline unless the patch marks it as the file's last line without one, so a change to only the final newline still shows. A patch that does not parse keeps the tool's text result.
 - Diff paths are resolved against the session's workspace root, because ACP paths are absolute.
 - Shell results become one text block, so clients that don't render terminals still show the command and its output.
 - A shell display with no output (an approval preview, or a background start with a placeholder exit code) stays text, so no exit code is shown for a command that has not run. A patch with no hunks (an unchanged file) also stays text.

@@ -365,8 +365,8 @@ tools:
             const diff = {
                 type: 'diff',
                 path: join(directory, 'note.txt'),
-                oldText: 'old line',
-                newText: 'new line',
+                oldText: 'old line\n',
+                newText: 'new line\n',
             };
             expect(recorded.updates).toContainEqual(
                 expect.objectContaining({
@@ -404,7 +404,7 @@ tools:
         await withAgent(allow, async (cx, recorded) => {
             const sessionId = await newSession(cx, sessionDirectory);
             await prompt(cx, sessionId, 'real edit');
-            const diff = { type: 'diff', path: note, oldText: 'old line', newText: 'new line' };
+            const diff = { type: 'diff', path: note, oldText: 'old line\n', newText: 'new line\n' };
             expect(recorded.updates).toContainEqual(
                 expect.objectContaining({
                     sessionUpdate: 'tool_call',

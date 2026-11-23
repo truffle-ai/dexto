@@ -31,6 +31,22 @@ describe('toolKind', () => {
         ).toBe(kind);
     });
 
+    it.each(['constructor', '__proto__', 'toString'])(
+        'is other for the inherited property name %s',
+        (category) => {
+            expect(
+                toolKind({
+                    version: 1,
+                    activity: {
+                        category,
+                        label: { running: '', completed: '' },
+                        summary: { verb: '', singular: '', plural: '' },
+                    },
+                })
+            ).toBe('other');
+        }
+    );
+
     it('is other without a presentation snapshot', () => {
         expect(toolKind(undefined)).toBe('other');
     });
@@ -71,10 +87,10 @@ describe('displayContent', () => {
             {
                 type: 'diff',
                 path: '/w/numbers.txt',
-                oldText: 'one\ntwo\nthree',
-                newText: 'one\nTWO\nthree',
+                oldText: 'one\ntwo\nthree\n',
+                newText: 'one\nTWO\nthree\n',
             },
-            { type: 'diff', path: '/w/numbers.txt', oldText: 'nine', newText: 'nine\nten' },
+            { type: 'diff', path: '/w/numbers.txt', oldText: 'nine\n', newText: 'nine\nten\n' },
         ]);
     });
 
@@ -91,7 +107,7 @@ describe('displayContent', () => {
                 },
                 '/w'
             )
-        ).toEqual([{ type: 'diff', path: '/w/new.txt', oldText: null, newText: 'hello' }]);
+        ).toEqual([{ type: 'diff', path: '/w/new.txt', oldText: null, newText: 'hello\n' }]);
     });
 
     it('shows a command with its output and exit code', () => {
@@ -123,6 +139,26 @@ describe('displayContent', () => {
                 '/w'
             )
         ).toEqual([{ type: 'diff', path: '/w/crlf.txt', oldText: 'a\nb', newText: 'a\nc' }]);
+    });
+
+    it('leaves a malformed patch to the text result', () => {
+        const unified = '--- a\n+++ a\n@@ -1 +1 @@\n-a\n';
+        expect(
+            displayContent(
+                { type: 'diff', unified, filename: 'a', additions: 0, deletions: 1 },
+                '/w'
+            )
+        ).toBeNull();
+    });
+
+    it('shows a change that only adds the final newline', () => {
+        const unified = createPatch('a.txt', 'a', 'a\n', '', '');
+        expect(
+            displayContent(
+                { type: 'diff', unified, filename: 'a.txt', additions: 1, deletions: 1 },
+                '/w'
+            )
+        ).toEqual([{ type: 'diff', path: '/w/a.txt', oldText: 'a', newText: 'a\n' }]);
     });
 
     it('leaves an unchanged file to the text result', () => {
