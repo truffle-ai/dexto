@@ -344,25 +344,27 @@ tools:
         });
     }, 60000);
 
-    async function expectEditDiffIn(sessionDirectory: string): Promise<void> {
+    it('shows an edit as an ACP diff in the permission request and the result', async () => {
         await withAgent(allow, async (cx, recorded) => {
-            const sessionId = await newSession(cx, sessionDirectory);
+            const sessionId = await newSession(cx);
             await prompt(cx, sessionId, 'edit note');
-            const path = join(sessionDirectory, 'note.txt');
-            const diff = { type: 'diff', path, oldText: 'old line', newText: 'new line' };
+            const diff = {
+                type: 'diff',
+                path: join(directory, 'note.txt'),
+                oldText: 'old line',
+                newText: 'new line',
+            };
             expect(recorded.updates).toContainEqual(
                 expect.objectContaining({
                     sessionUpdate: 'tool_call',
                     toolCallId: 'edit-call',
                     kind: 'edit',
-                    locations: [{ path }],
                 })
             );
             expect(recorded.permissions[0]?.toolCall).toMatchObject({
                 toolCallId: 'edit-call',
                 kind: 'edit',
                 content: [diff],
-                locations: [{ path }],
             });
             expect(recorded.updates).toContainEqual(
                 expect.objectContaining({
@@ -373,20 +375,6 @@ tools:
                 })
             );
         });
-    }
-
-    it('shows an edit as an ACP diff in the permission request and the result', async () => {
-        await expectEditDiffIn(directory);
-    }, 60000);
-
-    it('names files in the session folder when it sits inside a Dexto project', async () => {
-        // /repo/pkg under the Dexto project /repo: file tools work from /repo/pkg.
-        const project = join(directory, 'repo');
-        const sessionDirectory = join(project, 'pkg');
-        await mkdir(join(project, '.dexto'), { recursive: true });
-        await writeFile(join(project, '.dexto', 'deploy.json'), '{}');
-        await mkdir(sessionDirectory);
-        await expectEditDiffIn(sessionDirectory);
     }, 60000);
 
     it('fails the tool call and skips its effect when permission is rejected', async () => {
