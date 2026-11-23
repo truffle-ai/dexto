@@ -49,6 +49,27 @@
     "examples": false
   },
   {
+    "command": "channels list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "channels read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "channels send",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "chat browser-profiles",
     "json": true,
     "dryRun": false,
@@ -77,6 +98,13 @@
     "examples": false
   },
   {
+    "command": "chat get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "chat history",
     "json": false,
     "dryRun": false,
@@ -92,10 +120,10 @@
   },
   {
     "command": "chat list",
-    "json": false,
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat local",
@@ -103,6 +131,13 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "chat models",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "chat outputs",
@@ -754,6 +789,27 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "notifications get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "notifications list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "notifications mark-read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "profile get",

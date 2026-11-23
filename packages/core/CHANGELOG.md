@@ -1,5 +1,34 @@
 # @dexto/core
 
+## 1.19.4
+
+### Patch Changes
+
+- ccca53c: Keep the Dexto gateway's reasoning items through a tool loop. On `dexto-nova`, a tool call now keeps its `openrouter.reasoning_details` in history and sends them back on the next request, so GPT models keep their encrypted reasoning and Claude keeps its signed thinking between tool calls. The OpenRouter client's `[REDACTED]` placeholder for an encrypted reasoning item is no longer shown as reasoning text.
+    - @dexto/llm@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- 023c262: When a model provider refuses a file or image because it is damaged (corrupted, badly formatted, could not be read), the note that replaces it now says the file looks damaged and that sending it again will not help, instead of "withheld". A model told only "withheld" asked the person to re-upload the same broken file (DEXTO-3266).
+    - @dexto/llm@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- @dexto/llm@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- 5d74a71: Resolve turn driver failure handling after recording the failure instead of rethrowing the provider error.
+- 6042c83: Keep a tool schema's root `definitions` and `$defs` when flattening a union root, so a `$ref` inside an alternative still resolves. xAI rejects a tool whose `$ref` points nowhere.
+- e0db54d: Replace an image of a type the provider cannot view (such as HEIC sent to Anthropic, OpenAI or a gateway) with a text note instead of sending it. Core used to log `Could not validate image support` and send the image anyway, which made the provider fail or stop with no reply. The note names the image type, so the model can tell the user. Google and Vertex still receive HEIC and HEIF, which Gemini reads, and endpoints you configure yourself (openai-compatible, LiteLLM, Ollama, local) still receive any image type, as before.
+    - @dexto/llm@1.19.1
+
 ## 1.19.0
 
 ### Minor Changes

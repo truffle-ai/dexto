@@ -22,7 +22,7 @@ on:
       version:
         description: 'Version or dist-tag the end-to-end jobs install'
         required: false
-        default: 'next'
+        default: 'latest'
 
 permissions:
   contents: read
@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  E2E_VERSION: ${{ inputs.version || 'next' }}
+  E2E_VERSION: ${{ inputs.version || 'latest' }}
 
 jobs:
   shellcheck:
