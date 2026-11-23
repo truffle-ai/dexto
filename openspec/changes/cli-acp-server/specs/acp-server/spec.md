@@ -28,11 +28,10 @@ Each ACP session SHALL be a Dexto session; a prompt SHALL run the Dexto agent lo
 - **WHEN** a client prompts a session whose previous prompt is still running
 - **THEN** the new prompt is refused and the running prompt is unaffected
 
-#### Scenario: Sessions in different directories
+#### Scenario: Session in another project
 
-- **WHEN** a client opens sessions in two directories and prompts one of them
-- **THEN** that prompt's tools run in its own session's directory
-- **AND** a prompt in the other directory is refused while that turn runs
+- **WHEN** a client opens or loads a session in a directory whose Dexto project root differs from the one the agent started in
+- **THEN** the request is refused, and existing sessions keep running in their project
 
 ### Requirement: Tool calls and permissions
 
@@ -56,6 +55,12 @@ Dexto tool calls SHALL be reported as ACP tool calls, and Dexto approvals SHALL 
 
 - **WHEN** a client cancels while a reply streams
 - **THEN** streaming stops and the prompt ends with `cancelled`
+
+#### Scenario: Cancel before the run starts
+
+- **WHEN** a client cancels a prompt right after sending it, before the Dexto run has started
+- **THEN** the run does not proceed, the prompt ends with `cancelled`
+- **AND** the next prompt in that session is accepted
 
 ### Requirement: Model selection
 

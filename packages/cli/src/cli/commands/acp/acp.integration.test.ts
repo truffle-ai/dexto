@@ -362,11 +362,18 @@ tools:
         });
     }, 60000);
 
-    it("runs each session's tools in that session's directory", async () => {
+    it('runs tools in the project and refuses a session in another project', async () => {
         await withAgent(allow, async (cx, recorded) => {
-            const first = await newSession(cx);
-            await newSession(cx, otherDirectory);
-            await prompt(cx, first, 'change state');
+            const sessionId = await newSession(cx);
+            await expect(newSession(cx, otherDirectory)).rejects.toBeInstanceOf(acp.RequestError);
+            await expect(
+                cx.request(acp.methods.agent.session.load, {
+                    sessionId,
+                    cwd: otherDirectory,
+                    mcpServers: [],
+                })
+            ).rejects.toBeInstanceOf(acp.RequestError);
+            await prompt(cx, sessionId, 'change state');
             expect(recorded.updates).toContainEqual(
                 expect.objectContaining({
                     sessionUpdate: 'tool_call',
@@ -379,44 +386,6 @@ tools:
                     update.sessionUpdate === 'tool_call_update' && update.status === 'completed'
             );
             expect(JSON.stringify(result)).toContain(`effect written in ${directory}"`);
-        });
-    }, 60000);
-
-    it('switches the workspace to each prompted session and back', async () => {
-        await withAgent(allow, async (cx, recorded) => {
-            const first = await newSession(cx);
-            const second = await newSession(cx, otherDirectory);
-            await prompt(cx, second, 'change state');
-            await prompt(cx, first, 'change state');
-            const results = recorded.updates
-                .filter(
-                    (update) =>
-                        update.sessionUpdate === 'tool_call_update' && update.status === 'completed'
-                )
-                .map((update) => JSON.stringify(update));
-            expect(results).toHaveLength(2);
-            expect(results[0]).toContain(`effect written in ${otherDirectory}"`);
-            expect(results[1]).toContain(`effect written in ${directory}"`);
-            expect(recorded.updates).toContainEqual(
-                expect.objectContaining({
-                    sessionUpdate: 'tool_call',
-                    locations: [{ path: join(otherDirectory, 'note.txt') }],
-                })
-            );
-        });
-    }, 60000);
-
-    it('refuses a prompt in another directory while a turn runs', async () => {
-        await withAgent(allow, async (cx, recorded) => {
-            const first = await newSession(cx);
-            const second = await newSession(cx, otherDirectory);
-            const running = prompt(cx, first, 'slow answer');
-            await expect
-                .poll(() => agentText(recorded.updates).length, { timeout: 20000 })
-                .toBeGreaterThan(0);
-            await expect(prompt(cx, second, 'say hello')).rejects.toBeInstanceOf(acp.RequestError);
-            await cx.notify(acp.methods.agent.session.cancel, { sessionId: first });
-            await expect(running).resolves.toEqual({ stopReason: 'cancelled' });
         });
     }, 60000);
 
