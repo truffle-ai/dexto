@@ -936,4 +936,23 @@ tools:
             expect(sessions).toContainEqual(expect.objectContaining({ sessionId, title: TITLE }));
         });
     }, 60000);
+
+    it('closes a session even when a load of it is still running', async () => {
+        await withAgent(allow, async (cx) => {
+            const sessionId = await newSession(cx);
+            await prompt(cx, sessionId, 'say hello');
+            // Sent together: the load must not reopen what the close then ends.
+            const loaded = cx.request(acp.methods.agent.session.load, {
+                sessionId,
+                cwd: directory,
+                mcpServers: [],
+            });
+            const closed = cx.request(acp.methods.agent.session.close, { sessionId });
+            await loaded;
+            await expect(closed).resolves.toEqual({});
+            await expect(prompt(cx, sessionId, 'say hello')).rejects.toMatchObject({
+                code: -32002,
+            });
+        });
+    }, 60000);
 });

@@ -20,6 +20,11 @@
 - **WHEN** the client loads or resumes a session whose close is still waiting for its run or title
 - **THEN** the session reopens after that close finishes, and prompts in it run to the end
 
+#### Scenario: Closed while loading
+
+- **WHEN** the client sends a load or resume of a session and then its close, without waiting
+- **THEN** the session ends closed, and later prompts in it fail with `sessionNotFound`
+
 #### Scenario: Unknown session resumed
 
 - **WHEN** the client resumes a session that does not exist, or one created in another project

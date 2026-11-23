@@ -78,8 +78,19 @@ export async function serveAcp(
     // Each session's running prompt and title generation, so closing it can wait for both.
     const runs = new Map<string, Promise<acp.PromptResponse>>();
     const titles = new Map<string, Promise<void>>();
-    // Sessions being closed, so a load or resume meanwhile waits for the close to finish.
-    const closing = new Map<string, Promise<void>>();
+    // The last load, resume or close of each session; the next one waits for it.
+    const lifecycle = new Map<string, Promise<unknown>>();
+
+    /** Runs loads, resumes and closes of one session one at a time, in arrival order. */
+    function inOrder<T>(sessionId: string, op: () => Promise<T>): Promise<T> {
+        const result = Promise.allSettled([lifecycle.get(sessionId)]).then(op);
+        const settled = Promise.allSettled([result]);
+        lifecycle.set(sessionId, settled);
+        void settled.then(() => {
+            if (lifecycle.get(sessionId) === settled) lifecycle.delete(sessionId);
+        });
+        return result;
+    }
     // Sessions opened or loaded on this connection.
     const sessions = new Set<string>();
 
@@ -118,18 +129,19 @@ export async function serveAcp(
     }
 
     /** A stored session of this project, opened on this connection (load and resume). */
-    async function restoreSession(sessionId: string, cwd: string): Promise<DextoAgent> {
-        await Promise.allSettled([closing.get(sessionId)]);
-        const running = await agentFor(cwd);
-        const metadata = await running.getSessionMetadata(sessionId);
-        if (metadata?.workspaceId !== (await workspaceId(running))) {
-            throw acp.RequestError.sessionNotFound(sessionId);
-        }
-        if (!(await running.getSession(sessionId))) {
-            throw acp.RequestError.sessionNotFound(sessionId);
-        }
-        sessions.add(sessionId);
-        return running;
+    function restoreSession(sessionId: string, cwd: string): Promise<DextoAgent> {
+        return inOrder(sessionId, async () => {
+            const running = await agentFor(cwd);
+            const metadata = await running.getSessionMetadata(sessionId);
+            if (metadata?.workspaceId !== (await workspaceId(running))) {
+                throw acp.RequestError.sessionNotFound(sessionId);
+            }
+            if (!(await running.getSession(sessionId))) {
+                throw acp.RequestError.sessionNotFound(sessionId);
+            }
+            sessions.add(sessionId);
+            return running;
+        });
     }
 
     /** Ends a session once its run and title are done; its history stays stored. */
@@ -202,16 +214,12 @@ export async function serveAcp(
         })
         .onRequest('session/close', async ({ params }) => {
             const { agent } = startedRuntime();
-            knownSession(params.sessionId);
-            sessions.delete(params.sessionId);
-            turns.get(params.sessionId)?.abort.abort();
-            const closed = endWhenIdle(agent, params.sessionId);
-            closing.set(params.sessionId, closed);
-            try {
-                await closed;
-            } finally {
-                closing.delete(params.sessionId);
-            }
+            await inOrder(params.sessionId, async () => {
+                knownSession(params.sessionId);
+                sessions.delete(params.sessionId);
+                turns.get(params.sessionId)?.abort.abort();
+                await endWhenIdle(agent, params.sessionId);
+            });
             return {};
         })
         .onRequest('session/set_config_option', async ({ params }) => {
