@@ -14,10 +14,14 @@ export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
  * device and browser sign-in must accept each one; its drift test imports this list.
  */
 export const CLI_LOGIN_SCOPES = [
+    'applications:read',
     'apps:execute',
     'apps:read',
+    'apps:write',
     'artifacts:read',
     'artifacts:write',
+    'autobots:read',
+    'autobots:write',
     'automations:read',
     'automations:write',
     'chats:sync',
@@ -26,16 +30,28 @@ export const CLI_LOGIN_SCOPES = [
     'computers:read',
     'computers:write',
     'connections:read',
+    'contacts:read',
+    'contacts:write',
     'drive:read',
     'drive:write',
     'functions:read',
     'functions:write',
+    'marketplace:read',
+    'marketplace:write',
+    'messages:read',
+    'messages:write',
+    'network:read',
+    'network:write',
+    'notifications:read',
+    'notifications:write',
     'projects:read',
     'projects:write',
     'sessions:read',
     'sessions:write',
     'sites:read',
     'sites:write',
+    'skills:read',
+    'skills:write',
 ] as const;
 
 /** A scope the CLI asks for by name. */

@@ -580,7 +580,7 @@ Options:
 
 Commands:
   login | logout | whoami  Sign in to Dexto
-  chat list|history        Your chats on this machine
+  chat list|get|start      Your cloud chats (chat list --local: this machine's)
   cloud, workspace, ...    Dexto Cloud and your workspace
 ```
 

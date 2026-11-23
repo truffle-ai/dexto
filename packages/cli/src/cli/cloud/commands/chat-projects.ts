@@ -337,7 +337,7 @@ const move: Command = {
 };
 
 const MODEL_OPTIONS = {
-    model: { type: 'string', valueName: 'ID', description: 'Model from workspace chat models.' },
+    model: { type: 'string', valueName: 'ID', description: 'Model from dexto chat models.' },
 } as const;
 
 const start: Command = {
