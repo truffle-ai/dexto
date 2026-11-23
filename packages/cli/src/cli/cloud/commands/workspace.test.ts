@@ -1608,7 +1608,9 @@ describe('dexto workspace', () => {
         expect(
             await runCloud(host, ['publish', 'anything', '--visibility', 'team', '--yes', '--json'])
         ).toBe(2);
-        expect(JSON.parse(stderr).error.message).toContain('--visibility');
+        expect(JSON.parse(stderr).error.message).toBe(
+            '--visibility must be private, restricted, unlisted, or public.'
+        );
         expect(uploads).toHaveLength(0);
         expect(calls).toHaveLength(0);
     });
@@ -1825,6 +1827,34 @@ describe('dexto workspace', () => {
         ).toBe(0);
         expect(stdout).not.toContain('Anyone with the link can open it');
         expect(stdout).toContain('Open it from Dexto as an organization member.');
+    });
+
+    it('passes restricted visibility and says who can open the Site', async () => {
+        const file = path.join(path.dirname(dir), 'restricted.html');
+        await writeFile(file, '<h1>restricted</h1>');
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'restricted', '--yes', '--json'])
+        ).toBe(0);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ visibility: 'restricted' });
+        expect(JSON.parse(stdout).visibility).toBe('restricted');
+        expect(stderr).toContain(
+            'restricted: only you, Owners, Admins and people you share it with can open it'
+        );
+        stdout = '';
+        expect(
+            await runCloud(host, [
+                'publish',
+                file,
+                '--visibility',
+                'restricted',
+                '--yes',
+                '--table',
+            ])
+        ).toBe(0);
+        expect(stdout).toContain(
+            'Open it from Dexto; only you, Owners, Admins and people you share it with can.'
+        );
+        expect(stdout).not.toContain('Anyone with the link can open it');
     });
 
     it('publishes a folder as a zip, uploaded where Dexto says, once agreed', async () => {
