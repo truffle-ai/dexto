@@ -111,6 +111,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
 
     const accountsList: Command = {
         path: ['accounts', 'list'],
+        examples: ['dexto accounts list --json'],
         summary: 'List saved sign-ins, one per account and organization; * marks the one in use.',
         async run(context) {
             await (
@@ -122,6 +123,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
     const accountsUse: Command = {
         arguments: '<profile>',
         path: ['accounts', 'use'],
+        examples: ['dexto accounts use "$PROFILE" --json'],
         summary: 'Use this saved sign-in from now on.',
         async run(context, input) {
             await (
@@ -134,6 +136,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
         arguments: '<profile>',
         options: YES_OPTION,
         path: ['accounts', 'remove'],
+        examples: ['dexto accounts remove "$PROFILE" --yes --json'],
         summary: 'Log a saved sign-in out and forget it here. Asks first.',
         async run(context, input) {
             await (
