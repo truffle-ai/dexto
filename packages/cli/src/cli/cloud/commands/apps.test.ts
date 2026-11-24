@@ -38,14 +38,14 @@ const detail = {
 };
 const retained = { appId: 'notes', dataDeletedOn: '2026-12-23T00:00:00.000Z', title: 'Notes' };
 
-function contextWith(scopes: readonly string[], json = true) {
+function contextWith(scopes: readonly string[], json = true, prompt: unknown = null) {
     const output = { json, list: vi.fn(), record: vi.fn(), result: vi.fn() };
     const context = {
         connection: async () => ({ kind: 'oauth', login: { scopes } }),
         invocation: ['apps', 'remove-data', 'notes'],
         output,
         overrides: { profile: null },
-        runtime: { environment: {}, prompt: null },
+        runtime: { environment: {}, prompt },
     } as unknown as CommandContext;
     return { context, output };
 }
@@ -177,9 +177,8 @@ describe('dexto apps remove-data', () => {
     });
 
     it('asks at a terminal and calls nothing unless the person says yes', async () => {
-        const { context } = contextWith(['apps:write'], false);
         const prompt = vi.fn().mockResolvedValueOnce('n').mockResolvedValueOnce('y');
-        const terminal = { ...context, runtime: { environment: {}, prompt } } as CommandContext;
+        const { context: terminal } = contextWith(['apps:write'], false, prompt);
         await expect(run(terminal, { 'confirm-app-id': 'notes' })).rejects.toMatchObject({
             kind: 'needs_confirmation',
         });
