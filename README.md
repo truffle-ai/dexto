@@ -230,7 +230,7 @@ dexto -c
 dexto -r session-abc123
 
 # Read a chat's messages
-dexto chat history session-abc123
+dexto chat history session-abc123 --local
 ```
 
 ### Multi-Agent Systems

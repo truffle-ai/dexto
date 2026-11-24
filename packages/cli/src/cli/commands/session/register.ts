@@ -1,10 +1,14 @@
-import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
+import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 import type { BootstrapAgentMode, RuntimeCommandRegisterContext } from '../register-context.js';
 import { HELD_COMMANDS } from '../../cloud/held-commands.js';
 
+// The verbs that read this machine's chats (with --local, or chat move) through the local agent.
+// Reading and deleting run it silent so --json stays parseable.
 const LOCAL_AGENT_MODES: Readonly<Record<string, BootstrapAgentMode>> = {
     move: 'non-interactive',
     list: 'headless-run',
+    history: 'headless-run',
+    delete: 'headless-run',
 };
 
 export function registerSessionCommand({
@@ -12,56 +16,6 @@ export function registerSessionCommand({
     bootstrapAgentFromGlobalOpts,
 }: RuntimeCommandRegisterContext): void {
     const chatCommand = program.command('chat').description('Your local and cloud chats');
-
-    chatCommand
-        .command('history')
-        .description("Show a chat's messages")
-        .argument('[sessionId]', 'The chat (default: the current one)')
-        .action(
-            withAnalytics('chat history', async (sessionId: string) => {
-                let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
-                try {
-                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
-
-                    const { handleSessionHistoryCommand } = await import('../session-commands.js');
-                    await handleSessionHistoryCommand(agent, sessionId);
-                    safeExit('chat history', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto chat history command failed: ${err}`);
-                    safeExit('chat history', 1, 'error');
-                } finally {
-                    if (agent) {
-                        await agent.stop().catch(() => {});
-                    }
-                }
-            })
-        );
-
-    chatCommand
-        .command('delete')
-        .description('Delete a chat')
-        .argument('<sessionId>', 'The chat to delete')
-        .action(
-            withAnalytics('chat delete', async (sessionId: string) => {
-                let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
-                try {
-                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
-
-                    const { handleSessionDeleteCommand } = await import('../session-commands.js');
-                    await handleSessionDeleteCommand(agent, sessionId);
-                    safeExit('chat delete', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto chat delete command failed: ${err}`);
-                    safeExit('chat delete', 1, 'error');
-                } finally {
-                    if (agent) {
-                        await agent.stop().catch(() => {});
-                    }
-                }
-            })
-        );
 
     // The cloud command engine owns these verbs and their options; analytics records only names.
     for (const [word, description] of Object.entries({
@@ -74,6 +28,8 @@ export function registerSessionCommand({
         cancel: "Stop a cloud chat's current run",
         fork: 'Fork a cloud chat from one of its messages',
         get: "Read a cloud chat's status and messages",
+        history: "Read every message of a cloud chat, or this machine's with --local",
+        delete: "Delete a cloud chat, or this machine's with --local",
         models: 'List the models your cloud chats can use',
         outputs: 'List the files and resources a cloud chat produced',
         computers: 'List your connected computers for a cloud chat',

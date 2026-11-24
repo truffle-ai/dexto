@@ -127,6 +127,8 @@
         "chat fork": ["dexto_chat_fork"],
         "chat list": ["dexto_chat_list"],
         "chat get": ["dexto_chat_get"],
+        "chat history": ["dexto_chat_get"],
+        "chat delete": ["dexto_chat_delete"],
         "chat models": ["dexto_chat_models"],
         "billing": ["dexto_billing_summary"],
         "credits balance": ["dexto_credits_balance"],
@@ -557,11 +559,6 @@
             "tool": "dexto_computer_port_link",
             "issue": "DEXTO-3103",
             "reason": "The computer url command follows upstream."
-        },
-        {
-            "tool": "dexto_chat_delete",
-            "issue": "DEXTO-3182",
-            "reason": "The computer command group follows upstream."
         },
         {
             "tool": "dexto_chat_queue_cancel",

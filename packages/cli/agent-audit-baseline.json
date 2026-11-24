@@ -211,10 +211,10 @@
   },
   {
     "command": "chat delete",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "chat follow",
@@ -239,10 +239,10 @@
   },
   {
     "command": "chat history",
-    "json": false,
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat import",

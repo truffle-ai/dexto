@@ -341,6 +341,96 @@ describe('chat models', () => {
     });
 });
 
+describe('chat history', () => {
+    const message = (sequence: number, text: string) => ({
+        id: `m${sequence}`,
+        role: sequence % 2 === 0 ? 'assistant' : 'user',
+        text,
+        createdAt: `2026-11-18T09:0${sequence}:00.000Z`,
+        sequence,
+    });
+
+    it('reads every page of a cloud chat, oldest first, without the local agent', async () => {
+        const openLocalAgent = vi.fn();
+        const result = vi.fn();
+        const context = {
+            output: { json: true, result },
+            openLocalAgent,
+        } as unknown as CommandContext;
+        query
+            .mockResolvedValueOnce({
+                session: chat,
+                messages: [message(3, 'Third'), message(4, 'Fourth')],
+                pagination: { nextCursor: '3' },
+            })
+            .mockResolvedValueOnce({
+                session: chat,
+                messages: [message(1, 'First'), message(2, 'Second')],
+                pagination: { nextCursor: null },
+            });
+        await command('history').run(context, input(['chat-1']));
+        expect(scopes).toHaveBeenCalledWith(context, ['sessions:read']);
+        expect(query.mock.calls.map((call) => call[2])).toEqual([
+            { sessionId: 'chat-1', limit: 50 },
+            { sessionId: 'chat-1', limit: 50, cursor: '3' },
+        ]);
+        expect(openLocalAgent).not.toHaveBeenCalled();
+        expect(result).toHaveBeenCalledWith(
+            {
+                session: chat,
+                messages: ['First', 'Second', 'Third', 'Fourth'].map((text, index) =>
+                    message(index + 1, text)
+                ),
+            },
+            expect.stringContaining('user, 2026-11-18T09:01:00.000Z\nFirst')
+        );
+    });
+
+    it('points a chat Dexto does not have to --local', async () => {
+        const { CommandFailure } = await import('../../failure.js');
+        query.mockRejectedValueOnce(
+            new CommandFailure('not_found', 'Dexto session was not found.', null)
+        );
+        await expect(
+            command('history').run(harness().context, input(['local-1']))
+        ).rejects.toMatchObject({
+            kind: 'not_found',
+            fix: 'dexto chat history local-1 --local',
+        });
+    });
+
+    it('reads a chat on this machine with --local, without calling Dexto', async () => {
+        const result = vi.fn();
+        const history = [{ role: 'user', content: 'Hi', timestamp: 1 }];
+        const agent = {
+            getSessionMetadata: async (id: string) =>
+                id === 'local-1' ? { lastActivity: 1, messageCount: 1 } : undefined,
+            getSessionHistory: vi.fn(async () => history),
+        };
+        const context = {
+            output: { json: true, result },
+            openLocalAgent: async () => agent,
+        } as unknown as CommandContext;
+        await command('history').run(context, input(['local-1'], { local: true }));
+        expect(query).not.toHaveBeenCalled();
+        expect(scopes).not.toHaveBeenCalled();
+        expect(result).toHaveBeenCalledWith(
+            { sessionId: 'local-1', messages: history },
+            expect.any(String)
+        );
+
+        await expect(
+            command('history').run(context, input(['cloud-1'], { local: true }))
+        ).rejects.toMatchObject({ kind: 'not_found', fix: 'dexto chat history cloud-1' });
+    });
+
+    it('requires a chat id', async () => {
+        await expect(command('history').run(harness().context, input([]))).rejects.toThrow(
+            'Missing chat_id'
+        );
+    });
+});
+
 describe('chat read commands', () => {
     it('have copy-paste examples with shell-variable ids', () => {
         for (const each of chatReadCommands) {

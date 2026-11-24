@@ -88,7 +88,7 @@ Use `@` to reference files and resources:
 - **Resume by ID**: `dexto -r <session-id>` (resume specific session)
 - **Resume interactively**: Use `/resume` or `/session switch` in CLI
 - **Auto-save**: Sessions are automatically saved
-- **Read a chat**: `dexto chat history <session-id>`
+- **Read a chat on this machine**: `dexto chat history "$CHAT_ID" --local`
 - **List this machine's chats**: `dexto chat list --local`
 
 ### Cloud Chats

@@ -195,22 +195,20 @@ dexto chat models
 
 #### `chat history`
 
-Show message history for a session.
+Read every message of a cloud chat, oldest first. `chat get` reads one page with the chat's status. With `--local`, read a chat on this machine instead (ids from `dexto chat list --local`).
 
 ```bash
-# Show history for current session
-dexto chat history
-
-# Show history for specific session
-dexto chat history my-session-id
+dexto chat history "$CHAT_ID" --json
+dexto chat history "$CHAT_ID" --local
 ```
 
 #### `chat delete`
 
-Delete a specific session.
+Delete one of your cloud chats and its computer. With `--local`, delete a chat on this machine and its synced copy in Dexto Cloud. It can't be undone, so it asks first; pass `--yes` once your person has agreed, or `--dry-run` to see what it would delete.
 
 ```bash
-dexto chat delete old-session-id
+dexto chat delete "$CHAT_ID" --yes --json
+dexto chat delete "$CHAT_ID" --local --yes
 ```
 
 #### `chat local` and `chat import`
@@ -339,8 +337,8 @@ git diff | dexto -p "generate a conventional commit message for these changes"
 # List this machine's chats
 dexto chat list --local
 
-# View session history
-dexto chat history my-session-id
+# Read one of them
+dexto chat history "$CHAT_ID" --local
 ```
 
 ## Dexto Cloud
