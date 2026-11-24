@@ -3191,14 +3191,45 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText)
                 .mockImplementationOnce(() => replyStep('call-progress', 'working'))
                 .mockImplementationOnce(() => replyStep('call-final', 'done'));
+            const requiresToolCall = vi.fn(async () => true);
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Long task' }]);
-            await executorWith({ toolChoice: 'required' }).execute({ mcpManager }, true);
+            await executorWith({ requiresToolCall }).execute({ mcpManager }, true);
 
             expect(streamText).toHaveBeenCalledTimes(2);
             for (const [options] of vi.mocked(streamText).mock.calls) {
                 expect(options.toolChoice).toBe('required');
             }
+            expect(requiresToolCall).toHaveBeenCalledTimes(2);
+            expect(requiresToolCall).toHaveBeenCalledWith({ sessionId });
+        });
+
+        it('asks the host before each step, so input steered in after the answer can end in text', async () => {
+            let answered = false;
+            toolManager.addTools([
+                replyTool(
+                    vi.fn().mockImplementationOnce(async () => {
+                        answered = true;
+                        await steerQueue.enqueue({
+                            content: [{ type: 'text', text: 'Subagent finished; nothing new' }],
+                        });
+                        return { status: 'sent' };
+                    })
+                ),
+            ]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => replyStep('call-reply', 'done'))
+                .mockImplementationOnce(() => textStep('Nothing to add.'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            const result = await executorWith({
+                requiresToolCall: async () => !answered,
+            }).execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('stop');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(vi.mocked(streamText).mock.calls[0]?.[0].toolChoice).toBe('required');
+            expect(vi.mocked(streamText).mock.calls[1]?.[0]).not.toHaveProperty('toolChoice');
         });
 
         it('leaves the tool choice to the model by default', async () => {
@@ -3215,7 +3246,10 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementationOnce(() => textStep('Done.'));
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hi' }]);
-            await executorWith({ toolChoice: 'required' }).execute({ mcpManager }, true);
+            await executorWith({ requiresToolCall: async () => true }).execute(
+                { mcpManager },
+                true
+            );
 
             expect(vi.mocked(streamText).mock.calls[0]?.[0]).not.toHaveProperty('toolChoice');
         });
@@ -3230,7 +3264,7 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionEventBus,
                 resourceManager,
                 sessionId,
-                { maxSteps: 10, executionControl: { toolChoice: 'required' } },
+                { maxSteps: 10, executionControl: { requiresToolCall: async () => true } },
                 { provider: 'anthropic', model: 'claude-sonnet-4-6' },
                 logger,
                 steerQueue,

@@ -1787,10 +1787,12 @@ export class TurnExecutor {
     }
 
     private async runModelStep(request: ModelStepRequest): Promise<StreamProcessorResult> {
+        const hostRequiresToolCall = this.config.executionControl?.requiresToolCall;
         const requiresToolCall =
-            this.config.executionControl?.toolChoice === 'required' &&
+            hostRequiresToolCall !== undefined &&
             Object.keys(request.tools).length > 0 &&
-            canRequireToolCall(this.llmContext.model, request.providerOptions);
+            canRequireToolCall(this.llmContext.model, request.providerOptions) &&
+            (await hostRequiresToolCall({ sessionId: this.sessionId }));
         const streamProcessor = new StreamProcessor(
             this.contextManager,
             this.eventBus,
