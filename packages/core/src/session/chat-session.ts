@@ -158,6 +158,7 @@ export class ChatSession {
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
     private currentRunController: AbortController | null = null;
+    private turnDriverSetup: Promise<void> | null = null;
 
     public readonly logger: Logger;
 
@@ -547,6 +548,9 @@ export class ChatSession {
     ): Promise<{ text: string }> {
         const parts = this.normalizeContent(content);
 
+        if (this.currentRunController?.signal.aborted && this.turnDriverSetup) {
+            await this.turnDriverSetup;
+        }
         if (this.isBusy()) {
             throw SessionError.busy(this.id);
         }
@@ -669,12 +673,19 @@ export class ChatSession {
     }
 
     public async createTurnDriver(input: ChatSessionTurnDriverInput): Promise<TurnDriver> {
+        if (this.currentRunController?.signal.aborted && this.turnDriverSetup) {
+            await this.turnDriverSetup;
+        }
         if (this.isBusy()) {
             throw SessionError.busy(this.id);
         }
 
         this.currentRunController = new AbortController();
-        const startedAt = Date.now();
+        let finishSetup!: () => void;
+        this.turnDriverSetup = new Promise<void>((resolve) => {
+            finishSetup = resolve;
+        });
+        const startedAt = input.kind === 'resume' ? input.state.startedAtMs : Date.now();
         let runCompleted = false;
         const markRunCompleted = () => {
             runCompleted = true;
@@ -780,7 +791,7 @@ export class ChatSession {
             if (aborted && !runCompleted) {
                 this.eventBus.emit('run:complete', {
                     finishReason: 'cancelled',
-                    stepCount: 0,
+                    stepCount: input.kind === 'resume' ? input.state.stepCount : 0,
                     durationMs: Date.now() - startedAt,
                 });
             }
@@ -804,6 +815,8 @@ export class ChatSession {
                 detachForwarders?.();
                 this.currentRunController = null;
             }
+            this.turnDriverSetup = null;
+            finishSetup();
         }
     }
 
@@ -1056,10 +1069,10 @@ export class ChatSession {
 
     /**
      * Check if this session is currently processing a message.
-     * Returns true until the active run has finished cleaning up, including after cancellation.
+     * Returns true if a run is in progress and has not been aborted.
      */
     public isBusy(): boolean {
-        return this.currentRunController !== null;
+        return this.currentRunController !== null && !this.currentRunController.signal.aborted;
     }
 
     /**
