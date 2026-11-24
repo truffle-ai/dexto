@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import {
-    argument,
     integerOption,
     PAGE_OPTIONS,
     stringOption,
     UsageError,
     type Command,
+    uuidArgument,
 } from '../command.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -30,7 +30,7 @@ export const chatOutputsCommand: Command = {
     path: ['chat', 'outputs'],
     summary: 'List files and resources produced by a chat.',
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = uuidArgument(input, 0, 'chat_id');
         const limit = integerOption(input, 'limit');
         if (limit !== undefined && (limit < 1 || limit > 100))
             throw new UsageError('--limit must be between 1 and 100.');

@@ -340,7 +340,11 @@ async function catalog(
 async function findModel(client: CloudClient, id: string): Promise<CatalogModel> {
     const model = (await catalog(client, 'both')).find((each) => each.id === id);
     if (model === undefined)
-        throw new UsageError(`Unknown model ${id}. List them with dexto cloud models list.`);
+        throw new CommandFailure(
+            'not_found',
+            `Unknown model ${id}. List them with dexto cloud models list.`,
+            null
+        );
     return model;
 }
 

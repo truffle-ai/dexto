@@ -238,6 +238,8 @@ function toolFailure(
         text ||
         'The tool reported an error.';
     if (status === 'not_found') return new CommandFailure('not_found', message, null);
+    if (status === 'invalid_input' || status === 'invalid_arguments')
+        return new CommandFailure('invalid_input', message, null);
     const scopes =
         isJsonObject(value) && Array.isArray(value.requiredScopes) ? value.requiredScopes : [];
     if (status === 'consent_required' && scopes.length > 0)

@@ -60,17 +60,22 @@ describe('dexto skills library commands', () => {
         const ok = (value: unknown): Answer => ({ isError: false, value });
         if (name === 'dexto_skill_get') return ok(SKILL);
         if (name === 'dexto_skill_file_get')
-            return args.path === 'references/style.md'
-                ? ok({
-                      content: 'Be brief.',
-                      file: { path: 'references/style.md', role: 'reference', sizeBytes: 9 },
-                      location: args.location,
-                      release: SKILL.release,
-                  })
-                : {
+            return args.path === '../escape'
+                ? {
                       isError: true,
-                      value: { status: 'not_found', message: 'Dexto Skill file was not found.' },
-                  };
+                      value: { status: 'invalid_arguments', message: 'Path must stay inside.' },
+                  }
+                : args.path === 'references/style.md'
+                  ? ok({
+                        content: 'Be brief.',
+                        file: { path: 'references/style.md', role: 'reference', sizeBytes: 9 },
+                        location: args.location,
+                        release: SKILL.release,
+                    })
+                  : {
+                        isError: true,
+                        value: { status: 'not_found', message: 'Dexto Skill file was not found.' },
+                    };
         if (name === 'dexto_skill_validate')
             return ok({ digest: 'd1', manifest: {}, status: 'valid' });
         if (name === 'dexto_skill_create') return ok({ ...AUTHORED, status: 'created' });
@@ -254,6 +259,12 @@ describe('dexto skills library commands', () => {
             { location: { kind: 'library', skillId: SKILL_ID }, path: 'references/style.md' },
             { location: { kind: 'library', skillId: SKILL_ID }, path: '.env' },
         ]);
+    });
+
+    it("fails a tool's invalid-arguments error as invalid input, exit 2", async () => {
+        stderr = '';
+        expect(await runCloud(host, ['skills', 'file', SKILL_ID, '../escape', '--json'])).toBe(2);
+        expect(JSON.parse(stderr).error.code).toBe('invalid_input');
     });
 
     it('validates a folder as a complete bundle, each file with its role and executable bit', async () => {

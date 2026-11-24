@@ -434,6 +434,13 @@ describe('cloud secrets, web and data-deletions', () => {
             ]);
         });
 
+        it('fails an unknown model as not found, exit 5', async () => {
+            expect(
+                await runCloud(host, ['cloud', 'models', 'get', 'no/such-model', '--json'])
+            ).toBe(5);
+            expect(JSON.parse(stderr).error.code).toBe('not_found');
+        });
+
         it('runs a text model with a system prompt and prints its reply', async () => {
             const code = await runCloud(host, [
                 'cloud',

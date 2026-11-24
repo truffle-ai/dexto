@@ -1204,7 +1204,14 @@ describe('dexto workspace', () => {
                 },
             },
         };
-        expect(await runCloud(missingHost, ['chat', 'get', 'missing', '--json'])).toBe(5);
+        expect(
+            await runCloud(missingHost, [
+                'chat',
+                'get',
+                '9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d',
+                '--json',
+            ])
+        ).toBe(5);
         expect(JSON.parse(stderr).error).toMatchObject({
             code: 'not_found',
             message: 'Dexto session was not found.',

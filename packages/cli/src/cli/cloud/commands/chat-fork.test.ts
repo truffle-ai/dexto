@@ -9,6 +9,9 @@ import { runCloud, type CloudHost } from '../run.js';
 import type { CloudRuntime } from '../runtime.js';
 
 const MCP = 'https://app.dexto.ai/mcp';
+const CHAT_ID = '6f1c2a4e-8b3d-4c5a-9e7f-1a2b3c4d5e6f';
+const RUNNING_CHAT_ID = '11111111-1111-4111-8111-111111111111';
+const COORDINATOR_CHAT_ID = '22222222-2222-4222-8222-222222222222';
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('Unexpected sign-in');
 };
@@ -56,9 +59,9 @@ describe('dexto chat fork', () => {
                 const args = message.params.arguments;
                 calls.push(args);
                 const reason =
-                    args.sessionId === 'running'
+                    args.sessionId === RUNNING_CHAT_ID
                         ? 'This chat has an active run. Cancel it or wait for it to finish, then fork.'
-                        : args.sessionId === 'coordinator'
+                        : args.sessionId === COORDINATOR_CHAT_ID
                           ? "A Project's coordinator conversation can't be forked."
                           : null;
                 return Response.json(
@@ -121,21 +124,21 @@ describe('dexto chat fork', () => {
             await runCloud(host, [
                 'chat',
                 'fork',
-                'chat-1',
+                CHAT_ID,
                 '--message',
                 'msg-2',
                 '--yes',
                 '--table',
             ])
         ).toBe(0);
-        expect(calls).toEqual([{ sessionId: 'chat-1', messageId: 'msg-2' }]);
+        expect(calls).toEqual([{ sessionId: CHAT_ID, messageId: 'msg-2' }]);
         expect(stdout).toContain('Forked chat');
         expect(stdout).toContain('fork-1');
         expect(stdout).toContain('https://app.dexto.ai/chat/fork-1');
     });
 
     it('requires --yes without a terminal and sends nothing', async () => {
-        expect(await runCloud(host, ['chat', 'fork', 'chat-1', '--json'])).toBe(4);
+        expect(await runCloud(host, ['chat', 'fork', CHAT_ID, '--json'])).toBe(4);
         expect(JSON.parse(stderr).error).toMatchObject({
             code: 'needs_confirmation',
             message: expect.stringContaining('--yes'),
@@ -150,7 +153,7 @@ describe('dexto chat fork', () => {
                 await runCloud(host, [
                     'chat',
                     'fork',
-                    'chat-1',
+                    CHAT_ID,
                     '--message',
                     message,
                     '--yes',
@@ -163,7 +166,7 @@ describe('dexto chat fork', () => {
                 await runCloud(host, [
                     'chat',
                     'fork',
-                    'chat-1',
+                    CHAT_ID,
                     '--message',
                     message,
                     '--dry-run',
@@ -175,9 +178,9 @@ describe('dexto chat fork', () => {
     );
 
     it.each([
-        ['running', 'Cancel it or wait'],
-        ['coordinator', "coordinator conversation can't be forked"],
-    ])('returns the %s refusal and nonzero exit', async (id, hint) => {
+        ['running', RUNNING_CHAT_ID, 'Cancel it or wait'],
+        ['coordinator', COORDINATOR_CHAT_ID, "coordinator conversation can't be forked"],
+    ])('returns the %s refusal and nonzero exit', async (_name, id, hint) => {
         expect(await runCloud(host, ['chat', 'fork', id, '--yes', '--json'])).toBe(1);
         expect(JSON.parse(stderr).error).toMatchObject({
             code: 'conflict',

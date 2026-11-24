@@ -6,6 +6,9 @@ import type { CloudRuntime } from '../runtime.js';
 import { chatCommands } from './chats.js';
 import { WorkspaceToolFailure } from './workspace.js';
 
+const CHAT_ID = '6f1c2a4e-8b3d-4c5a-9e7f-1a2b3c4d5e6f';
+const MISSING_CHAT_ID = '9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d';
+
 const query = vi.hoisted(() => vi.fn());
 const scopes = vi.hoisted(() => vi.fn());
 vi.mock('./workspace.js', async (importOriginal) => ({
@@ -49,7 +52,7 @@ function input(positionals: string[], values: CommandInput['values'] = {}): Comm
     return { positionals, values };
 }
 
-const session = { id: 'chat-1', title: 'Fix the bug', url: 'https://app.dexto.ai/chat/chat-1' };
+const session = { id: CHAT_ID, title: 'Fix the bug', url: `https://app.dexto.ai/chat/${CHAT_ID}` };
 const queued = {
     reply: { delivery: 'queued', queue: 'steer', id: 'input-1', position: 1 },
     session: { ...session, status: 'running' },
@@ -59,7 +62,7 @@ const followPage = (cursor: string, extra: Record<string, unknown> = {}) => ({
     running: false,
     cursor,
     hasMore: false,
-    session: { id: 'chat-1' },
+    session: { id: CHAT_ID },
     events: [],
     answer: 'Done',
     artifacts: [],
@@ -81,18 +84,18 @@ describe('chat fork', () => {
         const { context, stdout } = harness('json');
         const result = { session: { ...session, id: 'fork-1' } };
         query.mockResolvedValueOnce(result);
-        expect(await command('fork').run(context, input(['chat-1'], { yes: true }))).toBe(0);
+        expect(await command('fork').run(context, input([CHAT_ID], { yes: true }))).toBe(0);
         expect(scopes).toHaveBeenCalledWith(context, ['sessions:write']);
-        expect(toolCalls()).toEqual([['dexto_chat_fork', { sessionId: 'chat-1' }]]);
+        expect(toolCalls()).toEqual([['dexto_chat_fork', { sessionId: CHAT_ID }]]);
         expect(JSON.parse(stdout())).toEqual(result);
     });
 
     it('passes the selected message to the fork', async () => {
         const { context } = harness('json');
         query.mockResolvedValueOnce({ session });
-        await command('fork').run(context, input(['chat-1'], { message: 'msg-2', yes: true }));
+        await command('fork').run(context, input([CHAT_ID], { message: 'msg-2', yes: true }));
         expect(toolCalls()).toEqual([
-            ['dexto_chat_fork', { sessionId: 'chat-1', messageId: 'msg-2' }],
+            ['dexto_chat_fork', { sessionId: CHAT_ID, messageId: 'msg-2' }],
         ]);
     });
 
@@ -101,13 +104,13 @@ describe('chat fork', () => {
         expect(
             await command('fork').run(
                 context,
-                input(['chat-1'], { message: 'msg-2', 'dry-run': true })
+                input([CHAT_ID], { message: 'msg-2', 'dry-run': true })
             )
         ).toBe(0);
         expect(JSON.parse(stdout())).toEqual({
             dry_run: true,
             tool: 'dexto_chat_fork',
-            arguments: { sessionId: 'chat-1', messageId: 'msg-2' },
+            arguments: { sessionId: CHAT_ID, messageId: 'msg-2' },
         });
         expect(scopes).not.toHaveBeenCalled();
         expect(query).not.toHaveBeenCalled();
@@ -121,7 +124,7 @@ describe('chat send', () => {
         expect(
             await command('send').run(
                 context,
-                input(['chat-1', 'Also update the docs'], { model: 'grok-4', yes: true })
+                input([CHAT_ID, 'Also update the docs'], { model: 'grok-4', yes: true })
             )
         ).toBe(0);
         expect(scopes).toHaveBeenCalledWith(context, ['sessions:write']);
@@ -129,7 +132,7 @@ describe('chat send', () => {
             [
                 'dexto_chat_send',
                 {
-                    sessionId: 'chat-1',
+                    sessionId: CHAT_ID,
                     message: 'Also update the docs',
                     queue: 'steer',
                     model: 'grok-4',
@@ -147,7 +150,7 @@ describe('chat send', () => {
         });
         await command('send').run(
             context,
-            input(['chat-1', 'Then open a PR'], { 'follow-up': true, yes: true })
+            input([CHAT_ID, 'Then open a PR'], { 'follow-up': true, yes: true })
         );
         expect(query.mock.calls[0]?.[2]).toMatchObject({ queue: 'follow-up' });
         expect(stdout()).toContain('Sent to Fix the bug. Queued for after its current work.');
@@ -161,7 +164,7 @@ describe('chat send', () => {
             run: { id: 'run-2' },
             session,
         });
-        await command('send').run(context, input(['chat-1', 'Next step'], { yes: true }));
+        await command('send').run(context, input([CHAT_ID, 'Next step'], { yes: true }));
         expect(stdout()).toContain('It started its next turn.');
     });
 
@@ -169,13 +172,13 @@ describe('chat send', () => {
         const { context } = harness('json');
         query.mockResolvedValueOnce({ status: 'active', session, nextAction: 'Use send.' });
         await expect(
-            command('send').run(context, input(['chat-1', 'Next step'], { yes: true }))
+            command('send').run(context, input([CHAT_ID, 'Next step'], { yes: true }))
         ).rejects.toMatchObject({ kind: 'failed', message: expect.stringContaining('Not sent') });
     });
 
     it('refuses without --yes when it cannot ask, naming --yes, and sends nothing', async () => {
         const { context } = harness('table');
-        const refused = command('send').run(context, input(['chat-1', 'Hi']));
+        const refused = command('send').run(context, input([CHAT_ID, 'Hi']));
         await expect(refused).rejects.toBeInstanceOf(CommandFailure);
         await expect(refused).rejects.toMatchObject({
             kind: 'needs_confirmation',
@@ -187,7 +190,7 @@ describe('chat send', () => {
     it('requires --yes under --json even at a terminal', async () => {
         const prompt = vi.fn(async () => 'yes');
         const { context } = harness('json', prompt);
-        await expect(command('send').run(context, input(['chat-1', 'Hi']))).rejects.toMatchObject({
+        await expect(command('send').run(context, input([CHAT_ID, 'Hi']))).rejects.toMatchObject({
             kind: 'needs_confirmation',
         });
         expect(prompt).not.toHaveBeenCalled();
@@ -199,7 +202,7 @@ describe('chat send', () => {
         await expect(
             command('send').run(
                 context,
-                input(['chat-1', 'Hi'], { wait: true, 'follow-up': true, yes: true })
+                input([CHAT_ID, 'Hi'], { wait: true, 'follow-up': true, yes: true })
             )
         ).rejects.toBeInstanceOf(UsageError);
         expect(query).not.toHaveBeenCalled();
@@ -220,17 +223,17 @@ describe('chat send', () => {
         expect(
             await command('send').run(
                 context,
-                input(['chat-1', 'Docs too'], { wait: true, yes: true })
+                input([CHAT_ID, 'Docs too'], { wait: true, yes: true })
             )
         ).toBe(0);
         expect(scopes).toHaveBeenCalledWith(context, ['sessions:write', 'sessions:read']);
         expect(toolCalls()).toEqual([
-            ['dexto_chat_follow', { sessionId: 'chat-1', waitSeconds: 0 }],
-            ['dexto_chat_follow', { sessionId: 'chat-1', cursor: 'chat-1:100', waitSeconds: 0 }],
-            ['dexto_chat_send', { sessionId: 'chat-1', message: 'Docs too', queue: 'steer' }],
+            ['dexto_chat_follow', { sessionId: CHAT_ID, waitSeconds: 0 }],
+            ['dexto_chat_follow', { sessionId: CHAT_ID, cursor: 'chat-1:100', waitSeconds: 0 }],
+            ['dexto_chat_send', { sessionId: CHAT_ID, message: 'Docs too', queue: 'steer' }],
             [
                 'dexto_chat_follow',
-                expect.objectContaining({ sessionId: 'chat-1', cursor: 'chat-1:140' }),
+                expect.objectContaining({ sessionId: CHAT_ID, cursor: 'chat-1:140' }),
             ],
         ]);
         const lines = stdout()
@@ -248,7 +251,7 @@ describe('chat send', () => {
             .mockResolvedValueOnce(queued)
             .mockRejectedValueOnce(new CommandFailure('failed', 'Read failed.', null));
         expect(
-            await command('send').run(context, input(['chat-1', 'Hi'], { wait: true, yes: true }))
+            await command('send').run(context, input([CHAT_ID, 'Hi'], { wait: true, yes: true }))
         ).toBe(1);
         expect(query.mock.calls.filter((call) => call[1] === 'dexto_chat_send')).toHaveLength(1);
         expect(JSON.parse(stdout().trim())).toMatchObject({
@@ -256,7 +259,7 @@ describe('chat send', () => {
             outcome: 'error',
             nextAction: {
                 tool: 'dexto_chat_follow',
-                arguments: { sessionId: 'chat-1', cursor: 'chat-1:7' },
+                arguments: { sessionId: CHAT_ID, cursor: 'chat-1:7' },
             },
         });
     });
@@ -267,9 +270,9 @@ describe('chat cancel', () => {
         const { context, stdout } = harness('json');
         const stopped = { run: { id: 'run-1', status: 'cancelled' }, session };
         query.mockResolvedValueOnce(stopped);
-        expect(await command('cancel').run(context, input(['chat-1'], { yes: true }))).toBe(0);
+        expect(await command('cancel').run(context, input([CHAT_ID], { yes: true }))).toBe(0);
         expect(scopes).toHaveBeenCalledWith(context, ['sessions:write']);
-        expect(toolCalls()).toEqual([['dexto_chat_cancel', { sessionId: 'chat-1' }]]);
+        expect(toolCalls()).toEqual([['dexto_chat_cancel', { sessionId: CHAT_ID }]]);
         expect(JSON.parse(stdout())).toEqual({ cancelled: true, ...stopped });
     });
 
@@ -281,8 +284,8 @@ describe('chat cancel', () => {
                 { kind: 'unavailable', retryable: false, resume: null }
             )
         );
-        expect(await command('cancel').run(context, input(['chat-1'], { yes: true }))).toBe(0);
-        expect(JSON.parse(stdout())).toEqual({ cancelled: false, session: { id: 'chat-1' } });
+        expect(await command('cancel').run(context, input([CHAT_ID], { yes: true }))).toBe(0);
+        expect(JSON.parse(stdout())).toEqual({ cancelled: false, session: { id: CHAT_ID } });
     });
 
     it('still fails for a chat that does not exist', async () => {
@@ -294,13 +297,13 @@ describe('chat cancel', () => {
             )
         );
         await expect(
-            command('cancel').run(context, input(['missing'], { yes: true }))
+            command('cancel').run(context, input([MISSING_CHAT_ID], { yes: true }))
         ).rejects.toMatchObject({ kind: 'not_found' });
     });
 
     it('refuses without --yes when it cannot ask', async () => {
         const { context } = harness('table');
-        await expect(command('cancel').run(context, input(['chat-1']))).rejects.toMatchObject({
+        await expect(command('cancel').run(context, input([CHAT_ID]))).rejects.toMatchObject({
             kind: 'needs_confirmation',
             message: expect.stringContaining('--yes'),
         });

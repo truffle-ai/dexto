@@ -136,6 +136,19 @@ export function argument(input: CommandInput, index: number, name: string): stri
     return value;
 }
 
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/**
+ * An id argument that is a UUID, such as a chat's, a run's or a Site's. One that can't be an id
+ * fails as invalid input before anything is sent, so only a well-formed id can be not found.
+ */
+export function uuidArgument(input: CommandInput, index: number, name: string): string {
+    const value = argument(input, index, name);
+    if (!UUID.test(value))
+        throw new CommandFailure('invalid_input', `${value} isn't a valid <${name}>.`, null);
+    return value;
+}
+
 /** `--limit` and `--after`, which every list takes. */
 export const PAGE_OPTIONS = {
     after: {

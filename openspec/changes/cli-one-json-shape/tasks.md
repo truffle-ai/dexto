@@ -12,8 +12,8 @@
 
 ## 3. Exit codes
 
-- [ ] 3.1 Test and add `uuidArgument`; check chat, run and Project ids with it before any call.
-- [ ] 3.2 Map a tool result's invalid-input error to `invalid_input`, and an unknown `cloud models get` model to `not_found`.
+- [x] 3.1 Test and add `uuidArgument`; check chat, run and Project ids with it before any call.
+- [x] 3.2 Map a tool result's invalid-input error to `invalid_input`, and an unknown `cloud models get` model to `not_found`.
 
 ## 4. Contract test and release
 

@@ -19,6 +19,7 @@ import {
     type CommandContext,
     type CommandInput,
     type OptionSpec,
+    uuidArgument,
 } from '../command.js';
 import {
     findLocalChats,
@@ -689,7 +690,7 @@ const send: Command = {
         'dexto chat send "$CHAT_ID" "Then open a PR" --follow-up --yes',
     ],
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = uuidArgument(input, 0, 'chat_id');
         const message = argument(input, 1, 'message');
         const model = stringOption(input, 'model');
         const followUp = flag(input, 'follow-up');
@@ -757,7 +758,7 @@ const cancel: Command = {
     options: YES_OPTION,
     examples: ['dexto chat cancel "$CHAT_ID" --yes', 'dexto chat cancel "$CHAT_ID" --json --yes'],
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = uuidArgument(input, 0, 'chat_id');
         await requireLoginScopes(context, ['sessions:write']);
         await requireConsent(
             consentContext(context),
@@ -818,7 +819,7 @@ const fork: Command = {
         ...YES_OPTION,
     },
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = uuidArgument(input, 0, 'chat_id');
         const messageId = stringOption(input, 'message');
         if (messageId !== undefined && messageId.trim().length === 0)
             throw new UsageError('--message must be a non-empty message id.');

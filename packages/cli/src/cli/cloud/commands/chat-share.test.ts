@@ -9,6 +9,8 @@ import { runCloud, type CloudHost } from '../run.js';
 import type { CloudRuntime } from '../runtime.js';
 
 const MCP = 'https://app.dexto.ai/mcp';
+const CHAT_ID = '6f1c2a4e-8b3d-4c5a-9e7f-1a2b3c4d5e6f';
+const TEAMMATE_CHAT_ID = '33333333-3333-4333-8333-333333333333';
 
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('These tests sign in with a saved login.');
@@ -35,7 +37,7 @@ describe('dexto chat share', () => {
                     data: { kind: 'needs_confirmation', level: 'approve' },
                 },
             };
-        if (args.sessionId === 'teammate-chat')
+        if (args.sessionId === TEAMMATE_CHAT_ID)
             return {
                 jsonrpc: '2.0',
                 id,
@@ -141,15 +143,15 @@ describe('dexto chat share', () => {
         'sets %s access once agreed with --yes, passing confirm',
         async (access) => {
             expect(
-                await runCloud(host, ['chat', 'share', 'chat-1', access, '--yes', '--json'])
+                await runCloud(host, ['chat', 'share', CHAT_ID, access, '--yes', '--json'])
             ).toBe(0);
-            expect(calls).toEqual([{ sessionId: 'chat-1', access, confirm: true }]);
-            expect(JSON.parse(stdout)).toEqual({ access, session_id: 'chat-1' });
+            expect(calls).toEqual([{ sessionId: CHAT_ID, access, confirm: true }]);
+            expect(JSON.parse(stdout)).toEqual({ access, session_id: CHAT_ID });
         }
     );
 
     it('asks first without --yes and changes nothing, naming the credits for prompt', async () => {
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', 'prompt'])).toBe(4);
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, 'prompt'])).toBe(4);
         const { error } = JSON.parse(stderr);
         expect(error.code).toBe('needs_confirmation');
         expect(error.message).toContain("use your organization's credits");
@@ -157,54 +159,54 @@ describe('dexto chat share', () => {
         expect(calls).toEqual([]);
 
         stderr = '';
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', 'view'])).toBe(4);
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, 'view'])).toBe(4);
         expect(JSON.parse(stderr).error.message).not.toContain('credits');
         expect(calls).toEqual([]);
     });
 
     it('asks at a terminal, with the credits note for prompt, and shares once agreed', async () => {
         answer = 'y';
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', 'prompt', '--table'])).toBe(0);
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, 'prompt', '--table'])).toBe(0);
         expect(questions).toHaveLength(1);
         expect(questions[0]).toContain('every member can open it and send messages');
         expect(questions[0]).toContain("use your organization's credits");
-        expect(calls).toEqual([{ sessionId: 'chat-1', access: 'prompt', confirm: true }]);
+        expect(calls).toEqual([{ sessionId: CHAT_ID, access: 'prompt', confirm: true }]);
         expect(stdout).toContain(
-            'Chat chat-1 is now shared with your organization: members can view it and send messages.'
+            `Chat ${CHAT_ID} is now shared with your organization: members can view it and send messages.`
         );
     });
 
     it('makes no change when the person declines at the terminal', async () => {
         answer = 'n';
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', 'private'])).toBe(4);
-        expect(questions[0]).toContain('Make chat chat-1 private');
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, 'private'])).toBe(4);
+        expect(questions[0]).toContain(`Make chat ${CHAT_ID} private`);
         expect(calls).toEqual([]);
     });
 
     it("fails clearly for a chat the caller doesn't own", async () => {
         expect(
-            await runCloud(host, ['chat', 'share', 'teammate-chat', 'view', '--yes', '--json'])
+            await runCloud(host, ['chat', 'share', TEAMMATE_CHAT_ID, 'view', '--yes', '--json'])
         ).toBe(5);
         const { error } = JSON.parse(stderr);
         expect(error.code).toBe('not_found');
         expect(error.message).toBe(
-            "You have no chat teammate-chat. Only a chat's owner can share it."
+            `You have no chat ${TEAMMATE_CHAT_ID}. Only a chat's owner can share it.`
         );
         expect(stdout).toBe('');
     });
 
     it('refuses an access level other than private, view or prompt', async () => {
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', 'public', '--yes'])).toBe(2);
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', '--yes'])).toBe(2);
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, 'public', '--yes'])).toBe(2);
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, '--yes'])).toBe(2);
         expect(calls).toEqual([]);
     });
 
     it('shows the call with --dry-run, without asking or making it', async () => {
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', 'view', '--dry-run'])).toBe(0);
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, 'view', '--dry-run'])).toBe(0);
         expect(JSON.parse(stdout)).toEqual({
             dry_run: true,
             tool: 'dexto_chat_share',
-            arguments: { sessionId: 'chat-1', access: 'view' },
+            arguments: { sessionId: CHAT_ID, access: 'view' },
         });
         expect(calls).toEqual([]);
     });
@@ -212,7 +214,7 @@ describe('dexto chat share', () => {
     it('needs sessions:write before it asks', async () => {
         await signIn(['sessions:read']);
         answer = 'y';
-        expect(await runCloud(host, ['chat', 'share', 'chat-1', 'view'])).toBe(3);
+        expect(await runCloud(host, ['chat', 'share', CHAT_ID, 'view'])).toBe(3);
         expect(JSON.parse(stderr).error.fix).toContain('sessions:write');
         expect(questions).toEqual([]);
         expect(calls).toEqual([]);

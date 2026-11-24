@@ -17,6 +17,7 @@ import {
     type CommandContext,
     type CommandInput,
     type OptionSpec,
+    uuidArgument,
 } from '../command.js';
 import type { Column } from '../output.js';
 import { requireLoginScopes } from './deploys.js';
@@ -61,20 +62,11 @@ const DRY_RUN_OPTION = {
     },
 } as const satisfies Record<string, OptionSpec>;
 
-const uuid = z.string().uuid();
-
-/** A Site or record id, checked before anything is sent. */
-function idArgument(input: CommandInput, index: number, name: string): string {
-    const value = argument(input, index, name);
-    if (!uuid.safeParse(value).success) throw new UsageError(`<${name}> must be a UUID.`);
-    return value;
-}
-
 /** Where a record lives: its Site and collection, from the first two arguments. */
 function collectionOf(input: CommandInput): { collection: string; siteId: string } {
     const collection = argument(input, 1, 'collection').trim();
     if (collection.length === 0) throw new UsageError('<collection> is empty.');
-    return { collection, siteId: idArgument(input, 0, 'site_id') };
+    return { collection, siteId: uuidArgument(input, 0, 'site_id') };
 }
 
 /** The record's value from --data or --file; one of them is required. */
@@ -118,7 +110,7 @@ const get: Command = {
     path: ['workspace', 'sites', 'records', 'get'],
     summary: 'Show one record of a Site collection you own.',
     async run(context, input) {
-        const call = { ...collectionOf(input), recordId: idArgument(input, 2, 'record_id') };
+        const call = { ...collectionOf(input), recordId: uuidArgument(input, 2, 'record_id') };
         await requireLoginScopes(context, ['sites:read']);
         const value = await queryWorkspaceTool(context, 'dexto_site_record_get', call);
         if (context.output.json) return context.output.record(value);
@@ -158,7 +150,7 @@ const update: Command = {
     summary: "Replace one record's value in a collection of a Site you created. Asks first.",
     async run(context, input) {
         const where = collectionOf(input);
-        const recordId = idArgument(input, 2, 'record_id');
+        const recordId = uuidArgument(input, 2, 'record_id');
         const call = { ...where, recordId, value: await readRecordValue(context, input) };
         const record = await write(
             context,
@@ -179,7 +171,7 @@ const remove: Command = {
     summary: 'Delete one record from a collection of a Site you created. Asks first.',
     async run(context, input) {
         const where = collectionOf(input);
-        const recordId = idArgument(input, 2, 'record_id');
+        const recordId = uuidArgument(input, 2, 'record_id');
         const record = await write(
             context,
             input,

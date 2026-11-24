@@ -387,6 +387,13 @@ describe('projects over the Dexto MCP', () => {
         expect(stdout).toContain('paused');
     });
 
+    it('refuses a malformed Project id as invalid input, before calling Dexto', async () => {
+        await signIn(['projects:read']);
+        expect(await cli('projects', 'get', 'nope', '--json')).toBe(2);
+        expect(JSON.parse(stderr).error).toMatchObject({ code: 'invalid_input' });
+        expect(calls).toEqual([]);
+    });
+
     it("takes the Project by its link and sends the recipe tool the Project's id", async () => {
         await signIn(['automations:write']);
         expect(
