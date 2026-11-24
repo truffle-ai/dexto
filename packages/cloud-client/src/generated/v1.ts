@@ -1443,6 +1443,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sites/publish/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a Site publish
+         * @description Say where publishing files with the same input would go now, and whether it would create a Site or update one of the caller's, without publishing, deploying or reserving anything. It refuses what the publish would refuse, as the publish does. A later publish decides again. Requires the same workspace OAuth token and Dexto-Cloud-Project header as publishing.
+         */
+        post: operations["previewSitePublish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sites": {
         parameters: {
             query?: never;
@@ -1674,6 +1694,150 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    previewSitePublish: {
+        parameters: {
+            query?: never;
+            header: {
+                "Dexto-Cloud-Project": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description What's published, such as the file or folder's name. It titles the page and, with your handle, makes its address, so publishing the same name again updates the same link. */
+                    name: string;
+                    /** @description The address to publish at, <slug>.<Sites host>, instead of one made from the name. A Site of yours there is updated. */
+                    slug?: string;
+                    /** @description The page's title. Defaults to the name. */
+                    title?: string;
+                    /**
+                     * @description Site visibility; defaults to the existing visibility or unlisted for a new Site.
+                     * @enum {string}
+                     */
+                    visibility?: "private" | "restricted" | "unlisted" | "public";
+                    /** @description The existing private Site's exact title, to confirm making it public. */
+                    confirmPublicName?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Whether it would make a new Site or update one of yours.
+                         * @enum {string}
+                         */
+                        action: "create" | "update";
+                        slug: string;
+                        title: string;
+                        /** @description The Site's address. A private Site opens through the signed-in link its publish returns. */
+                        url: string;
+                        /** @enum {string} */
+                        visibility: "private" | "restricted" | "unlisted" | "public";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listModels: {
         parameters: {
             query?: never;

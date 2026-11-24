@@ -34,6 +34,15 @@ const MAX_UPLOAD_BYTES = MAX_TOTAL_BYTES + 1024 * 1024;
 
 const VisibilitySchema = z.enum(['private', 'restricted', 'unlisted', 'public']);
 type Visibility = z.output<typeof VisibilitySchema>;
+const PreviewSchema = z
+    .object({
+        action: z.enum(['create', 'update']),
+        slug: z.string(),
+        title: z.string(),
+        url: z.string(),
+        visibility: VisibilitySchema,
+    })
+    .strict() satisfies z.ZodType<V1Response<'/v1/sites/publish/preview', 'post'>>;
 /** Who can open a Site of each visibility, as the --yes note and the human result say it. */
 const WHO_CAN_OPEN: Record<Visibility, { note: string; result: string }> = {
     private: {
@@ -95,6 +104,10 @@ const publish: Command = {
             description: 'Confirm the exact existing private Site name before making it public.',
             type: 'string',
             valueName: 'SITE_NAME',
+        },
+        'dry-run': {
+            description: 'Show where the Site would publish without uploading or publishing.',
+            type: 'boolean',
         },
         ...YES_OPTION,
     },
@@ -162,13 +175,43 @@ const publish: Command = {
             ...(visibility === undefined ? {} : { visibility }),
             ...(confirmPublicName === undefined ? {} : { confirmPublicName }),
         };
-        await requireConsent(
-            context,
-            flag(input, 'yes'),
-            visibility === undefined
-                ? `Publish ${name} (a new Site is unlisted: anyone with the link can open it; an existing Site keeps its visibility).`
-                : `Publish ${name} with ${visibility} visibility.`
-        );
+        let previewResponse: unknown;
+        try {
+            previewResponse = await unwrap(
+                await (
+                    await context.client()
+                ).POST('/v1/sites/publish/preview', {
+                    params: { header: { 'Dexto-Cloud-Project': connection.cloudProject } },
+                    body: call,
+                })
+            );
+        } catch (error) {
+            if (error instanceof CloudApiError && error.code === 'needs_confirmation')
+                throw new CommandFailure(
+                    'needs_confirmation',
+                    `${error.message} Pass --confirm-public <site-name> with that exact name.`,
+                    null
+                );
+            throw error;
+        }
+        const parsedPreview = PreviewSchema.safeParse(previewResponse);
+        if (!parsedPreview.success)
+            throw new CommandFailure(
+                'failed',
+                'Dexto returned an invalid Site publish preview.',
+                null
+            );
+        const preview = parsedPreview.data;
+        const description = `${preview.action === 'create' ? 'Create' : 'Update'} ${preview.title} at ${preview.url} (${preview.visibility}: ${WHO_CAN_OPEN[preview.visibility].note}). Preview only; publishing decides again.`;
+        if (flag(input, 'dry-run')) {
+            context.output.result(
+                preview,
+                `${description} No Site was published; publishing will decide again.`
+            );
+            return;
+        }
+        await requireConsent(context, flag(input, 'yes'), description);
+        if (flag(input, 'yes')) context.output.note(description);
 
         const prepared = PreparedSchema.safeParse(
             await queryWorkspaceTool(context, 'dexto_upload_prepare', {

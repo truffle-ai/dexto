@@ -65,6 +65,8 @@ describe('dexto workspace', () => {
     let publishResponse: unknown;
     let publishProject: string | null;
     let publishStatus: number;
+    let previewStatus: number;
+    let previewResponse: unknown;
     let chatResponse: unknown;
     let computersResponse: unknown;
     let profilesResponse: unknown;
@@ -83,6 +85,8 @@ describe('dexto workspace', () => {
         environment = {};
         uploads = [];
         publishResponse = undefined;
+        previewResponse = undefined;
+        previewStatus = 200;
         chatResponse = {
             session: {
                 id: 'chat-1',
@@ -152,6 +156,27 @@ describe('dexto workspace', () => {
                         bytes: new Uint8Array(await request.arrayBuffer()),
                     });
                     return new Response(null, { status: 200 });
+                }
+                if (request.url === 'https://api.dexto.ai/v1/sites/publish/preview') {
+                    const body: unknown = await request.json();
+                    calls.push({
+                        method: 'POST',
+                        params: { name: 'POST /v1/sites/publish/preview', arguments: body },
+                    });
+                    const visibility =
+                        typeof body === 'object' && body !== null && 'visibility' in body
+                            ? body.visibility
+                            : 'unlisted';
+                    return Response.json(
+                        previewResponse ?? {
+                            action: 'create',
+                            slug: 'server-slug',
+                            title: 'Server title',
+                            url: 'https://server-chosen.dexto.dev',
+                            visibility,
+                        },
+                        { status: previewStatus }
+                    );
                 }
                 if (request.url === 'https://api.dexto.ai/v1/sites/publish') {
                     const body: unknown = await request.json();
@@ -1615,6 +1640,64 @@ describe('dexto workspace', () => {
         expect(calls).toHaveLength(0);
     });
 
+    it('shows the server address and action before confirmation without publishing when declined', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewResponse = {
+            action: 'update',
+            slug: 'server-slug',
+            title: 'Existing',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        const questions: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                prompt: async (question) => {
+                    questions.push(question);
+                    return 'no';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+        expect(await runCloud(host, ['publish', file])).toBe(4);
+        expect(questions[0]).toContain('https://server-chosen.dexto.dev');
+        expect(questions[0]).toMatch(/update/iu);
+        expect(questions[0]).toContain('private');
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).not.toContain('POST /v1/sites/publish');
+        expect(calls.map((call) => call.params.name)).not.toContain('dexto_upload_prepare');
+    });
+
+    it('returns the server preview in JSON dry-run without publishing', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        expect(await runCloud(host, ['publish', file, '--dry-run', '--json'])).toBe(0);
+        expect(JSON.parse(stdout)).toMatchObject({
+            action: 'create',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'unlisted',
+        });
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
+    it('reports a server preview refusal without prompting or publishing', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewStatus = 409;
+        previewResponse = { error: { code: 'conflict', message: 'That Site is unavailable.' } };
+        const prompt = vi.fn(async () => 'yes');
+        host = { ...host, runtime: { ...host.runtime, prompt, stdoutIsTerminal: true } };
+        expect(await runCloud(host, ['publish', file, '--json'])).not.toBe(0);
+        expect(stderr).toContain('That Site is unavailable.');
+        expect(prompt).not.toHaveBeenCalled();
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
     it('requires gateway access before uploading a Site', async () => {
         const login = await dextoAccounts.readLogin(dir, 'default');
         if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
@@ -1802,9 +1885,10 @@ describe('dexto workspace', () => {
         };
         expect(await runCloud(host, ['publish', file, '--json'])).toBe(0);
         expect(questions).toHaveLength(1);
-        expect(questions[0]).toContain('new Site is unlisted');
+        expect(questions[0]).toContain('Create Server title');
+        expect(questions[0]).toContain('unlisted');
         expect(questions[0]).toContain('anyone with the link can open it');
-        expect(questions[0]).toContain('existing Site keeps its visibility');
+        expect(questions[0]).toContain('publishing decides again');
         expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
     });
 
@@ -1886,7 +1970,7 @@ describe('dexto workspace', () => {
         );
         // Progress goes to stderr, a line per step, so stdout keeps only the result.
         expect(stderr).toMatch(
-            /Packed 2 files into a \d+ B \.zip\.\nUploading \d+ B…\nPublishing hello…\nSite visibility: unlisted: anyone with the link can open it\.\n$/u
+            /Packed 2 files into a \d+ B \.zip\.\nCreate Server title at https:\/\/server-chosen\.dexto\.dev \(unlisted: anyone with the link can open it\)\. Preview only; publishing decides again\.\nUploading \d+ B…\nPublishing hello…\nSite visibility: unlisted: anyone with the link can open it\.\n$/u
         );
     });
 });
