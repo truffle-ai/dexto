@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+    CLI_LOGIN_SCOPES,
     DEXTO_CLI_CLIENT_ID,
     type SignInPrompt,
     type SignInRuntime,
@@ -15,6 +16,8 @@ import type { OAuthLogin } from './dexto-accounts.js';
 const APP = 'https://app.dexto.ai';
 const API = 'https://api.dexto.ai';
 const REDIRECT = 'http://127.0.0.1:53682/callback';
+/** Every read scope the CLI's commands can require; a sign-in asks for each. */
+const CLI_READS = CLI_LOGIN_SCOPES.filter((scope) => scope.endsWith(':read'));
 
 const tokenReply = {
     access_token: 'access-1',
@@ -168,7 +171,9 @@ describe('signInWithBrowser', () => {
             redirect_uri: REDIRECT,
             resource: `${APP}/mcp`,
             response_type: 'code',
-            scope: 'drive:read memory:read cloud:read drive:write',
+            scope: [...new Set(['drive:read', 'memory:read', ...CLI_READS, 'drive:write'])].join(
+                ' '
+            ),
             organization: 'acme',
         });
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
@@ -268,6 +273,37 @@ describe('signInPromptText', () => {
 });
 
 describe('signInWithDevice', () => {
+    it("asks for every read scope the CLI's commands need, even ones Cloud does not advertise", async () => {
+        // Cloud advertises drive:read and memory:read only; artifacts:read is asked for on request.
+        const server = fakeServer((call) => {
+            if (call.url === `${APP}/api/oauth/device_authorization`)
+                return {
+                    status: 200,
+                    body: {
+                        device_code: 'device-1',
+                        user_code: 'ABCD-EFGH',
+                        expires_in: 600,
+                        interval: 5,
+                        verification_uri: `${APP}/device`,
+                    },
+                };
+            if (call.url === `${APP}/api/oauth/token`) return { status: 200, body: tokenReply };
+            return undefined;
+        });
+
+        await signInWithDevice(runtime(server.fetch), {
+            appUrl: APP,
+            apiBaseUrl: API,
+            organization: null,
+            extraScopes: [],
+        });
+
+        const start = server.calls.find((call) => call.url.endsWith('/device_authorization'));
+        const asked = (start?.body?.get('scope') ?? '').split(' ');
+        expect(CLI_READS).toContain('artifacts:read');
+        expect(asked).toEqual(expect.arrayContaining([...CLI_READS]));
+    });
+
     it('polls as dexto-cli until approved, slowing down when asked', async () => {
         const replies = [
             { status: 400, body: { error: 'authorization_pending' } },
@@ -306,7 +342,9 @@ describe('signInWithDevice', () => {
 
         const start = server.calls.find((call) => call.url.endsWith('/device_authorization'));
         expect(start?.body?.get('client_id')).toBe(DEXTO_CLI_CLIENT_ID);
-        expect(start?.body?.get('scope')).toBe('drive:read memory:read cloud:read');
+        expect(start?.body?.get('scope')).toBe(
+            [...new Set(['drive:read', 'memory:read', ...CLI_READS])].join(' ')
+        );
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
         const polls = server.calls.filter((call) => call.url === `${APP}/api/oauth/token`);
         expect(polls.map((call) => call.body?.get('grant_type'))).toEqual([
