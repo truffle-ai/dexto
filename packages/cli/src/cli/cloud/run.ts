@@ -17,7 +17,7 @@ import {
     type SignInContext,
 } from './command.js';
 import type { SignInFor } from './commands/account.js';
-import type { Connection, ConnectionOverrides } from './connection.js';
+import { assertHttpUrl, type Connection, type ConnectionOverrides } from './connection.js';
 import {
     listWorkspaceApps,
     runWorkspaceApp,
@@ -494,7 +494,10 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
                 invocation.push(name, value);
                 if (name === '--project') cloudProject = value;
                 else if (name === '--profile') profile = value;
-                else apiBaseUrl = value;
+                else {
+                    assertHttpUrl(value, '--api-base-url');
+                    apiBaseUrl = value;
+                }
             }
             continue;
         }
