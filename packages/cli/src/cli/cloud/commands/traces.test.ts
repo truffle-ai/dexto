@@ -98,6 +98,15 @@ describe('trace and span', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it.each([
+        ['list', 'dexto trace list --period 1h --json'],
+        ['view', 'dexto trace view "$RUN_ID" --json'],
+    ])('shows a JSON example for trace %s', async (command, example) => {
+        expect(await runCloud(host, ['trace', command, '--help', '--json'])).toBe(0);
+        expect(JSON.parse(stdout).examples).toContain(example);
+        expect(urls).toEqual([]);
+    });
+
     it('lists traces with the 1.x filters, sent by their wire names', async () => {
         const page = {
             data: [

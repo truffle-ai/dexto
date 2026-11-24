@@ -67,6 +67,7 @@ const traceList: Command = {
         },
     },
     path: ['trace', 'list'],
+    examples: ['dexto trace list --period 1h --json'],
     summary: 'List your recent run traces, newest first. Spans are kept 30 days.',
     async run(context, input) {
         const limit = integerOption(input, 'limit');
@@ -98,6 +99,7 @@ const traceList: Command = {
 const traceView: Command = {
     arguments: '<run_id>',
     path: ['trace', 'view'],
+    examples: ['dexto trace view "$RUN_ID" --json'],
     summary: "Show one run's trace: its spans in start order, with any errors.",
     async run(context, input) {
         const runId = argument(input, 0, 'run_id');
