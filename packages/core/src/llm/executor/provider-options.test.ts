@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
+import {
+    buildProviderOptions,
+    canRequireToolCall,
+    getEffectiveReasoningBudgetTokens,
+} from './provider-options.js';
 import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
     createModelRegistry,
@@ -686,5 +690,72 @@ describe('getEffectiveReasoningBudgetTokens', () => {
             reasoning: { variant: 'medium', budgetTokens: 1234 },
         });
         expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBe(1234);
+    });
+});
+
+describe('canRequireToolCall', () => {
+    it('allows it for models that keep reasoning with a forced tool choice', () => {
+        for (const [provider, model] of [
+            ['openai', 'gpt-5.6-luna'],
+            ['google', 'gemini-3.8-flash'],
+            ['openrouter', 'openai/gpt-6.1-sol'],
+        ] as const) {
+            const providerOptions = buildProviderOptions({ provider, model });
+            expect(canRequireToolCall(model, providerOptions)).toBe(true);
+        }
+    });
+
+    it('refuses it for Claude while it thinks', () => {
+        for (const [provider, model, variant] of [
+            ['anthropic', 'claude-sonnet-4-5', undefined],
+            ['anthropic', 'claude-sonnet-4-6', undefined],
+            ['bedrock', 'anthropic.claude-haiku-4-5-20251001-v1:0', undefined],
+            ['openrouter', 'anthropic/claude-sonnet-4.5', 'enabled'],
+        ] as const) {
+            const providerOptions = buildProviderOptions({
+                provider,
+                model,
+                ...(variant !== undefined && { reasoning: { variant } }),
+            });
+            expect(providerOptions).toBeDefined();
+            expect(canRequireToolCall(model, providerOptions)).toBe(false);
+        }
+    });
+
+    it('allows it for Claude with thinking off', () => {
+        for (const [provider, model] of [
+            ['anthropic', 'claude-sonnet-4-5'],
+            ['bedrock', 'anthropic.claude-haiku-4-5-20251001-v1:0'],
+            ['openrouter', 'anthropic/claude-sonnet-4.6'],
+        ] as const) {
+            const providerOptions = buildProviderOptions({
+                provider,
+                model,
+                reasoning: { variant: 'disabled' },
+            });
+            expect(providerOptions).toBeDefined();
+            expect(canRequireToolCall(model, providerOptions)).toBe(true);
+        }
+    });
+
+    it('refuses it for an Anthropic request that thinks, whatever the model id', () => {
+        expect(
+            canRequireToolCall('house-model', {
+                anthropic: { thinking: { type: 'enabled', budgetTokens: 2048 } },
+            })
+        ).toBe(false);
+        expect(
+            canRequireToolCall('house-model', { anthropic: { thinking: { type: 'disabled' } } })
+        ).toBe(true);
+    });
+
+    it('refuses it for Claude behind an OpenAI-compatible proxy that reasons', () => {
+        const model = 'claude-sonnet-4-6';
+        expect(canRequireToolCall(model, { openaiCompatible: { reasoningEffort: 'high' } })).toBe(
+            false
+        );
+        expect(canRequireToolCall(model, { openaiCompatible: { reasoningEffort: 'none' } })).toBe(
+            true
+        );
     });
 });
