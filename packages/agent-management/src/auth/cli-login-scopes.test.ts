@@ -14,6 +14,7 @@ describe('CLI_LOGIN_SCOPES', () => {
             'autobots:write',
             'automations:read',
             'automations:write',
+            'capabilities:read',
             'chats:sync',
             'cloud:read',
             'cloud:write',

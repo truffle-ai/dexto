@@ -10,6 +10,7 @@ import { appCommands } from './commands/apps.js';
 import { applicationCommands } from './commands/applications.js';
 import { artifactCommands } from './commands/artifacts.js';
 import { autobotCommands } from './commands/autobots.js';
+import { capabilityCommands } from './commands/capabilities.js';
 import { contactCommands } from './commands/contacts.js';
 import { marketplaceCommands } from './commands/marketplace.js';
 import { networkCommands } from './commands/network.js';
@@ -102,6 +103,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...applicationCommands,
         ...artifactCommands,
         ...autobotCommands,
+        ...capabilityCommands,
         ...contactCommands,
         ...networkCommands,
         ...publicArtifactCommands,

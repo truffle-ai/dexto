@@ -75,7 +75,6 @@ dexto_automation_create
 dexto_automation_delete
 dexto_automation_trigger
 dexto_automation_update
-dexto_capabilities_search
 dexto_chat_computer
 dexto_chat_continue
 dexto_cos_report

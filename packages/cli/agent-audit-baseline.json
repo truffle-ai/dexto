@@ -161,6 +161,13 @@
     "examples": false
   },
   {
+    "command": "capabilities search",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "channels list",
     "json": true,
     "dryRun": false,
