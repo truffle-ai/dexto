@@ -373,6 +373,15 @@ Reading needs `skills:read` and changing needs `skills:write`. `create`, `update
 
 Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. A folder of plain pages needs no packer: a `dexto.json` with `slug`, `title` and `assets` (the folder holding `index.html`) deploys with `dexto cloud sites deploy` alone. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
 
+Read the last hour of requests to a Site's backend or a Function, newest first:
+
+```bash
+dexto cloud sites logs "$SITE_ID" --json
+dexto cloud functions logs "$FUNCTION_ID" --json
+```
+
+They need `sites:read` or `functions:read`, take the id from `sites list` or `functions list`, and only work on a Site or Function you created. Each returns `{status: "ok", from, to, entries, limitation}`, with up to 50 entries: each request's time, deployment, method, path, and its status or the error it failed with, redacted of the backend's secrets and tokens. Only what Dexto saw is recorded; the backend's own console output is not. `{status: "not-configured", message}` means this Dexto cannot read logs yet.
+
 ### Run traces
 
 `dexto trace` and `dexto span` read your runs' traces from Dexto's public `/v1/traces` API. Spans are kept 30 days.

@@ -1664,6 +1664,14 @@
     {
       "inputSchema": {
         "properties": {
+          "projectId": {}
+        }
+      },
+      "name": "dexto_function_logs"
+    },
+    {
+      "inputSchema": {
+        "properties": {
           "provider": {}
         }
       },
@@ -2158,6 +2166,14 @@
         }
       },
       "name": "dexto_site_get"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "siteId": {}
+        }
+      },
+      "name": "dexto_site_logs"
     },
     {
       "inputSchema": {

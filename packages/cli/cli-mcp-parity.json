@@ -117,6 +117,8 @@
         "cloud automations update": ["dexto_cloud_automations_update"],
         "cloud search": ["dexto_capability_describe", "dexto_capability_call"],
         "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"],
+        "cloud sites logs": ["dexto_site_logs"],
+        "cloud functions logs": ["dexto_function_logs"],
         "chat start": ["dexto_chat_start", "dexto_chat_wait"],
         "chat computers": ["dexto_chat_computers_list"],
         "chat agents": ["dexto_agents_list"],

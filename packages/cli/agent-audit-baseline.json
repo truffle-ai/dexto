@@ -581,6 +581,13 @@
     "examples": false
   },
   {
+    "command": "cloud functions logs",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "cloud models get",
     "json": true,
     "dryRun": false,
@@ -789,6 +796,13 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "cloud sites logs",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "connect claude",
