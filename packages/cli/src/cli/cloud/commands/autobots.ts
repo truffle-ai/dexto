@@ -111,8 +111,8 @@ async function jsonObjectBody(
 
 const list: Command = {
     path: ['autobots', 'list'],
-    summary:
-        'List the AutoBots you can use: your own and those shared with your organization. Example: dexto autobots list --json',
+    examples: ['dexto autobots list --json'],
+    summary: 'List the AutoBots you can use: your own and those shared with your organization.',
     options: {
         limit: { description: 'How many to return, 1 to 50.', type: 'string', valueName: 'N' },
     },
@@ -135,6 +135,7 @@ const list: Command = {
 
 const get: Command = {
     path: ['autobots', 'get'],
+    examples: ['dexto autobots get "$AUTOBOT_ID" --json'],
     arguments: '<autobot_id>',
     summary: "Show an AutoBot's whole configuration and release state.",
     async run(context, input) {
@@ -152,6 +153,7 @@ const get: Command = {
 
 const status: Command = {
     path: ['autobots', 'status'],
+    examples: ['dexto autobots status "$AUTOBOT_ID" --json'],
     arguments: '[autobot_id]',
     summary:
         "Show one AutoBot's goals, runs and pending input, or a page of every AutoBot's status. Pending input has the approvalId that autobots input answers.",
@@ -202,9 +204,12 @@ const PROFILE_OPTIONS = {
 
 const save: Command = {
     path: ['autobots', 'save'],
+    examples: [
+        'dexto autobots save --data \'{"profile":{"name":"Scout","role":"Watches competitors"}}\' --yes --json',
+    ],
     arguments: '[autobot_id]',
     summary:
-        'Create a private AutoBot (with --name and --role), or change one you can edit. Starters, model and skills go in --data or --file, each replaced whole. Example: dexto autobots save --name Scout --role "Watches competitors" --yes',
+        'Create a private AutoBot (with --name and --role), or change one you can edit. Starters, model and skills go in --data or --file, each replaced whole.',
     options: { ...PROFILE_OPTIONS, ...BODY_OPTIONS, ...YES_OPTION },
     async run(context, input) {
         const autobotId = input.positionals[0];
@@ -243,9 +248,9 @@ const save: Command = {
 
 const publish: Command = {
     path: ['autobots', 'publish'],
+    examples: ['dexto autobots publish "$AUTOBOT_ID" --distribution unlisted --yes --json'],
     arguments: '<autobot_id>',
-    summary:
-        'Publish a template from one of your own AutoBots, unlisted or public. Example: dexto autobots publish "$AUTOBOT_ID" --distribution unlisted --yes',
+    summary: 'Publish a template from one of your own AutoBots, unlisted or public.',
     options: {
         distribution: {
             description: `Who finds the template: ${DISTRIBUTIONS.join(' or ')}.`,
@@ -295,9 +300,10 @@ const publish: Command = {
 
 const submitInput: Command = {
     path: ['autobots', 'input'],
+    examples: ['dexto autobots input "$APPROVAL_ID" --data \'{"city":"Paris"}\' --yes --json'],
     arguments: '<approval_id>',
     summary:
-        'Answer an AutoBot run\'s request for input, from the approvalId autobots status shows. Example: dexto autobots input "$APPROVAL_ID" --data \'{"city":"Paris"}\' --yes',
+        "Answer an AutoBot run's request for input, from the approvalId autobots status shows.",
     options: {
         data: {
             description: 'The form answers as a JSON object.',
@@ -333,9 +339,9 @@ const submitInput: Command = {
 
 const chat: Command = {
     path: ['autobots', 'chat'],
+    examples: ['dexto autobots chat "$AUTOBOT_ID" "What changed this week?" --json'],
     arguments: '<autobot_id> <message>',
-    summary:
-        'Send a message in your own conversation with an AutoBot. Example: dexto autobots chat "$AUTOBOT_ID" "What changed this week?"',
+    summary: 'Send a message in your own conversation with an AutoBot.',
     options: {
         title: {
             description: 'Title for the conversation, when this message starts it.',
