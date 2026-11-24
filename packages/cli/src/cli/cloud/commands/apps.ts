@@ -1,9 +1,17 @@
 // `apps`: inspect the Dexto Apps your sign-in reaches and the retained data of Apps you
-// uninstalled, read-only, over Dexto's typed App tools. Running, opening, installing and removing
-// data stay with those tools (`workspace <app> <operation>` runs App actions).
+// uninstalled, and remove that data for good, over Dexto's typed App tools. Running, opening and
+// installing stay with those tools (`workspace <app> <operation>` runs App actions).
 
 import { z } from 'zod';
-import { argument, type Command } from '../command.js';
+import { requireConsent } from '../../interaction.js';
+import {
+    argument,
+    flag,
+    requiredOption,
+    UsageError,
+    YES_OPTION,
+    type Command,
+} from '../command.js';
 import type { Column } from '../output.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -103,4 +111,44 @@ const uninstalled: Command = {
     },
 };
 
-export const appCommands: readonly Command[] = [list, get, uninstalled];
+const REMOVE_TOOL = 'dexto_app_data_remove';
+
+const removeData: Command = {
+    arguments: '<app_id>',
+    options: {
+        'confirm-app-id': {
+            description: 'The same App id again, confirming whose data is removed for good.',
+            type: 'string',
+        },
+        'dry-run': {
+            description: 'Check the input and show the call, without making it.',
+            type: 'boolean',
+        },
+        ...YES_OPTION,
+    },
+    path: ['apps', 'remove-data'],
+    summary:
+        "Permanently remove an uninstalled App's retained data. Pass its id twice: as app_id and --confirm-app-id.",
+    examples: ['dexto apps remove-data "$APP_ID" --confirm-app-id "$APP_ID" --yes --json'],
+    async run(context, input) {
+        const appId = argument(input, 0, 'app_id');
+        const confirmAppId = requiredOption(input, 'confirm-app-id');
+        if (confirmAppId !== appId) throw new UsageError('--confirm-app-id must equal app_id.');
+        const call = { appId, confirmAppId };
+        if (flag(input, 'dry-run'))
+            return context.output.result(
+                { dryRun: true, tool: REMOVE_TOOL, arguments: call },
+                `Would call ${REMOVE_TOOL} with ${JSON.stringify(call)}.`
+            );
+        await requireLoginScopes(context, ['apps:write']);
+        await requireConsent(
+            context,
+            flag(input, 'yes'),
+            `Permanently remove the retained data of uninstalled App ${appId}.`
+        );
+        const result = await queryWorkspaceTool(context, REMOVE_TOOL, call);
+        context.output.result(result, `Removed the retained data of App ${appId}.`);
+    },
+};
+
+export const appCommands: readonly Command[] = [list, get, uninstalled, removeData];
