@@ -57,8 +57,12 @@ export const CLI_LOGIN_SCOPES = [
 /** A scope the CLI asks for by name. */
 export type CliLoginScope = (typeof CLI_LOGIN_SCOPES)[number];
 
-/** A sign-in starts with reading the workspace and Cloud; more is asked for by name. */
-const BASE_CLOUD_SCOPES: readonly CliLoginScope[] = ['cloud:read'];
+/**
+ * Every read scope the CLI's own commands can require. A sign-in asks for each, besides the ones
+ * Cloud advertises, because Cloud leaves some (such as artifacts:read) out of `scopes_supported`.
+ * Writing is asked for by name.
+ */
+const CLI_READ_SCOPES = CLI_LOGIN_SCOPES.filter((scope) => scope.endsWith(':read'));
 
 const DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
@@ -201,7 +205,7 @@ async function discover(runtime: SignInRuntime, input: SignInInput): Promise<Dis
     const appUrl = input.appUrl.replace(/\/+$/u, '');
     const { resource, server } = await readMetadata(runtime, appUrl);
     const reading = resource.scopes_supported.filter((scope) => scope.endsWith(':read'));
-    const scopes = [...new Set([...reading, ...BASE_CLOUD_SCOPES, ...input.extraScopes])];
+    const scopes = [...new Set([...reading, ...CLI_READ_SCOPES, ...input.extraScopes])];
     return { appUrl, resource: resource.resource, scopes, server };
 }
 
