@@ -10,6 +10,7 @@ export const ENGINE_WORDS = {
     import: 'Import local Claude Code and Codex chats',
     connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
     channels: 'List and read your Dexto channels, and send messages to them',
+    messages: 'List and read your Dexto direct conversations',
     connections: 'List, inspect and disconnect model subscriptions',
     login: 'Sign in to Dexto with your browser or a device code, or save an API key for CI',
     logout: 'End the sign-in on the server and forget it here',
