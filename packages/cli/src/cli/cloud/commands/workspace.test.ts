@@ -1937,6 +1937,7 @@ describe('dexto workspace', () => {
                     'messages:read',
                     'notifications:read',
                     'sessions:read',
+                    'sites:read',
                     'skills:read',
                 ],
                 savedAt: '2026-11-01T00:00:00.000Z',
@@ -1960,7 +1961,7 @@ describe('dexto workspace', () => {
             };
         }
 
-        const NOTIFICATION = '0b6f8a52-1c3e-4d6f-9a2b-7c8d9e0f1a2b';
+        const AN_ID = '0b6f8a52-1c3e-4d6f-9a2b-7c8d9e0f1a2b';
 
         it.each([
             {
@@ -2019,7 +2020,7 @@ describe('dexto workspace', () => {
                 fix: 'dexto chat list',
             },
             {
-                argv: ['notifications', 'get', NOTIFICATION],
+                argv: ['notifications', 'get', AN_ID],
                 error: {
                     code: -32004,
                     message: 'Dexto notification was not found.',
@@ -2053,6 +2054,31 @@ describe('dexto workspace', () => {
                 await runCloud(refusing, ['--project', 'p 2', 'chat', 'get', 'nope', '--json'])
             ).toBe(5);
             expect(JSON.parse(stderr).error.fix).toBe("dexto --project 'p 2' chat list");
+        });
+
+        it("lists a nested thing under the get's own parent ids", async () => {
+            const refusing = await refusingHost({
+                error: {
+                    code: -32004,
+                    message: 'Record was not found.',
+                    data: { kind: 'not_found' },
+                },
+            });
+            expect(
+                await runCloud(refusing, [
+                    'workspace',
+                    'sites',
+                    'records',
+                    'get',
+                    AN_ID,
+                    'signups',
+                    '1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f',
+                    '--json',
+                ])
+            ).toBe(5);
+            expect(JSON.parse(stderr).error.fix).toBe(
+                `dexto workspace sites records list ${AN_ID} signups`
+            );
         });
 
         it("rewrites a tool's own error result the same way", async () => {
