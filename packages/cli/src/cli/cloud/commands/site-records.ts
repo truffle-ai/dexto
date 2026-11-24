@@ -102,12 +102,13 @@ const list: Command = {
         if (limit !== undefined && (limit < 1 || limit > MAX_LIMIT))
             throw new UsageError(`--limit must be between 1 and ${MAX_LIMIT}.`);
         await requireLoginScopes(context, ['sites:read']);
-        const value = await queryWorkspaceTool(context, 'dexto_site_records_list', {
-            ...where,
-            ...(limit === undefined ? {} : { limit }),
-        });
-        if (context.output.json) return context.output.record(value);
-        context.output.list({ data: ListSchema.parse(value).records }, COLUMNS);
+        const { records, ...facts } = ListSchema.parse(
+            await queryWorkspaceTool(context, 'dexto_site_records_list', {
+                ...where,
+                ...(limit === undefined ? {} : { limit }),
+            })
+        );
+        context.output.list({ ...facts, data: records }, COLUMNS);
     },
 };
 

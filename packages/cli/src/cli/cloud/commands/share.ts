@@ -133,6 +133,9 @@ const received: Command = {
             ),
             'list of shared things'
         );
+        const { shared, ...facts } = result;
+        // JSON lists what is shared as data, with pending invitations beside it.
+        if (context.output.json) return context.output.list({ ...facts, data: shared }, []);
         context.output.result(result, describeReceived(result));
     },
 };

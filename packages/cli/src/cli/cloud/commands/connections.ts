@@ -548,11 +548,10 @@ const list: Command = {
     async run(context) {
         // Without it Cloud still lists the model sign-ins, silently leaving out every connector.
         await requireLoginScopes(context, ['connections:read']);
-        const result = z
+        const { connections } = z
             .object({ connections: z.array(ConnectionRow) })
             .parse(await queryWorkspaceTool(context, 'dexto_connections_list', {}));
-        if (context.output.json) return writeResult(context, result, '');
-        context.output.list({ data: result.connections }, [
+        context.output.list({ data: connections }, [
             { header: 'name', value: (r) => r.name },
             { header: 'kind', value: (r) => r.kind },
             { header: 'status', value: (r) => r.status },

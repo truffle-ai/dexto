@@ -283,7 +283,12 @@ describe('sharing reads over the Dexto MCP', () => {
             replies = [{ result: received }];
             expect(await cli('workspace', 'share', 'received', '--json'), stderr).toBe(0);
             expect(calls).toEqual([{ name: 'dexto_share_received', arguments: {} }]);
-            expect(output()).toEqual(received);
+            expect(output()).toEqual({
+                data: received.shared,
+                has_more: false,
+                invitations: received.invitations,
+                next_after: null,
+            });
         });
 
         it('narrows to one kind', async () => {

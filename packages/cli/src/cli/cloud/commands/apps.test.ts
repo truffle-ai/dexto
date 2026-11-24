@@ -60,24 +60,33 @@ describe('dexto apps', () => {
         ]);
     });
 
-    it('lists with the list tool and prints its whole response as JSON', async () => {
+    it('lists with the list tool and prints activeAppId beside the list as JSON', async () => {
         const { context, output } = contextWith(['apps:read']);
         const value = { activeAppId: null, apps: [app] };
         query.mockResolvedValueOnce(value);
         await list?.run(context, { positionals: [], values: {} });
         expect(query).toHaveBeenCalledWith(context, 'dexto_apps_list', {});
-        expect(output.record).toHaveBeenCalledWith(value);
-        expect(output.list).not.toHaveBeenCalled();
+        expect(output.list).toHaveBeenCalledWith(
+            { activeAppId: null, data: [app] },
+            expect.any(Array)
+        );
+        expect(output.record).not.toHaveBeenCalled();
     });
 
     it('shows people a table of Apps, empty or not', async () => {
         const { context, output } = contextWith(['apps:read'], false);
         query.mockResolvedValueOnce({ activeAppId: null, apps: [app] });
         await list?.run(context, { positionals: [], values: {} });
-        expect(output.list).toHaveBeenLastCalledWith({ data: [app] }, expect.any(Array));
+        expect(output.list).toHaveBeenLastCalledWith(
+            { activeAppId: null, data: [app] },
+            expect.any(Array)
+        );
         query.mockResolvedValueOnce({ activeAppId: null, apps: [] });
         await list?.run(context, { positionals: [], values: {} });
-        expect(output.list).toHaveBeenLastCalledWith({ data: [] }, expect.any(Array));
+        expect(output.list).toHaveBeenLastCalledWith(
+            { activeAppId: null, data: [] },
+            expect.any(Array)
+        );
     });
 
     it('gets one App by its id, keeping action input schemas and launch URL in JSON', async () => {
@@ -105,7 +114,7 @@ describe('dexto apps', () => {
         query.mockResolvedValueOnce(value);
         await uninstalled?.run(context, { positionals: [], values: {} });
         expect(query).toHaveBeenCalledWith(context, 'dexto_apps_uninstalled_list', {});
-        expect(output.record).toHaveBeenCalledWith(value);
+        expect(output.list).toHaveBeenCalledWith({ data: [retained] }, expect.any(Array));
 
         const people = contextWith(['apps:read'], false);
         query.mockResolvedValueOnce({ apps: [] });

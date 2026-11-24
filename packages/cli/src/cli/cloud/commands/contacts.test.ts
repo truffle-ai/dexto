@@ -176,6 +176,8 @@ describe('dexto workspace contacts', () => {
         expect(await run('list', '--query', '@ad', '--json')).toBe(0);
         expect(JSON.parse(stdout)).toEqual({
             data: [{ ...PERSON, contactId: CONTACT, status: 'connected' }],
+            has_more: false,
+            next_after: null,
         });
         stdout = '';
         expect(await run('list', '--blocked')).toBe(0);

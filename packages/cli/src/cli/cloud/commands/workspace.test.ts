@@ -68,7 +68,7 @@ describe('dexto workspace', () => {
     let chatResponse: unknown;
     let computersResponse: unknown;
     let profilesResponse: unknown;
-    let agentsResponse: unknown;
+    let agentsResponse: { agents: unknown[] };
     let followResponses: unknown[];
     let creditResponses: unknown[];
     let chatInspection: unknown;
@@ -1446,7 +1446,11 @@ describe('dexto workspace', () => {
                 params: { name: 'dexto_agents_list', arguments: {} },
             },
         ]);
-        expect(JSON.parse(stdout)).toEqual(agentsResponse);
+        expect(JSON.parse(stdout)).toEqual({
+            data: agentsResponse.agents,
+            has_more: false,
+            next_after: null,
+        });
     });
 
     it('passes a bounded limit and rejects one outside 1 to 50 before calling', async () => {

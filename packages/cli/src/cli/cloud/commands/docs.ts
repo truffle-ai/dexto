@@ -52,14 +52,13 @@ const search: Command = {
         const limit = integerOption(input, 'limit');
         if (limit !== undefined && (limit < 1 || limit > 20))
             throw new UsageError('--limit must be between 1 and 20.');
-        const found = SearchSchema.parse(
+        const { results, ...facts } = SearchSchema.parse(
             await queryWorkspaceTool(context, 'dexto_docs_search', {
                 query,
                 ...(limit === undefined ? {} : { limit }),
             })
         );
-        if (context.output.json) return context.output.record(found);
-        context.output.list({ data: found.results }, [
+        context.output.list({ ...facts, data: results }, [
             { header: 'path', value: (page) => page.path },
             { header: 'title', value: (page) => page.title },
             { header: 'url', value: (page) => page.url },

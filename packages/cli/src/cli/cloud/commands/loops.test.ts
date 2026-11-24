@@ -122,12 +122,16 @@ describe('dexto loops', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
-    it('lists with the tool and prints its own response, nextCursor included, as JSON', async () => {
+    it('lists with the tool and prints the page as data with next_after, as JSON', async () => {
         const page = { automations: [LOOP], nextCursor: 'cursor-2' };
         replies = [page];
         expect(await runCloud(host, ['loops', 'list', '--json'])).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_automations_list', arguments: {} }]);
-        expect(JSON.parse(stdout)).toEqual(page);
+        expect(JSON.parse(stdout)).toEqual({
+            data: [LOOP],
+            has_more: true,
+            next_after: 'cursor-2',
+        });
     });
 
     it.each([

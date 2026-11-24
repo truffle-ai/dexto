@@ -157,7 +157,7 @@ describe('dexto workspace sites records', () => {
     const records = (...args: string[]) =>
         runCloud(host, ['workspace', 'sites', 'records', ...args]);
 
-    it('lists records with --limit and prints the tool result verbatim as JSON', async () => {
+    it('lists records with --limit and prints the records as data beside the site facts, as JSON', async () => {
         expect(await records('list', SITE, 'signups', '--limit', '20', '--json')).toBe(0);
 
         expect(calls).toEqual([
@@ -168,7 +168,9 @@ describe('dexto workspace sites records', () => {
         ]);
         expect(JSON.parse(stdout)).toEqual({
             collection: 'signups',
-            records: [STORED],
+            data: [STORED],
+            has_more: false,
+            next_after: null,
             siteId: SITE,
             slug: 'shop',
         });

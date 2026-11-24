@@ -49,14 +49,13 @@ const list: Command = {
     examples: ['dexto applications list --json'],
     async run(context) {
         await requireLoginScopes(context, SCOPES);
-        const result = ListSchema.parse(
+        const { applications, ...facts } = ListSchema.parse(
             await queryWorkspaceTool(context, 'dexto_applications_list', {})
         );
-        // JSON keeps the tool's own response; people get one table per kind.
-        if (context.output.json) return context.output.record(result);
-        context.output.list({ data: result.applications }, APPLICATION_COLUMNS);
-        if (result.deployments.length > 0)
-            context.output.list({ data: result.deployments }, RELEASE_COLUMNS);
+        // JSON has the releases beside the list; people get one table per kind.
+        context.output.list({ ...facts, data: applications }, APPLICATION_COLUMNS);
+        if (!context.output.json && facts.deployments.length > 0)
+            context.output.list({ data: facts.deployments }, RELEASE_COLUMNS);
     },
 };
 

@@ -131,7 +131,7 @@ describe('AutoBots over the Dexto MCP', () => {
         replies = [{ autobots: [autobot] }];
         expect(await cli('autobots', 'list', '--limit', '5'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_autobots_list', arguments: { limit: 5 } }]);
-        expect(output()).toEqual({ data: [autobot] });
+        expect(output()).toEqual({ data: [autobot], has_more: false, next_after: null });
     });
 
     it('checks the limit and the sign-in permission before calling the server', async () => {

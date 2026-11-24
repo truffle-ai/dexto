@@ -29,15 +29,15 @@ function contextFor(json: boolean) {
 }
 
 describe('docs search', () => {
-    it('sends the joined query and limit, and prints the tool result as JSON', async () => {
-        const { context, record } = contextFor(true);
+    it('sends the joined query and limit, and lists the results as data', async () => {
+        const { context, list } = contextFor(true);
         query.mockResolvedValueOnce({ results: [page] });
         await search.run(context, { positionals: ['mcp', 'setup'], values: { limit: '3' } });
         expect(query).toHaveBeenCalledWith(context, 'dexto_docs_search', {
             query: 'mcp setup',
             limit: 3,
         });
-        expect(record).toHaveBeenCalledWith({ results: [page] });
+        expect(list).toHaveBeenCalledWith({ data: [page] }, expect.any(Array));
     });
 
     it('lists pages for people and leaves the limit to the tool when not given', async () => {

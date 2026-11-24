@@ -194,7 +194,9 @@ describe('subscription connections over MCP', () => {
             { outcome: 'disconnected', name: 'github', nextAction: 'dexto_connection_start' },
         ];
         expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
-        expect(lastResult().connections).toEqual([row]);
+        // A list prints as one multi-line `{data, has_more, next_after}` document.
+        expect(JSON.parse(stdout)).toEqual({ data: [row], has_more: false, next_after: null });
+        stdout = '';
         expect(
             await runCloud(host, ['connections', 'disconnect', 'github', '--yes', '--json'])
         ).toBe(0);
@@ -243,7 +245,7 @@ describe('subscription connections over MCP', () => {
             { ok: true, result: { posts: [{ id: 'fixture-post', text: 'Synthetic X result' }] } },
         ];
         expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
-        expect(lastResult().connections[0].status).toBe('connected');
+        expect(JSON.parse(stdout).data[0].status).toBe('connected');
         stdout = '';
         expect(
             await runCloud(host, [
@@ -1087,12 +1089,7 @@ describe('subscription connections over MCP', () => {
         replies = [{ connections: [] }];
         stdout = '';
         expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
-        expect(
-            stdout
-                .trim()
-                .split('\n')
-                .map((line) => JSON.parse(line))
-        ).toEqual([{ connections: [] }]);
+        expect(JSON.parse(stdout)).toEqual({ data: [], has_more: false, next_after: null });
     });
 
     it('documents explicit stdin in compact JSON help', async () => {

@@ -122,7 +122,7 @@ describe('computer enrollment keys over the Dexto MCP', () => {
         replies = [{ keys: [key] }];
         expect(await cli('workspace', 'computers', 'keys', 'list'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_computer_enrollment_keys_list', arguments: {} }]);
-        expect(output()).toEqual({ data: [key] });
+        expect(output()).toEqual({ data: [key], has_more: false, next_after: null });
     });
 
     it('asks before creating a key, then returns its one-time secret', async () => {

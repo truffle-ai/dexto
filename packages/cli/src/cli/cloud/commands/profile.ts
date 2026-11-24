@@ -24,7 +24,7 @@ const get: Command = {
     summary: 'Show your Dexto profile: handle, name, bio, links, work and whether it is public.',
     async run(context) {
         const profile = await readProfile(context, 'dexto_profile_get', {});
-        context.output.result({ profile }, describeProfile(profile));
+        context.output.result(profile, describeProfile(profile));
     },
 };
 
@@ -75,7 +75,7 @@ const update: Command = {
                 'Pass at least one field to change, such as --handle or --visibility.'
             );
         const profile = await readProfile(context, 'dexto_profile_update', changes);
-        context.output.result({ profile }, `Updated.\n${describeProfile(profile)}`);
+        context.output.result(profile, `Updated.\n${describeProfile(profile)}`);
     },
 };
 

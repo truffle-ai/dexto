@@ -77,3 +77,45 @@ describe('createOutput for people', () => {
         expect(stderr()).toBe('Session Evil[2J Org]0;pwned 31mInctxt\n');
     });
 });
+
+function jsonOutput() {
+    let stdout = '';
+    const runtime = {
+        ...nodeCloudRuntime(new AbortController().signal),
+        stdoutIsTerminal: false,
+        writeOutput: (text: string) => {
+            stdout += text;
+        },
+    };
+    return { output: createOutput(runtime, 'json'), json: (): unknown => JSON.parse(stdout) };
+}
+
+describe('createOutput for agents', () => {
+    it('prints a list that is not paged with has_more false and next_after null', () => {
+        const { output, json } = jsonOutput();
+        output.list({ data: [{ id: 'a' }] }, []);
+        expect(json()).toEqual({ data: [{ id: 'a' }], has_more: false, next_after: null });
+    });
+
+    it("keeps a page's other facts beside data and drops the second cursor name", () => {
+        const { output, json } = jsonOutput();
+        output.list(
+            {
+                data: [],
+                deployments: [{ id: 'd' }],
+                has_more: true,
+                next_after: 'c2',
+                next_cursor: 'c2',
+                object: 'list',
+            },
+            []
+        );
+        expect(json()).toEqual({
+            data: [],
+            deployments: [{ id: 'd' }],
+            has_more: true,
+            next_after: 'c2',
+            object: 'list',
+        });
+    });
+});

@@ -19,8 +19,11 @@ export interface Output {
      * the text prints cleaned, piped or not.
      */
     readonly jsonContent: boolean;
-    /** A page of a list: a table, plus how to read the next page when there is one. */
-    list<Row>(page: ListPage<Row>, columns: readonly Column<Row>[]): void;
+    /**
+     * A page of a list: a table, plus how to read the next page when there is one. JSON is always
+     * `{data, has_more, next_after}`, with the page's other facts beside `data`.
+     */
+    list<Row>(page: ListPage<Row> & ListFacts, columns: readonly Column<Row>[]): void;
     /** One resource: its fields, one per line. */
     record(value: unknown): void;
     /** A line for people; JSON output prints the value instead. */
@@ -39,6 +42,15 @@ export type ListPage<Row> =
           readonly next_after: string | number | null;
       };
 
+/** Other top-level facts about a list, such as `deployments` beside applications. */
+export type ListFacts = Readonly<Record<string, unknown>>;
+
+/** A list as every command prints it in JSON; a page's second cursor name is left out. */
+function listEnvelope(page: ListPage<unknown> & ListFacts): Record<string, unknown> {
+    const { next_cursor: _deprecated, ...facts } = page;
+    return 'next_after' in page ? facts : { ...facts, has_more: false, next_after: null };
+}
+
 /** `json` and `table` as asked; `auto` is tables at a terminal and JSON anywhere else. */
 export type OutputFormat = 'auto' | 'json' | 'table';
 
@@ -54,7 +66,7 @@ export function createOutput(runtime: CloudRuntime, format: OutputFormat): Outpu
         json,
         jsonContent: format === 'json',
         list(page, columns) {
-            if (json) return printJson(page);
+            if (json) return printJson(listEnvelope(page));
             if (page.data.length === 0) {
                 writeOutput(`${dim('None.', color)}\n`);
                 return;

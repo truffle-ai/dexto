@@ -151,7 +151,7 @@ describe('dexto channels over the Dexto MCP', () => {
         replies = [{ value: { channels: [channel] } }];
         expect(await cli('channels', 'list'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_channels_list', arguments: {} }]);
-        expect(output()).toEqual({ data: [channel] });
+        expect(output()).toEqual({ data: [channel], has_more: false, next_after: null });
     });
 
     it('reads a reply thread with its cursors and prints the page unchanged', async () => {

@@ -102,7 +102,7 @@ const list: Command = {
     },
     async run(context, input) {
         const { after, limit } = pageQuery(input);
-        const result = ListSchema.parse(
+        const { automations, nextCursor, ...facts } = ListSchema.parse(
             await queryWorkspaceTool(context, 'dexto_automations_list', {
                 ...listScope(input),
                 ...enabledFilter(input),
@@ -110,13 +110,12 @@ const list: Command = {
                 ...(after === undefined ? {} : { cursor: after }),
             })
         );
-        // JSON keeps the tool's own response, nextCursor included.
-        if (context.output.json) return context.output.record(result);
         context.output.list(
             {
-                data: result.automations,
-                has_more: result.nextCursor !== null,
-                next_after: result.nextCursor,
+                ...facts,
+                data: automations,
+                has_more: nextCursor !== null,
+                next_after: nextCursor,
             },
             LOOP_COLUMNS
         );

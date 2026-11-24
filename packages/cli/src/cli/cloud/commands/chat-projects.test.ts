@@ -130,7 +130,7 @@ describe('projects over the Dexto MCP', () => {
         expect(calls).toEqual([
             { name: 'dexto_projects_list', arguments: { query: 'road', importedFrom: 'codex' } },
         ]);
-        expect(output()).toEqual({ data: [project] });
+        expect(output()).toEqual({ data: [project], has_more: false, next_after: null });
     });
 
     it('checks filters and the sign-in permission before calling the server', async () => {
@@ -287,7 +287,7 @@ describe('projects over the Dexto MCP', () => {
         replies = [{ recipes: [recipe] }];
         expect(await cli('projects', 'recipes'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_automation_recipes_list', arguments: {} }]);
-        expect(output()).toEqual({ data: [recipe] });
+        expect(output()).toEqual({ data: [recipe], has_more: false, next_after: null });
     });
 
     it('shows each recipe with its schedule as text', async () => {

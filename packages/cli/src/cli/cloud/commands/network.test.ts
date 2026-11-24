@@ -218,6 +218,8 @@ describe('dexto workspace network', () => {
                     unread: true,
                 },
             ],
+            has_more: false,
+            next_after: null,
         });
     });
 

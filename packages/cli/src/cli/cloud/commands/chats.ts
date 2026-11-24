@@ -1002,19 +1002,17 @@ const computers: Command = {
         );
         if (!parsed.success)
             throw new CommandFailure('failed', "Dexto didn't return a valid computer list.", null);
-        const result = parsed.data;
-        if (context.output.json) context.output.result(result, '');
-        else
-            context.output.list({ data: result.computers }, [
-                { header: 'id', value: (row) => row.id },
-                { header: 'name', value: (row) => row.name },
-                { header: 'presence', value: (row) => row.presence },
-                { header: 'compatible', value: (row) => (row.compatible ? 'yes' : 'no') },
-                {
-                    header: 'feature',
-                    value: (row) => (row.feature.enabled ? 'enabled' : 'disabled'),
-                },
-            ]);
+        const { computers, ...facts } = parsed.data;
+        context.output.list({ ...facts, data: computers }, [
+            { header: 'id', value: (row) => row.id },
+            { header: 'name', value: (row) => row.name },
+            { header: 'presence', value: (row) => row.presence },
+            { header: 'compatible', value: (row) => (row.compatible ? 'yes' : 'no') },
+            {
+                header: 'feature',
+                value: (row) => (row.feature.enabled ? 'enabled' : 'disabled'),
+            },
+        ]);
     },
 };
 
@@ -1040,15 +1038,13 @@ const agents: Command = {
         );
         if (!parsed.success)
             throw new CommandFailure('failed', "Dexto didn't return a valid agent list.", null);
-        const result = parsed.data;
-        if (context.output.json) context.output.result(result, '');
-        else
-            context.output.list({ data: result.agents }, [
-                { header: 'id', value: (row) => row.id },
-                { header: 'name', value: (row) => row.name },
-                { header: 'system', value: (row) => (row.isSystem ? 'yes' : 'no') },
-                { header: 'description', value: (row) => row.description ?? '' },
-            ]);
+        const { agents, ...facts } = parsed.data;
+        context.output.list({ ...facts, data: agents }, [
+            { header: 'id', value: (row) => row.id },
+            { header: 'name', value: (row) => row.name },
+            { header: 'system', value: (row) => (row.isSystem ? 'yes' : 'no') },
+            { header: 'description', value: (row) => row.description ?? '' },
+        ]);
     },
 };
 
@@ -1065,14 +1061,12 @@ const browserProfiles: Command = {
                 "Dexto didn't return a valid browser profile list.",
                 null
             );
-        const result = parsed.data;
-        if (context.output.json) context.output.result(result, '');
-        else
-            context.output.list({ data: result.profiles }, [
-                { header: 'id', value: (row) => row.id },
-                { header: 'name', value: (row) => row.name },
-                { header: 'available', value: (row) => (row.available ? 'yes' : 'in use') },
-            ]);
+        const { profiles, ...facts } = parsed.data;
+        context.output.list({ ...facts, data: profiles }, [
+            { header: 'id', value: (row) => row.id },
+            { header: 'name', value: (row) => row.name },
+            { header: 'available', value: (row) => (row.available ? 'yes' : 'in use') },
+        ]);
     },
 };
 
