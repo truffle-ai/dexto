@@ -1,0 +1,22 @@
+[
+    { "command": "messages list", "pr": 1300 },
+    { "command": "messages read", "pr": 1300 },
+    { "command": "cloud environments builds get", "pr": 1273 },
+    { "command": "cloud environments builds list", "pr": 1273 },
+    { "command": "cloud environments create", "pr": 1273 },
+    { "command": "cloud environments get", "pr": 1273 },
+    { "command": "cloud environments list", "pr": 1273 },
+    { "command": "cloud environments rebuild", "pr": 1273 },
+    { "command": "cloud environments update", "pr": 1273 },
+    { "command": "workspace functions get", "pr": 1272 },
+    { "command": "workspace functions invoke", "pr": 1272 },
+    { "command": "workspace functions list", "pr": 1272 },
+    { "command": "workspace gigs bids", "pr": 1251 },
+    { "command": "workspace gigs get", "pr": 1251 },
+    { "command": "workspace gigs match", "pr": 1251 },
+    { "command": "workspace gigs posted", "pr": 1251 },
+    { "command": "workspace gigs proposals", "pr": 1251 },
+    { "command": "workspace gigs search", "pr": 1251 },
+    { "command": "workspace gigs thread", "pr": 1251 },
+    { "command": "connect", "pr": 1233 }
+]
