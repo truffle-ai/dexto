@@ -274,3 +274,29 @@ describe('prototype keys', () => {
         expect(Object.getPrototypeOf(nested[0])).toBeNull();
     });
 });
+
+describe('renamed builtin tools', () => {
+    it('loads an installed agent that still enables invoke_skill as skill_load', async () => {
+        await fs.writeFile(
+            tmpFile,
+            `
+tools:
+  - type: builtin-tools
+    enabledTools:
+      - ask_user
+      - invoke_skill
+  - type: builtin-tools
+    enabledTools:
+      - invoke_skill
+      - skill_load
+  - type: filesystem-tools
+`
+        );
+        const result = await loadAgentConfig(tmpFile);
+        expect(result.tools).toEqual([
+            { type: 'builtin-tools', enabledTools: ['ask_user', 'skill_load'] },
+            { type: 'builtin-tools', enabledTools: ['skill_load'] },
+            { type: 'filesystem-tools' },
+        ]);
+    });
+});

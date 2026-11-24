@@ -13910,7 +13910,7 @@ export interface operations {
                      * @description Site visibility; defaults to the existing visibility or unlisted for a new Site.
                      * @enum {string}
                      */
-                    visibility?: "private" | "unlisted" | "public";
+                    visibility?: "private" | "restricted" | "unlisted" | "public";
                     /** @description The existing private Site's exact title, to confirm making it public. */
                     confirmPublicName?: string;
                     /** @description The path dexto_upload_prepare returned for purpose site-files. */
@@ -13936,7 +13936,7 @@ export interface operations {
                         };
                         url: string;
                         /** @enum {string} */
-                        visibility: "private" | "unlisted" | "public";
+                        visibility: "private" | "restricted" | "unlisted" | "public";
                     };
                 };
             };
@@ -16160,7 +16160,7 @@ export interface operations {
                              */
                             url: string;
                             /** @enum {string} */
-                            visibility: "private" | "unlisted" | "public";
+                            visibility: "private" | "restricted" | "unlisted" | "public";
                         }[];
                         /** @constant */
                         has_more: false;
@@ -16300,7 +16300,7 @@ export interface operations {
                          */
                         url: string;
                         /** @enum {string} */
-                        visibility: "private" | "unlisted" | "public";
+                        visibility: "private" | "restricted" | "unlisted" | "public";
                         /** @description The Site's newest deployments, at most 20. */
                         deployments: {
                             /** @description The deployment of the Site's Function this release serves; null for none. */
@@ -16667,7 +16667,7 @@ export interface operations {
                      * @default unlisted
                      * @enum {string}
                      */
-                    visibility?: "private" | "unlisted" | "public";
+                    visibility?: "private" | "restricted" | "unlisted" | "public";
                     assets: {
                         contentBase64: string;
                         mediaType?: string;
@@ -16767,7 +16767,7 @@ export interface operations {
                              */
                             url: string;
                             /** @enum {string} */
-                            visibility: "private" | "unlisted" | "public";
+                            visibility: "private" | "restricted" | "unlisted" | "public";
                         };
                         /**
                          * Format: uri
@@ -16937,7 +16937,7 @@ export interface operations {
                              */
                             url: string;
                             /** @enum {string} */
-                            visibility: "private" | "unlisted" | "public";
+                            visibility: "private" | "restricted" | "unlisted" | "public";
                         };
                         /**
                          * Format: uri
@@ -17187,6 +17187,7 @@ export interface operations {
                      * @enum {string}
                      */
                     kind?: "document" | "plan" | "mockup" | "prototype" | "slide-deck" | "visualization" | "interactive" | "other";
+                    idempotency_key?: string;
                 };
             };
         };

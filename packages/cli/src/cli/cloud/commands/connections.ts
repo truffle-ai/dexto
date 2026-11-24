@@ -12,6 +12,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
+import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool, WorkspaceToolFailure } from './workspace.js';
 
 const Start = z.discriminatedUnion('outcome', [
@@ -545,6 +546,8 @@ const list: Command = {
     path: ['connections', 'list'],
     summary: 'List your cloud connections and subscription sign-ins.',
     async run(context) {
+        // Without it Cloud still lists the model sign-ins, silently leaving out every connector.
+        await requireLoginScopes(context, ['connections:read']);
         const result = z
             .object({ connections: z.array(ConnectionRow) })
             .parse(await queryWorkspaceTool(context, 'dexto_connections_list', {}));
@@ -562,6 +565,7 @@ const status: Command = {
     summary: 'Show the status of a cloud connection.',
     async run(context, input) {
         const name = argument(input, 0, 'name');
+        await requireLoginScopes(context, ['connections:read']);
         const row = ConnectionRow.parse(
             await queryWorkspaceTool(context, 'dexto_connection_get', { name })
         );

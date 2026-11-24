@@ -18,7 +18,7 @@ it('rejects site help and points to publish', async () => {
     expect(result.stderr).toContain('dexto publish');
 });
 
-it('points from local chat list help to the cloud chat list', async () => {
+it('documents cloud chat list help with the --local switch', async () => {
     const entry = fileURLToPath(new URL('../../index.ts', import.meta.url));
     const tsx = createRequire(import.meta.url).resolve('tsx');
     const result = await promisify(execFile)(process.execPath, [
@@ -29,5 +29,6 @@ it('points from local chat list help to the cloud chat list', async () => {
         'list',
         '--help',
     ]);
-    expect(result.stdout).toContain('dexto workspace chat list');
+    expect(result.stdout).toContain('--local');
+    expect(result.stdout).toContain('dexto chat list --query');
 });

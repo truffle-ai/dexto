@@ -32,6 +32,28 @@ const MAX_TOTAL_BYTES = 25 * 1024 * 1024;
 /** The most the .zip that carries them can be, with room for its own headers. */
 const MAX_UPLOAD_BYTES = MAX_TOTAL_BYTES + 1024 * 1024;
 
+const VisibilitySchema = z.enum(['private', 'restricted', 'unlisted', 'public']);
+type Visibility = z.output<typeof VisibilitySchema>;
+/** Who can open a Site of each visibility, as the --yes note and the human result say it. */
+const WHO_CAN_OPEN: Record<Visibility, { note: string; result: string }> = {
+    private: {
+        note: 'only you and your organization can open it',
+        result: 'Open it from Dexto as an organization member.',
+    },
+    restricted: {
+        note: 'only you, Owners, Admins and people you share it with can open it',
+        result: 'Open it from Dexto; only you, Owners, Admins and people you share it with can.',
+    },
+    unlisted: {
+        note: 'anyone with the link can open it',
+        result: 'Anyone with the link can open it.',
+    },
+    public: {
+        note: 'anyone with the link can open it',
+        result: 'Anyone with the link can open it.',
+    },
+};
+
 const PreparedSchema = z.object({
     headers: z.record(z.string(), z.string()),
     method: z.string(),
@@ -45,7 +67,7 @@ const PublishedSchema = z
         homepage: z.string(),
         site: z.object({ id: z.string(), slug: z.string(), title: z.string() }).strict(),
         url: z.string(),
-        visibility: z.enum(['private', 'unlisted', 'public']),
+        visibility: VisibilitySchema,
     })
     .strict() satisfies z.ZodType<V1Response<'/v1/sites/publish', 'post'>>;
 
@@ -64,7 +86,8 @@ const publish: Command = {
         },
         title: { description: "The page's title (default: the name).", type: 'string' },
         visibility: {
-            description: 'Who can open the Site: private, unlisted, or public.',
+            description:
+                'Who can open the Site: private (your organization), restricted (people with access), unlisted, or public.',
             type: 'string',
             valueName: 'VISIBILITY',
         },
@@ -79,12 +102,11 @@ const publish: Command = {
     summary:
         'Publish a file, folder or .zip as a Site; publishing the same name again updates it. Requires sites:write and cloud:write. Example: dexto publish ./dist --yes',
     async run(context, input) {
-        const parsedVisibility = z
-            .enum(['private', 'unlisted', 'public'])
-            .optional()
-            .safeParse(stringOption(input, 'visibility'));
+        const parsedVisibility = VisibilitySchema.optional().safeParse(
+            stringOption(input, 'visibility')
+        );
         if (!parsedVisibility.success)
-            throw new UsageError('--visibility must be private, unlisted, or public.');
+            throw new UsageError('--visibility must be private, restricted, unlisted, or public.');
         const visibility = parsedVisibility.data;
         const confirmPublicName = stringOption(input, 'confirm-public');
         if (confirmPublicName !== undefined && visibility !== 'public')
@@ -197,11 +219,11 @@ const publish: Command = {
             );
         if (flag(input, 'yes'))
             context.output.note(
-                `Site visibility: ${published.visibility}: ${published.visibility === 'private' ? 'only you and your organization can open it' : 'anyone with the link can open it'}.`
+                `Site visibility: ${published.visibility}: ${WHO_CAN_OPEN[published.visibility].note}.`
             );
         context.output.result(
             published,
-            `${published.created ? 'Published' : 'Updated'} ${name} at ${published.url} (${published.files} file${published.files === 1 ? '' : 's'}).${published.visibility === 'private' ? ' Open it from Dexto as an organization member.' : ' Anyone with the link can open it.'}`
+            `${published.created ? 'Published' : 'Updated'} ${name} at ${published.url} (${published.files} file${published.files === 1 ? '' : 's'}). ${WHO_CAN_OPEN[published.visibility].result}`
         );
     },
 };

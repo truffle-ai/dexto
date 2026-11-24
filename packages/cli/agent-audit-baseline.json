@@ -21,7 +21,168 @@
     "examples": false
   },
   {
+    "command": "acp",
+    "json": false,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "acp login",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "applications get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications logs",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications release",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps uninstalled",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "artifacts list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "artifacts open",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "artifacts publish",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "autobots chat",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "autobots get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "autobots input",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "autobots list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "autobots publish",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "autobots save",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "autobots status",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "billing",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "channels list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "channels read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "channels send",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "chat agents",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
@@ -33,6 +194,13 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "chat cancel",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "chat computers",
@@ -56,6 +224,20 @@
     "examples": false
   },
   {
+    "command": "chat fork",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "chat get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "chat history",
     "json": false,
     "dryRun": false,
@@ -71,10 +253,10 @@
   },
   {
     "command": "chat list",
-    "json": false,
+    "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat local",
@@ -84,11 +266,32 @@
     "examples": false
   },
   {
+    "command": "chat models",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "chat outputs",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "chat send",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "chat share",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "chat start",
@@ -651,6 +854,20 @@
     "examples": true
   },
   {
+    "command": "docs read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "docs search",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "find",
     "json": true,
     "dryRun": false,
@@ -686,11 +903,95 @@
     "examples": false
   },
   {
+    "command": "loops get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "loops list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "marketplace get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "marketplace install",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "marketplace preview",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "marketplace publish",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "marketplace search",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "marketplace uninstall",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "marketplace unpublish",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "models list",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "notifications get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "notifications list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "notifications mark-read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "profile get",
@@ -728,6 +1029,13 @@
     "examples": false
   },
   {
+    "command": "projects install-recipe",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "projects list",
     "json": true,
     "dryRun": false,
@@ -739,6 +1047,13 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "projects recipes",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
     "examples": false
   },
   {
@@ -784,6 +1099,48 @@
     "examples": true
   },
   {
+    "command": "skills create",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills delete",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills file",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "skills get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "skills install",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills publish",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "skills push",
     "json": true,
     "dryRun": false,
@@ -791,11 +1148,46 @@
     "examples": false
   },
   {
+    "command": "skills restore",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "skills sync",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "skills uninstall",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills update",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "skills validate",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "skills versions",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
   },
   {
     "command": "span list",
@@ -903,6 +1295,76 @@
     "examples": false
   },
   {
+    "command": "workspace contacts accept",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts block",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts connect",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts decline",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts invite-link",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts remove",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts requests",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts search",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace contacts unblock",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "workspace describe",
     "json": true,
     "dryRun": false,
@@ -915,6 +1377,83 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "workspace network list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace network mark-read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace network read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace network send",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "workspace share access",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace share received",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace sites records create",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "workspace sites records delete",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "workspace sites records get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace sites records list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace sites records update",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "workspace tools",

@@ -1,5 +1,81 @@
 # @dexto/analytics
 
+## 1.19.8
+
+### Patch Changes
+
+- Updated dependencies [98eb8fb]
+    - @dexto/core@1.19.8
+    - @dexto/agent-management@1.19.8
+
+## 1.19.7
+
+### Patch Changes
+
+- Updated dependencies [ee6dfd5]
+    - @dexto/core@1.19.7
+    - @dexto/agent-management@1.19.7
+
+## 1.19.6
+
+### Patch Changes
+
+- Updated dependencies [234787b]
+- Updated dependencies [197b5f5]
+    - @dexto/agent-management@1.19.6
+    - @dexto/core@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- Updated dependencies [80e53da]
+- Updated dependencies [f4475d7]
+- Updated dependencies [7cc877f]
+- Updated dependencies [0572e3d]
+- Updated dependencies [0689ed2]
+- Updated dependencies [ed1c456]
+- Updated dependencies [1c0e47d]
+- Updated dependencies [fb815eb]
+- Updated dependencies [eec24ce]
+    - @dexto/agent-management@1.19.5
+    - @dexto/core@1.19.5
+
+## 1.19.4
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-management@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- Updated dependencies [023c262]
+- Updated dependencies [0cd288b]
+    - @dexto/core@1.19.3
+    - @dexto/agent-management@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- Updated dependencies [5293e60]
+    - @dexto/agent-management@1.19.2
+    - @dexto/core@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-management@1.19.1
+
 ## 1.19.0
 
 ### Patch Changes

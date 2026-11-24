@@ -1,6 +1,6 @@
 {
     "name": "@dexto/llm",
-    "version": "1.19.0",
+    "version": "1.19.8",
     "private": false,
     "type": "module",
     "main": "./dist/index.js",

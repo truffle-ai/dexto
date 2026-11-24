@@ -246,6 +246,35 @@ export function getEffectiveReasoningBudgetTokens(
 }
 
 /**
+ * Whether a step with these provider options may require a tool call. Claude rejects a forced
+ * tool choice while it thinks, so those steps leave the choice to the model.
+ */
+export function canRequireToolCall(
+    model: string,
+    providerOptions: Record<string, Record<string, unknown>> | undefined
+): boolean {
+    if (providerOptions === undefined) return true;
+
+    // Only Anthropic-format requests carry anthropic.thinking, whatever the model id is called.
+    const anthropicThinking = asRecord(asRecord(providerOptions['anthropic'])?.['thinking']);
+    if (anthropicThinking?.['type'] === 'enabled' || anthropicThinking?.['type'] === 'adaptive') {
+        return false;
+    }
+
+    const modelLower = model.toLowerCase();
+    if (!modelLower.includes('claude') && !modelLower.includes('anthropic')) return true;
+
+    const bedrockReasoning = asRecord(asRecord(providerOptions['bedrock'])?.['reasoningConfig']);
+    const openrouter = asRecord(providerOptions['openrouter']);
+    const compatibleEffort = asRecord(providerOptions['openaiCompatible'])?.['reasoningEffort'];
+    const thinks =
+        bedrockReasoning?.['type'] === 'enabled' ||
+        openrouter?.['include_reasoning'] === true ||
+        (compatibleEffort !== undefined && compatibleEffort !== 'none');
+    return !thinks;
+}
+
+/**
  * Build provider-specific options for streamText/generateText.
  */
 export function buildProviderOptions(

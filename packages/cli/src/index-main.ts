@@ -99,6 +99,7 @@ import {
 } from './config/cli-overrides.js';
 import { CommandFailure } from './cli/failure.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
+import { registerAcpCommand } from './cli/commands/acp/register.js';
 import { registerReviewCommand } from './cli/commands/review/register.js';
 import { gitIn, readBundledReviewSkill } from './cli/commands/review/review.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
@@ -313,12 +314,23 @@ function printPermissionsModeDeprecation(config: AgentConfig): void {
 }
 
 // Helper to bootstrap a minimal agent for non-interactive commands
+/**
+ * The config with the person's saved model choice, once setup has saved one. Unreadable
+ * preferences are skipped, as in the interactive CLI.
+ */
+async function withSavedModel(config: AgentConfig): Promise<AgentConfig> {
+    if (!globalPreferencesExist()) return config;
+    const preferences = await loadGlobalPreferences().catch(() => null);
+    if (!preferences?.setup.completed) return config;
+    return applyUserPreferences(config, preferences);
+}
+
 async function bootstrapAgentFromGlobalOpts(options: {
     mode: BootstrapAgentMode;
     modelOverride?: string;
 }) {
     const { mode, modelOverride } = options;
-    const isHeadlessRun = mode === 'headless-run';
+    const isHeadlessRun = mode === 'headless-run' || mode === 'acp';
     await ensureDextoSignInsCarriedOver();
     await syncCloudSkillsOnce();
     await ensureImageImporterConfigured();
@@ -352,10 +364,15 @@ async function bootstrapAgentFromGlobalOpts(options: {
     const resolvedPath = await resolveAgentPath(globalOpts.agent);
     const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
     const rawConfig = await loadAgentConfig(resolvedPath);
-    const mergedConfig = applyCLIOverrides(rawConfig, {
+    let mergedConfig = applyCLIOverrides(rawConfig, {
         ...globalOpts,
         ...(modelOverride ? { model: modelOverride } : {}),
     });
+    // An ACP client starts on the person's saved model, for any agent, as the TUI does; an
+    // explicit --model wins.
+    if (mode === 'acp' && !effectiveModel) {
+        mergedConfig = await withSavedModel(mergedConfig);
+    }
     printPermissionsModeDeprecation(mergedConfig);
     if (effectiveModel) {
         mergedConfig.llm.model = effectiveModel;
@@ -412,7 +429,9 @@ async function bootstrapAgentFromGlobalOpts(options: {
     }
 
     enrichedConfig.elicitation = {
-        enabled: false,
+        // Only an ACP client can answer ask_user and MCP elicitation forms; an explicit
+        // `enabled: false` (or --no-elicitation) still turns them off.
+        enabled: mode === 'acp' && enrichedConfig.elicitation?.enabled !== false,
         ...(enrichedConfig.elicitation?.timeout !== undefined && {
             timeout: enrichedConfig.elicitation.timeout,
         }),
@@ -462,6 +481,7 @@ const runtimeCommandContext = {
     bootstrapAgentFromGlobalOpts,
 };
 registerRunCommand(runtimeCommandContext);
+registerAcpCommand(runtimeCommandContext);
 registerReviewCommand(runtimeCommandContext, {
     git: gitIn(process.cwd()),
     readSkill: readBundledReviewSkill,
@@ -479,7 +499,7 @@ program
             '  dexto -c | -r <id>      Continue the latest chat, or resume one\n' +
             '  dexto -a ./agent.yml    Use an agent file\n' +
             '  dexto run "query"       Run one headless task\n' +
-            "  dexto chat list         This machine's chats\n" +
+            "  dexto chat list         Your cloud chats; --local for this machine's\n" +
             '  dexto login             Sign in for Dexto models and the cloud commands\n\n' +
             'Docs: https://cli.dexto.ai'
     )

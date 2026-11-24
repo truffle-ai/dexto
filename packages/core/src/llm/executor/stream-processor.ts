@@ -130,6 +130,49 @@ function blockSeparator(
     return accumulated.endsWith('\n') ? '\n' : '\n\n';
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readOpenRouterReasoningDetails(providerMetadata: unknown): unknown[] {
+    if (!isRecord(providerMetadata)) return [];
+    const openRouter = providerMetadata['openrouter'];
+    if (!isRecord(openRouter)) return [];
+    const details = openRouter['reasoning_details'];
+    return Array.isArray(details) ? details : [];
+}
+
+/**
+ * The OpenRouter client shows an encrypted reasoning detail (an OpenAI reasoning item, a redacted
+ * Claude block) as the text `[REDACTED]`. It is a placeholder, not reasoning to show or keep.
+ */
+function isEncryptedReasoningPlaceholder(text: string, providerMetadata: unknown): boolean {
+    if (text !== '[REDACTED]') return false;
+    const details = readOpenRouterReasoningDetails(providerMetadata);
+    return (
+        details.length > 0 &&
+        details.every((detail) => isRecord(detail) && detail['type'] === 'reasoning.encrypted')
+    );
+}
+
+/**
+ * The tool call metadata the next request must send back. Gemini needs its thought signatures.
+ * The Dexto gateway (`dexto-nova`, an OpenRouter client) needs the step's `reasoning_details`,
+ * which carry Claude's signed thinking and OpenAI's encrypted reasoning items through a tool loop.
+ * Other providers' metadata stays out: OpenAI Responses item ids make invalid follow-up requests.
+ */
+function toolCallProviderOptions(
+    provider: LLMProvider,
+    providerMetadata: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+    if (provider === 'google' || provider === 'vertex') {
+        return providerMetadata ? { ...providerMetadata } : undefined;
+    }
+    if (provider !== 'dexto-nova') return undefined;
+    const details = readOpenRouterReasoningDetails(providerMetadata);
+    return details.length === 0 ? undefined : { openrouter: { reasoning_details: details } };
+}
+
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
@@ -362,14 +405,20 @@ export class StreamProcessor {
                         setStreamAttribute('last_delta_kind', 'reasoning');
                         // Handle reasoning delta (extended thinking from Claude, etc.). A second
                         // reasoning block in one step starts a new paragraph, as text blocks do.
+                        const text = isEncryptedReasoningPlaceholder(
+                            event.text,
+                            event.providerMetadata
+                        )
+                            ? ''
+                            : event.text;
                         const reasoning =
                             blockSeparator(
                                 this.lastReasoningBlockId,
                                 event.id,
                                 this.reasoningText,
-                                event.text
-                            ) + event.text;
-                        if (event.text !== '') this.lastReasoningBlockId = event.id;
+                                text
+                            ) + text;
+                        if (text !== '') this.lastReasoningBlockId = event.id;
                         this.reasoningText += reasoning;
 
                         // Capture provider metadata for round-tripping (e.g., OpenAI itemId, Gemini thought signatures)
@@ -410,8 +459,6 @@ export class StreamProcessor {
                             this.assistantMessageId = await this.createAssistantMessage();
                         }
 
-                        // Extract providerMetadata for round-tripping (e.g., Gemini 3 thought signatures)
-                        // These are opaque tokens that must be passed back to maintain model state
                         const toolCall: Parameters<typeof this.contextManager.addToolCall>[1] = {
                             id: event.toolCallId,
                             type: 'function',
@@ -420,17 +467,11 @@ export class StreamProcessor {
                                 arguments: JSON.stringify(event.input),
                             },
                         };
-                        // IMPORTANT: Only persist providerMetadata for providers that require round-tripping
-                        // (e.g., Gemini thought signatures). OpenAI Responses metadata can cause invalid
-                        // follow-up requests (function_call item references missing required reasoning items).
-                        const shouldPersistProviderMetadata =
-                            this.config.provider === 'google' || this.config.provider === 'vertex';
-
-                        if (shouldPersistProviderMetadata && event.providerMetadata) {
-                            toolCall.providerOptions = {
-                                ...event.providerMetadata,
-                            } as Record<string, unknown>;
-                        }
+                        const providerOptions = toolCallProviderOptions(
+                            this.config.provider,
+                            event.providerMetadata
+                        );
+                        if (providerOptions) toolCall.providerOptions = providerOptions;
 
                         await this.contextManager.addToolCall(this.assistantMessageId!, toolCall);
                         this.modelToolCalls.push({
@@ -935,9 +976,6 @@ export class StreamProcessor {
             this.reasoningMetadata = providerMetadata;
             return;
         }
-
-        const isRecord = (value: unknown): value is Record<string, unknown> =>
-            !!value && typeof value === 'object' && !Array.isArray(value);
 
         const previous = this.reasoningMetadata;
         const merged: Record<string, unknown> = { ...previous, ...providerMetadata };

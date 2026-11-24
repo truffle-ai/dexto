@@ -1056,6 +1056,36 @@ describe('DextoAgent Lifecycle Management', () => {
             await Promise.resolve();
         });
 
+        test('ends the iterator when session.stream settles without a run:complete event', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const sessionStream = vi.fn().mockResolvedValue({ text: '' });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+                isBusy: vi.fn().mockReturnValue(false),
+            });
+
+            await agent.start();
+
+            const cancel = new AbortController();
+            const disconnect = new AbortController();
+            cancel.abort();
+            const drain = async (message: string) => {
+                const events: StreamingEvent[] = [];
+                for await (const event of await agent.stream(message, 'test-session', {
+                    signal: cancel.signal,
+                    disconnectSignal: disconnect.signal,
+                })) {
+                    events.push(event);
+                }
+                return events;
+            };
+
+            await expect(drain('hello')).resolves.toEqual([]);
+            await expect(drain('again')).resolves.toEqual([]);
+            expect(sessionStream).toHaveBeenCalledTimes(2);
+        });
+
         test('should reject a new stream after disconnect when the session is still busy', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const deferred = createDeferred<void>();

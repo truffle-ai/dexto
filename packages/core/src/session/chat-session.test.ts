@@ -1125,6 +1125,64 @@ describe('ChatSession', () => {
         });
     });
 
+    describe('Cancellation before the turn starts', () => {
+        beforeEach(async () => {
+            await chatSession.init();
+        });
+
+        function abortError(): Error {
+            const error = new Error('The operation was aborted');
+            error.name = 'AbortError';
+            return error;
+        }
+
+        test('ends the run once and frees the session when a beforeLLMRequest hook honours the abort', async () => {
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            mockServices.hookManager.executeHooks.mockImplementation(
+                async (_point: string, _payload: unknown, ctx: { abortSignal: AbortSignal }) => {
+                    if (ctx.abortSignal.aborted) {
+                        throw abortError();
+                    }
+                    return _payload;
+                }
+            );
+            const caller = new AbortController();
+            caller.abort();
+
+            await expect(chatSession.stream('hello', { signal: caller.signal })).resolves.toEqual({
+                text: '',
+            });
+
+            expect(mockLLMService.stream).not.toHaveBeenCalled();
+            expect(runCompletes).toEqual([
+                expect.objectContaining({ finishReason: 'cancelled', stepCount: 0 }),
+            ]);
+            expect(chatSession.isBusy()).toBe(false);
+
+            mockLLMService.stream.mockResolvedValue({ text: 'second' });
+            await expect(chatSession.stream('again')).resolves.toEqual({ text: 'second' });
+        });
+
+        test('does not add a second run:complete when the turn already ended before the abort error', async () => {
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            mockLLMService.stream.mockImplementation(async () => {
+                chatSession.eventBus.emit('run:complete', {
+                    finishReason: 'error',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                throw abortError();
+            });
+
+            await chatSession.stream('hello');
+
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'error' })]);
+            expect(chatSession.isBusy()).toBe(false);
+        });
+    });
+
     describe('Session Isolation', () => {
         test('should create session-specific services with proper isolation', async () => {
             await chatSession.init();

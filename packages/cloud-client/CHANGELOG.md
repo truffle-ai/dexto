@@ -1,5 +1,25 @@
 # @dexto/cloud-client
 
+## 1.19.8
+
+## 1.19.7
+
+### Patch Changes
+
+- 1f9b644: `dexto publish --visibility restricted` publishes a Site that only you, Owners, Admins and people you share it with can open. The help and error text list the four visibilities, and the result says who can open the Site. The client's Site types include the `restricted` visibility.
+
+## 1.19.6
+
+## 1.19.5
+
+## 1.19.4
+
+## 1.19.3
+
+## 1.19.2
+
+## 1.19.1
+
 ## 1.19.0
 
 ## 1.18.1

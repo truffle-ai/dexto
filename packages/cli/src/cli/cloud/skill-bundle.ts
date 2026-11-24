@@ -1,10 +1,54 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { UsageError } from './command.js';
+import { stringOption, UsageError, type CommandInput, type OptionSpec } from './command.js';
 import type { TarFile } from './tar.js';
 
 const MAX_FILES = 200;
 export const SLUG = /^[a-z0-9._-]{1,80}$/u;
+
+/** What a command that reads a Skill folder takes to name it, each defaulting from SKILL.md. */
+export const SKILL_BUNDLE_OPTIONS = {
+    description: {
+        description: "What the Skill does (default: description in SKILL.md's header).",
+        type: 'string',
+    },
+    slug: {
+        description:
+            "The Skill's slug (default: slug or name in SKILL.md's header, else the folder's name).",
+        type: 'string',
+    },
+    title: {
+        description: "The Skill's title (default: title in SKILL.md's header, else from the slug).",
+        type: 'string',
+    },
+} as const satisfies Record<string, OptionSpec>;
+
+/** A Skill folder's files, with its slug, title and description from the flags or SKILL.md. */
+export async function readSkillBundle(
+    input: CommandInput,
+    folder: string
+): Promise<{ description: string; files: TarFile[]; slug: string; title: string }> {
+    const files = await readSkillFolder(folder);
+    const header = skillHeader(new globalThis.TextDecoder().decode(files[0]?.bytes));
+    const named = header.name !== undefined && SLUG.test(header.name) ? header.name : null;
+    const slug =
+        stringOption(input, 'slug') ?? header.slug ?? named ?? path.basename(path.resolve(folder));
+    if (!SLUG.test(slug))
+        throw new UsageError(
+            `${slug} can't be a Skill's slug: use up to 80 lowercase letters, digits, dots, dashes and underscores. Pass --slug.`
+        );
+    const title =
+        stringOption(input, 'title') ??
+        header.title ??
+        (named === null ? header.name : undefined) ??
+        titleFromSlug(slug);
+    const description = stringOption(input, 'description') ?? header.description;
+    if (description === undefined)
+        throw new UsageError(
+            "SKILL.md's header has no description. Add one there, or pass --description."
+        );
+    return { description, files, slug, title };
+}
 
 /**
  * The folder's files, SKILL.md first, as the bundle takes them: relative paths, the executable bit

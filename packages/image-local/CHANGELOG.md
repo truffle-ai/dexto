@@ -1,5 +1,153 @@
 # @dexto/image-local
 
+## 1.19.8
+
+### Patch Changes
+
+- Updated dependencies [98eb8fb]
+    - @dexto/core@1.19.8
+    - @dexto/agent-config@1.19.8
+    - @dexto/agent-management@1.19.8
+    - @dexto/storage@1.19.8
+    - @dexto/tools-builtins@1.19.8
+    - @dexto/tools-filesystem@1.19.8
+    - @dexto/tools-lifecycle@1.19.8
+    - @dexto/tools-plan@1.19.8
+    - @dexto/tools-process@1.19.8
+    - @dexto/tools-scheduler@1.19.8
+    - @dexto/tools-todo@1.19.8
+
+## 1.19.7
+
+### Patch Changes
+
+- Updated dependencies [ee6dfd5]
+    - @dexto/core@1.19.7
+    - @dexto/agent-config@1.19.7
+    - @dexto/agent-management@1.19.7
+    - @dexto/storage@1.19.7
+    - @dexto/tools-builtins@1.19.7
+    - @dexto/tools-filesystem@1.19.7
+    - @dexto/tools-lifecycle@1.19.7
+    - @dexto/tools-plan@1.19.7
+    - @dexto/tools-process@1.19.7
+    - @dexto/tools-scheduler@1.19.7
+    - @dexto/tools-todo@1.19.7
+
+## 1.19.6
+
+### Patch Changes
+
+- Updated dependencies [234787b]
+- Updated dependencies [197b5f5]
+    - @dexto/agent-management@1.19.6
+    - @dexto/core@1.19.6
+    - @dexto/agent-config@1.19.6
+    - @dexto/storage@1.19.6
+    - @dexto/tools-builtins@1.19.6
+    - @dexto/tools-filesystem@1.19.6
+    - @dexto/tools-lifecycle@1.19.6
+    - @dexto/tools-plan@1.19.6
+    - @dexto/tools-process@1.19.6
+    - @dexto/tools-scheduler@1.19.6
+    - @dexto/tools-todo@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- Updated dependencies [80e53da]
+- Updated dependencies [f4475d7]
+- Updated dependencies [7cc877f]
+- Updated dependencies [0572e3d]
+- Updated dependencies [0689ed2]
+- Updated dependencies [ed1c456]
+- Updated dependencies [1c0e47d]
+- Updated dependencies [fb815eb]
+- Updated dependencies [eec24ce]
+    - @dexto/agent-management@1.19.5
+    - @dexto/core@1.19.5
+    - @dexto/agent-config@1.19.5
+    - @dexto/storage@1.19.5
+    - @dexto/tools-builtins@1.19.5
+    - @dexto/tools-filesystem@1.19.5
+    - @dexto/tools-lifecycle@1.19.5
+    - @dexto/tools-plan@1.19.5
+    - @dexto/tools-process@1.19.5
+    - @dexto/tools-scheduler@1.19.5
+    - @dexto/tools-todo@1.19.5
+
+## 1.19.4
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/agent-management@1.19.4
+    - @dexto/storage@1.19.4
+    - @dexto/tools-builtins@1.19.4
+    - @dexto/tools-filesystem@1.19.4
+    - @dexto/tools-lifecycle@1.19.4
+    - @dexto/tools-plan@1.19.4
+    - @dexto/tools-process@1.19.4
+    - @dexto/tools-scheduler@1.19.4
+    - @dexto/tools-todo@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- Updated dependencies [023c262]
+- Updated dependencies [0cd288b]
+    - @dexto/core@1.19.3
+    - @dexto/agent-management@1.19.3
+    - @dexto/agent-config@1.19.3
+    - @dexto/storage@1.19.3
+    - @dexto/tools-builtins@1.19.3
+    - @dexto/tools-filesystem@1.19.3
+    - @dexto/tools-lifecycle@1.19.3
+    - @dexto/tools-plan@1.19.3
+    - @dexto/tools-process@1.19.3
+    - @dexto/tools-scheduler@1.19.3
+    - @dexto/tools-todo@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- Updated dependencies [5293e60]
+    - @dexto/agent-management@1.19.2
+    - @dexto/core@1.19.2
+    - @dexto/storage@1.19.2
+    - @dexto/agent-config@1.19.2
+    - @dexto/tools-filesystem@1.19.2
+    - @dexto/tools-builtins@1.19.2
+    - @dexto/tools-process@1.19.2
+    - @dexto/tools-todo@1.19.2
+    - @dexto/tools-plan@1.19.2
+    - @dexto/tools-scheduler@1.19.2
+    - @dexto/tools-lifecycle@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/agent-management@1.19.1
+    - @dexto/storage@1.19.1
+    - @dexto/tools-builtins@1.19.1
+    - @dexto/tools-filesystem@1.19.1
+    - @dexto/tools-lifecycle@1.19.1
+    - @dexto/tools-plan@1.19.1
+    - @dexto/tools-process@1.19.1
+    - @dexto/tools-scheduler@1.19.1
+    - @dexto/tools-todo@1.19.1
+
 ## 1.19.0
 
 ### Patch Changes

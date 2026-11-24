@@ -1,6 +1,7 @@
 // Runs chat sync beside the interactive CLI: syncs a chat after each run, shows the first-run
 // notice before anything syncs, and answers /sync and /private.
 
+import type { dextoSignIn } from '@dexto/agent-management';
 import {
     createChatSync,
     type ChatSync,
@@ -18,7 +19,7 @@ import {
 } from './store.js';
 
 /** The scope a sign-in needs to sync chats; asked for at sign-in only while sync is on. */
-export const CHAT_SYNC_SCOPE = 'chats:sync';
+export const CHAT_SYNC_SCOPE = 'chats:sync' satisfies dextoSignIn.CliLoginScope;
 
 /** Whether the person can sync now. */
 export type SyncSignIn =

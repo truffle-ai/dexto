@@ -39,4 +39,13 @@ describe('isEditInWorkspace', () => {
         expect(isEditInWorkspace('directory:/work/src', '/work')).toBe(false);
         expect(isEditInWorkspace('bash:git *', '/work')).toBe(false);
     });
+
+    it('splits at the first operation marker, as the old pattern did', () => {
+        expect(isEditInWorkspace('directory:/work/a:operation:b:operation:edit', '/work')).toBe(
+            false
+        );
+        expect(isEditInWorkspace('directory:/work:operation:', '/work')).toBe(false);
+        expect(isEditInWorkspace('directory::operation:edit', '/work')).toBe(false);
+        expect(isEditInWorkspace('directory:/work\n:operation:edit', '/work')).toBe(false);
+    });
 });
