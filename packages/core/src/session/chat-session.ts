@@ -158,7 +158,7 @@ export class ChatSession {
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
     private currentRunController: AbortController | null = null;
-    private turnDriverSetup: Promise<void> | null = null;
+    private turnDriverActive = false;
 
     public readonly logger: Logger;
 
@@ -548,9 +548,6 @@ export class ChatSession {
     ): Promise<{ text: string }> {
         const parts = this.normalizeContent(content);
 
-        if (this.currentRunController?.signal.aborted && this.turnDriverSetup) {
-            await this.turnDriverSetup;
-        }
         if (this.isBusy()) {
             throw SessionError.busy(this.id);
         }
@@ -673,18 +670,12 @@ export class ChatSession {
     }
 
     public async createTurnDriver(input: ChatSessionTurnDriverInput): Promise<TurnDriver> {
-        if (this.currentRunController?.signal.aborted && this.turnDriverSetup) {
-            await this.turnDriverSetup;
-        }
-        if (this.isBusy()) {
+        if (this.currentRunController !== null) {
             throw SessionError.busy(this.id);
         }
 
         this.currentRunController = new AbortController();
-        let finishSetup!: () => void;
-        this.turnDriverSetup = new Promise<void>((resolve) => {
-            finishSetup = resolve;
-        });
+        this.turnDriverActive = true;
         const startedAt = input.kind === 'resume' ? input.state.startedAtMs : Date.now();
         let runCompleted = false;
         const markRunCompleted = () => {
@@ -699,6 +690,7 @@ export class ChatSession {
                 ? this.combineSignals(input.signal, this.currentRunController.signal)
                 : this.currentRunController.signal;
             detachForwarders = this.attachRunEventForwarders(input.runContext);
+            signal.throwIfAborted();
             if (input.kind === 'start') {
                 this.logger.info('ChatSession turn input received', {
                     sessionId: this.id,
@@ -720,6 +712,7 @@ export class ChatSession {
                     () => this.prepareTurnInput(input.content, signal, input.runContext),
                     this.logger
                 );
+                signal.throwIfAborted();
                 await recordOperationSpan(
                     {
                         name: 'chat_session.add_user_message',
@@ -753,6 +746,7 @@ export class ChatSession {
                 });
             }
 
+            signal.throwIfAborted();
             const streaming = input.streaming ?? true;
             const driver = await recordOperationSpan(
                 {
@@ -773,6 +767,10 @@ export class ChatSession {
                 this.logger
             );
 
+            if (signal.aborted) {
+                driver.dispose();
+                signal.throwIfAborted();
+            }
             const wrappedDriver = this.wrapTurnDriver(
                 driver,
                 signal,
@@ -814,9 +812,8 @@ export class ChatSession {
             if (!driverCreated) {
                 detachForwarders?.();
                 this.currentRunController = null;
+                this.turnDriverActive = false;
             }
-            this.turnDriverSetup = null;
-            finishSetup();
         }
     }
 
@@ -834,6 +831,7 @@ export class ChatSession {
             closed = true;
             detachForwarders();
             this.currentRunController = null;
+            this.turnDriverActive = false;
         };
 
         return {
@@ -1069,10 +1067,13 @@ export class ChatSession {
 
     /**
      * Check if this session is currently processing a message.
-     * Returns true if a run is in progress and has not been aborted.
+     * An aborted turn driver remains busy until it closes and releases its event forwarding.
      */
     public isBusy(): boolean {
-        return this.currentRunController !== null && !this.currentRunController.signal.aborted;
+        return (
+            this.turnDriverActive ||
+            (this.currentRunController !== null && !this.currentRunController.signal.aborted)
+        );
     }
 
     /**

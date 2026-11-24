@@ -1177,7 +1177,7 @@ describe('ChatSession', () => {
             expect(chatSession.isBusy()).toBe(false);
         });
 
-        test('waits for cancelled setup to unwind before starting the next turn', async () => {
+        test('rejects new turns while cancelled driver setup unwinds', async () => {
             const entered = createDeferred<void>();
             const release = createDeferred<void>();
             const runCompletes: SessionEventMap['run:complete'][] = [];
@@ -1194,14 +1194,152 @@ describe('ChatSession', () => {
             const rejection = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
             await entered.promise;
             expect(chatSession.cancel()).toBe(true);
-            const nextPromise = chatSession.createTurnDriver({ kind: 'start', content: 'second' });
+            const busy = chatSession.isBusy();
+            if (busy) {
+                await expect(chatSession.stream('second')).rejects.toMatchObject({
+                    code: SessionErrorCode.SESSION_BUSY,
+                });
+                await expect(
+                    chatSession.createTurnDriver({ kind: 'start', content: 'second' })
+                ).rejects.toMatchObject({ code: SessionErrorCode.SESSION_BUSY });
+            }
             expect(mockServices.hookManager.executeHooks).toHaveBeenCalledTimes(1);
             release.resolve();
             await rejection;
+            expect(busy).toBe(true);
             expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
-            const next = await nextPromise;
+            const next = await chatSession.createTurnDriver({ kind: 'start', content: 'second' });
             next.dispose();
             expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('ends an already-aborted setup even when hooks do not throw', async () => {
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            const caller = new AbortController();
+            caller.abort();
+            await expect(
+                chatSession.createTurnDriver({
+                    kind: 'start',
+                    content: 'hello',
+                    signal: caller.signal,
+                })
+            ).rejects.toMatchObject({ name: 'AbortError' });
+            expect(mockContextManager.addUserMessage).not.toHaveBeenCalled();
+            expect(mockLLMService.createTurnDriver).not.toHaveBeenCalled();
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
+        });
+
+        test('ends setup when a non-throwing hook returns after cancellation', async () => {
+            const entered = createDeferred<void>();
+            const release = createDeferred<void>();
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            mockServices.hookManager.executeHooks.mockImplementationOnce(
+                async (_point: string, payload: unknown) => {
+                    entered.resolve();
+                    await release.promise;
+                    return payload;
+                }
+            );
+            const pending = chatSession.createTurnDriver({ kind: 'start', content: 'first' });
+            const rejection = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+            await entered.promise;
+            chatSession.cancel();
+            release.resolve();
+            await rejection;
+            expect(mockContextManager.addUserMessage).not.toHaveBeenCalled();
+            expect(mockLLMService.createTurnDriver).not.toHaveBeenCalled();
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
+        });
+
+        test('keeps a cancelled driver isolated until it closes', async () => {
+            const inner = createMockTurnDriver();
+            mockLLMService.createTurnDriver.mockResolvedValue(inner);
+            const driver = await chatSession.createTurnDriver({ kind: 'start', content: 'first' });
+            chatSession.cancel();
+            const busy = chatSession.isBusy();
+            if (busy) {
+                await expect(
+                    chatSession.createTurnDriver({ kind: 'start', content: 'second' })
+                ).rejects.toMatchObject({ code: SessionErrorCode.SESSION_BUSY });
+            }
+            chatSession.eventBus.emit('run:complete', {
+                finishReason: 'cancelled',
+                stepCount: 1,
+                durationMs: 1,
+            });
+            driver.dispose();
+            expect(busy).toBe(true);
+            const caller = new AbortController();
+            caller.abort();
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            await expect(
+                chatSession.createTurnDriver({
+                    kind: 'start',
+                    content: 'second',
+                    signal: caller.signal,
+                })
+            ).rejects.toMatchObject({ name: 'AbortError' });
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
+        });
+
+        test('disposes a driver constructed after cancellation', async () => {
+            const entered = createDeferred<void>();
+            const release = createDeferred<void>();
+            const inner = createMockTurnDriver();
+            mockLLMService.createTurnDriver.mockImplementation(async () => {
+                entered.resolve();
+                await release.promise;
+                return inner;
+            });
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            const pending = chatSession.createTurnDriver({ kind: 'start', content: 'first' });
+            const rejection = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+            await entered.promise;
+            chatSession.cancel();
+            release.resolve();
+            await rejection;
+            expect(inner.dispose).toHaveBeenCalledOnce();
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
+            expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('does not start a driver while a cancelled stream is still unwinding', async () => {
+            const entered = createDeferred<void>();
+            const release = createDeferred<void>();
+            mockLLMService.stream.mockImplementation(async () => {
+                entered.resolve();
+                await release.promise;
+                chatSession.eventBus.emit('run:complete', {
+                    finishReason: 'cancelled',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                throw abortError();
+            });
+            const prior = chatSession.stream('first');
+            await entered.promise;
+            chatSession.cancel();
+            await expect(
+                chatSession.createTurnDriver({ kind: 'start', content: 'second' })
+            ).rejects.toMatchObject({ code: SessionErrorCode.SESSION_BUSY });
+            release.resolve();
+            await prior;
+            const caller = new AbortController();
+            caller.abort();
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            await expect(
+                chatSession.createTurnDriver({
+                    kind: 'start',
+                    content: 'second',
+                    signal: caller.signal,
+                })
+            ).rejects.toMatchObject({ name: 'AbortError' });
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
         });
 
         test('does not duplicate a completion emitted during turn driver setup', async () => {
