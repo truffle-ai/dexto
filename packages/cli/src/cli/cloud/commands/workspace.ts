@@ -6,6 +6,7 @@ import { requireConsent, rerunWith } from '../../interaction.js';
 import { z } from 'zod';
 import { unwrap } from '@dexto/cloud-client';
 import { readAppScopes } from '../app-scopes.js';
+import parity from '../__parity__/cli-mcp-parity.json' with { type: 'json' };
 
 import {
     argument,
@@ -232,11 +233,12 @@ function toolFailure(
         .map((part) => part.text)
         .filter((part): part is string => part !== undefined)
         .join('\n');
-    const message =
+    const message = cliMessage(
         (isJsonObject(value) && typeof value.message === 'string' && value.message) ||
-        (typeof error?.message === 'string' && error.message) ||
-        text ||
-        'The tool reported an error.';
+            (typeof error?.message === 'string' && error.message) ||
+            text ||
+            'The tool reported an error.'
+    );
     if (status === 'not_found') return new CommandFailure('not_found', message, null);
     const scopes =
         isJsonObject(value) && Array.isArray(value.requiredScopes) ? value.requiredScopes : [];
@@ -364,22 +366,59 @@ function refusalFailure(
                 ? `This needs one of the ${data.scopes.join(', ')} permissions, which your sign-in doesn't have.`
                 : `This needs the ${scope} permission, which your sign-in doesn't have.`
         );
+    const message = cliMessage(error.message);
     if (data.kind === 'needs_confirmation')
-        return new CommandFailure('needs_confirmation', error.message, rerunWith(context, '--yes'));
+        return new CommandFailure('needs_confirmation', message, rerunWith(context, '--yes'));
     if (
         data.kind === 'not_found' ||
         (data.kind === undefined && /\bnot found\b/iu.test(error.message))
     )
-        return new CommandFailure('not_found', error.message, null);
+        return new CommandFailure('not_found', message, null);
     if (data.kind === 'forbidden' || (data.kind === undefined && error.code === -32003))
-        return new CommandFailure('needs_permission', error.message, null);
+        return new CommandFailure('needs_permission', message, null);
     if (
         data.kind === 'invalid_arguments' ||
         data.kind === 'unprocessable' ||
         (data.kind === undefined && error.code === -32602)
     )
-        return new CommandFailure('invalid_input', error.message, null);
-    return new CommandFailure('failed', error.message, null);
+        return new CommandFailure('invalid_input', message, null);
+    return new CommandFailure('failed', message, null);
+}
+
+/** Each workspace tool's CLI command, the first the parity map lists for it. */
+const TOOL_COMMANDS: ReadonlyMap<string, string> = (() => {
+    const commands = new Map<string, string>();
+    for (const [command, tools] of Object.entries(parity.commands))
+        for (const tool of tools) if (!commands.has(tool)) commands.set(tool, command);
+    return commands;
+})();
+
+/**
+ * A tool's message, written for MCP callers, in the CLI's words on one line: each tool it names as
+ * the command that runs it, and validation's `✖ problem` / `→ at field` lines joined after the
+ * first, the field kept.
+ */
+function cliMessage(message: string): string {
+    const [head = '', ...rest] = message
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+    const problems: string[] = [];
+    for (const line of rest) {
+        const at = /^→\s*(.*)$/u.exec(line)?.[1];
+        if (at !== undefined && problems.length > 0) problems.push(`${problems.pop()} ${at}`);
+        else problems.push(line.replace(/^✖\s*/u, ''));
+    }
+    const line =
+        problems.length === 0 ? head : `${head.replace(/[.:]$/u, '')}: ${problems.join('; ')}`;
+    return line.replace(
+        /\b(call )?(dexto_\w+)/gu,
+        (tool, call: string | undefined, name: string) => {
+            const command = TOOL_COMMANDS.get(name);
+            if (command === undefined) return tool;
+            return `${call === undefined ? '' : 'run '}dexto ${command}`;
+        }
+    );
 }
 
 /** How the Dexto MCP refuses a tool the token's grant doesn't cover. */

@@ -4,6 +4,7 @@
 import { CommandFailure, EXIT_CODE_MEANINGS, EXIT_CODES, type FailureKind } from '../failure.js';
 
 import { parseArgs } from 'node:util';
+import { shellWord } from '../interaction.js';
 import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
@@ -148,6 +149,8 @@ async function run(
 
     const output = createOutput(runtime, globals.format);
     const signIn: SignInContext = { overrides: globals.overrides, runtime };
+    // The arguments as parsed, for a fix that names the same parents.
+    let positionals: readonly string[] = [];
     try {
         const parsed = parseArgs({
             allowPositionals: true,
@@ -164,7 +167,8 @@ async function run(
             ),
             strict: true,
         });
-        const required = (command.arguments ?? '').match(/<[^>]+>/gu)?.length ?? 0;
+        positionals = parsed.positionals;
+        const required = requiredArguments(command);
         if (parsed.positionals.length < required)
             throw new UsageError(`Missing arguments: ${command.arguments ?? ''}`);
         refuseExtraArguments(command, parsed.positionals);
@@ -184,9 +188,50 @@ async function run(
             signIn,
             output.json,
             { text: commandHelp(command), command: `dexto ${command.path.join(' ')} --help` },
-            error
+            error,
+            listFix(host.commands, command, positionals, globals.overrides, error)
         );
     }
+}
+
+/** How many `<argument>`s a command requires. */
+function requiredArguments(command: Command): number {
+    return (command.arguments ?? '').match(/<[^>]+>/gu)?.length ?? 0;
+}
+
+/**
+ * A get, read or status command that names nothing there, or nothing valid, and has no fix of its
+ * own: its group's list command, where there is one, shows the ids it takes. A nested list takes
+ * its parents' ids first, as the get does (`sessions get <agent_id> <session_id>` lists with
+ * `sessions list <agent_id>`), so those carry over.
+ */
+function listFix(
+    commands: readonly Command[],
+    command: Command,
+    positionals: readonly string[],
+    overrides: ConnectionOverrides,
+    error: unknown
+): string | undefined {
+    if (!(error instanceof CommandFailure) || error.fix !== null) return undefined;
+    if (error.kind !== 'not_found' && error.kind !== 'invalid_input') return undefined;
+    if (!['get', 'read', 'status'].includes(command.path.at(-1) ?? '')) return undefined;
+    const path = [...command.path.slice(0, -1), 'list'];
+    const list = commands.find((each) => each.path.join(' ') === path.join(' '));
+    if (list === undefined) return undefined;
+    const parents = requiredArguments(list);
+    // The ids it needs must be the get's own leading ones, with the get's id itself left out.
+    if (parents >= requiredArguments(command) || parents > positionals.length) return undefined;
+    // Listed where the command ran: the same profile, project and API.
+    return [
+        'dexto',
+        ...(overrides.profile === null ? [] : ['--profile', overrides.profile]),
+        ...(overrides.cloudProject === null ? [] : ['--project', overrides.cloudProject]),
+        ...(overrides.apiBaseUrl === null ? [] : ['--api-base-url', overrides.apiBaseUrl]),
+        ...path,
+        ...positionals.slice(0, parents),
+    ]
+        .map(shellWord)
+        .join(' ');
 }
 
 /** `workspace` or `workspace <app> [operation] [action] [--field value…]`. */

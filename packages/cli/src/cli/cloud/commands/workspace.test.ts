@@ -1914,4 +1914,216 @@ describe('dexto workspace', () => {
             /Packed 2 files into a \d+ B \.zip\.\nUploading \d+ B…\nPublishing hello…\nSite visibility: unlisted: anyone with the link can open it\.\n$/u
         );
     });
+
+    describe('a workspace tool refusing a get, read or status command', () => {
+        /** The host, its MCP answering every tool call with `answer` (a JSON-RPC error or a tool result). */
+        async function refusingHost(answer: {
+            error?: { code: number; message: string; data?: unknown };
+            result?: unknown;
+        }): Promise<CloudHost> {
+            await dextoAccounts.writeLogin(dir, 'default', {
+                kind: 'oauth',
+                accessToken: 'access-1',
+                refreshToken: 'refresh-1',
+                expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+                clientId: 'dexto-cli',
+                appUrl: 'https://app.dexto.ai',
+                apiBaseUrl: 'https://api.dexto.ai',
+                resource: MCP,
+                tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
+                scopes: [
+                    'apps:read',
+                    'autobots:read',
+                    'messages:read',
+                    'notifications:read',
+                    'sessions:read',
+                    'sites:read',
+                    'skills:read',
+                ],
+                savedAt: '2026-11-01T00:00:00.000Z',
+                signedInAs: null,
+                cloudProject: { id: 'project-1', name: 'Main' },
+            });
+            return {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        if (request.url === MCP) {
+                            const rpc = JSON.parse(await request.clone().text());
+                            if (rpc.method === 'tools/call')
+                                return Response.json({ jsonrpc: '2.0', id: rpc.id, ...answer });
+                        }
+                        return host.runtime.fetch(request);
+                    },
+                },
+            };
+        }
+
+        const AN_ID = '0b6f8a52-1c3e-4d6f-9a2b-7c8d9e0f1a2b';
+
+        it.each([
+            {
+                argv: ['apps', 'get', 'nope'],
+                error: {
+                    code: -32004,
+                    message:
+                        'Dexto App nope is not available. availableAppIds shows the first ones; call dexto_apps_list for the Apps.',
+                    data: { kind: 'not_found' },
+                },
+                exit: 5,
+                message:
+                    'Dexto App nope is not available. availableAppIds shows the first ones; run dexto apps list for the Apps.',
+                fix: 'dexto apps list',
+            },
+            {
+                argv: ['channels', 'read', 'nope'],
+                error: { code: -32602, message: 'Invalid dexto_channel_get input: Invalid UUID' },
+                exit: 2,
+                message: 'Invalid dexto channels read input: Invalid UUID',
+                fix: 'dexto channels list',
+            },
+            {
+                argv: ['autobots', 'get', 'nope'],
+                error: {
+                    code: -32602,
+                    message: 'Invalid Dexto Autobot input.\n✖ Invalid UUID\n  → at autobotId',
+                    data: { kind: 'invalid_arguments' },
+                },
+                exit: 2,
+                message: 'Invalid Dexto Autobot input: Invalid UUID at autobotId',
+                fix: 'dexto autobots list',
+            },
+            {
+                // No `skills list` to suggest, so no fix: only the one-line message.
+                argv: ['skills', 'get', 'nope-skill-xyz'],
+                error: {
+                    code: -32602,
+                    message:
+                        'Invalid Dexto Skill location.\n✖ Invalid UUID\n  → at location.skillId',
+                    data: { kind: 'invalid_arguments' },
+                },
+                exit: 2,
+                message: 'Invalid Dexto Skill location: Invalid UUID at location.skillId',
+                fix: undefined,
+            },
+            {
+                argv: ['chat', 'get', 'nope'],
+                error: {
+                    code: -32004,
+                    message: 'Dexto session was not found.',
+                    data: { kind: 'not_found' },
+                },
+                exit: 5,
+                message: 'Dexto session was not found.',
+                fix: 'dexto chat list',
+            },
+            {
+                argv: ['notifications', 'get', AN_ID],
+                error: {
+                    code: -32004,
+                    message: 'Dexto notification was not found.',
+                    data: { kind: 'not_found' },
+                },
+                exit: 5,
+                message: 'Dexto notification was not found.',
+                fix: 'dexto notifications list',
+            },
+        ])(
+            'dexto $argv.0 $argv.1 says it in one line of CLI words, with a fix',
+            async ({ argv, error, exit, message, fix }) => {
+                const refusing = await refusingHost({ error });
+                expect(await runCloud(refusing, [...argv, '--json'])).toBe(exit);
+                const reported = JSON.parse(stderr).error;
+                expect(reported.message).toBe(message);
+                expect(reported.fix).toBe(fix);
+                expect(stdout).toBe('');
+            }
+        );
+
+        it('lists in the project the command ran in', async () => {
+            const refusing = await refusingHost({
+                error: {
+                    code: -32004,
+                    message: 'Dexto session was not found.',
+                    data: { kind: 'not_found' },
+                },
+            });
+            expect(
+                await runCloud(refusing, ['--project', 'p 2', 'chat', 'get', 'nope', '--json'])
+            ).toBe(5);
+            expect(JSON.parse(stderr).error.fix).toBe("dexto --project 'p 2' chat list");
+        });
+
+        it("lists a nested thing under the get's own parent ids", async () => {
+            const refusing = await refusingHost({
+                error: {
+                    code: -32004,
+                    message: 'Record was not found.',
+                    data: { kind: 'not_found' },
+                },
+            });
+            expect(
+                await runCloud(refusing, [
+                    'workspace',
+                    'sites',
+                    'records',
+                    'get',
+                    AN_ID,
+                    'signups',
+                    '1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f',
+                    '--json',
+                ])
+            ).toBe(5);
+            expect(JSON.parse(stderr).error.fix).toBe(
+                `dexto workspace sites records list ${AN_ID} signups`
+            );
+        });
+
+        it("rewrites a tool's own error result the same way", async () => {
+            const refusing = await refusingHost({
+                result: {
+                    content: [{ type: 'text', text: 'not found' }],
+                    isError: true,
+                    structuredContent: {
+                        status: 'not_found',
+                        message: 'No such AutoBot.\nCheck dexto_autobots_list.',
+                    },
+                },
+            });
+            expect(await runCloud(refusing, ['autobots', 'get', 'nope', '--json'])).toBe(5);
+            expect(JSON.parse(stderr).error).toMatchObject({
+                code: 'not_found',
+                message: 'No such AutoBot: Check dexto autobots list.',
+                fix: 'dexto autobots list',
+            });
+        });
+
+        it('keeps the fix a refusal already has', async () => {
+            const refusing = await refusingHost({
+                error: {
+                    code: -32004,
+                    message: 'Needs confirmation.',
+                    data: { kind: 'needs_confirmation' },
+                },
+            });
+            expect(await runCloud(refusing, ['autobots', 'get', 'nope', '--json'])).toBe(4);
+            expect(JSON.parse(stderr).error.fix).toBe('dexto autobots get nope --json --yes');
+        });
+
+        it('says it in one line in text mode too, with the fix to run', async () => {
+            const refusing = await refusingHost({
+                error: {
+                    code: -32602,
+                    message: 'Invalid Dexto Autobot input.\n✖ Invalid UUID\n  → at autobotId',
+                    data: { kind: 'invalid_arguments' },
+                },
+            });
+            expect(await runCloud(refusing, ['autobots', 'get', 'nope', '--table'])).toBe(2);
+            expect(stderr).toBe(
+                'Error: Invalid Dexto Autobot input: Invalid UUID at autobotId\nRun: dexto autobots list\n'
+            );
+        });
+    });
 });

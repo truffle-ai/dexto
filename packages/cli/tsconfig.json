@@ -11,7 +11,7 @@
     "emitDeclarationOnly": false,
     "jsx": "react-jsx"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/cli/cloud/__parity__/cli-mcp-parity.json"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts", "dist", "node_modules"],
   "references": [
     { "path": "../agent-config" },
