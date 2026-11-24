@@ -5,7 +5,7 @@ import { CommandFailure, EXIT_CODE_MEANINGS, EXIT_CODES, type FailureKind } from
 
 import { parseArgs } from 'node:util';
 import { jsonError } from '../output.js';
-import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
+import { CloudApiError, createCloudClient, unwrap } from '@dexto/cloud-client';
 import {
     MissingScopeFailure,
     readValue,
@@ -17,7 +17,7 @@ import {
     type SignInContext,
 } from './command.js';
 import type { SignInFor } from './commands/account.js';
-import type { Connection, ConnectionOverrides } from './connection.js';
+import { namedCloudProject, type Connection, type ConnectionOverrides } from './connection.js';
 import {
     listWorkspaceApps,
     runWorkspaceApp,
@@ -74,7 +74,8 @@ export const GLOBAL_OPTIONS: Readonly<Record<string, OptionSpec>> = {
         valueName: 'NAME',
     },
     project: {
-        description: "The Cloud project to act in when you're signed in (or DEXTO_CLOUD_PROJECT).",
+        description:
+            "The Cloud project to act in when you're signed in (or DEXTO_CLOUD_PROJECT); see dexto cloud projects list. Not a Dexto Project: commands take those as --in-project or <project>.",
         type: 'string',
         valueName: 'ID',
     },
@@ -295,14 +296,21 @@ function contextFor(
     output: CommandContext['output']
 ): CommandContext {
     const { overrides } = globals;
+    const named = namedCloudProject(overrides, host.runtime.environment);
+    let checked: Promise<void> | null = null;
     const connection = async (): Promise<Connection> => {
         const resolved = await host.resolveConnection(overrides);
-        if (resolved !== null) return resolved;
-        throw new CommandFailure(
-            'needs_sign_in',
-            'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
-            signInCommand({ overrides, runtime: host.runtime }, [])
-        );
+        if (resolved === null)
+            throw new CommandFailure(
+                'needs_sign_in',
+                'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
+                signInCommand({ overrides, runtime: host.runtime }, [])
+            );
+        if (named !== null) {
+            checked ??= requireCloudProject(host.runtime, resolved, named);
+            await checked;
+        }
+        return resolved;
     };
     return {
         client: async () => {
@@ -323,6 +331,31 @@ function contextFor(
         ...(host.openLocalAgent === undefined ? {} : { openLocalAgent: host.openLocalAgent }),
         ...(host.syncLocalChat === undefined ? {} : { syncLocalChat: host.syncLocalChat }),
     };
+}
+
+/**
+ * Fails when --project or DEXTO_CLOUD_PROJECT names no Cloud project this sign-in or key acts in,
+ * before the command reaches Dexto: a command that acts in no Cloud project would ignore it.
+ */
+async function requireCloudProject(
+    runtime: CloudRuntime,
+    connection: Connection,
+    named: string
+): Promise<void> {
+    const client = createCloudClient({
+        apiBaseUrl: connection.apiBaseUrl,
+        token: connection.token,
+        cloudProject: null,
+        fetch: runtime.fetch,
+    });
+    const projects = (await unwrap(await client.GET('/v1/projects'))).data;
+    if (projects.some((project) => project.id === named)) return;
+    const yours = projects.map((project) => `${project.name} (${project.id})`).join(', ');
+    throw new CommandFailure(
+        'not_found',
+        `No Cloud project ${named}. Your Cloud projects: ${yours === '' ? 'none' : yours}. --project names a Cloud project; for a Dexto Project, use the command's --in-project or <project> instead.`,
+        'dexto cloud projects list'
+    );
 }
 
 /** A `/v1` refusal that names the scope the sign-in lacks; any other error as it is. */

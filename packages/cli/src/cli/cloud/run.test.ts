@@ -198,8 +198,69 @@ describe('dexto cloud', () => {
         expect(requests[0]?.headers.has('dexto-cloud-project')).toBe(false);
 
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
-        await runCloud(host, ['cloud', 'projects', 'list', '--project', 'prj_side']);
-        expect(requests[1]?.headers.get('dexto-cloud-project')).toBe('prj_side');
+        expect(await runCloud(host, ['cloud', 'projects', 'list', '--project', 'prj_side'])).toBe(
+            0
+        );
+        // The first request checks prj_side is one of your Cloud projects; the second acts in it.
+        expect(requests[1]?.headers.has('dexto-cloud-project')).toBe(false);
+        expect(requests[2]?.headers.get('dexto-cloud-project')).toBe('prj_side');
+    });
+
+    it.each([
+        ['--project', ['loops', 'list', '--project', 'dexto-project-1', '--json'], {}],
+        ['DEXTO_CLOUD_PROJECT', ['loops', 'list', '--json'], { DEXTO_CLOUD_PROJECT: 'zzz' }],
+        ['--project on whoami', ['whoami', '--project', 'not-a-real-project'], {}],
+    ])(
+        'fails with exit 5 and your Cloud projects for an unknown %s, before the command runs',
+        async (_name, argv, environment) => {
+            await dextoAccounts.writeLogin(dir, 'default', signedIn());
+            host = { ...host, runtime: { ...host.runtime, environment } };
+            host = {
+                ...host,
+                resolveConnection: (overrides) =>
+                    resolveConnection({
+                        dir,
+                        environment,
+                        overrides,
+                        refresh: async (login) => login,
+                    }),
+            };
+
+            expect(await runCloud(host, argv)).toBe(5);
+
+            const named = argv.includes('--project') ? argv[argv.indexOf('--project') + 1] : 'zzz';
+            expect(JSON.parse(stderr)).toEqual({
+                error: {
+                    code: 'not_found',
+                    message: `No Cloud project ${named}. Your Cloud projects: Main (prj_main), Side (prj_side). --project names a Cloud project; for a Dexto Project, use the command's --in-project or <project> instead.`,
+                    fix: 'dexto cloud projects list',
+                },
+            });
+            expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
+                '/v1/projects',
+            ]);
+            expect(stdout).toBe('');
+        }
+    );
+
+    it('checks a named project against the key, which acts only in its own', async () => {
+        reply = () => Response.json({ ...PROJECTS, data: PROJECTS.data.slice(0, 1) });
+
+        expect(
+            await runCloud(host, [
+                'cloud',
+                'projects',
+                'list',
+                '--api-key',
+                'dxt_key',
+                '--project',
+                'prj_side',
+                '--json',
+            ])
+        ).toBe(5);
+        expect(JSON.parse(stderr).error.message).toMatch(
+            /^No Cloud project prj_side\. Your Cloud projects: Main \(prj_main\)\./u
+        );
     });
 
     it('reads the key from stdin with --api-key -, keeping it out of the command line', async () => {
