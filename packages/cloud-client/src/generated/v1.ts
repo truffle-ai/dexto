@@ -14075,6 +14075,8 @@ export interface operations {
                      * @enum {string}
                      */
                     visibility?: "private" | "restricted" | "unlisted" | "public";
+                    /** @description Visibility expected at promotion, from the publish preview. */
+                    expected_visibility?: "private" | "restricted" | "unlisted" | "public";
                     /** @description The existing private Site's exact title, to confirm making it public. */
                     confirmPublicName?: string;
                     /** @description The path dexto_upload_prepare returned for purpose site-files. */

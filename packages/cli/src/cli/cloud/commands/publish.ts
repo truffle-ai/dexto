@@ -1,7 +1,7 @@
 // `publish`: puts a page, a document or a folder online as a Site.
 
 import { CommandFailure } from '../../failure.js';
-import { requireConsent } from '../../interaction.js';
+import { requireConsent, rerunWith } from '../../interaction.js';
 
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
@@ -190,7 +190,7 @@ const publish: Command = {
                 throw new CommandFailure(
                     'needs_confirmation',
                     `${error.message} Pass --confirm-public <site-name> with that exact name.`,
-                    null
+                    rerunWith(context, '--confirm-public', '<site-name>')
                 );
             throw error;
         }
@@ -234,15 +234,23 @@ const publish: Command = {
                 await (
                     await context.client()
                 ).POST('/v1/sites/publish', {
-                    body: { ...call, uploadPath: prepared.data.path },
+                    body: {
+                        ...call,
+                        expected_visibility: preview.visibility,
+                        uploadPath: prepared.data.path,
+                    },
                 })
             );
         } catch (error) {
             if (error instanceof CloudApiError && error.code === 'needs_confirmation')
                 throw new CommandFailure(
                     'needs_confirmation',
-                    `${error.message} Pass --confirm-public <site-name> with that exact name.`,
-                    null
+                    `${error.message} Preview the Site again and confirm before publishing.${visibility === 'public' ? ' If the Site name needs confirmation, pass --confirm-public <site-name>.' : ''}`,
+                    rerunWith({
+                        invocation: context.invocation.filter(
+                            (arg) => arg !== '--yes' && arg !== '-y'
+                        ),
+                    })
                 );
             throw error;
         }

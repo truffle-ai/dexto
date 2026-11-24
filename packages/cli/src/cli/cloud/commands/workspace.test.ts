@@ -1698,6 +1698,55 @@ describe('dexto workspace', () => {
         expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
     });
 
+    it('explains the server confirmation refusal before upload', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewStatus = 409;
+        previewResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Confirm the Site name "Team plan" before making it public.',
+            },
+        };
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(4);
+        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        expect(failure.message).toContain('Team plan');
+        expect(failure.message).toContain('--confirm-public');
+        expect(failure.fix).toContain('--confirm-public');
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
+    it('sends the previewed visibility as a precondition and asks for fresh consent after a race', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewResponse = {
+            action: 'update',
+            slug: 'server-slug',
+            title: 'Team plan',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Site visibility changed to public.',
+                details: { currentVisibility: 'public' },
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        const publication = calls.find((call) => call.params.name === 'POST /v1/sites/publish');
+        expect(publication?.params.arguments).toMatchObject({ expected_visibility: 'private' });
+        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        expect(failure.message).toContain('public');
+        expect(failure.fix).toContain('publish');
+        expect(failure.fix).not.toContain('--yes');
+        expect(stdout).toBe('');
+    });
+
     it('requires gateway access before uploading a Site', async () => {
         const login = await dextoAccounts.readLogin(dir, 'default');
         if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
@@ -1962,7 +2011,11 @@ describe('dexto workspace', () => {
             method: 'POST',
             params: {
                 name: 'POST /v1/sites/publish',
-                arguments: { name: 'hello', uploadPath: 'uploads/u1.zip' },
+                arguments: {
+                    name: 'hello',
+                    expected_visibility: 'unlisted',
+                    uploadPath: 'uploads/u1.zip',
+                },
             },
         });
         expect(stdout).toContain(
