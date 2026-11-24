@@ -167,6 +167,7 @@ async function run(
         const required = (command.arguments ?? '').match(/<[^>]+>/gu)?.length ?? 0;
         if (parsed.positionals.length < required)
             throw new UsageError(`Missing arguments: ${command.arguments ?? ''}`);
+        refuseExtraArguments(command, parsed.positionals);
         return (await command.run(contextFor(host, globals, output), parsed)) ?? 0;
     } catch (thrown) {
         const error = asMissingScope(signIn, thrown);
@@ -533,6 +534,24 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
 function splitOption(token: string): [string, string | null] {
     const equals = token.indexOf('=');
     return equals === -1 ? [token, null] : [token.slice(0, equals), token.slice(equals + 1)];
+}
+
+/**
+ * Fails on a word past the command's last argument, which would otherwise be dropped silently.
+ * A command whose last argument takes several words (`<x...>`) takes any number.
+ */
+function refuseExtraArguments(command: Command, positionals: readonly string[]): void {
+    const declared = (command.arguments ?? '').match(/<[^>]+>|\[[^\]]+\]/gu) ?? [];
+    if (declared.at(-1)?.includes('...') === true) return;
+    const extra = positionals[declared.length];
+    if (extra === undefined) return;
+    throw new UsageError(
+        `Unexpected argument: ${extra}.${
+            command.options?.data !== undefined && /^\s*[[{]/u.test(extra)
+                ? " Pass the request body with --data '<json>'."
+                : ` Usage: dexto ${usage(command)}`
+        }`
+    );
 }
 
 /** The longest command whose path the leading words spell. */
