@@ -3086,12 +3086,20 @@ describe('TurnExecutor Integration Tests', () => {
         it('ends the turn after a successful turn-ending tool call without another model step', async () => {
             toolManager.addTools([replyTool()]);
             vi.mocked(streamText).mockImplementationOnce(() => replyStep('call-reply', 'done'));
+            const getHistory = vi.spyOn(contextManager, 'getHistory');
+            const getToolResultsByCallId = vi.spyOn(conversationStore, 'getToolResultsByCallId');
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
             const result = await executorWith().execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('tool-ended');
             expect(streamText).toHaveBeenCalledTimes(1);
+            // The ending call is checked by its own result, not by reading the whole chat.
+            expect(getToolResultsByCallId).toHaveBeenCalledWith({
+                sessionId,
+                toolCallIds: ['call-reply'],
+            });
+            expect(getHistory).not.toHaveBeenCalled();
             expect(await contextManager.getHistory()).toContainEqual(
                 expect.objectContaining({ role: 'tool', toolCallId: 'call-reply', success: true })
             );

@@ -2411,13 +2411,16 @@ export class DextoAgent {
         const llmService = session.getLLMService();
         const tools = await llmService.getEnabledTools();
 
+        // One load answers both the estimate and whether a summary exists: the model history
+        // starts at the latest summary, so it names one whenever the session has any.
+        const modelHistory = await contextManager.loadModelHistory();
         const tokenEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
-            tools
+            tools,
+            modelHistory
         );
+        const hasSummary = modelHistory.stats.summaryMessageId !== null;
 
-        // Get raw history for hasSummary check
-        const history = await contextManager.getHistory();
         // Get the effective max context tokens from the configured compaction strategy (if any)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
         const modelContextWindow = contextManager.getMaxInputTokens();
@@ -2434,11 +2437,6 @@ export class DextoAgent {
             thresholdPercent < 1.0
                 ? Math.floor(modelLimits.contextWindow * thresholdPercent)
                 : modelLimits.contextWindow;
-
-        // Check if there's a summary in history (old isSummary or new isSessionSummary marker)
-        const hasSummary = history.some(
-            (msg) => msg.metadata?.isSummary === true || msg.metadata?.isSessionSummary === true
-        );
 
         // Get model info for display
         const llmConfig = runtimeConfig.llm;
