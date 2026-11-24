@@ -12,6 +12,10 @@ import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
 
 const DeletedSchema = z.object({ deleted: z.literal(true), sessionId: z.string() });
+// --local also says what happened to the chat's synced copy in Dexto Cloud.
+const DeletedOutputSchema = DeletedSchema.extend({
+    syncedCopy: z.enum(['none', 'deleted', 'pending', 'in_cloud']).optional(),
+});
 
 /** A chat on this machine, then its synced copy in Dexto Cloud, which waits if it can't be reached. */
 async function deleteLocalChat(context: CommandContext, sessionId: string): Promise<void> {
@@ -55,7 +59,7 @@ export const chatDeleteCommand: Command = {
     jsonOutput: {
         description:
             'The deleted chat. With --local, syncedCopy says what happened to its copy in Dexto Cloud: none, deleted, pending or in_cloud.',
-        schema: z.toJSONSchema(DeletedSchema),
+        schema: z.toJSONSchema(DeletedOutputSchema),
     },
     async run(context, input) {
         const sessionId = argument(input, 0, 'chat_id');
