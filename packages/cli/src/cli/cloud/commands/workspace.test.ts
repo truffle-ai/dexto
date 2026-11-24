@@ -1582,6 +1582,31 @@ describe('dexto workspace', () => {
         expect(JSON.parse(stdout.slice(stdout.indexOf('{')))).toEqual({ status: 'sent' });
     });
 
+    it('refuses a JSON body passed as a positional and names --data, calling nothing', async () => {
+        expect(
+            await runCloud(host, [
+                'workspace',
+                'call',
+                'dexto_drive',
+                '{"action":"list"}',
+                '--json',
+            ])
+        ).toBe(2);
+        expect(JSON.parse(stderr).error).toMatchObject({
+            code: 'usage',
+            message: `Unexpected argument: {"action":"list"}. Pass the request body with --data '<json>'.`,
+        });
+        expect(calls.some((call) => call.method === 'tools/call')).toBe(false);
+
+        stderr = '';
+        calls.length = 0;
+        expect(await runCloud(host, ['workspace', 'tools', 'extra', '--json'])).toBe(2);
+        expect(JSON.parse(stderr).error.message).toBe(
+            'Unexpected argument: extra. Usage: dexto workspace tools'
+        );
+        expect(calls).toHaveLength(0);
+    });
+
     it('acts as a person only: an API key is told to sign in', async () => {
         environment.DEXTO_API_KEY = 'dxt_key';
 
