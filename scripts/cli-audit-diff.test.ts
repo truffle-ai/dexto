@@ -47,7 +47,15 @@ it('ratchets examples while allowing only named pending commands', () => {
 it('rejects a rewritten baseline and allows the named pending command in either merge order', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dexto-examples-audit-'));
     const exec = (program: string, args: string[]) =>
-        spawnSync(program, args, { cwd: dir, encoding: 'utf8' });
+        spawnSync(program, args, {
+            cwd: dir,
+            encoding: 'utf8',
+            env: {
+                PATH: process.env.PATH,
+                SystemRoot: process.env.SystemRoot,
+                GITHUB_BASE_REF: 'cli-2.0',
+            },
+        });
     try {
         const cliDir = join(dir, 'packages/cli');
         mkdirSync(join(cliDir, 'dist'), { recursive: true });
@@ -75,7 +83,7 @@ it('rejects a rewritten baseline and allows the named pending command in either 
                 'base',
             ]).status
         ).toBe(0);
-        expect(exec('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD']).status).toBe(0);
+        expect(exec('git', ['update-ref', 'refs/remotes/origin/cli-2.0', 'HEAD']).status).toBe(0);
 
         const reserved = [...before, { command: 'reserved', examples: false }];
         writeRows(reserved);
@@ -93,7 +101,7 @@ it('rejects a rewritten baseline and allows the named pending command in either 
                 'ratchet',
             ]).status
         ).toBe(0);
-        expect(exec('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD']).status).toBe(0);
+        expect(exec('git', ['update-ref', 'refs/remotes/origin/cli-2.0', 'HEAD']).status).toBe(0);
         expect(exec(process.execPath, [check]).status).toBe(0);
 
         const unapproved = [...reserved, { command: 'unapproved', examples: false }];
@@ -117,6 +125,51 @@ it('rejects a rewritten baseline and allows the named pending command in either 
         writeFileSync(baseline, JSON.stringify(lost));
         expect(exec(process.execPath, [check, '--write']).status).toBe(1);
         expect(JSON.parse(readFileSync(baseline, 'utf8'))).toEqual(lost);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}, 20_000);
+
+it('uses the merge base when local main advanced with an unrelated improvement', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dexto-examples-base-'));
+    const exec = (program: string, args: string[]) =>
+        spawnSync(program, args, {
+            cwd: dir,
+            encoding: 'utf8',
+            env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot },
+        });
+    try {
+        const cliDir = join(dir, 'packages/cli');
+        mkdirSync(join(cliDir, 'dist'), { recursive: true });
+        mkdirSync(join(dir, 'scripts'), { recursive: true });
+        const baseline = join(cliDir, 'agent-audit-baseline.json');
+        const oldRows = [{ command: 'existing', examples: false }];
+        writeFileSync(baseline, JSON.stringify(oldRows));
+        writeFileSync(join(dir, 'scripts/cli-audit-pending-examples.json'), '[]');
+        writeFileSync(
+            join(cliDir, 'dist/index-main.js'),
+            `console.log(${JSON.stringify(JSON.stringify(oldRows))});`
+        );
+        expect(exec('git', ['init', '-q']).status).toBe(0);
+        expect(exec('git', ['add', 'packages/cli/agent-audit-baseline.json']).status).toBe(0);
+        const commit = [
+            '-c',
+            'user.name=Test',
+            '-c',
+            'user.email=test@example.com',
+            'commit',
+            '-qm',
+        ];
+        expect(exec('git', [...commit, 'base']).status).toBe(0);
+        expect(exec('git', ['switch', '-qc', 'feature']).status).toBe(0);
+        expect(exec('git', ['switch', '-qc', 'advanced-main']).status).toBe(0);
+        writeFileSync(baseline, JSON.stringify([{ command: 'existing', examples: true }]));
+        expect(exec('git', ['add', 'packages/cli/agent-audit-baseline.json']).status).toBe(0);
+        expect(exec('git', [...commit, 'improve help']).status).toBe(0);
+        expect(exec('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD']).status).toBe(0);
+        expect(exec('git', ['switch', '-q', 'feature']).status).toBe(0);
+        const check = fileURLToPath(new URL('./check-cli-audit.mjs', import.meta.url));
+        expect(exec(process.execPath, [check]).status).toBe(0);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

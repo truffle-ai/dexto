@@ -25,19 +25,23 @@ try {
 const expected = JSON.parse(readFileSync(baseline, 'utf8'));
 const pending = JSON.parse(readFileSync(pendingExamples, 'utf8'));
 const baseBranch = process.env.GITHUB_BASE_REF ?? 'main';
-const baseResult = spawnSync('git', ['show', `origin/${baseBranch}:${baseline}`], {
+const remoteBase = `origin/${baseBranch}`;
+const mergeBase = process.env.GITHUB_BASE_REF
+    ? null
+    : spawnSync('git', ['merge-base', 'HEAD', remoteBase], { encoding: 'utf8' });
+const baseRef = process.env.GITHUB_BASE_REF
+    ? remoteBase
+    : mergeBase?.status === 0
+      ? mergeBase.stdout.trim()
+      : 'HEAD';
+const baseResult = spawnSync('git', ['show', `${baseRef}:${baseline}`], {
     encoding: 'utf8',
 });
 if (baseResult.status !== 0 && process.env.GITHUB_BASE_REF) {
-    process.stderr.write(`Cannot read the CLI audit baseline from origin/${baseBranch}.\n`);
+    process.stderr.write(`Cannot read the CLI audit baseline from ${baseRef}.\n`);
     process.exit(1);
 }
-const headResult =
-    baseResult.status === 0
-        ? baseResult
-        : spawnSync('git', ['show', `HEAD:${baseline}`], { encoding: 'utf8' });
-const base = headResult.status === 0 ? JSON.parse(headResult.stdout) : expected;
-const baseRef = baseResult.status === 0 ? `origin/${baseBranch}` : 'HEAD';
+const base = baseResult.status === 0 ? JSON.parse(baseResult.stdout) : expected;
 const pendingResult = spawnSync('git', ['show', `${baseRef}:${pendingExamples}`], {
     encoding: 'utf8',
 });
