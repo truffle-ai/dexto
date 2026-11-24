@@ -253,17 +253,21 @@ export function canRequireToolCall(
     model: string,
     providerOptions: Record<string, Record<string, unknown>> | undefined
 ): boolean {
-    const modelLower = model.toLowerCase();
-    if (!modelLower.includes('claude') && !modelLower.includes('anthropic')) return true;
     if (providerOptions === undefined) return true;
 
+    // Only Anthropic-format requests carry anthropic.thinking, whatever the model id is called.
     const anthropicThinking = asRecord(asRecord(providerOptions['anthropic'])?.['thinking']);
+    if (anthropicThinking?.['type'] === 'enabled' || anthropicThinking?.['type'] === 'adaptive') {
+        return false;
+    }
+
+    const modelLower = model.toLowerCase();
+    if (!modelLower.includes('claude') && !modelLower.includes('anthropic')) return true;
+
     const bedrockReasoning = asRecord(asRecord(providerOptions['bedrock'])?.['reasoningConfig']);
     const openrouter = asRecord(providerOptions['openrouter']);
     const compatibleEffort = asRecord(providerOptions['openaiCompatible'])?.['reasoningEffort'];
     const thinks =
-        anthropicThinking?.['type'] === 'enabled' ||
-        anthropicThinking?.['type'] === 'adaptive' ||
         bedrockReasoning?.['type'] === 'enabled' ||
         openrouter?.['include_reasoning'] === true ||
         (compatibleEffort !== undefined && compatibleEffort !== 'none');

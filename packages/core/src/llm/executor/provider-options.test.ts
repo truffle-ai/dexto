@@ -738,6 +738,17 @@ describe('canRequireToolCall', () => {
         }
     });
 
+    it('refuses it for an Anthropic request that thinks, whatever the model id', () => {
+        expect(
+            canRequireToolCall('house-model', {
+                anthropic: { thinking: { type: 'enabled', budgetTokens: 2048 } },
+            })
+        ).toBe(false);
+        expect(
+            canRequireToolCall('house-model', { anthropic: { thinking: { type: 'disabled' } } })
+        ).toBe(true);
+    });
+
     it('refuses it for Claude behind an OpenAI-compatible proxy that reasons', () => {
         const model = 'claude-sonnet-4-6';
         expect(canRequireToolCall(model, { openaiCompatible: { reasoningEffort: 'high' } })).toBe(
