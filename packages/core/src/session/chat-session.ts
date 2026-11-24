@@ -50,6 +50,16 @@ import { SessionError } from './errors.js';
 import type { TurnDriver, TurnDriverState } from '../llm/executor/turn-executor.js';
 import { recordOperationSpan } from '../telemetry/operation-span.js';
 
+function isAbortError(error: unknown): boolean {
+    return (
+        (error instanceof Error && error.name === 'AbortError') ||
+        (typeof error === 'object' &&
+            error !== null &&
+            'aborted' in error &&
+            error.aborted === true)
+    );
+}
+
 export type ChatSessionTurnDriverInput =
     | {
           kind: 'start';
@@ -554,7 +564,11 @@ export class ChatSession {
 
         // Create an AbortController for this run and expose for cancellation.
         // One try/finally covers everything from here so an early abort still frees the session.
-        this.currentRunController = new AbortController();
+        const runController = new AbortController();
+        this.currentRunController = runController;
+        const signal = options?.signal
+            ? this.combineSignals(options.signal, runController.signal)
+            : runController.signal;
         const startedAt = Date.now();
         let runCompleted = false;
         const markRunCompleted = () => {
@@ -564,9 +578,6 @@ export class ChatSession {
         let detachForwarders: (() => void) | undefined;
 
         try {
-            const signal = options?.signal
-                ? this.combineSignals(options.signal, this.currentRunController.signal)
-                : this.currentRunController.signal;
             detachForwarders = this.attachRunEventForwarders(options?.runContext);
 
             const modifiedParts = await this.prepareTurnInput(content, signal, options?.runContext);
@@ -582,11 +593,9 @@ export class ChatSession {
                 ),
             };
         } catch (error) {
-            // If this was an intentional cancellation, return partial response from history
-            const aborted =
-                (error instanceof Error && error.name === 'AbortError') ||
-                (typeof error === 'object' && error !== null && (error as any).aborted === true);
-            if (aborted) {
+            // If this run was cancelled, return partial response from history. A hook that ignores
+            // the abort fails later (for example with a timeout); the run is still cancelled.
+            if (signal.aborted || isAbortError(error)) {
                 this.eventBus.emit('llm:error', {
                     error: new Error('Run cancelled'),
                     context: 'user_cancelled',
@@ -595,11 +604,7 @@ export class ChatSession {
                 // An abort before the turn executor starts (for example in a beforeLLMRequest
                 // hook) never reaches the executor's own run:complete, so end the run here.
                 if (!runCompleted) {
-                    this.eventBus.emit('run:complete', {
-                        finishReason: 'cancelled',
-                        stepCount: 0,
-                        durationMs: Date.now() - startedAt,
-                    });
+                    this.emitCancelledRunComplete(0, startedAt);
                 }
 
                 // Return partial content that was persisted during streaming
@@ -665,7 +670,10 @@ export class ChatSession {
         } finally {
             this.eventBus.off('run:complete', markRunCompleted);
             detachForwarders?.();
-            this.currentRunController = null;
+            // A cancelled run can unwind after a newer run took the session; leave that one owned.
+            if (this.currentRunController === runController) {
+                this.currentRunController = null;
+            }
         }
     }
 
@@ -674,8 +682,12 @@ export class ChatSession {
             throw SessionError.busy(this.id);
         }
 
-        this.currentRunController = new AbortController();
+        const runController = new AbortController();
+        this.currentRunController = runController;
         this.turnDriverActive = true;
+        const signal = input.signal
+            ? this.combineSignals(input.signal, runController.signal)
+            : runController.signal;
         const startedAt = input.kind === 'resume' ? input.state.startedAtMs : Date.now();
         let runCompleted = false;
         const markRunCompleted = () => {
@@ -686,9 +698,6 @@ export class ChatSession {
         let driverCreated = false;
 
         try {
-            const signal = input.signal
-                ? this.combineSignals(input.signal, this.currentRunController.signal)
-                : this.currentRunController.signal;
             detachForwarders = this.attachRunEventForwarders(input.runContext);
             if (input.kind === 'start') {
                 signal.throwIfAborted();
@@ -780,18 +789,13 @@ export class ChatSession {
             driverCreated = true;
             return wrappedDriver;
         } catch (error) {
-            const aborted =
-                (error instanceof Error && error.name === 'AbortError') ||
-                (typeof error === 'object' &&
-                    error !== null &&
-                    'aborted' in error &&
-                    error.aborted === true);
-            if (aborted && !runCompleted) {
-                this.eventBus.emit('run:complete', {
-                    finishReason: 'cancelled',
-                    stepCount: input.kind === 'resume' ? input.state.stepCount : 0,
-                    durationMs: Date.now() - startedAt,
-                });
+            // A hook that ignores the abort fails later (for example with a timeout); the run
+            // was still cancelled, so it still needs its one completion.
+            if ((signal.aborted || isAbortError(error)) && !runCompleted) {
+                this.emitCancelledRunComplete(
+                    input.kind === 'resume' ? input.state.stepCount : 0,
+                    startedAt
+                );
             }
             if (
                 input.kind === 'start' &&
@@ -811,9 +815,30 @@ export class ChatSession {
             this.eventBus.off('run:complete', markRunCompleted);
             if (!driverCreated) {
                 detachForwarders?.();
-                this.currentRunController = null;
+                if (this.currentRunController === runController) {
+                    this.currentRunController = null;
+                }
                 this.turnDriverActive = false;
             }
+        }
+    }
+
+    /**
+     * Ends a cancelled run whose turn executor never emitted its own completion. A throwing
+     * subscriber must not replace the error the caller is about to see.
+     */
+    private emitCancelledRunComplete(stepCount: number, startedAt: number): void {
+        try {
+            this.eventBus.emit('run:complete', {
+                finishReason: 'cancelled',
+                stepCount,
+                durationMs: Date.now() - startedAt,
+            });
+        } catch (error) {
+            this.logger.warn('run:complete subscriber failed for a cancelled run', {
+                sessionId: this.id,
+                error: error instanceof Error ? error.message : String(error),
+            });
         }
     }
 

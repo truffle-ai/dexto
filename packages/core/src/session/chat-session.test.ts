@@ -1430,6 +1430,152 @@ describe('ChatSession', () => {
             expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'error' })]);
             expect(chatSession.isBusy()).toBe(false);
         });
+
+        async function useRealHook(
+            beforeLLMRequest: (ctx: { abortSignal?: AbortSignal }) => Promise<{ ok: true }>
+        ) {
+            const hooks = new HookManager(
+                { agentEventBus: mockServices.agentEventBus, stores: new InMemoryDextoStores() },
+                [{ beforeLLMRequest: (_payload, ctx) => beforeLLMRequest(ctx) }],
+                mockLogger
+            );
+            await hooks.initialize();
+            mockServices.hookManager = hooks;
+        }
+
+        test('ends a cancelled setup once when a real hook honours the abort after it starts', async () => {
+            const entered = createDeferred<void>();
+            await useRealHook(async (ctx) => {
+                entered.resolve();
+                await new Promise<never>((_resolve, reject) => {
+                    ctx.abortSignal?.addEventListener('abort', () => reject(abortError()));
+                });
+                return { ok: true };
+            });
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+
+            const pending = chatSession.createTurnDriver({ kind: 'start', content: 'hello' });
+            const rejection = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+            await entered.promise;
+            expect(chatSession.cancel()).toBe(true);
+            await rejection;
+
+            expect(mockLLMService.createTurnDriver).not.toHaveBeenCalled();
+            expect(runCompletes).toEqual([
+                expect.objectContaining({ finishReason: 'cancelled', stepCount: 0 }),
+            ]);
+            expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('ends a cancelled setup once when the hook ignores the abort and times out', async () => {
+            vi.useFakeTimers();
+            try {
+                const entered = createDeferred<void>();
+                await useRealHook(async () => {
+                    entered.resolve();
+                    return await new Promise<never>(() => {});
+                });
+                const runCompletes: SessionEventMap['run:complete'][] = [];
+                chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+
+                const pending = chatSession.createTurnDriver({ kind: 'start', content: 'hello' });
+                const rejection = expect(pending).rejects.toMatchObject({
+                    code: HookErrorCode.HOOK_EXECUTION_TIMEOUT,
+                });
+                await entered.promise;
+                expect(chatSession.cancel()).toBe(true);
+                await vi.advanceTimersByTimeAsync(5000);
+                await rejection;
+
+                expect(mockLLMService.createTurnDriver).not.toHaveBeenCalled();
+                expect(runCompletes).toEqual([
+                    expect.objectContaining({ finishReason: 'cancelled', stepCount: 0 }),
+                ]);
+                expect(chatSession.isBusy()).toBe(false);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test('ends a cancelled stream once when the hook ignores the abort and times out', async () => {
+            vi.useFakeTimers();
+            try {
+                const entered = createDeferred<void>();
+                await useRealHook(async () => {
+                    entered.resolve();
+                    return await new Promise<never>(() => {});
+                });
+                const runCompletes: SessionEventMap['run:complete'][] = [];
+                chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+
+                const pending = chatSession.stream('hello');
+                await entered.promise;
+                expect(chatSession.cancel()).toBe(true);
+                await vi.advanceTimersByTimeAsync(5000);
+
+                await expect(pending).resolves.toEqual({ text: '' });
+                expect(mockLLMService.stream).not.toHaveBeenCalled();
+                expect(runCompletes).toEqual([
+                    expect.objectContaining({ finishReason: 'cancelled', stepCount: 0 }),
+                ]);
+                expect(chatSession.isBusy()).toBe(false);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test('keeps the setup abort error when a run:complete subscriber throws', async () => {
+            chatSession.eventBus.on('run:complete', () => {
+                throw new Error('subscriber failed');
+            });
+            const caller = new AbortController();
+            caller.abort();
+
+            await expect(
+                chatSession.createTurnDriver({
+                    kind: 'start',
+                    content: 'hello',
+                    signal: caller.signal,
+                })
+            ).rejects.toMatchObject({ name: 'AbortError' });
+            expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('a cancelled stream does not release a later stream that still runs', async () => {
+            const firstEntered = createDeferred<void>();
+            const releaseFirst = createDeferred<void>();
+            const secondEntered = createDeferred<void>();
+            const releaseSecond = createDeferred<void>();
+            mockLLMService.stream
+                .mockImplementationOnce(async () => {
+                    firstEntered.resolve();
+                    await releaseFirst.promise;
+                    throw abortError();
+                })
+                .mockImplementationOnce(async () => {
+                    secondEntered.resolve();
+                    await releaseSecond.promise;
+                    return { text: 'second' };
+                });
+
+            const first = chatSession.stream('first');
+            await firstEntered.promise;
+            expect(chatSession.cancel()).toBe(true);
+            const second = chatSession.stream('second');
+            await secondEntered.promise;
+            releaseFirst.resolve();
+            await first;
+
+            expect(chatSession.isBusy()).toBe(true);
+            await expect(
+                chatSession.createTurnDriver({ kind: 'start', content: 'third' })
+            ).rejects.toMatchObject({ code: SessionErrorCode.SESSION_BUSY });
+
+            releaseSecond.resolve();
+            await expect(second).resolves.toEqual({ text: 'second' });
+            expect(chatSession.isBusy()).toBe(false);
+        });
     });
 
     describe('Session Isolation', () => {
