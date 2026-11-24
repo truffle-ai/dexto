@@ -89,6 +89,7 @@ const local: Command = {
     arguments: '[export.zip]',
     options: FIND_OPTIONS,
     path: ['chat', 'local'],
+    examples: ['dexto chat local --from codex --json'],
     summary:
         'List Claude Code or Codex chats on this machine, newest first, to pick some for chat import.',
     async run(context, input) {
@@ -152,6 +153,7 @@ const importChats: Command = {
         ...YES_OPTION,
     },
     path: ['chat', 'import'],
+    examples: ['dexto chat import "$SESSION_ID" --from codex --dry-run --json'],
     summary:
         'Import local Claude Code/Codex chats or a Claude export ZIP as private chats, redacted here first.',
     async run(context, input) {
@@ -590,6 +592,7 @@ async function followChat(
 
 const follow: Command = {
     path: ['chat', 'follow'],
+    examples: ['dexto chat follow "$CHAT_ID" --json'],
     arguments: '<id>',
     summary:
         'Follow chat events and recorded run billing routes; Ctrl-C stops following without cancelling the chat.',
@@ -862,6 +865,7 @@ const fork: Command = {
 
 const start: Command = {
     path: ['chat', 'start'],
+    examples: ['dexto chat start "Summarize the report" --json'],
     arguments: '<message>',
     summary:
         'Start a cloud chat, optionally attaching your connected computer and choosing a browser profile. Requires sessions:write.',
@@ -995,6 +999,7 @@ const start: Command = {
 
 const computers: Command = {
     path: ['chat', 'computers'],
+    examples: ['dexto chat computers --json'],
     summary: 'List your connected computers and their presence for chat start --computer.',
     async run(context) {
         const parsed = ComputersSchema.safeParse(
@@ -1020,6 +1025,7 @@ const computers: Command = {
 
 const agents: Command = {
     path: ['chat', 'agents'],
+    examples: ['dexto chat agents --json'],
     summary:
         'List the agent profiles you can chat with, for chat start --agent. Requires agents:read.',
     options: {
@@ -1054,6 +1060,7 @@ const agents: Command = {
 
 const browserProfiles: Command = {
     path: ['chat', 'browser-profiles'],
+    examples: ['dexto chat browser-profiles --json'],
     summary: 'List your browser profiles and availability for chat start --browser-profile.',
     async run(context) {
         const parsed = BrowserProfilesSchema.safeParse(

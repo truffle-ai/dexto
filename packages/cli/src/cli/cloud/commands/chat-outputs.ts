@@ -28,6 +28,7 @@ export const chatOutputsCommand: Command = {
     arguments: '<chat_id>',
     options: PAGE_OPTIONS,
     path: ['chat', 'outputs'],
+    examples: ['dexto chat outputs "$CHAT_ID" --json'],
     summary: 'List files and resources produced by a chat.',
     async run(context, input) {
         const sessionId = argument(input, 0, 'chat_id');
