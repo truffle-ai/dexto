@@ -959,6 +959,20 @@
     "examples": true
   },
   {
+    "command": "messages list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "messages read",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "models list",
     "json": true,
     "dryRun": false,

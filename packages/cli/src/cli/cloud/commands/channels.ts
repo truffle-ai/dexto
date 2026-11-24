@@ -15,6 +15,7 @@ import {
     YES_OPTION,
     type Command,
     type CommandContext,
+    type CommandInput,
 } from '../command.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -73,47 +74,64 @@ const list: Command = {
     },
 };
 
+/** What reading a page of a conversation takes: a reply thread, a cursor, a text offset. */
+export const READ_OPTIONS = {
+    ...THREAD_OPTION,
+    before: {
+        description: 'Older messages: the previousCursor of the last read.',
+        type: 'string',
+        valueName: 'CURSOR',
+    },
+    after: {
+        description: 'Newer messages: the nextCursor of the last read.',
+        type: 'string',
+        valueName: 'CURSOR',
+    },
+    'text-offset': {
+        description: 'The rest of a long message: its nextTextOffset from the last read.',
+        type: 'string',
+        valueName: 'N',
+    },
+} as const;
+
+/**
+ * Reads one page of a channel or direct conversation (`target` holds its id) with `tool`, and
+ * prints it: the tool's own result with --json, else the messages and how to read further.
+ */
+export async function readConversationPage(
+    context: CommandContext,
+    input: CommandInput,
+    tool: string,
+    target: Record<string, string>
+): Promise<void> {
+    const before = integerOption(input, 'before');
+    const after = integerOption(input, 'after');
+    const textOffset = integerOption(input, 'text-offset');
+    const thread = stringOption(input, 'thread');
+    if (before !== undefined && after !== undefined)
+        throw new UsageError('Pass --before or --after, not both.');
+    await requireLoginScopes(context, ['messages:read']);
+    const value = await queryWorkspaceTool(context, tool, {
+        ...target,
+        ...(before === undefined ? {} : { before }),
+        ...(after === undefined ? {} : { after }),
+        ...(textOffset === undefined ? {} : { textOffset }),
+        ...(thread === undefined ? {} : { threadRootMessageId: thread }),
+    });
+    if (context.output.json) return context.output.record(value);
+    printPage(context, PageSchema.parse(value));
+}
+
 const read: Command = {
     arguments: '<channel_id>',
-    options: {
-        ...THREAD_OPTION,
-        before: {
-            description: 'Older messages: the previousCursor of the last read.',
-            type: 'string',
-            valueName: 'CURSOR',
-        },
-        after: {
-            description: 'Newer messages: the nextCursor of the last read.',
-            type: 'string',
-            valueName: 'CURSOR',
-        },
-        'text-offset': {
-            description: 'The rest of a long message: its nextTextOffset from the last read.',
-            type: 'string',
-            valueName: 'N',
-        },
-    },
+    options: READ_OPTIONS,
     path: ['channels', 'read'],
     summary:
         'Read the newest messages of a channel, or of one reply thread with --thread. Reading marks nothing read. Example: dexto channels read "$CHANNEL_ID" --json',
     async run(context, input) {
-        const channelId = argument(input, 0, 'channel_id');
-        const before = integerOption(input, 'before');
-        const after = integerOption(input, 'after');
-        const textOffset = integerOption(input, 'text-offset');
-        const thread = stringOption(input, 'thread');
-        if (before !== undefined && after !== undefined)
-            throw new UsageError('Pass --before or --after, not both.');
-        await requireLoginScopes(context, ['messages:read']);
-        const value = await queryWorkspaceTool(context, 'dexto_channel_get', {
-            channelId,
-            ...(before === undefined ? {} : { before }),
-            ...(after === undefined ? {} : { after }),
-            ...(textOffset === undefined ? {} : { textOffset }),
-            ...(thread === undefined ? {} : { threadRootMessageId: thread }),
+        await readConversationPage(context, input, 'dexto_channel_get', {
+            channelId: argument(input, 0, 'channel_id'),
         });
-        if (context.output.json) return context.output.record(value);
-        printPage(context, PageSchema.parse(value));
     },
 };
 

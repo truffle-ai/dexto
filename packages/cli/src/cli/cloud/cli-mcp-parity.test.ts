@@ -79,8 +79,6 @@ dexto_capabilities_search
 dexto_chat_computer
 dexto_chat_continue
 dexto_cos_report
-dexto_direct_conversation_get
-dexto_direct_conversations_list
 dexto_direct_message_send
 dexto_feedback_submit
 dexto_function_credential_configure
