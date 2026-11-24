@@ -1,5 +1,6 @@
 /* global ReadableStream, setImmediate */
 import { realpath } from 'node:fs/promises';
+import { isBuiltin } from 'node:module';
 import { resolve } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import * as acp from '@agentclientprotocol/sdk';
@@ -230,6 +231,7 @@ export async function serveAcp(
         return state.runtime;
     }
 
+    const loginMethod = await dextoLoginMethod();
     const stream = acp.ndJsonStream(
         Writable.toWeb(process.stdout),
         Readable.toWeb(process.stdin) as ReadableStream<Uint8Array>
@@ -247,9 +249,7 @@ export async function serveAcp(
                     promptCapabilities: { image: false, audio: false, embeddedContext: true },
                 },
                 agentInfo: { name: 'dexto', title: 'Dexto', version },
-                authMethods: offersTerminalSignIn(params.clientCapabilities)
-                    ? [DEXTO_LOGIN_METHOD]
-                    : [],
+                authMethods: offersTerminalSignIn(params.clientCapabilities) ? [loginMethod] : [],
             };
         })
         .onRequest('authenticate', () => ({}))
@@ -500,14 +500,32 @@ async function userPrompts(agent: DextoAgent): Promise<Map<string, PromptInfo>> 
 /**
  * Dexto sign-in for an ACP app to run in a terminal: `dexto login`, allowed to spend credits on
  * Dexto models. An app adds these args after `dexto acp` or in place of `acp`; both sign in.
+ *
+ * Older apps don't know `type: 'terminal'` and read the method as one the agent runs, unless it
+ * carries `_meta["terminal-auth"]`: `{ label, command, args }`, a command the app spawns as-is
+ * (for example Zed v0.212.4, `crates/agent_ui/src/acp/thread_view.rs`). That command re-runs
+ * this `dexto`: node with its flags and script, or the native binary (a Node single executable,
+ * which has no script) on its own. `node:sea` arrived in Node 20.12; before it, dexto is a script.
  */
-const DEXTO_LOGIN_METHOD: acp.AuthMethod = {
-    id: 'dexto-login',
-    name: 'Sign in to Dexto',
-    description: 'Runs dexto login, allowing Dexto models to spend credits',
-    type: 'terminal',
-    args: ['login', '--scope', 'cloud:write'],
-};
+async function dextoLoginMethod(): Promise<acp.AuthMethod> {
+    const args = ['login', '--scope', 'cloud:write'];
+    const nativeBinary = isBuiltin('node:sea') && (await import('node:sea')).isSea();
+    const script = nativeBinary ? [] : process.argv.slice(1, 2);
+    return {
+        id: 'dexto-login',
+        name: 'Sign in to Dexto',
+        description: 'Runs dexto login, allowing Dexto models to spend credits',
+        type: 'terminal',
+        args,
+        _meta: {
+            'terminal-auth': {
+                label: 'Sign in to Dexto',
+                command: process.execPath,
+                args: [...process.execArgv, ...script, ...args],
+            },
+        },
+    };
+}
 
 /**
  * Whether the client can run a terminal sign-in: `auth.terminal`, or the older
