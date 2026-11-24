@@ -260,11 +260,13 @@ export function canRequireToolCall(
     const anthropicThinking = asRecord(asRecord(providerOptions['anthropic'])?.['thinking']);
     const bedrockReasoning = asRecord(asRecord(providerOptions['bedrock'])?.['reasoningConfig']);
     const openrouter = asRecord(providerOptions['openrouter']);
+    const compatibleEffort = asRecord(providerOptions['openaiCompatible'])?.['reasoningEffort'];
     const thinks =
         anthropicThinking?.['type'] === 'enabled' ||
         anthropicThinking?.['type'] === 'adaptive' ||
         bedrockReasoning?.['type'] === 'enabled' ||
-        openrouter?.['include_reasoning'] === true;
+        openrouter?.['include_reasoning'] === true ||
+        (compatibleEffort !== undefined && compatibleEffort !== 'none');
     return !thinks;
 }
 

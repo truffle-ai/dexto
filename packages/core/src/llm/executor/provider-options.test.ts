@@ -737,4 +737,14 @@ describe('canRequireToolCall', () => {
             expect(canRequireToolCall(model, providerOptions)).toBe(true);
         }
     });
+
+    it('refuses it for Claude behind an OpenAI-compatible proxy that reasons', () => {
+        const model = 'claude-sonnet-4-6';
+        expect(canRequireToolCall(model, { openaiCompatible: { reasoningEffort: 'high' } })).toBe(
+            false
+        );
+        expect(canRequireToolCall(model, { openaiCompatible: { reasoningEffort: 'none' } })).toBe(
+            true
+        );
+    });
 });
