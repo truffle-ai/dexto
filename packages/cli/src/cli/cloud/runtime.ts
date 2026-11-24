@@ -6,7 +6,6 @@ import { createInterface } from 'node:readline/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import chalk from 'chalk';
 import { safeText } from '@dexto/tui/signal-text';
-import { CommandFailure } from '../failure.js';
 
 export interface CloudRuntime {
     /** Whether to color what people read: a terminal that shows colors. */
@@ -80,22 +79,41 @@ const NETWORK_REASONS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * A request that never reached its host, named with the host and the reason. Still a `TypeError`,
+ * as fetch's own network failure is, so the commands that retry one keep retrying it.
+ */
+export class NetworkFailure extends TypeError {
+    constructor(message: string, cause: TypeError) {
+        super(message, { cause });
+        this.name = 'NetworkFailure';
+    }
+}
+
+/** What to check when the network fails; the fix printed with a `NetworkFailure`. */
+export const NETWORK_FIX =
+    'Check your network. If you set --api-base-url or DEXTO_API_BASE_URL, check or unset it.';
+
+/**
  * The runtime's fetch with a network failure (Node's `TypeError('fetch failed')`, its reason in
- * `cause.code`) as a failure that names the host and the reason, and says what to check. A
- * cancelled request and every other error pass through as they are.
+ * `cause.code`) as a `NetworkFailure` that names the host and the reason. A cancelled request and
+ * every other error pass through as they are.
  */
 export function explainNetworkFailures(fetch: typeof globalThis.fetch): typeof globalThis.fetch {
     return async (input, init) => {
         try {
             return await fetch(input, init);
         } catch (error) {
-            if (!(error instanceof TypeError) || error.cause === undefined) throw error;
+            if (
+                !(error instanceof TypeError) ||
+                error instanceof NetworkFailure ||
+                error.cause === undefined
+            )
+                throw error;
             const reason = networkReason(error.cause);
             const origin = new URL(input instanceof globalThis.Request ? input.url : input).origin;
-            throw new CommandFailure(
-                'failed',
+            throw new NetworkFailure(
                 `Couldn't reach ${origin}${reason === null ? '' : ` (${reason})`}.`,
-                'Check your network. If you set --api-base-url or DEXTO_API_BASE_URL, check or unset it.'
+                error
             );
         }
     };

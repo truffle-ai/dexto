@@ -778,7 +778,10 @@ describe('dexto workspace', () => {
                         const request = new globalThis.Request(input, init);
                         const message = JSON.parse(await request.clone().text());
                         if (message.params?.name === 'dexto_chat_follow' && reads++ === 0) {
-                            if (typeof status === 'string') throw new TypeError('fetch failed');
+                            if (typeof status === 'string')
+                                throw new TypeError('fetch failed', {
+                                    cause: { code: 'ECONNRESET' },
+                                });
                             return new Response(null, { status });
                         }
                         return host.runtime.fetch(request);

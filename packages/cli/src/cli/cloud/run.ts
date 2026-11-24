@@ -24,7 +24,14 @@ import {
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
 import { createOutput, type OutputFormat } from './output.js';
-import { explainNetworkFailures, guardRuntime, unfiltered, type CloudRuntime } from './runtime.js';
+import {
+    explainNetworkFailures,
+    guardRuntime,
+    NETWORK_FIX,
+    NetworkFailure,
+    unfiltered,
+    type CloudRuntime,
+} from './runtime.js';
 import { forStream, safeText, signalOn } from '@dexto/tui/signal-text';
 import { jsonResult } from '../output.js';
 import { failureLines } from '../screens/fault.js';
@@ -440,6 +447,8 @@ function describeFailure(context: SignInContext, error: unknown): FailureReport 
             error.details
         );
     }
+    if (error instanceof NetworkFailure)
+        return report('failed', error.message, NETWORK_FIX, null, null);
     if (error instanceof Error) return report('failed', error.message, null, null, null);
     return report('failed', 'The command failed.', null, null, null);
 }

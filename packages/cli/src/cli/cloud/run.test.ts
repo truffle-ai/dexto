@@ -8,7 +8,7 @@ import { resolveConnection } from './connection.js';
 import { cloudCommands, CLOUD_GROUPS } from './host.js';
 import type { SignInFor } from './commands/account.js';
 import { runCloud, type CloudHost } from './run.js';
-import type { CloudRuntime } from './runtime.js';
+import { explainNetworkFailures, type CloudRuntime } from './runtime.js';
 
 const API = 'https://api.dexto.ai';
 
@@ -460,6 +460,26 @@ describe('dexto cloud', () => {
         };
         expect(await runCloud(host, ['cloud', 'projects', 'list', '--json'])).toBe(1);
         expect(JSON.parse(stderr).error.message).toBe('This operation was aborted');
+    });
+
+    it('keeps a named network failure a TypeError, so commands still retry it', async () => {
+        const unreachable = explainNetworkFailures(async () => {
+            throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+        });
+        const failure = await unreachable('https://uploads.example/part/1').catch(
+            (error: unknown) => error
+        );
+
+        expect(failure).toBeInstanceOf(TypeError);
+        expect(failure).toMatchObject({
+            message: "Couldn't reach https://uploads.example (connection reset).",
+        });
+        // Wrapped twice (a command run again after a sign-in), it is named once.
+        await expect(
+            explainNetworkFailures(async () => {
+                throw failure;
+            })('https://uploads.example/part/1')
+        ).rejects.toBe(failure);
     });
 
     it('keeps cloud api on the public API', async () => {
