@@ -43,6 +43,7 @@ const push: Command = {
         ...YES_OPTION,
     },
     path: ['skills', 'push'],
+    examples: ['dexto skills push ./my-skill --yes --json'],
     summary:
         'Pack a local Skill folder (SKILL.md at its root, dotfiles left out) and create or update it in your library.',
     async run(context, input) {
@@ -112,6 +113,7 @@ async function ownsSkill(context: CommandContext, slug: string): Promise<boolean
 
 const sync: Command = {
     path: ['skills', 'sync'],
+    examples: ['dexto skills sync --json'],
     summary:
         'Copy your Dexto Skills library to this computer, where agents find it after your local Skills',
     async run(context) {
