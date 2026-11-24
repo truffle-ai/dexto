@@ -15,6 +15,7 @@ const meta = (level: string) => ({ 'dexto/app': 'sites', 'dexto/level': level })
 const strict = { type: 'object', additionalProperties: false };
 
 const TOOLS = [
+    { name: 'dexto_site_collections_list', inputSchema: strict, _meta: meta('read') },
     { name: 'dexto_site_records_list', inputSchema: strict, _meta: meta('read') },
     { name: 'dexto_site_record_get', inputSchema: strict, _meta: meta('read') },
     { name: 'dexto_site_record_create', inputSchema: strict, _meta: meta('act') },
@@ -31,6 +32,22 @@ const STORED = {
     value: { email: 'a@example.com' },
 };
 
+/** A managed collection as `dexto_site_collections_list` returns it. */
+const SIGNUPS = {
+    access: { create: 'public', delete: 'private', read: 'private', update: 'private' },
+    createdAt: '2026-11-18T00:00:00.000Z',
+    id: 'c1',
+    name: 'signups',
+    schema: {
+        type: 'object',
+        properties: { email: { type: 'string', format: 'email' } },
+        required: ['email'],
+        additionalProperties: false,
+    },
+    siteId: SITE,
+    updatedAt: '2026-11-18T00:00:00.000Z',
+};
+
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('These tests sign in with a saved login.');
 };
@@ -41,6 +58,7 @@ describe('dexto workspace sites records', () => {
     let stderr: string;
     let stdin: string;
     let calls: { name: string; arguments: Record<string, unknown> }[];
+    let siteCollections: unknown[];
     let host: CloudHost;
 
     const signInWith = async (scopes: string[]) =>
@@ -61,26 +79,31 @@ describe('dexto workspace sites records', () => {
         });
 
     /**
-     * The JSON-RPC body the cloud answers with: the tool's result verbatim, or for a missing record
-     * the refusal the Site record tools declare, `unavailable` with code -32004.
+     * The JSON-RPC body the cloud answers with: the tool's result verbatim, or for a Site the person
+     * can't see or a missing record the refusal the Site data tools declare, `unavailable` with
+     * code -32004.
      */
     const answer = (id: number, name: string, args: Record<string, unknown>): unknown => {
+        const refuse = (message: string) => ({
+            jsonrpc: '2.0',
+            id,
+            error: {
+                code: -32004,
+                message,
+                data: { kind: 'unavailable', retryable: false, resume: null },
+            },
+        });
+        if (args.siteId !== SITE) return refuse('Site was not found.');
         if (args.recordId !== undefined && args.recordId !== RECORD)
-            return {
-                jsonrpc: '2.0',
-                id,
-                error: {
-                    code: -32004,
-                    message: `Site record ${String(args.recordId)} was not found.`,
-                    data: { kind: 'unavailable', retryable: false, resume: null },
-                },
-            };
+            return refuse(`Site record ${String(args.recordId)} was not found.`);
         const where = { collection: args.collection, siteId: SITE, slug: 'shop' };
         const value = 'value' in args ? args.value : STORED.value;
         const structuredContent =
-            name === 'dexto_site_records_list'
-                ? { ...where, records: [STORED] }
-                : { ...where, record: { ...STORED, value } };
+            name === 'dexto_site_collections_list'
+                ? { collections: siteCollections, siteId: SITE, slug: 'shop' }
+                : name === 'dexto_site_records_list'
+                  ? { ...where, records: [STORED] }
+                  : { ...where, record: { ...STORED, value } };
         return {
             jsonrpc: '2.0',
             id,
@@ -97,6 +120,7 @@ describe('dexto workspace sites records', () => {
         stderr = '';
         stdin = '';
         calls = [];
+        siteCollections = [SIGNUPS];
         await signInWith(['sites:read', 'sites:write']);
         const environment: Record<string, string> = {};
         const runtime: CloudRuntime = {
@@ -296,5 +320,57 @@ describe('dexto workspace sites records', () => {
         expect(await records('delete', SITE, 'signups', RECORD, '--yes', '--json')).toBe(3);
         expect(JSON.parse(stderr).error.fix).toContain('sites:write');
         expect(calls.map((call) => call.name)).toEqual(['dexto_site_record_get']);
+    });
+
+    const collections = (...args: string[]) =>
+        runCloud(host, ['workspace', 'sites', 'collections', ...args]);
+
+    it("lists a Site's collections with their schemas and access policies as JSON", async () => {
+        expect(await collections('list', SITE, '--json')).toBe(0);
+
+        expect(calls).toEqual([
+            { name: 'dexto_site_collections_list', arguments: { siteId: SITE } },
+        ]);
+        expect(JSON.parse(stdout)).toEqual({
+            collections: [SIGNUPS],
+            siteId: SITE,
+            slug: 'shop',
+        });
+    });
+
+    it('prints each collection with its access at --table, and an empty list as JSON', async () => {
+        expect(await collections('list', SITE, '--table')).toBe(0);
+        expect(stdout).toContain('signups');
+        expect(stdout).toMatch(/signups\s+private\s+public\s+private\s+private/);
+
+        stdout = '';
+        siteCollections = [];
+        expect(await collections('list', SITE, '--json')).toBe(0);
+        expect(JSON.parse(stdout)).toEqual({ collections: [], siteId: SITE, slug: 'shop' });
+    });
+
+    it('refuses a Site id that is not a UUID before any call', async () => {
+        expect(await collections('list', 'shop')).toBe(2);
+        expect(await collections('list')).toBe(2);
+        expect(calls).toHaveLength(0);
+    });
+
+    it("fails with the tool's own message for a Site the person can't see", async () => {
+        const other = '44444444-4444-4444-8444-444444444444';
+        expect(await collections('list', other, '--json')).toBe(1);
+        expect(calls).toEqual([
+            { name: 'dexto_site_collections_list', arguments: { siteId: other } },
+        ]);
+        expect(JSON.parse(stderr).error).toMatchObject({
+            code: 'failed',
+            message: 'Site was not found.',
+        });
+    });
+
+    it('asks for sites:read to list collections', async () => {
+        await signInWith(['apps:read']);
+        expect(await collections('list', SITE, '--json')).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toContain('sites:read');
+        expect(calls).toHaveLength(0);
     });
 });
