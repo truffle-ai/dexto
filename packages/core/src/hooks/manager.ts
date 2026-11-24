@@ -288,6 +288,17 @@ export class HookManager {
             } catch (error) {
                 const duration = Date.now() - startTime;
 
+                if (
+                    context.abortSignal?.aborted &&
+                    ((error instanceof Error && error.name === 'AbortError') ||
+                        (typeof error === 'object' &&
+                            error !== null &&
+                            'aborted' in error &&
+                            error.aborted === true))
+                ) {
+                    throw error;
+                }
+
                 // Re-throw our own errors
                 if (error instanceof DextoRuntimeError) {
                     throw error;

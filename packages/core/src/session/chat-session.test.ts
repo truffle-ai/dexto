@@ -15,6 +15,8 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { SessionEventMap } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
+import { HookManager } from '../hooks/manager.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 import { createModelRegistry, LLM_REGISTRY } from '@dexto/llm';
 
 // Mock all dependencies
@@ -1139,12 +1141,20 @@ describe('ChatSession', () => {
         test('ends a cancelled turn driver setup once and frees the session', async () => {
             const runCompletes: SessionEventMap['run:complete'][] = [];
             chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
-            mockServices.hookManager.executeHooks.mockImplementation(
-                async (_point: string, payload: unknown, ctx: { abortSignal: AbortSignal }) => {
-                    if (ctx.abortSignal.aborted) throw abortError();
-                    return payload;
-                }
+            const hooks = new HookManager(
+                { agentEventBus: mockServices.agentEventBus, stores: new InMemoryDextoStores() },
+                [
+                    {
+                        beforeLLMRequest: async (_payload, ctx) => {
+                            if (ctx.abortSignal?.aborted) throw abortError();
+                            return { ok: true };
+                        },
+                    },
+                ],
+                mockLogger
             );
+            await hooks.initialize();
+            mockServices.hookManager = hooks;
             const caller = new AbortController();
             caller.abort();
 
@@ -1165,6 +1175,41 @@ describe('ChatSession', () => {
                 expect.objectContaining({ sessionId, finishReason: 'cancelled' })
             );
             expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('keeps the session busy until cancelled setup has unwound', async () => {
+            const entered = createDeferred<void>();
+            const release = createDeferred<void>();
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            mockServices.hookManager.executeHooks.mockImplementation(async () => {
+                entered.resolve();
+                await release.promise;
+                throw abortError();
+            });
+            const pending = chatSession.createTurnDriver({ kind: 'start', content: 'first' });
+            const rejection = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+            await entered.promise;
+            expect(chatSession.cancel()).toBe(true);
+            const busy = chatSession.isBusy();
+            if (busy) {
+                await expect(
+                    chatSession.createTurnDriver({ kind: 'start', content: 'second' })
+                ).rejects.toMatchObject({
+                    code: SessionErrorCode.SESSION_BUSY,
+                });
+            }
+            release.resolve();
+            await rejection;
+            expect(busy).toBe(true);
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
+            expect(chatSession.isBusy()).toBe(false);
+            mockServices.hookManager.executeHooks.mockImplementation(
+                async (_point: string, payload: unknown) => payload
+            );
+            mockLLMService.createTurnDriver.mockResolvedValue(createMockTurnDriver());
+            const next = await chatSession.createTurnDriver({ kind: 'start', content: 'second' });
+            next.dispose();
         });
 
         test('does not duplicate a completion emitted during turn driver setup', async () => {

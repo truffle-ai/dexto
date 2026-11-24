@@ -1056,10 +1056,10 @@ export class ChatSession {
 
     /**
      * Check if this session is currently processing a message.
-     * Returns true if a run is in progress and has not been aborted.
+     * Returns true until the active run has finished cleaning up, including after cancellation.
      */
     public isBusy(): boolean {
-        return this.currentRunController !== null && !this.currentRunController.signal.aborted;
+        return this.currentRunController !== null;
     }
 
     /**
