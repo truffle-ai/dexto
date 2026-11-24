@@ -7,6 +7,7 @@ import {
     UIResourcePart,
     ContentPart,
     SanitizedToolResult,
+    ToolMessage,
     isToolMessage,
 } from './types.js';
 import { clonePromptContentPart } from './content-clone.js';
@@ -2183,6 +2184,26 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
  * @param history The full conversation history
  * @returns Filtered history starting from the most recent summary (or full history if no summary)
  */
+/** The messages with these ids, in history order. */
+export function pickMessagesById(
+    history: readonly InternalMessage[],
+    messageIds: readonly string[]
+): InternalMessage[] {
+    const ids = new Set(messageIds);
+    return history.filter((message) => message.id !== undefined && ids.has(message.id));
+}
+
+/** Every tool result answering one of these tool call ids, in history order. */
+export function pickToolResults(
+    history: readonly InternalMessage[],
+    toolCallIds: readonly string[]
+): ToolMessage[] {
+    const ids = new Set(toolCallIds);
+    return history.filter(
+        (message): message is ToolMessage => isToolMessage(message) && ids.has(message.toolCallId)
+    );
+}
+
 export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
     // Find the most recent summary message (search backwards for efficiency)
     // Check for both old isSummary marker and new isSessionSummary marker
