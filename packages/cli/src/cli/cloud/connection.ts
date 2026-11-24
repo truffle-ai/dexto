@@ -57,7 +57,7 @@ export async function resolveConnection(input: ResolveConnectionInput): Promise<
         saved?.apiBaseUrl ??
         DEFAULT_API_BASE_URL
     ).replace(/\/+$/u, '');
-    const named = input.overrides.cloudProject ?? nonEmpty(input.environment.DEXTO_CLOUD_PROJECT);
+    const named = namedCloudProject(input.overrides, input.environment);
     const base = { apiBaseUrl, profile: credential.profile, source: credential.source };
     return credential.kind === 'oauth'
         ? {
@@ -68,6 +68,14 @@ export async function resolveConnection(input: ResolveConnectionInput): Promise<
               cloudProject: named ?? credential.login.cloudProject?.id ?? null,
           }
         : { ...base, kind: 'api_key', token: credential.token, cloudProject: named };
+}
+
+/** The Cloud project --project or DEXTO_CLOUD_PROJECT names for this run; null when neither does. */
+export function namedCloudProject(
+    overrides: ConnectionOverrides,
+    environment: Readonly<Record<string, string | undefined>>
+): string | null {
+    return overrides.cloudProject ?? nonEmpty(environment.DEXTO_CLOUD_PROJECT);
 }
 
 function nonEmpty(value: string | undefined): string | null {

@@ -15,6 +15,7 @@ import {
 } from '../command.js';
 import type { SignInContext } from '../../commands/auth/sign-in-commands.js';
 import { terminalSignInScreen } from '../../screens/sign-in.js';
+import { namedCloudProject } from '../connection.js';
 import { unfiltered } from '../runtime.js';
 
 /** Builds the sign-in context a command runs in; the host owns where sign-ins live. */
@@ -100,6 +101,9 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
         path: ['whoami'],
         summary: 'Show who Dexto commands act as: the profile, account, organization and project.',
         async run(context) {
+            // Fails on a --project or DEXTO_CLOUD_PROJECT that names none of your Cloud projects.
+            if (namedCloudProject(context.overrides, context.runtime.environment) !== null)
+                await context.connection();
             await (
                 await commands()
             ).whoami(await signIn(signInIo(context)), {
