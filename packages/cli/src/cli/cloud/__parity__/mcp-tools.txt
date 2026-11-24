@@ -2174,6 +2174,8 @@
         "properties": {
           "confirm": {},
           "confirmPublicName": {},
+          "expectedSiteId": {},
+          "expectedVisibility": {},
           "name": {},
           "slug": {},
           "title": {},

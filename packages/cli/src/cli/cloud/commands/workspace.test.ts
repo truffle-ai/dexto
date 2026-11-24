@@ -1689,6 +1689,8 @@ describe('dexto workspace', () => {
         });
         expect(uploads).toHaveLength(0);
         expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+        expect(calls[0]?.params.arguments).not.toHaveProperty('expectedSiteId');
+        expect(calls[0]?.params.arguments).not.toHaveProperty('expectedVisibility');
     });
 
     it('returns a JSON confirmation refusal without writing an interactive prompt', async () => {
@@ -1804,14 +1806,14 @@ describe('dexto workspace', () => {
         expect(stdout).toBe('');
     });
 
-    it('reads the visibility-only server refusal without requiring target details', async () => {
+    it('reads the visibility-change server refusal with a null target', async () => {
         const file = path.join(path.dirname(dir), 'page.html');
         await writeFile(file, '<h1>hello</h1>');
         publishStatus = 409;
         const details = {
             reason: 'visibility_changed',
             currentVisibility: 'private',
-            expectedVisibility: 'unlisted',
+            currentSiteId: null,
         };
         publishResponse = {
             error: {
@@ -1889,6 +1891,94 @@ describe('dexto workspace', () => {
         expect(failure.message).toContain(details.currentSiteId);
         expect(failure.message).toContain(details.currentVisibility);
         expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(stdout).toBe('');
+    });
+
+    it('passes a restricted preview visibility through to the publish precondition', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewResponse = {
+            action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            slug: 'server-slug',
+            title: 'Existing',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'restricted',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Visibility mismatch.',
+                details: {
+                    reason: 'visibility_changed',
+                    currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+                    currentVisibility: 'private',
+                },
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ expectedVisibility: 'restricted' });
+        expect(JSON.parse(stderr).error.message).toContain('changed to private');
+        expect(stdout).toBe('');
+    });
+
+    it('explains a Site created between the publish check and insert', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'conflict',
+                message:
+                    'server-slug is taken by another Site. Choose another slug, or delete that Site first if it is yours.',
+            },
+        };
+
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(1);
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toBe('A Site with that name now exists. Re-run to update it.');
+        expect(failure.fix).toBe(`dexto publish ${file} --visibility public --json`);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ expectedSiteId: null });
+        expect(stdout).toBe('');
+    });
+
+    it('prints a plain re-run command after a concurrent Site create', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'conflict',
+                message:
+                    'server-slug is taken by another Site. Choose another slug, or delete that Site first if it is yours.',
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(1);
+        expect(stderr).toContain('A Site with that name now exists. Re-run to update it.');
+        expect(stderr).toContain(`Run: dexto publish ${file} --table`);
+        expect(stdout).toBe('');
+    });
+
+    it('does not mistake an unrelated public Site conflict for a concurrent create', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'conflict',
+                message: 'Confirm the Site name "Team plan" before making it public.',
+            },
+        };
+
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(1);
+        expect(JSON.parse(stderr).error.message).toContain('--confirm-public');
         expect(stdout).toBe('');
     });
 

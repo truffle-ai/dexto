@@ -306,6 +306,24 @@ const publish: Command = {
             }
             if (
                 error instanceof CloudApiError &&
+                error.status === 409 &&
+                error.code === 'conflict' &&
+                preview.siteId === null &&
+                error.message ===
+                    `${preview.slug} is taken by another Site. Choose another slug, or delete that Site first if it is yours.`
+            )
+                throw new CommandFailure(
+                    'conflict',
+                    'A Site with that name now exists. Re-run to update it.',
+                    rerunWith({
+                        invocation: context.invocation.filter(
+                            (arg) => arg !== '--yes' && arg !== '-y'
+                        ),
+                    }),
+                    error.details
+                );
+            if (
+                error instanceof CloudApiError &&
                 error.code === 'conflict' &&
                 visibility === 'public'
             )
