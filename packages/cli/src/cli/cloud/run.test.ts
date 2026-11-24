@@ -435,6 +435,12 @@ describe('dexto cloud', () => {
         });
     });
 
+    it('shows a JSON example for find', async () => {
+        expect(await runCloud(host, ['find', '--help', '--json'])).toBe(0);
+        expect(JSON.parse(stdout).examples).toContain('dexto find "share a file" --json');
+        expect(requests).toHaveLength(0);
+    });
+
     it('answers an unknown command with exit 2, and help as JSON', async () => {
         expect(await runCloud(host, ['cloud', 'nope'])).toBe(2);
 
