@@ -391,7 +391,8 @@ export function reportError(
         runtime.writeError(
             `Error${failure.apiCode === null ? '' : ` (${safeText(failure.apiCode)})`}: ${safeText(failure.message)}\n`
         );
-        if (failure.details !== null) runtime.writeError(jsonResult(failure.details));
+        if (failure.details !== null && !(error instanceof CommandFailure))
+            runtime.writeError(jsonResult(failure.details));
         if (failure.fix !== null) runtime.writeError(`Run: ${safeText(failure.fix)}\n`);
     }
     return EXIT_CODES[failure.code];
@@ -408,7 +409,7 @@ function describeFailure(context: SignInContext, error: unknown): FailureReport 
     if (error instanceof UsageError || isParseArgsError(error))
         return report('usage', error.message, null, null, null);
     if (error instanceof CommandFailure)
-        return report(error.kind, error.message, error.fix, null, null);
+        return report(error.kind, error.message, error.fix, null, error.details);
     if (error instanceof CloudApiError) {
         if (error.status === 401)
             return report(

@@ -37,12 +37,16 @@ type Visibility = z.output<typeof VisibilitySchema>;
 const PreviewSchema = z
     .object({
         action: z.enum(['create', 'update']),
+        siteId: z.string().nullable(),
         slug: z.string(),
         title: z.string(),
         url: z.string(),
         visibility: VisibilitySchema,
     })
-    .strict() satisfies z.ZodType<V1Response<'/v1/sites/publish/preview', 'post'>>;
+    .strict()
+    .refine(
+        (preview) => (preview.action === 'create') === (preview.siteId === null)
+    ) satisfies z.ZodType<V1Response<'/v1/sites/publish/preview', 'post'>>;
 /** Who can open a Site of each visibility, as the --yes note and the human result say it. */
 const WHO_CAN_OPEN: Record<Visibility, { note: string; result: string }> = {
     private: {
@@ -109,7 +113,10 @@ const publish: Command = {
             description: 'Show where the Site would publish without uploading or publishing.',
             type: 'boolean',
         },
-        ...YES_OPTION,
+        yes: {
+            ...YES_OPTION.yes,
+            description: 'Approve the preview from this invocation without asking again.',
+        },
     },
     path: ['publish'],
     summary:
@@ -190,7 +197,19 @@ const publish: Command = {
                 throw new CommandFailure(
                     'needs_confirmation',
                     `${error.message} Pass --confirm-public <site-name> with that exact name.`,
-                    rerunWith(context, '--confirm-public', '<site-name>')
+                    rerunWith(context, '--confirm-public', '<site-name>'),
+                    error.details
+                );
+            if (
+                error instanceof CloudApiError &&
+                error.code === 'conflict' &&
+                visibility === 'public'
+            )
+                throw new CommandFailure(
+                    'conflict',
+                    `${error.message} If a Site name needs confirmation, pass --confirm-public <site-name>.`,
+                    null,
+                    error.details
                 );
             throw error;
         }
@@ -236,7 +255,9 @@ const publish: Command = {
                 ).POST('/v1/sites/publish', {
                     body: {
                         ...call,
-                        expected_visibility: preview.visibility,
+                        slug: preview.slug,
+                        expectedSiteId: preview.siteId,
+                        expectedVisibility: preview.visibility,
                         uploadPath: prepared.data.path,
                     },
                 })
@@ -244,7 +265,10 @@ const publish: Command = {
         } catch (error) {
             if (error instanceof CloudApiError && error.code === 'needs_confirmation') {
                 const changed = z
-                    .object({ currentVisibility: VisibilitySchema })
+                    .object({
+                        reason: z.literal('visibility_changed'),
+                        currentVisibility: VisibilitySchema,
+                    })
                     .safeParse(error.details);
                 throw new CommandFailure(
                     'needs_confirmation',
@@ -255,9 +279,21 @@ const publish: Command = {
                         invocation: context.invocation.filter(
                             (arg) => arg !== '--yes' && arg !== '-y'
                         ),
-                    })
+                    }),
+                    error.details
                 );
             }
+            if (
+                error instanceof CloudApiError &&
+                error.code === 'conflict' &&
+                visibility === 'public'
+            )
+                throw new CommandFailure(
+                    'conflict',
+                    `${error.message} If a Site name needs confirmation, pass --confirm-public <site-name>.`,
+                    null,
+                    error.details
+                );
             throw error;
         }
         const parsed = PublishedSchema.safeParse(response);

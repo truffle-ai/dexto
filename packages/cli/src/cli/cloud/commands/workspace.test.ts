@@ -170,6 +170,7 @@ describe('dexto workspace', () => {
                     return Response.json(
                         previewResponse ?? {
                             action: 'create',
+                            siteId: null,
                             slug: 'server-slug',
                             title: 'Server title',
                             url: 'https://server-chosen.dexto.dev',
@@ -1640,11 +1641,17 @@ describe('dexto workspace', () => {
         expect(calls).toHaveLength(0);
     });
 
+    it('explains that --yes applies to the current invocation preview', async () => {
+        expect(await runCloud(host, ['publish', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('preview from this invocation');
+    });
+
     it('shows the server address and action before confirmation without publishing when declined', async () => {
         const file = path.join(path.dirname(dir), 'preview.html');
         await writeFile(file, '<h1>hello</h1>');
         previewResponse = {
             action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
             slug: 'server-slug',
             title: 'Existing',
             url: 'https://server-chosen.dexto.dev',
@@ -1719,11 +1726,32 @@ describe('dexto workspace', () => {
         expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
     });
 
+    it('gives confirmation guidance for the older conflict response before upload', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewStatus = 409;
+        previewResponse = {
+            error: {
+                code: 'conflict',
+                message: 'Confirm the Site name "Team plan" before making it public.',
+            },
+        };
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(1);
+        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        expect(failure.message).toContain('Team plan');
+        expect(failure.message).toContain('--confirm-public');
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
     it('sends the previewed visibility as a precondition and asks for fresh consent after a race', async () => {
         const file = path.join(path.dirname(dir), 'private.html');
         await writeFile(file, '<h1>private</h1>');
         previewResponse = {
             action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
             slug: 'server-slug',
             title: 'Team plan',
             url: 'https://server-chosen.dexto.dev',
@@ -1733,16 +1761,30 @@ describe('dexto workspace', () => {
         publishResponse = {
             error: {
                 code: 'needs_confirmation',
-                message: 'The Site visibility does not match the preview.',
-                details: { currentVisibility: 'public' },
+                message: 'The Site is public now, not private. Confirm publishing it as public.',
+                details: {
+                    reason: 'visibility_changed',
+                    currentVisibility: 'public',
+                    currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+                },
             },
         };
         expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
         const publication = calls.find((call) => call.params.name === 'POST /v1/sites/publish');
-        expect(publication?.params.arguments).toMatchObject({ expected_visibility: 'private' });
+        expect(publication?.params.arguments).toMatchObject({
+            expectedVisibility: 'private',
+            expectedSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            slug: 'server-slug',
+        });
+        expect(publication?.params.arguments).not.toHaveProperty('expected_visibility');
         const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
         expect(failure.message).toBe("The Site's visibility changed to public since the preview.");
         expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(failure.details).toEqual({
+            reason: 'visibility_changed',
+            currentVisibility: 'public',
+            currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+        });
         expect(stdout).toBe('');
     });
 
@@ -1751,6 +1793,7 @@ describe('dexto workspace', () => {
         await writeFile(file, '<h1>private</h1>');
         previewResponse = {
             action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
             slug: 'server-slug',
             title: 'Team plan',
             url: 'https://server-chosen.dexto.dev',
@@ -1761,14 +1804,65 @@ describe('dexto workspace', () => {
             error: {
                 code: 'needs_confirmation',
                 message: 'Visibility mismatch.',
-                details: { currentVisibility: 'public' },
+                details: {
+                    reason: 'visibility_changed',
+                    currentVisibility: 'public',
+                    currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+                },
             },
         };
 
         expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(4);
         expect(stderr).toContain("The Site's visibility changed to public since the preview.");
         expect(stderr).toContain(`Run: dexto publish ${file} --table`);
+        expect(stderr).not.toContain('currentSiteId');
         expect(stdout).toBe('');
+    });
+
+    it('preserves a target-change refusal and asks for a fresh preview', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const details = {
+            reason: 'site_changed',
+            currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            currentVisibility: 'unlisted',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'A Site now exists at that address.',
+                details,
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        const publication = calls.find((call) => call.params.name === 'POST /v1/sites/publish');
+        expect(publication?.params.arguments).toMatchObject({
+            slug: 'server-slug',
+            expectedSiteId: null,
+            expectedVisibility: 'unlisted',
+        });
+        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        expect(failure.details).toEqual(details);
+        expect(failure.message).toContain('A Site now exists');
+        expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(stdout).toBe('');
+    });
+
+    it('refuses an inconsistent preview before uploading', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewResponse = {
+            action: 'update',
+            siteId: null,
+            slug: 'server-slug',
+            title: 'Site',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).not.toBe(0);
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
     });
 
     it('requires gateway access before uploading a Site', async () => {
@@ -2037,7 +2131,9 @@ describe('dexto workspace', () => {
                 name: 'POST /v1/sites/publish',
                 arguments: {
                     name: 'hello',
-                    expected_visibility: 'unlisted',
+                    slug: 'server-slug',
+                    expectedSiteId: null,
+                    expectedVisibility: 'unlisted',
                     uploadPath: 'uploads/u1.zip',
                 },
             },

@@ -1735,6 +1735,7 @@ export interface operations {
                          * @enum {string}
                          */
                         action: "create" | "update";
+                        siteId: string | null;
                         slug: string;
                         title: string;
                         /** @description The Site's address. A private Site opens through the signed-in link its publish returns. */
@@ -14076,7 +14077,9 @@ export interface operations {
                      */
                     visibility?: "private" | "restricted" | "unlisted" | "public";
                     /** @description Visibility expected at promotion, from the publish preview. */
-                    expected_visibility?: "private" | "restricted" | "unlisted" | "public";
+                    expectedVisibility?: "private" | "restricted" | "unlisted" | "public";
+                    /** @description The Site from the preview, or null when the preview creates one. */
+                    expectedSiteId?: string | null;
                     /** @description The existing private Site's exact title, to confirm making it public. */
                     confirmPublicName?: string;
                     /** @description The path dexto_upload_prepare returned for purpose site-files. */
