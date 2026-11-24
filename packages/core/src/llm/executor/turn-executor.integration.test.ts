@@ -3186,6 +3186,63 @@ describe('TurnExecutor Integration Tests', () => {
             );
         });
 
+        it('requires a tool call on every step when the host asks for one', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => replyStep('call-progress', 'working'))
+                .mockImplementationOnce(() => replyStep('call-final', 'done'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Long task' }]);
+            await executorWith({ toolChoice: 'required' }).execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            for (const [options] of vi.mocked(streamText).mock.calls) {
+                expect(options.toolChoice).toBe('required');
+            }
+        });
+
+        it('leaves the tool choice to the model by default', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText).mockImplementationOnce(() => replyStep('call-reply', 'done'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            await executorWith().execute({ mcpManager }, true);
+
+            expect(vi.mocked(streamText).mock.calls[0]?.[0]).not.toHaveProperty('toolChoice');
+        });
+
+        it('does not require a tool call when the step has no tools', async () => {
+            vi.mocked(streamText).mockImplementationOnce(() => textStep('Done.'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hi' }]);
+            await executorWith({ toolChoice: 'required' }).execute({ mcpManager }, true);
+
+            expect(vi.mocked(streamText).mock.calls[0]?.[0]).not.toHaveProperty('toolChoice');
+        });
+
+        it('does not require a tool call from Claude while it thinks', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText).mockImplementationOnce(() => replyStep('call-reply', 'done'));
+            const executor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, executionControl: { toolChoice: 'required' } },
+                { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(vi.mocked(streamText).mock.calls[0]?.[0]).not.toHaveProperty('toolChoice');
+        });
+
         it('ends normally when beforeTurnEnd lets the turn end', async () => {
             vi.mocked(streamText).mockImplementationOnce(() => textStep('Done.'));
             const beforeTurnEnd = vi.fn(

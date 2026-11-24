@@ -44,7 +44,11 @@ import {
 } from './tool-output-spill.js';
 import { findRepeatedPrunedToolCalls } from './repeated-pruned-tool-calls.js';
 import type { ExecutorResult, ModelToolCall, StreamProcessorResult } from './types.js';
-import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
+import {
+    buildProviderOptions,
+    canRequireToolCall,
+    getEffectiveReasoningBudgetTokens,
+} from './provider-options.js';
 import type {
     TokenUsage,
     LLMReasoningConfig,
@@ -1783,6 +1787,10 @@ export class TurnExecutor {
     }
 
     private async runModelStep(request: ModelStepRequest): Promise<StreamProcessorResult> {
+        const requiresToolCall =
+            this.config.executionControl?.toolChoice === 'required' &&
+            Object.keys(request.tools).length > 0 &&
+            canRequireToolCall(this.llmContext.model, request.providerOptions);
         const streamProcessor = new StreamProcessor(
             this.contextManager,
             this.eventBus,
@@ -1815,6 +1823,7 @@ export class TurnExecutor {
                         stopWhen: stepCountIs(1),
                         maxRetries: 0,
                         tools: request.tools,
+                        ...(requiresToolCall && { toolChoice: 'required' as const }),
                         abortSignal,
                         messages: request.messages,
                         experimental_download: safeDownload,
