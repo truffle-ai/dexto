@@ -12,7 +12,7 @@ import {
     type Command,
     type CommandContext,
     type CommandInput,
-    uuidArgument,
+    chatArgument,
 } from '../command.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -224,7 +224,7 @@ const get: Command = {
         'dexto chat get "$CHAT_ID" --after "$CURSOR" --json',
     ],
     async run(context, input) {
-        const sessionId = uuidArgument(input, 0, 'chat_id');
+        const sessionId = chatArgument(input, 0);
         const args = { sessionId, ...pageArgs(input) };
         await requireLoginScopes(context, ['sessions:read']);
         const page = parsed(

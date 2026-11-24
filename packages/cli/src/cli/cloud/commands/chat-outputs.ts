@@ -5,7 +5,7 @@ import {
     stringOption,
     UsageError,
     type Command,
-    uuidArgument,
+    chatArgument,
 } from '../command.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -30,7 +30,7 @@ export const chatOutputsCommand: Command = {
     path: ['chat', 'outputs'],
     summary: 'List files and resources produced by a chat.',
     async run(context, input) {
-        const sessionId = uuidArgument(input, 0, 'chat_id');
+        const sessionId = chatArgument(input, 0);
         const limit = integerOption(input, 'limit');
         if (limit !== undefined && (limit < 1 || limit > 100))
             throw new UsageError('--limit must be between 1 and 100.');

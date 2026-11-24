@@ -41,7 +41,7 @@
 
 **Exit codes.** A malformed id fails before any request, with error code `invalid_input` and exit code 2. A well-formed id that matches nothing exits 5 (`not_found`).
 
-- Chat ids, run ids (`trace view`, `span list`) and Site and record ids must be UUIDs. Project arguments must be a Project's id or link.
+- Run ids (`trace view`, `span list`) and Site and record ids must be UUIDs. A chat must be named by its id or a link (a chat's or its Project's, which Dexto reads as before). A Project must be named by its id or link.
 - `chat get nope`, `projects get nope` and `trace view nope` now exit 2 instead of 5.
-- `cloud models get <unknown>` now exits 5 instead of 2.
+- `cloud models get <unknown>` and `cloud models run <unknown>` now exit 5 instead of 2.
 - A tool's invalid-arguments error exits 2 (`invalid_input`) instead of 1.

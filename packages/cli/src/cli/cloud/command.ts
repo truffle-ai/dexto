@@ -149,6 +149,17 @@ export function uuidArgument(input: CommandInput, index: number, name: string): 
     return value;
 }
 
+/**
+ * A `<chat_id>`: a chat's id, or a link to it or its Project that Dexto reads as given. Anything
+ * else fails as invalid input before anything is sent.
+ */
+export function chatArgument(input: CommandInput, index: number): string {
+    const value = argument(input, index, 'chat_id');
+    if (!UUID.test(value) && !URL.canParse(value))
+        throw new CommandFailure('invalid_input', `${value} isn't a chat's id or link.`, null);
+    return value;
+}
+
 /** `--limit` and `--after`, which every list takes. */
 export const PAGE_OPTIONS = {
     after: {

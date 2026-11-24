@@ -135,6 +135,15 @@ describe('chat get', () => {
         });
         expect(query).not.toHaveBeenCalled();
     });
+
+    it("passes a chat's link to Dexto as given, which reads it", async () => {
+        const link = `https://app.dexto.ai/desktop/apps/chat?session=${CHAT_ID}`;
+        query.mockRejectedValueOnce(new Error('stop'));
+        await expect(command('get').run(harness().context, input([link]))).rejects.toThrow('stop');
+        expect(query).toHaveBeenCalledWith(expect.anything(), 'dexto_chat_get', {
+            sessionId: link,
+        });
+    });
 });
 
 describe('chat list hint for local chats', () => {
