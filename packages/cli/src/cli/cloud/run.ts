@@ -144,7 +144,12 @@ async function run(
         return printHelp(runtime, globals, groupHelp(host, words), groupHelpJson(host, words));
     }
     if (globals.help)
-        return printHelp(runtime, globals, commandHelp(command), commandHelpJson(command));
+        return printHelp(
+            runtime,
+            globals,
+            commandHelp(command, subcommands(host, command)),
+            commandHelpJson(command, subcommands(host, command))
+        );
 
     const output = createOutput(runtime, globals.format);
     const signIn: SignInContext = { overrides: globals.overrides, runtime };
@@ -183,7 +188,10 @@ async function run(
         return reportError(
             signIn,
             output.json,
-            { text: commandHelp(command), command: `dexto ${command.path.join(' ')} --help` },
+            {
+                text: commandHelp(command, subcommands(host, command)),
+                command: `dexto ${command.path.join(' ')} --help`,
+            },
             error
         );
     }
@@ -634,31 +642,47 @@ function groupHelp(host: CloudHost, words: readonly string[]): string {
             '',
         ].join('\n');
     }
-    const commands = host.commands.filter((command) => startsWith(command.path, words));
-    const usages = commands.map((command) => usage(command));
-    const width = Math.max(...usages.map((line) => line.length));
     return [
         `Usage: dexto ${words.join(' ')} <command>`,
         '',
         'Commands:',
-        ...commands.map(
-            (command, index) => `  ${(usages[index] ?? '').padEnd(width)}  ${command.summary}`
-        ),
+        ...commandLines(host.commands.filter((command) => startsWith(command.path, words))),
         '',
     ].join('\n');
 }
 
 function groupHelpJson(host: CloudHost, words: readonly string[]): Record<string, unknown> {
     return {
-        commands: host.commands
-            .filter((command) => startsWith(command.path, words))
-            .map((command) => ({ summary: command.summary, usage: `dexto ${usage(command)}` })),
+        commands: commandsJson(host.commands.filter((command) => startsWith(command.path, words))),
         exit_codes: EXIT_CODE_MEANINGS,
         usage: `dexto ${words.join(' ')} <command>`,
     };
 }
 
-function commandHelp(command: Command): string {
+/** Each command's usage and summary, in aligned columns. */
+function commandLines(commands: readonly Command[]): string[] {
+    const usages = commands.map((command) => usage(command));
+    const width = Math.max(...usages.map((line) => line.length));
+    return commands.map(
+        (command, index) => `  ${(usages[index] ?? '').padEnd(width)}  ${command.summary}`
+    );
+}
+
+function commandsJson(commands: readonly Command[]): { summary: string; usage: string }[] {
+    return commands.map((command) => ({
+        summary: command.summary,
+        usage: `dexto ${usage(command)}`,
+    }));
+}
+
+/** The commands under this one, such as `import list` under `import`, so help can reach them. */
+function subcommands(host: CloudHost, command: Command): readonly Command[] {
+    return host.commands.filter(
+        (each) => each.path.length > command.path.length && startsWith(each.path, command.path)
+    );
+}
+
+function commandHelp(command: Command, children: readonly Command[]): string {
     if (signalOn())
         return signalPage(
             `dexto ${usage(command)}${command.options === undefined ? '' : ' [options]'}`,
@@ -686,6 +710,17 @@ function commandHelp(command: Command): string {
                               rows: [{ term: '', description: JSON.stringify(command.jsonOutput) }],
                           },
                       ]),
+                ...(children.length === 0
+                    ? []
+                    : [
+                          {
+                              title: 'commands',
+                              rows: children.map((child) => ({
+                                  term: usage(child),
+                                  description: child.summary,
+                              })),
+                          },
+                      ]),
                 optionSection('global options', GLOBAL_OPTIONS),
             ]
         );
@@ -701,13 +736,14 @@ function commandHelp(command: Command): string {
         ...(command.jsonOutput === undefined
             ? []
             : ['JSON output:', JSON.stringify(command.jsonOutput, null, 2), '']),
+        ...(children.length === 0 ? [] : ['Commands:', ...commandLines(children), '']),
         'Global options:',
         ...optionLines(GLOBAL_OPTIONS),
         '',
     ].join('\n');
 }
 
-function commandHelpJson(command: Command): unknown {
+function commandHelpJson(command: Command, children: readonly Command[]): unknown {
     return {
         options: Object.entries({ ...command.options, ...GLOBAL_OPTIONS }).map(([name, spec]) => ({
             description: spec.description,
@@ -719,6 +755,7 @@ function commandHelpJson(command: Command): unknown {
         usage: `dexto ${usage(command)}`,
         ...(command.examples === undefined ? {} : { examples: command.examples }),
         ...(command.jsonOutput === undefined ? {} : { json_output: command.jsonOutput }),
+        ...(children.length === 0 ? {} : { commands: commandsJson(children) }),
     };
 }
 
