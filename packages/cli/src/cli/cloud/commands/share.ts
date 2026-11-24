@@ -58,8 +58,8 @@ const access: Command = {
     arguments: '<kind> <id>',
     summary: `Show who can open something you own: its organization, people, public link and access level. Kind is ${KIND_HELP}.`,
     examples: [
-        'dexto workspace share access drive FILE_ID --json',
-        'dexto workspace share access app ARTIFACT_ID --app artifacts --collection artifacts',
+        'dexto workspace share access drive "$FILE_ID" --json',
+        'dexto workspace share access app "$ARTIFACT_ID" --app artifacts --collection artifacts --json',
     ],
     options: {
         app: {

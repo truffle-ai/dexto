@@ -98,6 +98,7 @@ const list: Command = {
         ...PAGE_OPTIONS,
         chat: { description: 'Only Artifacts produced by this chat id.', type: 'string' },
     },
+    examples: ['dexto workspace artifacts list --json'],
     path: ['workspace', 'artifacts', 'list'],
     summary: 'List your saved Artifacts, newest first.',
     async run(context, input) {
@@ -128,6 +129,7 @@ const get: Command = {
             valueName: 'PATH',
         },
     },
+    examples: ['dexto workspace artifacts get "$ARTIFACT_ID" --json'],
     path: ['workspace', 'artifacts', 'get'],
     summary: 'Show one Artifact, with its HTML or with --out writing the HTML to a file.',
     async run(context, input) {
@@ -159,6 +161,7 @@ const create: Command = {
         ...DRY_RUN_OPTION,
         ...YES_OPTION,
     },
+    examples: ['dexto workspace artifacts create ./report.html --dry-run --json'],
     path: ['workspace', 'artifacts', 'create'],
     summary:
         "Save an HTML file (or - for stdin) as an Artifact in your library. Its title defaults to the file's name.",
@@ -194,6 +197,7 @@ const create: Command = {
 const replace: Command = {
     arguments: '<artifact_id> <file>',
     options: { ...CONTENT_OPTIONS, ...DRY_RUN_OPTION, ...YES_OPTION },
+    examples: ['dexto workspace artifacts replace "$ARTIFACT_ID" ./report.html --dry-run --json'],
     path: ['workspace', 'artifacts', 'replace'],
     summary:
         'Replace an Artifact with an HTML file (or - for stdin), keeping its id; it keeps its title, kind, summary, surface and renderer unless you give new ones.',
@@ -236,6 +240,9 @@ const share: Command = {
         ...DRY_RUN_OPTION,
         ...YES_OPTION,
     },
+    examples: [
+        'dexto workspace artifacts share "$ARTIFACT_ID" --visibility org-shared --dry-run --json',
+    ],
     path: ['workspace', 'artifacts', 'share'],
     summary:
         'Change who can open an Artifact: only you, your organization, or anyone with its link.',

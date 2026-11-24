@@ -39,6 +39,7 @@ function parsed<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
 }
 
 const list: Command = {
+    examples: ['dexto workspace computers keys list --json'],
     path: ['workspace', 'computers', 'keys', 'list'],
     summary: 'List your computer enrollment keys and how many computers each enrolled.',
     async run(context) {
@@ -60,6 +61,7 @@ const list: Command = {
 };
 
 const create: Command = {
+    examples: ['dexto workspace computers keys create research --service computer --yes --json'],
     path: ['workspace', 'computers', 'keys', 'create'],
     arguments: '<name>',
     summary:
@@ -122,6 +124,7 @@ const create: Command = {
 };
 
 const revoke: Command = {
+    examples: ['dexto workspace computers keys revoke "$KEY_ID" --yes --json'],
     path: ['workspace', 'computers', 'keys', 'revoke'],
     arguments: '<key_id>',
     summary:

@@ -143,6 +143,36 @@ describe('dexto cloud', () => {
         expect(requests).toHaveLength(0);
     });
 
+    it('provides copyable JSON examples for workspace commands', async () => {
+        const groups = new Set([
+            'tools',
+            'describe',
+            'call',
+            'artifacts',
+            'computers',
+            'contacts',
+            'drive',
+            'network',
+            'share',
+            'sites',
+        ]);
+        const commands = host.commands.filter(
+            (command) => command.path[0] === 'workspace' && groups.has(command.path[1] ?? '')
+        );
+        expect(commands.length).toBeGreaterThanOrEqual(33);
+        for (const command of commands) {
+            stdout = '';
+            expect(await runCloud(host, [...command.path, '--help', '--json'])).toBe(0);
+            const help = JSON.parse(stdout) as { examples?: string[] };
+            expect(help.examples, command.path.join(' ')).toEqual(
+                expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+            );
+            for (const example of help.examples ?? []) {
+                expect(example, command.path.join(' ')).not.toMatch(/<\w+>/u);
+            }
+        }
+    });
+
     it('shows publish scopes and an example in JSON help', async () => {
         expect(await runCloud(host, ['publish', '--help', '--json'])).toBe(0);
         expect(stdout).toContain('sites:write');

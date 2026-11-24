@@ -1229,154 +1229,154 @@
     "json": true,
     "dryRun": true,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace artifacts get",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace artifacts list",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace artifacts replace",
     "json": true,
     "dryRun": true,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace artifacts share",
     "json": true,
     "dryRun": true,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace call",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace computers keys create",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace computers keys list",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace computers keys revoke",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts accept",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts block",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts connect",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts decline",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts invite-link",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts list",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts remove",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts requests",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts search",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace contacts unblock",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace describe",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace drive put",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace network list",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "workspace network mark-read",
@@ -1453,6 +1453,6 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   }
 ]
