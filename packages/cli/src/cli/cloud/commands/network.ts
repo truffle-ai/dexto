@@ -15,10 +15,13 @@ import {
 } from '../command.js';
 import type { Column } from '../output.js';
 import { requireLoginScopes } from './deploys.js';
-import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
-
-/** The ids the server keeps as a request's own; any other is replaced, losing the retry's key. */
-const IDEMPOTENCY_KEY = /^[A-Za-z0-9._-]{1,128}$/u;
+import {
+    agreeToCall,
+    listWorkspaceTools,
+    queryWorkspaceTool,
+    requestIdOption,
+    toolCallLevel,
+} from './workspace.js';
 
 const PersonSchema = z.object({
     handle: z.string().nullable(),
@@ -184,11 +187,7 @@ const send: Command = {
         const given = argument(input, 1, 'text');
         const text = given === '-' ? await context.runtime.readStdin() : given;
         if (text.trim().length === 0) throw new UsageError('The message is empty.');
-        const key = stringOption(input, 'idempotency-key');
-        if (key !== undefined && !IDEMPOTENCY_KEY.test(key))
-            throw new UsageError(
-                '--idempotency-key takes 1 to 128 letters, digits, ".", "_" or "-".'
-            );
+        const key = requestIdOption(input, 'idempotency-key');
         const call = { contactId, text };
         const tool = (await listWorkspaceTools(context)).find(
             (each) => each.name === 'dexto_network_send'

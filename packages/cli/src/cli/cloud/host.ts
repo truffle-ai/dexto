@@ -30,6 +30,7 @@ import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
 import { docsCommands } from './commands/docs.js';
 import { driveCommands } from './commands/drive.js';
+import { feedbackCommands } from './commands/feedback.js';
 import { findCommands } from './commands/find.js';
 import { loopCommands } from './commands/loops.js';
 import { profileCommands } from './commands/profile.js';
@@ -98,6 +99,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...computerKeyCommands,
         ...shareCommands,
         ...driveCommands,
+        ...feedbackCommands,
         ...appCommands,
         ...applicationCommands,
         ...artifactCommands,

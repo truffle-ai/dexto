@@ -861,6 +861,13 @@
     "examples": true
   },
   {
+    "command": "feedback submit",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "find",
     "json": true,
     "dryRun": false,
