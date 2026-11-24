@@ -45,6 +45,7 @@ const PLACEMENT_OPTIONS = {
 
 const list: Command = {
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud secrets list --json'],
     path: ['cloud', 'secrets', 'list'],
     summary: "List the project's secrets. Values are never shown.",
     async run(context, input) {
@@ -59,6 +60,7 @@ const list: Command = {
 
 const get: Command = {
     arguments: '<secret_id>',
+    examples: ['dexto cloud secrets get "$SECRET_ID" --json'],
     path: ['cloud', 'secrets', 'get'],
     summary: 'Show a secret, without its value.',
     async run(context, input) {
@@ -77,6 +79,9 @@ const get: Command = {
 const create: Command = {
     arguments: '<name>',
     options: PLACEMENT_OPTIONS,
+    examples: [
+        'dexto cloud secrets create SERVICE_KEY --host api.example.com < ./secret.txt --json',
+    ],
     path: ['cloud', 'secrets', 'create'],
     summary:
         'Create a secret. Type the value when asked, or pipe it on stdin; it is never an argument.',
@@ -107,6 +112,7 @@ const update: Command = {
             type: 'boolean',
         },
     },
+    examples: ['dexto cloud secrets update "$SECRET_ID" --host api.example.com --json'],
     path: ['cloud', 'secrets', 'update'],
     summary: "Change a secret's hosts, placement or value.",
     async run(context, input) {
@@ -134,6 +140,7 @@ const update: Command = {
 const remove: Command = {
     arguments: '<secret_id>',
     options: YES_OPTION,
+    examples: ['dexto cloud secrets delete "$SECRET_ID" --yes --json'],
     path: ['cloud', 'secrets', 'delete'],
     summary: 'Delete a secret. Refused while an active agent uses it.',
     async run(context, input) {

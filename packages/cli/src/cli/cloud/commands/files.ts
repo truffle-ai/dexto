@@ -43,6 +43,7 @@ const list: Command = {
         contains: { description: 'Only paths containing this text.', type: 'string' },
         prefix: { description: 'Only paths starting with this, such as reports/.', type: 'string' },
     },
+    examples: ['dexto cloud files list --prefix reports/ --json'],
     path: ['cloud', 'files', 'list'],
     summary: "List the project's files.",
     async run(context, input) {
@@ -67,6 +68,7 @@ const list: Command = {
 
 const get: Command = {
     arguments: '<file>',
+    examples: ['dexto cloud files get "$FILE_ID" --json'],
     path: ['cloud', 'files', 'get'],
     summary: 'Show a file by id or path.',
     async run(context, input) {
@@ -91,6 +93,7 @@ const upload: Command = {
         },
         overwrite: { description: 'Replace a file already at the path.', type: 'boolean' },
     },
+    examples: ['dexto cloud files upload ./report.txt reports/report.txt --json'],
     path: ['cloud', 'files', 'upload'],
     summary: 'Upload a local file to a project path (default: its file name).',
     async run(context, input) {
@@ -129,6 +132,7 @@ const download: Command = {
             valueName: 'PATH',
         },
     },
+    examples: ['dexto cloud files download "$FILE_ID" ./report.txt --json'],
     path: ['cloud', 'files', 'download'],
     summary:
         'Download a file by id or path to a local path (default: its file name), or - for stdout when piped.',
@@ -185,6 +189,7 @@ const url: Command = {
             valueName: 'SECONDS',
         },
     },
+    examples: ['dexto cloud files url "$FILE_ID" --json'],
     path: ['cloud', 'files', 'url'],
     summary: 'Create a URL anyone can read the file from until it expires.',
     async run(context, input) {
@@ -205,6 +210,7 @@ const url: Command = {
 const remove: Command = {
     arguments: '<file>',
     options: YES_OPTION,
+    examples: ['dexto cloud files delete "$FILE_ID" --yes --json'],
     path: ['cloud', 'files', 'delete'],
     summary: 'Delete a file by id or path.',
     async run(context, input) {

@@ -9,6 +9,10 @@ const METHODS = new Set(['DELETE', 'GET', 'PATCH', 'POST', 'PUT']);
 const api: Command = {
     arguments: '<method> <path>',
     options: BODY_OPTIONS,
+    examples: [
+        'dexto cloud api GET /v1/agents --json',
+        'dexto cloud api POST /v1/agents --data \'{"name":"Researcher","instructions":"Summarize sources."}\' --json',
+    ],
     path: ['cloud', 'api'],
     summary:
         'Call only /v1/ paths, such as: dexto cloud api GET /v1/agents. Prints the response body.',

@@ -79,6 +79,7 @@ const DEFINITION_OPTIONS = {
 
 const list: Command = {
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud agents list --json'],
     path: ['cloud', 'agents', 'list'],
     summary: "List the project's agents.",
     async run(context, input) {
@@ -93,6 +94,7 @@ const list: Command = {
 
 const get: Command = {
     arguments: '<agent_id>',
+    examples: ['dexto cloud agents get "$AGENT_ID" --json'],
     path: ['cloud', 'agents', 'get'],
     summary: "Show an agent's current version.",
     async run(context, input) {
@@ -108,6 +110,9 @@ const get: Command = {
 
 const create: Command = {
     options: DEFINITION_OPTIONS,
+    examples: [
+        'dexto cloud agents create --data \'{"name":"Researcher","instructions":"Summarize sources."}\' --json',
+    ],
     path: ['cloud', 'agents', 'create'],
     summary: 'Create an agent from flags, or from a full definition with --file or --data.',
     async run(context, input) {
@@ -123,6 +128,9 @@ const create: Command = {
 const update: Command = {
     arguments: '<agent_id>',
     options: DEFINITION_OPTIONS,
+    examples: [
+        'dexto cloud agents update "$AGENT_ID" --data \'{"name":"Researcher","instructions":"Summarize sources."}\' --json',
+    ],
     path: ['cloud', 'agents', 'update'],
     summary: 'Change an agent: flags change those fields, --file replaces the whole definition.',
     async run(context, input) {
@@ -145,6 +153,7 @@ const update: Command = {
 const archive: Command = {
     arguments: '<agent_id>',
     options: YES_OPTION,
+    examples: ['dexto cloud agents archive "$AGENT_ID" --yes --json'],
     path: ['cloud', 'agents', 'archive'],
     summary: 'Archive an agent: it accepts no new runs and its session sandboxes end.',
     async run(context, input) {
@@ -175,6 +184,7 @@ const chat: Command = {
         },
         yes: { description: 'Approve every tool call the agent asks to make.', type: 'boolean' },
     },
+    examples: ['dexto cloud agents chat "$AGENT_ID" "Summarize the report" --json'],
     path: ['cloud', 'agents', 'chat'],
     summary:
         'Send a message and stream the reply. Without a message at a terminal, keeps chatting until an empty line.',
@@ -358,6 +368,9 @@ async function decide(
 function decisionCommand(decision: 'approve' | 'reject'): Command {
     return {
         arguments: '<agent_id> <session_id> <approval_id>',
+        examples: [
+            `dexto cloud agents ${decision} "$AGENT_ID" "$SESSION_ID" "$APPROVAL_ID" --json`,
+        ],
         options:
             decision === 'reject'
                 ? { message: { description: 'Why, for the agent.', type: 'string' } }
@@ -391,6 +404,7 @@ const sessionsList: Command = {
         ...PAGE_OPTIONS,
         user: { description: "Only this end user's sessions.", type: 'string' },
     },
+    examples: ['dexto cloud agents sessions list "$AGENT_ID" --json'],
     path: ['cloud', 'agents', 'sessions', 'list'],
     summary: "List an agent's sessions.",
     async run(context, input) {
@@ -417,6 +431,7 @@ const sessionsList: Command = {
 
 const sessionsGet: Command = {
     arguments: '<agent_id> <session_id>',
+    examples: ['dexto cloud agents sessions get "$AGENT_ID" "$SESSION_ID" --json'],
     path: ['cloud', 'agents', 'sessions', 'get'],
     summary: 'Show a session and its active run.',
     async run(context, input) {
@@ -436,6 +451,7 @@ const sessionsGet: Command = {
 const sessionsDelete: Command = {
     arguments: '<agent_id> <session_id>',
     options: YES_OPTION,
+    examples: ['dexto cloud agents sessions delete "$AGENT_ID" "$SESSION_ID" --yes --json'],
     path: ['cloud', 'agents', 'sessions', 'delete'],
     summary: 'Delete a session with its messages, runs and stored tool output.',
     async run(context, input) {
@@ -459,6 +475,7 @@ const sessionsDelete: Command = {
 
 const sessionsCancel: Command = {
     arguments: '<agent_id> <session_id>',
+    examples: ['dexto cloud agents sessions cancel "$AGENT_ID" "$SESSION_ID" --json'],
     path: ['cloud', 'agents', 'sessions', 'cancel'],
     summary: "Cancel the session's active run.",
     async run(context, input) {
@@ -477,6 +494,7 @@ const sessionsCancel: Command = {
 const messages: Command = {
     arguments: '<agent_id> <session_id>',
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud agents messages "$AGENT_ID" "$SESSION_ID" --json'],
     path: ['cloud', 'agents', 'messages'],
     summary: "Read a session's messages, oldest first.",
     async run(context, input) {
@@ -513,6 +531,7 @@ const messages: Command = {
 const runsList: Command = {
     arguments: '<agent_id> <session_id>',
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud agents runs list "$AGENT_ID" "$SESSION_ID" --json'],
     path: ['cloud', 'agents', 'runs', 'list'],
     summary: "List a session's runs, newest first.",
     async run(context, input) {
@@ -541,6 +560,7 @@ const runsList: Command = {
 
 const runsGet: Command = {
     arguments: '<agent_id> <session_id> <run_id>',
+    examples: ['dexto cloud agents runs get "$AGENT_ID" "$SESSION_ID" "$RUN_ID" --json'],
     path: ['cloud', 'agents', 'runs', 'get'],
     summary: 'Show a run: its status, why it stopped and what it used.',
     async run(context, input) {
@@ -564,6 +584,7 @@ const runsGet: Command = {
 
 const runsSteps: Command = {
     arguments: '<agent_id> <session_id> <run_id>',
+    examples: ['dexto cloud agents runs steps "$AGENT_ID" "$SESSION_ID" "$RUN_ID" --json'],
     path: ['cloud', 'agents', 'runs', 'steps'],
     summary: 'List what a run did: each model turn and tool call.',
     async run(context, input) {

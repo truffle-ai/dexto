@@ -60,6 +60,7 @@ const list: Command = {
             valueName: 'KIND',
         },
     },
+    examples: ['dexto cloud models list --type image --json'],
     path: ['cloud', 'models', 'list'],
     summary: 'List the models you can run, text and media, with their prices.',
     async run(context, input) {
@@ -90,6 +91,7 @@ const list: Command = {
 
 const get: Command = {
     arguments: '<model>',
+    examples: ['dexto cloud models get "$MODEL_ID" --json'],
     path: ['cloud', 'models', 'get'],
     summary: 'Show a model: its kind, price, and what it takes.',
     async run(context, input) {
@@ -156,6 +158,9 @@ const run: Command = {
             type: 'boolean',
         },
     },
+    examples: [
+        'dexto cloud models run "$IMAGE_MODEL_ID" --data \'{"prompt":"A red kite"}\' --yes --json',
+    ],
     path: ['cloud', 'models', 'run'],
     summary:
         'Run any model. A text model replies to the prompt (or stdin); a media model is priced, confirmed, then run.',
@@ -171,6 +176,7 @@ const run: Command = {
 
 const runs: Command = {
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud models runs list --json'],
     path: ['cloud', 'models', 'runs', 'list'],
     summary: 'List recent media runs in the Cloud project.',
     async run(context, input) {
@@ -189,6 +195,7 @@ const runs: Command = {
 
 const runGet: Command = {
     arguments: '<run_id>',
+    examples: ['dexto cloud models runs get "$RUN_ID" --json'],
     path: ['cloud', 'models', 'runs', 'get'],
     summary: 'Show a media run, its status and its outputs.',
     async run(context, input) {

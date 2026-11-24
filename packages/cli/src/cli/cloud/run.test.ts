@@ -172,6 +172,36 @@ describe('dexto cloud', () => {
         expect(stdout).toContain('only /v1/');
     });
 
+    it('provides JSON examples for the existing cloud command groups', async () => {
+        const groups = new Set([
+            'projects',
+            'agents',
+            'automations',
+            'files',
+            'sandboxes',
+            'secrets',
+            'sites',
+            'functions',
+            'models',
+            'search',
+            'fetch',
+            'data-deletions',
+            'api',
+        ]);
+        const commands = host.commands.filter(
+            (command) => command.path[0] === 'cloud' && groups.has(command.path[1] ?? '')
+        );
+        expect(commands.length).toBeGreaterThanOrEqual(69);
+        for (const command of commands) {
+            stdout = '';
+            expect(await runCloud(host, [...command.path, '--help', '--json'])).toBe(0);
+            const help = JSON.parse(stdout) as { examples?: string[] };
+            expect(help.examples, command.path.join(' ')).toEqual(
+                expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+            );
+        }
+    });
+
     it("lists projects as JSON with the sign-in's token and project", async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
 

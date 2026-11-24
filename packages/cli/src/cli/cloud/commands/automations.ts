@@ -39,6 +39,7 @@ const COLUMNS: readonly Column<Automation>[] = [
 
 const list: Command = {
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud automations list --json'],
     path: ['cloud', 'automations', 'list'],
     summary: "List the project's automations.",
     async run(context, input) {
@@ -57,6 +58,7 @@ const list: Command = {
 
 const get: Command = {
     arguments: '<automation_id>',
+    examples: ['dexto cloud automations get "$AUTOMATION_ID" --json'],
     path: ['cloud', 'automations', 'get'],
     summary: 'Show an automation.',
     async run(context, input) {
@@ -96,6 +98,9 @@ const create: Command = {
         },
         webhook: { description: 'Fire on each signed request to a webhook URL.', type: 'boolean' },
     },
+    examples: [
+        'dexto cloud automations create --data "{\\"name\\":\\"Digest\\",\\"target\\":{\\"type\\":\\"agent\\",\\"agent_id\\":\\"$AGENT_ID\\",\\"message\\":\\"Summarize today\\"},\\"trigger\\":{\\"type\\":\\"webhook\\"}}" --json',
+    ],
     path: ['cloud', 'automations', 'create'],
     summary:
         'Create an automation from flags (--name --agent --message and one of --cron, --at, --webhook) or --file.',
@@ -124,6 +129,9 @@ const update: Command = {
         message: { description: 'The message each firing sends.', type: 'string' },
         name: { description: 'Display name.', type: 'string' },
     },
+    examples: [
+        'dexto cloud automations update "$AUTOMATION_ID" --data \'{"name":"Daily digest"}\' --json',
+    ],
     path: ['cloud', 'automations', 'update'],
     summary: "Change an automation's name or message, or any field with --file.",
     async run(context, input) {
@@ -152,6 +160,9 @@ const update: Command = {
 function lifecycle(action: 'delete' | 'pause' | 'resume' | 'run', summary: string): Command {
     return {
         arguments: '<automation_id>',
+        examples: [
+            `dexto cloud automations ${action} "$AUTOMATION_ID"${action === 'delete' ? ' --yes' : ''} --json`,
+        ],
         ...(action === 'delete' ? { options: YES_OPTION } : {}),
         path: ['cloud', 'automations', action],
         summary,
@@ -194,6 +205,7 @@ function lifecycle(action: 'delete' | 'pause' | 'resume' | 'run', summary: strin
 const firings: Command = {
     arguments: '<automation_id>',
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud automations firings "$AUTOMATION_ID" --json'],
     path: ['cloud', 'automations', 'firings'],
     summary: "List an automation's firings, newest first, with each run's status.",
     async run(context, input) {
@@ -220,6 +232,7 @@ const firings: Command = {
 const rotate: Command = {
     arguments: '<automation_id>',
     options: YES_OPTION,
+    examples: ['dexto cloud automations rotate-secret "$AUTOMATION_ID" --yes --json'],
     path: ['cloud', 'automations', 'rotate-secret'],
     summary: "Replace a webhook's signing secret; the old one stops at once.",
     async run(context, input) {
