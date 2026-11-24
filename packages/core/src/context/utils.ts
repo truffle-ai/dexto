@@ -2168,22 +2168,6 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
     return String(content ?? '');
 }
 
-/**
- * Filter history to exclude messages before the most recent summary.
- * This implements read-time compression for inline compaction.
- *
- * Used by:
- * - TurnExecutor for inline compaction during agentic turns (overflow handling)
- * - DextoAgent.getContextStats() for accurate token/message counts
- *
- * When a summary message exists (with metadata.isSummary === true or
- * metadata.isSessionSummary === true), this function returns only the
- * summary message and everything after it. This effectively hides old
- * messages from the LLM while preserving them in storage.
- *
- * @param history The full conversation history
- * @returns Filtered history starting from the most recent summary (or full history if no summary)
- */
 /** The messages with these ids, in history order. */
 export function pickMessagesById(
     history: readonly InternalMessage[],
@@ -2204,6 +2188,22 @@ export function pickToolResults(
     );
 }
 
+/**
+ * Filter history to exclude messages before the most recent summary.
+ * This implements read-time compression for inline compaction.
+ *
+ * Used by:
+ * - TurnExecutor for inline compaction during agentic turns (overflow handling)
+ * - DextoAgent.getContextStats() for accurate token/message counts
+ *
+ * When a summary message exists (with metadata.isSummary === true or
+ * metadata.isSessionSummary === true), this function returns only the
+ * summary message and everything after it. This effectively hides old
+ * messages from the LLM while preserving them in storage.
+ *
+ * @param history The full conversation history
+ * @returns Filtered history starting from the most recent summary (or full history if no summary)
+ */
 export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
     // Find the most recent summary message (search backwards for efficiency)
     // Check for both old isSummary marker and new isSessionSummary marker
