@@ -160,9 +160,10 @@ const START_SYNC_TIMEOUT_MS = 5_000;
 
 /**
  * At session start: syncs a signed-in person's Skills, and forgets the last person's Skills when no
- * person is signed in. Never fails the session: a failed sync warns once and keeps the last copy.
+ * person is signed in. Never fails the session: a failed sync keeps the last copy and warns once,
+ * except in a JSON mode, whose stderr holds only the command's own failure.
  */
-export async function syncCloudSkillsAtStart(): Promise<void> {
+export async function syncCloudSkillsAtStart(options: { jsonMode: boolean }): Promise<void> {
     const directory = getStandaloneSkillPaths().cloud;
     const deadline = AbortSignal.timeout(START_SYNC_TIMEOUT_MS);
     try {
@@ -186,11 +187,12 @@ export async function syncCloudSkillsAtStart(): Promise<void> {
             deadline,
             directory,
         });
-        if (synced.left > 0)
+        if (synced.left > 0 && !options.jsonMode)
             process.stderr.write(
                 `Synced ${synced.downloaded.length} more of your Dexto Skills; ${synced.left} still to sync at your next session, or now with dexto skills sync.\n`
             );
     } catch (error) {
+        if (options.jsonMode) return;
         const reason = error instanceof Error ? error.message : String(error);
         process.stderr.write(
             `Couldn't sync your Dexto Skills (${reason}). Using the last synced copy; run dexto skills sync to retry.\n`

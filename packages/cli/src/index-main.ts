@@ -131,6 +131,14 @@ const USAGE_ERRORS: ReadonlySet<string> = new Set([
 program.exitOverride((error) => {
     if (USAGE_ERRORS.has(error.code)) process.exit(2);
 });
+/** `--json`, `--stream-json`, or stdout not a terminal: stderr holds only a failure. */
+function isJsonMode(): boolean {
+    const argv = process.argv.slice(2);
+    return (
+        process.stdout.isTTY !== true || argv.includes('--json') || argv.includes('--stream-json')
+    );
+}
+
 // Every command but the interactive CLI, which shows its own, and `upgrade` itself tells a person
 // at a terminal that this CLI is out of date (DEXTO-3134). Never in a JSON mode, whose stderr holds
 // only its failure. A fresh cache answers at once; a stale one is refreshed here, held to 1.5 s,
@@ -138,14 +146,7 @@ program.exitOverride((error) => {
 // lookup is cached too, so this waits at most once a day.
 program.hook('preAction', async (_program, actionCommand) => {
     if (actionCommand === program || actionCommand.name() === 'upgrade') return;
-    const argv = process.argv.slice(2);
-    if (
-        process.stdout.isTTY !== true ||
-        process.stderr.isTTY !== true ||
-        argv.includes('--json') ||
-        argv.includes('--stream-json')
-    )
-        return;
+    if (isJsonMode() || process.stderr.isTTY !== true) return;
     const { checkForUpdates, displayUpdateNotification, readCachedUpdate } = await import(
         './cli/utils/version-check.js'
     );
@@ -210,7 +211,7 @@ async function syncCloudSkillsOnce(): Promise<void> {
     if (cloudSkillsSynced) return;
     cloudSkillsSynced = true;
     const { syncCloudSkillsAtStart } = await import('./cli/cloud/skills-sync.js');
-    await syncCloudSkillsAtStart();
+    await syncCloudSkillsAtStart({ jsonMode: isJsonMode() });
 }
 
 async function getVersionCheckResult(): Promise<UpdateInfo | null> {
