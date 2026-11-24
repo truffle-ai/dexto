@@ -8,7 +8,7 @@ import { resolveConnection } from './connection.js';
 import { cloudCommands, CLOUD_GROUPS } from './host.js';
 import type { SignInFor } from './commands/account.js';
 import { runCloud, type CloudHost } from './run.js';
-import type { CloudRuntime } from './runtime.js';
+import { explainNetworkFailures, type CloudRuntime } from './runtime.js';
 
 const API = 'https://api.dexto.ai';
 
@@ -414,6 +414,72 @@ describe('dexto cloud', () => {
             );
 
         expect(await runCloud(host, ['cloud', 'api', 'GET', '/v1/agents/nope'])).toBe(5);
+    });
+
+    it('names the host and the cause when the API cannot be reached', async () => {
+        reply = () => {
+            throw new TypeError('fetch failed', { cause: { code: 'ECONNREFUSED' } });
+        };
+        const expected = {
+            error: {
+                code: 'failed',
+                message: "Couldn't reach http://127.0.0.1:9 (connection refused).",
+                fix: 'Check your network. If you set --api-base-url or DEXTO_API_BASE_URL, check or unset it.',
+            },
+        };
+        const offline = ['--api-key', 'dxt_key', '--api-base-url', 'http://127.0.0.1:9', '--json'];
+
+        expect(await runCloud(host, ['cloud', 'projects', 'list', ...offline])).toBe(1);
+        expect(JSON.parse(stderr)).toEqual(expected);
+
+        stderr = '';
+        expect(await runCloud(host, ['cloud', 'api', 'GET', '/v1/agents', ...offline])).toBe(1);
+        expect(JSON.parse(stderr)).toEqual(expected);
+    });
+
+    it('says the host could not be found, and leaves a cancelled request as it was', async () => {
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        reply = () => {
+            throw new TypeError('fetch failed', { cause: { code: 'ENOTFOUND' } });
+        };
+
+        expect(await runCloud(host, ['cloud', 'projects', 'list', '--json'])).toBe(1);
+        expect(JSON.parse(stderr).error.message).toBe(`Couldn't reach ${API} (host not found).`);
+
+        // A port fetch refuses to use has no code, only a message.
+        stderr = '';
+        reply = () => {
+            throw new TypeError('fetch failed', { cause: new Error('bad port') });
+        };
+        expect(await runCloud(host, ['cloud', 'projects', 'list', '--json'])).toBe(1);
+        expect(JSON.parse(stderr).error.message).toBe(`Couldn't reach ${API} (bad port).`);
+
+        stderr = '';
+        reply = () => {
+            throw new globalThis.DOMException('This operation was aborted', 'AbortError');
+        };
+        expect(await runCloud(host, ['cloud', 'projects', 'list', '--json'])).toBe(1);
+        expect(JSON.parse(stderr).error.message).toBe('This operation was aborted');
+    });
+
+    it('keeps a named network failure a TypeError, so commands still retry it', async () => {
+        const unreachable = explainNetworkFailures(async () => {
+            throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+        });
+        const failure = await unreachable('https://uploads.example/part/1').catch(
+            (error: unknown) => error
+        );
+
+        expect(failure).toBeInstanceOf(TypeError);
+        expect(failure).toMatchObject({
+            message: "Couldn't reach https://uploads.example (connection reset).",
+        });
+        // Wrapped twice (a command run again after a sign-in), it is named once.
+        await expect(
+            explainNetworkFailures(async () => {
+                throw failure;
+            })('https://uploads.example/part/1')
+        ).rejects.toBe(failure);
     });
 
     it('keeps cloud api on the public API', async () => {

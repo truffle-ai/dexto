@@ -69,6 +69,66 @@ export function guardRuntime(runtime: CloudRuntime): CloudRuntime {
     };
 }
 
+const NETWORK_REASONS: Readonly<Record<string, string>> = {
+    EAI_AGAIN: 'DNS lookup failed',
+    ECONNREFUSED: 'connection refused',
+    ECONNRESET: 'connection reset',
+    ENOTFOUND: 'host not found',
+    ETIMEDOUT: 'timed out',
+    UND_ERR_CONNECT_TIMEOUT: 'timed out',
+};
+
+/**
+ * A request that never reached its host, named with the host and the reason. Still a `TypeError`,
+ * as fetch's own network failure is, so the commands that retry one keep retrying it.
+ */
+export class NetworkFailure extends TypeError {
+    constructor(message: string, cause: TypeError) {
+        super(message, { cause });
+        this.name = 'NetworkFailure';
+    }
+}
+
+/** What to check when the network fails; the fix printed with a `NetworkFailure`. */
+export const NETWORK_FIX =
+    'Check your network. If you set --api-base-url or DEXTO_API_BASE_URL, check or unset it.';
+
+/**
+ * The runtime's fetch with a network failure (Node's `TypeError('fetch failed')`, its reason in
+ * `cause.code`) as a `NetworkFailure` that names the host and the reason. A cancelled request and
+ * every other error pass through as they are.
+ */
+export function explainNetworkFailures(fetch: typeof globalThis.fetch): typeof globalThis.fetch {
+    return async (input, init) => {
+        try {
+            return await fetch(input, init);
+        } catch (error) {
+            if (
+                !(error instanceof TypeError) ||
+                error instanceof NetworkFailure ||
+                error.cause === undefined
+            )
+                throw error;
+            const reason = networkReason(error.cause);
+            const origin = new URL(input instanceof globalThis.Request ? input.url : input).origin;
+            throw new NetworkFailure(
+                `Couldn't reach ${origin}${reason === null ? '' : ` (${reason})`}.`,
+                error
+            );
+        }
+    };
+}
+
+/** Why the request failed, in words: by its code, else the cause's own message (`bad port`). */
+function networkReason(cause: unknown): string | null {
+    if (typeof cause !== 'object' || cause === null) return null;
+    if ('code' in cause && typeof cause.code === 'string')
+        return NETWORK_REASONS[cause.code] ?? cause.code;
+    if ('message' in cause && typeof cause.message === 'string' && cause.message !== '')
+        return cause.message;
+    return null;
+}
+
 /**
  * Text for people with each line's control, bidi and invisible characters taken out. Line breaks
  * stay (a CRLF becomes a newline); a tab or a lone carriage return becomes a space.
