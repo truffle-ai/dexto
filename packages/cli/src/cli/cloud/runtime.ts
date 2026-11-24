@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import chalk from 'chalk';
 import { safeText } from '@dexto/tui/signal-text';
+import { CommandFailure } from '../failure.js';
 
 export interface CloudRuntime {
     /** Whether to color what people read: a terminal that shows colors. */
@@ -67,6 +68,47 @@ export function guardRuntime(runtime: CloudRuntime): CloudRuntime {
         writeError: (text) => runtime.writeError(safeLines(text)),
         writeOutput: (text) => runtime.writeOutput(safeLines(text)),
     };
+}
+
+const NETWORK_REASONS: Readonly<Record<string, string>> = {
+    EAI_AGAIN: 'DNS lookup failed',
+    ECONNREFUSED: 'connection refused',
+    ECONNRESET: 'connection reset',
+    ENOTFOUND: 'host not found',
+    ETIMEDOUT: 'timed out',
+    UND_ERR_CONNECT_TIMEOUT: 'timed out',
+};
+
+/**
+ * The runtime's fetch with a network failure (Node's `TypeError('fetch failed')`, its reason in
+ * `cause.code`) as a failure that names the host and the reason, and says what to check. A
+ * cancelled request and every other error pass through as they are.
+ */
+export function explainNetworkFailures(fetch: typeof globalThis.fetch): typeof globalThis.fetch {
+    return async (input, init) => {
+        try {
+            return await fetch(input, init);
+        } catch (error) {
+            if (!(error instanceof TypeError) || error.cause === undefined) throw error;
+            const reason = networkReason(error.cause);
+            const origin = new URL(input instanceof globalThis.Request ? input.url : input).origin;
+            throw new CommandFailure(
+                'failed',
+                `Couldn't reach ${origin}${reason === null ? '' : ` (${reason})`}.`,
+                'Check your network. If you set --api-base-url or DEXTO_API_BASE_URL, check or unset it.'
+            );
+        }
+    };
+}
+
+/** Why the request failed, in words: by its code, else the cause's own message (`bad port`). */
+function networkReason(cause: unknown): string | null {
+    if (typeof cause !== 'object' || cause === null) return null;
+    if ('code' in cause && typeof cause.code === 'string')
+        return NETWORK_REASONS[cause.code] ?? cause.code;
+    if ('message' in cause && typeof cause.message === 'string' && cause.message !== '')
+        return cause.message;
+    return null;
 }
 
 /**

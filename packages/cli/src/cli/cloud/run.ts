@@ -24,7 +24,7 @@ import {
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
 import { createOutput, type OutputFormat } from './output.js';
-import { guardRuntime, unfiltered, type CloudRuntime } from './runtime.js';
+import { explainNetworkFailures, guardRuntime, unfiltered, type CloudRuntime } from './runtime.js';
 import { forStream, safeText, signalOn } from '@dexto/tui/signal-text';
 import { jsonResult } from '../output.js';
 import { failureLines } from '../screens/fault.js';
@@ -107,8 +107,15 @@ async function run(
     argv: readonly string[],
     mayGrant: boolean
 ): Promise<number> {
-    // Every command prints through the guarded runtime: see guardRuntime.
-    const host: CloudHost = { ...unguarded, runtime: guardRuntime(unguarded.runtime) };
+    // Every command prints through the guarded runtime (see guardRuntime), and its fetch names
+    // the host and the reason when the network fails.
+    const host: CloudHost = {
+        ...unguarded,
+        runtime: guardRuntime({
+            ...unguarded.runtime,
+            fetch: explainNetworkFailures(unguarded.runtime.fetch),
+        }),
+    };
     const { runtime } = host;
     let globals: Globals;
     try {
