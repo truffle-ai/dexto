@@ -1982,17 +1982,23 @@ describe('dexto workspace', () => {
         expect(stdout).toBe('');
     });
 
-    it('keeps the preview connection if the selected project changes during confirmation', async () => {
+    it('keeps the preview account and project if the profile changes during confirmation', async () => {
         const file = path.join(path.dirname(dir), 'page.html');
         await writeFile(file, '<h1>hello</h1>');
-        const resolve = host.resolveConnection;
+        const resolve = vi.fn(host.resolveConnection);
         let changed = false;
         host = {
             ...host,
             resolveConnection: async (overrides) => {
                 const connection = await resolve(overrides);
                 return connection?.kind === 'oauth' && changed
-                    ? { ...connection, cloudProject: 'other-project' }
+                    ? {
+                          ...connection,
+                          profile: 'other-profile',
+                          cloudProject: 'other-project',
+                          apiBaseUrl: 'https://other-api.invalid',
+                          login: { ...connection.login, resource: 'https://other-app.invalid/mcp' },
+                      }
                     : connection;
             },
             runtime: {
@@ -2005,7 +2011,14 @@ describe('dexto workspace', () => {
             },
         };
         expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+        expect(resolve).toHaveBeenCalledOnce();
         expect(publishProject).toBe('project-1');
+        expect(calls.map((call) => call.params.name)).toEqual([
+            'POST /v1/sites/publish/preview',
+            'dexto_upload_prepare',
+            'POST /v1/sites/publish',
+        ]);
+        expect(uploads).toHaveLength(1);
     });
 
     it('refuses an inconsistent preview before uploading', async () => {

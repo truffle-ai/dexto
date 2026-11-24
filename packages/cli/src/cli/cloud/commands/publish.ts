@@ -131,8 +131,9 @@ const publish: Command = {
         const confirmPublicName = stringOption(input, 'confirm-public');
         if (confirmPublicName !== undefined && visibility !== 'public')
             throw new UsageError('--confirm-public requires --visibility public.');
-        await requireLoginScopes(context, ['sites:write', 'cloud:write']);
         const connection = await context.connection();
+        const publishContext = { ...context, connection: async () => connection };
+        await requireLoginScopes(publishContext, ['sites:write', 'cloud:write']);
         if (connection.kind !== 'oauth')
             throw new CommandFailure(
                 'needs_sign_in',
@@ -151,7 +152,6 @@ const publish: Command = {
             token: connection.token,
             fetch: context.runtime.fetch,
         });
-        const publishContext = { ...context, connection: async () => connection };
         const target = path.resolve(argument(input, 0, 'path'));
         const found = await stat(target).catch(() => null);
         if (found === null || !(found.isFile() || found.isDirectory()))
