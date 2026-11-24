@@ -448,7 +448,7 @@ Reading needs a sign-in with `messages:read`, sending `messages:write`; an API k
 
 ## Your Loops
 
-List and inspect the Loops on your account, an agent or a Dexto Project, and their runs:
+List and inspect the Loops on your account, an agent or a Dexto Project, and their runs; run one now or delete it:
 
 ```bash
 dexto loops list --json
@@ -456,9 +456,11 @@ dexto loops list --agent "$AGENT_ID" --json
 dexto loops list --in-project "$PROJECT_ID" --paused --json
 dexto loops get "$LOOP_ID" --history --json
 dexto loops get "$LOOP_ID" --execution "$RUN_ID" --json
+dexto loops run "$LOOP_ID" --json
+dexto loops delete "$LOOP_ID" --yes --json
 ```
 
-These read only and need `automations:read`; a sign-in without it is asked to sign in again. With no flag, list returns your account's Loops; `--agent` names an agent's, `--account` or `--in-project` the account's or a Project's (with `--agent`, only that agent's there), and `--enabled` or `--paused` filters by state. List returns `{automations, nextCursor}` and accepts `--limit` and `--after` with the previous `nextCursor`. Get returns `{automation}`; `--history` (or `--history-limit`) adds its recent runs as `executions`, and `--execution` reads one run in full, continued with `--text-offset` and `--payload-offset`. Creating, changing, running and deleting Loops are not CLI commands. These are your Dexto Loops, not the Cloud project automations under `dexto cloud automations`.
+List and get read only and need `automations:read`; run and delete need `automations:write`. A sign-in without the permission is asked to sign in again. With no flag, list returns your account's Loops; `--agent` names an agent's, `--account` or `--in-project` the account's or a Project's (with `--agent`, only that agent's there), and `--enabled` or `--paused` filters by state. List returns `{automations, nextCursor}` and accepts `--limit` and `--after` with the previous `nextCursor`. Get returns `{automation}`; `--history` (or `--history-limit`) adds its recent runs as `executions`, and `--execution` reads one run in full, continued with `--text-offset` and `--payload-offset`. Run starts the Loop now, outside its schedule, without asking, and returns `{execution, turn}` for the run it started. Delete can't be undone and asks first: pass `--yes` once you agree; without a terminal it exits with `needs_confirmation` and deletes nothing. It returns `{ok: true}`. Both act only on a Loop you may change, and say `not_found` or `needs_permission` otherwise. Creating and changing Loops are not CLI commands. These are your Dexto Loops, not the Cloud project automations under `dexto cloud automations`.
 
 ## Work with your AutoBots
 

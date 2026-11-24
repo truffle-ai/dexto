@@ -29,6 +29,38 @@ const RUN = {
     status: 'succeeded',
     triggeredAt: '2026-11-23T09:00:00.000Z',
 };
+/** The two Loop tools as the Dexto MCP lists them, each at its own level. */
+const TOOLS = [
+    ['dexto_automation_trigger', 'Trigger Dexto automation', 'work'],
+    ['dexto_automation_delete', 'Delete Dexto automation', 'act'],
+].map(([name, title, level]) => ({
+    _meta: { 'dexto/app': 'automations', 'dexto/level': level },
+    inputSchema: {
+        type: 'object',
+        properties: { automationId: { type: 'string' } },
+        required: ['automationId'],
+        additionalProperties: false,
+    },
+    name,
+    title,
+}));
+async function signInWith(dir: string, scopes: string[]): Promise<void> {
+    await dextoAccounts.writeLogin(dir, 'default', {
+        kind: 'oauth',
+        accessToken: 'access-1',
+        refreshToken: 'refresh-1',
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        clientId: 'dexto-cli',
+        appUrl: 'https://app.dexto.ai',
+        apiBaseUrl: 'https://api.dexto.ai',
+        resource: MCP,
+        tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
+        scopes,
+        savedAt: '2026-11-01T00:00:00.000Z',
+        signedInAs: null,
+        cloudProject: null,
+    });
+}
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('No sign-ins in tests');
 };
@@ -42,6 +74,8 @@ describe('dexto loops', () => {
     let replies: unknown[];
     let rpcError: unknown;
     let stdoutIsTerminal: boolean;
+    let answer: string | null;
+    let prompts: string[];
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-loops-')), 'accounts');
@@ -51,21 +85,9 @@ describe('dexto loops', () => {
         replies = [];
         rpcError = null;
         stdoutIsTerminal = false;
-        await dextoAccounts.writeLogin(dir, 'default', {
-            kind: 'oauth',
-            accessToken: 'access-1',
-            refreshToken: 'refresh-1',
-            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-            clientId: 'dexto-cli',
-            appUrl: 'https://app.dexto.ai',
-            apiBaseUrl: 'https://api.dexto.ai',
-            resource: MCP,
-            tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
-            scopes: ['cloud:read', 'automations:read'],
-            savedAt: '2026-11-01T00:00:00.000Z',
-            signedInAs: null,
-            cloudProject: null,
-        });
+        answer = null;
+        prompts = [];
+        await signInWith(dir, ['cloud:read', 'automations:read', 'automations:write']);
         const runtime: CloudRuntime = {
             color: false,
             environment: {},
@@ -75,6 +97,12 @@ describe('dexto loops', () => {
                 if (request.url !== MCP)
                     return Response.json({ resource: MCP, dexto_app_scopes: {} });
                 const message = await request.json();
+                if (message.method === 'tools/list')
+                    return Response.json({
+                        jsonrpc: '2.0',
+                        id: message.id,
+                        result: { tools: TOOLS },
+                    });
                 calls.push(message.params);
                 if (rpcError !== null)
                     return Response.json({ jsonrpc: '2.0', id: message.id, error: rpcError });
@@ -86,7 +114,14 @@ describe('dexto loops', () => {
                     result: { content: [], structuredContent: value },
                 });
             },
-            prompt: null,
+            get prompt() {
+                return answer === null
+                    ? null
+                    : async (question: string) => {
+                          prompts.push(question);
+                          return answer ?? '';
+                      };
+            },
             readStdin: async () => '',
             runProcess: async () => ({ exitCode: 0, output: '' }),
             signal: new AbortController().signal,
@@ -281,4 +316,111 @@ describe('dexto loops', () => {
         expect(error.code).toBe('needs_permission');
         expect(error.fix).toMatch(/^dexto login .*--scope automations:read$/);
     });
+
+    describe('run', () => {
+        const TRIGGERED = { execution: { ...RUN, status: 'running' }, turn: { id: 'turn-1' } };
+
+        it('runs the Loop by id without asking and prints the run it started as JSON', async () => {
+            replies = [TRIGGERED];
+            expect(await runCloud(host, ['loops', 'run', LOOP_ID, '--json'])).toBe(0);
+            expect(calls).toEqual([
+                { name: 'dexto_automation_trigger', arguments: { automationId: LOOP_ID } },
+            ]);
+            expect(JSON.parse(stdout)).toEqual(TRIGGERED);
+        });
+
+        it('tells people which run started', async () => {
+            stdoutIsTerminal = true;
+            replies = [TRIGGERED];
+            expect(await runCloud(host, ['loops', 'run', LOOP_ID])).toBe(0);
+            expect(stdout).toContain(`started run ${RUN_ID} (running)`);
+        });
+
+        it('reports a Loop the caller may not change as needs_permission', async () => {
+            rpcError = {
+                code: -32003,
+                message: 'You cannot change that Loop.',
+                data: { kind: 'forbidden', retryable: false },
+            };
+            expect(await runCloud(host, ['loops', 'run', LOOP_ID, '--json'])).toBe(3);
+            expect(JSON.parse(stderr).error).toMatchObject({
+                code: 'needs_permission',
+                message: 'You cannot change that Loop.',
+            });
+        });
+
+        it('reports a Loop the server does not find as not_found', async () => {
+            rpcError = {
+                code: -32004,
+                message: 'Automation not found.',
+                data: { kind: 'not_found', retryable: false },
+            };
+            expect(await runCloud(host, ['loops', 'run', LOOP_ID, '--json'])).toBe(5);
+            expect(JSON.parse(stderr).error).toMatchObject({ code: 'not_found' });
+        });
+
+        it('needs a Loop id', async () => {
+            expect(await runCloud(host, ['loops', 'run', '--json'])).toBe(2);
+            expect(calls).toEqual([]);
+        });
+    });
+
+    describe('delete', () => {
+        it('deletes the Loop by id with --yes and prints the result as JSON', async () => {
+            replies = [{ ok: true }];
+            expect(await runCloud(host, ['loops', 'delete', LOOP_ID, '--yes', '--json'])).toBe(0);
+            expect(calls).toEqual([
+                { name: 'dexto_automation_delete', arguments: { automationId: LOOP_ID } },
+            ]);
+            expect(JSON.parse(stdout)).toEqual({ ok: true });
+        });
+
+        it('refuses without --yes when nobody can be asked, and sends no delete', async () => {
+            expect(await runCloud(host, ['loops', 'delete', LOOP_ID, '--json'])).not.toBe(0);
+            const { error } = JSON.parse(stderr);
+            expect(error.code).toBe('needs_confirmation');
+            expect(error.fix).toBe(`dexto loops delete ${LOOP_ID} --json --yes`);
+            expect(calls).toEqual([]);
+        });
+
+        it('asks at a terminal, and deletes only on yes', async () => {
+            answer = 'n';
+            expect(await runCloud(host, ['loops', 'delete', LOOP_ID])).not.toBe(0);
+            expect(prompts).toEqual([
+                `"Delete Loop ${LOOP_ID}" asks before it runs (level act). Go ahead? [y/N] `,
+            ]);
+            expect(calls).toEqual([]);
+
+            answer = 'y';
+            stdoutIsTerminal = true;
+            replies = [{ ok: true }];
+            expect(await runCloud(host, ['loops', 'delete', LOOP_ID])).toBe(0);
+            expect(calls).toEqual([
+                { name: 'dexto_automation_delete', arguments: { automationId: LOOP_ID } },
+            ]);
+            expect(stdout).toContain(`Deleted Loop ${LOOP_ID}.`);
+        });
+
+        it('reports a Loop the caller may not delete as needs_permission', async () => {
+            rpcError = {
+                code: -32003,
+                message: 'You cannot change that Loop.',
+                data: { kind: 'forbidden', retryable: false },
+            };
+            expect(await runCloud(host, ['loops', 'delete', LOOP_ID, '--yes', '--json'])).toBe(3);
+            expect(JSON.parse(stderr).error).toMatchObject({ code: 'needs_permission' });
+        });
+    });
+
+    it.each([['run'], ['delete']])(
+        'asks a sign-in without automations:write to sign in again before %s calls anything',
+        async (verb) => {
+            await signInWith(dir, ['cloud:read', 'automations:read']);
+            expect(await runCloud(host, ['loops', verb, LOOP_ID, '--yes', '--json'])).toBe(3);
+            const { error } = JSON.parse(stderr);
+            expect(error.code).toBe('needs_permission');
+            expect(error.fix).toMatch(/^dexto login .*--scope automations:write$/);
+            expect(calls).toEqual([]);
+        }
+    );
 });

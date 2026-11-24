@@ -1,7 +1,8 @@
-// `loops`: read your account's, an agent's or a Project's Loops and their runs, over Dexto's typed
-// Loop tools. Creating, changing, running and deleting Loops stay with those tools.
+// `loops`: read your account's, an agent's or a Project's Loops and their runs, run one now or delete
+// it, over Dexto's typed Loop tools. Creating and changing Loops stay with those tools.
 
 import { z } from 'zod';
+import { CommandFailure } from '../../failure.js';
 import {
     argument,
     flag,
@@ -10,11 +11,14 @@ import {
     pageQuery,
     stringOption,
     UsageError,
+    YES_OPTION,
     type Command,
+    type CommandContext,
     type CommandInput,
 } from '../command.js';
 import type { Column } from '../output.js';
-import { queryWorkspaceTool } from './workspace.js';
+import { requireLoginScopes } from './deploys.js';
+import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
 
 const LoopSchema = z
     .object({
@@ -181,4 +185,75 @@ const get: Command = {
     },
 };
 
-export const loopCommands: readonly Command[] = [list, get];
+const TriggeredSchema = z.object({ execution: RunSchema }).passthrough();
+const DeletedSchema = z.object({ ok: z.literal(true) }).passthrough();
+
+/**
+ * Calls a Loop tool that changes a Loop, once the person agreed as the tool's own level asks:
+ * running is `work` and goes ahead, deleting is `act` and asks first (or needs --yes).
+ */
+async function changeLoop(
+    context: CommandContext,
+    name: 'dexto_automation_delete' | 'dexto_automation_trigger',
+    automationId: string,
+    title: string,
+    yes: boolean
+): Promise<unknown> {
+    await requireLoginScopes(context, ['automations:write']);
+    const tool = (await listWorkspaceTools(context)).find((each) => each.name === name);
+    if (tool === undefined)
+        throw new CommandFailure('failed', "This Dexto can't run or delete Loops yet.", null);
+    const call = { automationId };
+    const agreed = await agreeToCall(
+        context,
+        { level: toolCallLevel(tool, call), schema: tool.inputSchema, title },
+        yes
+    );
+    return await queryWorkspaceTool(context, name, { ...call, ...agreed });
+}
+
+const run: Command = {
+    arguments: '<loop_id>',
+    options: { ...YES_OPTION },
+    path: ['loops', 'run'],
+    summary: 'Run a Loop now, outside its schedule. Prints the run it started.',
+    examples: ['dexto loops run "$LOOP_ID" --json'],
+    async run(context, input) {
+        const automationId = argument(input, 0, 'loop_id');
+        const value = await changeLoop(
+            context,
+            'dexto_automation_trigger',
+            automationId,
+            `Run Loop ${automationId} now`,
+            flag(input, 'yes')
+        );
+        const { execution } = TriggeredSchema.parse(value);
+        context.output.result(
+            value,
+            `Loop ${automationId} started run ${execution.id} (${execution.status}).`
+        );
+    },
+};
+
+const remove: Command = {
+    arguments: '<loop_id>',
+    options: { ...YES_OPTION },
+    path: ['loops', 'delete'],
+    summary: "Delete a Loop and stop its future runs. Can't be undone; asks first.",
+    examples: ['dexto loops delete "$LOOP_ID" --yes --json'],
+    async run(context, input) {
+        const automationId = argument(input, 0, 'loop_id');
+        const value = DeletedSchema.parse(
+            await changeLoop(
+                context,
+                'dexto_automation_delete',
+                automationId,
+                `Delete Loop ${automationId}`,
+                flag(input, 'yes')
+            )
+        );
+        context.output.result(value, `Deleted Loop ${automationId}.`);
+    },
+};
+
+export const loopCommands: readonly Command[] = [list, get, run, remove];
