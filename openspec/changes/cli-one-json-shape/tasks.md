@@ -17,6 +17,6 @@
 
 ## 4. Contract test and release
 
-- [ ] 4.1 Add `json-contract.test.ts`: every list command against a fake camelCase server, checking the envelope and key case, and failing on an uncovered `list` command.
-- [ ] 4.2 Add a major `dexto` changeset listing every renamed key and changed shape.
-- [ ] 4.3 Run the cloud CLI tests, typecheck, lint, build and the CLI audit.
+- [x] 4.1 Add `json-contract.test.ts`: every list command against a fake camelCase server, checking the envelope and key case, and failing on an uncovered `list` command.
+- [x] 4.2 Add a major `dexto` changeset listing every renamed key and changed shape.
+- [x] 4.3 Run the cloud CLI tests, typecheck, lint, build and the CLI audit.
