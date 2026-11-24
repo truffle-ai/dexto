@@ -99,6 +99,7 @@ const publish: Command = {
         ...YES_OPTION,
     },
     path: ['publish'],
+    examples: ['dexto publish ./dist --visibility private --yes --json'],
     summary:
         'Publish a file, folder or .zip as a Site; publishing the same name again updates it. Requires sites:write and cloud:write. Example: dexto publish ./dist --yes',
     async run(context, input) {
