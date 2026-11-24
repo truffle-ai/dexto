@@ -1138,6 +1138,30 @@ describe('ChatSession', () => {
             return error;
         }
 
+        test('a cancelled resume returns the driver for pending tool results', async () => {
+            const inner = createMockTurnDriver();
+            const state = inner.getState();
+            state.toolCallsExecuted = false;
+            state.result.toolCalls = [{ toolCallId: 'pending', toolName: 'example', args: {} }];
+            mockLLMService.createTurnDriver.mockResolvedValue(inner);
+            const caller = new AbortController();
+            caller.abort();
+            const driver = await chatSession.createTurnDriver({
+                kind: 'resume',
+                state,
+                signal: caller.signal,
+            });
+            await driver.executeToolCalls();
+            expect(inner.executeToolCalls).toHaveBeenCalledOnce();
+            expect(mockLLMService.createTurnDriver).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    state,
+                    signal: expect.objectContaining({ aborted: true }),
+                })
+            );
+            driver.dispose();
+        });
+
         test('ends a cancelled turn driver setup once and frees the session', async () => {
             const runCompletes: SessionEventMap['run:complete'][] = [];
             chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));

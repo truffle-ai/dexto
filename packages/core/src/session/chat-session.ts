@@ -690,8 +690,8 @@ export class ChatSession {
                 ? this.combineSignals(input.signal, this.currentRunController.signal)
                 : this.currentRunController.signal;
             detachForwarders = this.attachRunEventForwarders(input.runContext);
-            signal.throwIfAborted();
             if (input.kind === 'start') {
+                signal.throwIfAborted();
                 this.logger.info('ChatSession turn input received', {
                     sessionId: this.id,
                     turnKind: input.kind,
@@ -746,7 +746,7 @@ export class ChatSession {
                 });
             }
 
-            signal.throwIfAborted();
+            if (input.kind === 'start') signal.throwIfAborted();
             const streaming = input.streaming ?? true;
             const driver = await recordOperationSpan(
                 {
@@ -767,7 +767,7 @@ export class ChatSession {
                 this.logger
             );
 
-            if (signal.aborted) {
+            if (input.kind === 'start' && signal.aborted) {
                 driver.dispose();
                 signal.throwIfAborted();
             }
