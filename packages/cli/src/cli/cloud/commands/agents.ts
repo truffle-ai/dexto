@@ -128,11 +128,10 @@ const create: Command = {
 const update: Command = {
     arguments: '<agent_id>',
     options: DEFINITION_OPTIONS,
-    examples: [
-        'dexto cloud agents update "$AGENT_ID" --data \'{"name":"Researcher","instructions":"Summarize sources."}\' --json',
-    ],
+    examples: ['dexto cloud agents update "$AGENT_ID" --instructions "Summarize sources." --json'],
     path: ['cloud', 'agents', 'update'],
-    summary: 'Change an agent: flags change those fields, --file replaces the whole definition.',
+    summary:
+        'Change an agent: flags change those fields; --file or --data replaces the whole definition.',
     async run(context, input) {
         const client = await context.client();
         const agentId = argument(input, 0, 'agent_id');

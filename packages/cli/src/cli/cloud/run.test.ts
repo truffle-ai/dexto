@@ -202,6 +202,15 @@ describe('dexto cloud', () => {
         }
     });
 
+    it('shows a field update and explains when an agent definition is replaced', async () => {
+        expect(await runCloud(host, ['cloud', 'agents', 'update', '--help', '--json'])).toBe(0);
+        const help = JSON.parse(stdout) as { examples: string[]; summary: string };
+        expect(help.examples).toContain(
+            'dexto cloud agents update "$AGENT_ID" --instructions "Summarize sources." --json'
+        );
+        expect(help.summary).toContain('--file or --data replaces the whole definition');
+    });
+
     it("lists projects as JSON with the sign-in's token and project", async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
 
