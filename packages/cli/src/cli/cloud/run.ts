@@ -4,6 +4,7 @@
 import { CommandFailure, EXIT_CODE_MEANINGS, EXIT_CODES, type FailureKind } from '../failure.js';
 
 import { parseArgs } from 'node:util';
+import { shellWord } from '../interaction.js';
 import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
@@ -184,9 +185,37 @@ async function run(
             signIn,
             output.json,
             { text: commandHelp(command), command: `dexto ${command.path.join(' ')} --help` },
-            error
+            error,
+            listFix(host.commands, command, globals.overrides, error)
         );
     }
+}
+
+/**
+ * A get, read or status command that names nothing there, or nothing valid, and has no fix of its
+ * own: its group's list command, where there is one, shows the ids it takes.
+ */
+function listFix(
+    commands: readonly Command[],
+    command: Command,
+    overrides: ConnectionOverrides,
+    error: unknown
+): string | undefined {
+    if (!(error instanceof CommandFailure) || error.fix !== null) return undefined;
+    if (error.kind !== 'not_found' && error.kind !== 'invalid_input') return undefined;
+    if (!['get', 'read', 'status'].includes(command.path.at(-1) ?? '')) return undefined;
+    const list = [...command.path.slice(0, -1), 'list'];
+    if (!commands.some((each) => each.path.join(' ') === list.join(' '))) return undefined;
+    // Listed where the command ran: the same profile, project and API.
+    return [
+        'dexto',
+        ...(overrides.profile === null ? [] : ['--profile', overrides.profile]),
+        ...(overrides.cloudProject === null ? [] : ['--project', overrides.cloudProject]),
+        ...(overrides.apiBaseUrl === null ? [] : ['--api-base-url', overrides.apiBaseUrl]),
+        ...list,
+    ]
+        .map(shellWord)
+        .join(' ');
 }
 
 /** `workspace` or `workspace <app> [operation] [action] [--field value…]`. */
