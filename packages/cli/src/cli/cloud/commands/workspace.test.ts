@@ -780,7 +780,7 @@ describe('dexto workspace', () => {
                         if (message.params?.name === 'dexto_chat_follow' && reads++ === 0) {
                             if (typeof status === 'string')
                                 throw new TypeError('fetch failed', {
-                                    cause: { code: 'ECONNRESET' },
+                                    cause: { code: 'ETIMEDOUT' },
                                 });
                             return new Response(null, { status });
                         }

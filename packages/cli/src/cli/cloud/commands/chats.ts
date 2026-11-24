@@ -31,6 +31,7 @@ import {
     type LocalChat,
     type LocalChatSource,
 } from '../../import/transcript.js';
+import { NetworkFailure } from '../runtime.js';
 import { queryWorkspaceTool, WorkspaceToolFailure } from './workspace.js';
 import { requireLoginScopes } from './deploys.js';
 import { safeJson } from '@dexto/tui/signal-text';
@@ -499,9 +500,12 @@ async function followChat(
                 const transient =
                     error instanceof CloudApiError
                         ? error.status === 429 || (error.status >= 500 && error.status <= 599)
-                        : error instanceof Error &&
-                          !(error instanceof CommandFailure) &&
-                          /network|connection|socket|fetch|ECONN|ETIMEDOUT/iu.test(error.message);
+                        : error instanceof NetworkFailure ||
+                          (error instanceof Error &&
+                              !(error instanceof CommandFailure) &&
+                              /network|connection|socket|fetch|ECONN|ETIMEDOUT/iu.test(
+                                  error.message
+                              ));
                 if ((!readTimedOut && !transient) || failures >= 3) throw error;
                 const delay = readTimedOut
                     ? 0

@@ -14,6 +14,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
+import { NetworkFailure } from '../runtime.js';
 import { queryWorkspaceTool } from './workspace.js';
 import { reportError } from '../run.js';
 
@@ -121,6 +122,7 @@ async function wait(
                     read.signal.aborted ||
                     (error instanceof CloudApiError &&
                         (error.status === 429 || error.status >= 500)) ||
+                    error instanceof NetworkFailure ||
                     (error instanceof Error &&
                         !(error instanceof CommandFailure) &&
                         /network|connection|socket|fetch|ECONN|ETIMEDOUT/iu.test(error.message));
