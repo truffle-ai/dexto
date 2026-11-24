@@ -287,6 +287,16 @@ describe('dexto channels over the Dexto MCP', () => {
         });
     });
 
+    it.each([
+        ['list', 'dexto channels list --json'],
+        ['read', 'dexto channels read "$CHANNEL_ID" --json'],
+        ['send', 'dexto channels send "$CHANNEL_ID" "Example message" --dry-run --json'],
+    ])('shows a JSON example for channels %s', async (command, example) => {
+        expect(await cli('channels', command, '--help')).toBe(0);
+        expect(output().examples).toContain(example);
+        expect(calls).toEqual([]);
+    });
+
     it('checks the text, sender and permission before calling', async () => {
         const send = ['channels', 'send', CHANNEL_ID];
         expect(await cli(...send, '   ', '--yes')).toBe(2);

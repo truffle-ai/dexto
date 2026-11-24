@@ -57,6 +57,7 @@ const THREAD_OPTION = {
 
 const list: Command = {
     path: ['channels', 'list'],
+    examples: ['dexto channels list --json'],
     summary:
         'List the channels you are in, in this organization. Example: dexto channels list --json',
     async run(context) {
@@ -94,6 +95,7 @@ const read: Command = {
         },
     },
     path: ['channels', 'read'],
+    examples: ['dexto channels read "$CHANNEL_ID" --json'],
     summary:
         'Read the newest messages of a channel, or of one reply thread with --thread. Reading marks nothing read. Example: dexto channels read "$CHANNEL_ID" --json',
     async run(context, input) {
@@ -136,6 +138,7 @@ const send: Command = {
         ...YES_OPTION,
     },
     path: ['channels', 'send'],
+    examples: ['dexto channels send "$CHANNEL_ID" "Example message" --dry-run --json'],
     summary:
         'Send this exact text (or - for stdin) to a channel you are in. Everyone in it sees it. Example: dexto channels send "$CHANNEL_ID" "Shipped." --yes',
     async run(context, input) {
