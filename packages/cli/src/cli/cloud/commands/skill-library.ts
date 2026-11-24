@@ -22,13 +22,13 @@ import {
     type CommandContext,
     type CommandInput,
     type OptionSpec,
+    UUID,
 } from '../command.js';
 import type { Column } from '../output.js';
 import { readSkillBundle, SKILL_BUNDLE_OPTIONS } from '../skill-bundle.js';
 import { requireLoginScopes } from './deploys.js';
 import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const CATEGORIES = [
     'design',
     'writing',

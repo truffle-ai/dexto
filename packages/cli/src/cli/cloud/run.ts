@@ -23,7 +23,7 @@ import {
     runWorkspaceApp,
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
-import { createOutput, printedSchema, type OutputFormat } from './output.js';
+import { createOutput, jsonKeys, printedSchema, type OutputFormat } from './output.js';
 import { guardRuntime, unfiltered, type CloudRuntime } from './runtime.js';
 import { forStream, safeText, signalOn } from '@dexto/tui/signal-text';
 import { jsonResult } from '../output.js';
@@ -374,7 +374,7 @@ export function reportError(
             message: failure.message,
             ...(failure.fix === null ? {} : { fix: failure.fix }),
             ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
-            ...(failure.details === null ? {} : { details: failure.details }),
+            ...(failure.details === null ? {} : { details: jsonKeys(failure.details) }),
         };
         runtime.writeError(
             /^dexto (?:connect|connections)(?: |$)/u.test(help.command)

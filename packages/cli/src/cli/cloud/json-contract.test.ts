@@ -41,7 +41,10 @@ const SCOPES = [
     'skills:read',
 ];
 
-/** The keys `jsonKeys` in output.ts leaves as they are: someone's data, sent back unchanged. */
+/**
+ * The keys `jsonKeys` in output.ts leaves as they are: someone's data, sent back unchanged. A copy
+ * on purpose, so a change to the printed contract has to change this test too.
+ */
 const DATA_KEYS: ReadonlySet<string> = new Set([
     '_meta',
     'arguments',
