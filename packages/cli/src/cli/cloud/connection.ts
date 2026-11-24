@@ -1,6 +1,7 @@
 // How a cloud command reaches Dexto: the sign-in or key, the API origin and the Cloud project.
 
 import { dextoAccounts } from '@dexto/agent-management';
+import { UsageError } from './command.js';
 
 const DEFAULT_API_BASE_URL = 'https://api.dexto.ai';
 
@@ -21,7 +22,15 @@ export type Connection = {
     readonly source: dextoAccounts.CredentialSource;
 } & (
     | { readonly kind: 'api_key'; readonly token: string }
-    | { readonly kind: 'oauth'; readonly token: string; readonly login: dextoAccounts.OAuthLogin }
+    | {
+          readonly kind: 'oauth';
+          readonly token: string;
+          readonly login: dextoAccounts.OAuthLogin;
+          /** The Dexto app: the sign-in's, or the API origin when that moved off the sign-in's. */
+          readonly appUrl: string;
+          /** The workspace MCP, at `appUrl` like the sign-in's resource. */
+          readonly mcpUrl: string;
+      }
 );
 
 export interface ResolveConnectionInput {
@@ -51,23 +60,39 @@ export async function resolveConnection(input: ResolveConnectionInput): Promise<
             : credential.source === 'login'
               ? await dextoAccounts.readLogin(input.dir, credential.profile)
               : null;
-    const apiBaseUrl = (
-        input.overrides.apiBaseUrl ??
-        nonEmpty(input.environment.DEXTO_API_BASE_URL) ??
-        saved?.apiBaseUrl ??
-        DEFAULT_API_BASE_URL
-    ).replace(/\/+$/u, '');
+    const environmentUrl = nonEmpty(input.environment.DEXTO_API_BASE_URL);
+    if (environmentUrl !== null) assertHttpUrl(environmentUrl, 'DEXTO_API_BASE_URL');
+    const apiBaseUrl = withoutTrailingSlash(
+        input.overrides.apiBaseUrl ?? environmentUrl ?? saved?.apiBaseUrl ?? DEFAULT_API_BASE_URL
+    );
     const named = input.overrides.cloudProject ?? nonEmpty(input.environment.DEXTO_CLOUD_PROJECT);
     const base = { apiBaseUrl, profile: credential.profile, source: credential.source };
-    return credential.kind === 'oauth'
-        ? {
-              ...base,
-              kind: 'oauth',
-              token: credential.token,
-              login: credential.login,
-              cloudProject: named ?? credential.login.cloudProject?.id ?? null,
-          }
-        : { ...base, kind: 'api_key', token: credential.token, cloudProject: named };
+    if (credential.kind !== 'oauth')
+        return { ...base, kind: 'api_key', token: credential.token, cloudProject: named };
+    const { login } = credential;
+    // Another API origin is another Dexto, a preview or a local stack, serving its own app and MCP
+    // there, so workspace tools follow it instead of reaching the signed-in one.
+    const moved = apiBaseUrl !== withoutTrailingSlash(login.apiBaseUrl);
+    return {
+        ...base,
+        kind: 'oauth',
+        token: credential.token,
+        login,
+        appUrl: moved ? apiBaseUrl : login.appUrl,
+        mcpUrl: moved ? `${apiBaseUrl}${new URL(login.resource).pathname}` : login.resource,
+        cloudProject: named ?? login.cloudProject?.id ?? null,
+    };
+}
+
+/** Refuses a value that isn't an http(s) URL, such as a mistyped `--api-base-url`. */
+export function assertHttpUrl(value: string, name: string): void {
+    const protocol = URL.canParse(value) ? new URL(value).protocol : null;
+    if (protocol !== 'http:' && protocol !== 'https:')
+        throw new UsageError(`${name} must be an http or https URL.`);
+}
+
+function withoutTrailingSlash(url: string): string {
+    return url.replace(/\/+$/u, '');
 }
 
 function nonEmpty(value: string | undefined): string | null {

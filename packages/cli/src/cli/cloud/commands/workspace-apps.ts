@@ -162,7 +162,7 @@ async function requireOperationScopes(
     const connection = await context.connection();
     if (connection.kind !== 'oauth') return;
     const operations = Object.entries(
-        (await readAppScopes(context.runtime, connection.login.appUrl)).get(appId) ?? {}
+        (await readAppScopes(context.runtime, connection.appUrl)).get(appId) ?? {}
     );
     const needed =
         operationName === undefined

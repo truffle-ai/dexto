@@ -130,7 +130,7 @@ const describe: Command = {
         if (tool === undefined) {
             const connection = await context.connection();
             if (connection.kind === 'oauth') {
-                const apps = await readAppScopes(context.runtime, connection.login.appUrl);
+                const apps = await readAppScopes(context.runtime, connection.appUrl);
                 const needed = [...apps.values()].flatMap((operations) => operations[name] ?? []);
                 const missing = [...new Set(needed)].filter(
                     (scope) => !connection.login.scopes.includes(scope)
@@ -302,7 +302,7 @@ async function callMcp(
             "Workspace tools act as you, so an API key can't use them. Sign in as yourself.",
             signInCommand(context, [])
         );
-    const response = await context.runtime.fetch(connection.login.resource, {
+    const response = await context.runtime.fetch(connection.mcpUrl, {
         body: JSON.stringify({
             id: nextRequestId++,
             jsonrpc: '2.0',

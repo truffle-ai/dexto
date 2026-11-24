@@ -103,6 +103,8 @@ function harness(withAgent: boolean) {
             apiBaseUrl: 'https://api.invalid',
             token: 'fake',
             cloudProject: null,
+            appUrl: 'https://app.invalid',
+            mcpUrl: 'https://app.invalid/mcp',
             login: {
                 kind: 'oauth',
                 accessToken: 'fake',

@@ -78,6 +78,8 @@ function fakeEndpoint(initial: string[] = []) {
             profile: 'default',
             apiBaseUrl: 'https://fake.invalid',
             cloudProject: null,
+            appUrl: 'https://fake.invalid',
+            mcpUrl: endpoint,
             login: {
                 kind: 'oauth',
                 accessToken: 'test-token',

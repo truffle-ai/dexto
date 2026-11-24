@@ -80,7 +80,7 @@ async function projectLink(context: CommandContext, project: string): Promise<st
         throw new UsageError('Pass the Project by its link when signed in with a key.');
     return new URL(
         `/desktop/apps/chat/projects/${encodeURIComponent(project)}`,
-        connection.login.appUrl
+        connection.appUrl
     ).toString();
 }
 

@@ -1914,4 +1914,80 @@ describe('dexto workspace', () => {
             /Packed 2 files into a \d+ B \.zip\.\nUploading \d+ B…\nPublishing hello…\nSite visibility: unlisted: anyone with the link can open it\.\n$/u
         );
     });
+
+    describe('another API origin', () => {
+        let requested: string[];
+
+        beforeEach(() => {
+            requested = [];
+            const inner = host.runtime.fetch;
+            host = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const url = new globalThis.Request(input, init).url;
+                        requested.push(url);
+                        // Nothing listens there, as with a stopped local stack.
+                        if (url.startsWith('http://127.0.0.1:9/'))
+                            throw new TypeError('fetch failed');
+                        return await inner(input, init);
+                    },
+                },
+            };
+        });
+
+        it('sends workspace tools to the --api-base-url origin, not the signed-in MCP', async () => {
+            expect(
+                await runCloud(host, [
+                    'chat',
+                    'list',
+                    '--api-base-url',
+                    'http://127.0.0.1:9',
+                    '--json',
+                ])
+            ).toBe(1);
+            expect(requested).toEqual(['http://127.0.0.1:9/mcp']);
+            expect(calls).toEqual([]);
+        });
+
+        it('sends workspace tools to the DEXTO_API_BASE_URL origin', async () => {
+            environment.DEXTO_API_BASE_URL = 'http://127.0.0.1:9/';
+            expect(await runCloud(host, ['chat', 'list', '--json'])).toBe(1);
+            expect(requested).toEqual(['http://127.0.0.1:9/mcp']);
+            expect(calls).toEqual([]);
+        });
+
+        it('keeps the signed-in MCP when the origin is the sign-in API', async () => {
+            chatInspection = { untrustedContent: true, sessions: [] };
+            expect(
+                await runCloud(host, [
+                    'chat',
+                    'list',
+                    '--api-base-url',
+                    'https://api.dexto.ai/',
+                    '--json',
+                ])
+            ).toBe(0);
+            expect(requested).toEqual([MCP]);
+        });
+
+        it.each(['not-a-url', 'ftp://127.0.0.1:9'])(
+            'refuses --api-base-url %s as a usage error',
+            async (value) => {
+                expect(
+                    await runCloud(host, ['chat', 'list', '--api-base-url', value, '--json'])
+                ).toBe(2);
+                expect(stderr).toContain('--api-base-url must be an http or https URL.');
+                expect(requested).toEqual([]);
+            }
+        );
+
+        it('refuses a DEXTO_API_BASE_URL that is not an http or https URL', async () => {
+            environment.DEXTO_API_BASE_URL = 'not-a-url';
+            expect(await runCloud(host, ['chat', 'list', '--json'])).toBe(2);
+            expect(stderr).toContain('DEXTO_API_BASE_URL must be an http or https URL.');
+            expect(requested).toEqual([]);
+        });
+    });
 });
