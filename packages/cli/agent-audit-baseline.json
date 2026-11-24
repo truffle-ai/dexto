@@ -795,14 +795,14 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "connect codex",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "connections disconnect",

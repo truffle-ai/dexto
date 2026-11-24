@@ -1184,6 +1184,16 @@ describe('subscription connections over MCP', () => {
         expect(JSON.parse(stderr).error.fix).toBe('dexto connect codex');
         expect(calls).toHaveLength(1);
     });
+    it.each(['claude', 'codex'])(
+        'shows a headless JSON example for connect %s',
+        async (provider) => {
+            expect(await runCloud(host, ['connect', provider, '--help', '--json'])).toBe(0);
+            const help: { examples: string[] } = JSON.parse(stdout);
+            expect(help.examples).toContain(
+                `dexto connect ${provider} --no-browser --no-wait --json`
+            );
+        }
+    );
     it('preserves the missing-scope sign-in prompt during Codex wait', async () => {
         stdoutIsTerminal = true;
         const grant = vi.fn(async () => false);

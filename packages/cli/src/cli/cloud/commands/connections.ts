@@ -105,6 +105,7 @@ async function showAuthorization(
 }
 const claude: Command = {
     path: ['connect', 'claude'],
+    examples: ['dexto connect claude --no-browser --no-wait --json'],
     options: connectOptions,
     summary: 'Sign in to Claude Code in Cloud; credentials stay in Cloud.',
     async run(context, input) {
@@ -275,6 +276,7 @@ const Wait = z.discriminatedUnion('outcome', [
 ]);
 const codex: Command = {
     path: ['connect', 'codex'],
+    examples: ['dexto connect codex --no-browser --no-wait --json'],
     options: {
         'no-browser': connectOptions['no-browser'],
         'no-wait': connectOptions['no-wait'],
