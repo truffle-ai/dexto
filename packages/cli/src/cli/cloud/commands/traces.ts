@@ -126,6 +126,7 @@ const spanList: Command = {
         status: { description: 'Only spans that completed or failed.', type: 'string' },
     },
     path: ['span', 'list'],
+    examples: ['dexto span list "$RUN_ID" --limit 20 --json'],
     summary: "List one run's spans.",
     async run(context, input) {
         const runId = argument(input, 0, 'run_id');

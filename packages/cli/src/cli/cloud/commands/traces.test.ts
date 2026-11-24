@@ -242,6 +242,14 @@ describe('trace and span', () => {
         expect(JSON.parse(stdout)).toEqual(trace);
     });
 
+    it('shows a JSON example for span list', async () => {
+        expect(await runCloud(host, ['span', 'list', '--help', '--json'])).toBe(0);
+        expect(JSON.parse(stdout).examples).toContain(
+            'dexto span list "$RUN_ID" --limit 20 --json'
+        );
+        expect(urls).toEqual([]);
+    });
+
     it("lists a run's spans with name, status, sort and limit", async () => {
         reply = () =>
             Response.json({ data: [span()], has_more: false, next_after: null, object: 'list' });
