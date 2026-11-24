@@ -496,6 +496,18 @@ describe('dexto cloud', () => {
         });
     });
 
+    it('shows JSON examples for discovering and previewing imports', async () => {
+        expect(await runCloud(host, ['import', '--help', '--json'])).toBe(0);
+        const importHelp: { examples: string[] } = JSON.parse(stdout);
+        expect(importHelp.examples).toContain(
+            'dexto import --select "$IMPORT_ID" --dry-run --json'
+        );
+        stdout = '';
+        expect(await runCloud(host, ['import', 'list', '--help', '--json'])).toBe(0);
+        const listHelp: { examples: string[] } = JSON.parse(stdout);
+        expect(listHelp.examples).toContain('dexto import list --json');
+    });
+
     describe('on Signal, for people at a terminal', () => {
         const savedIsTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY');
         const stderrIsTTY = (isTTY: boolean) =>
