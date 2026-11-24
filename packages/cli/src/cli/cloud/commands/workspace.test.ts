@@ -1718,7 +1718,7 @@ describe('dexto workspace', () => {
         expect(
             await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
         ).toBe(4);
-        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        const failure = JSON.parse(stderr).error;
         expect(failure.message).toContain('Team plan');
         expect(failure.message).toContain('--confirm-public');
         expect(failure.fix).toContain('--confirm-public');
@@ -1739,7 +1739,7 @@ describe('dexto workspace', () => {
         expect(
             await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
         ).toBe(1);
-        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        const failure = JSON.parse(stderr).error;
         expect(failure.message).toContain('Team plan');
         expect(failure.message).toContain('--confirm-public');
         expect(uploads).toHaveLength(0);
@@ -1777,7 +1777,7 @@ describe('dexto workspace', () => {
             slug: 'server-slug',
         });
         expect(publication?.params.arguments).not.toHaveProperty('expected_visibility');
-        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        const failure = JSON.parse(stderr).error;
         expect(failure.message).toBe("The Site's visibility changed to public since the preview.");
         expect(failure.fix).toBe(`dexto publish ${file} --json`);
         expect(failure.details).toEqual({
@@ -1831,7 +1831,7 @@ describe('dexto workspace', () => {
         publishResponse = {
             error: {
                 code: 'needs_confirmation',
-                message: 'A Site now exists at that address.',
+                message: 'A generic refusal.',
                 details,
             },
         };
@@ -1842,11 +1842,38 @@ describe('dexto workspace', () => {
             expectedSiteId: null,
             expectedVisibility: 'unlisted',
         });
-        const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        const failure = JSON.parse(stderr).error;
         expect(failure.details).toEqual(details);
-        expect(failure.message).toContain('A Site now exists');
+        expect(failure.message).toContain(details.currentSiteId);
+        expect(failure.message).toContain(details.currentVisibility);
         expect(failure.fix).toBe(`dexto publish ${file} --json`);
         expect(stdout).toBe('');
+    });
+
+    it('keeps the preview connection if the selected project changes during confirmation', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const resolve = host.resolveConnection;
+        let changed = false;
+        host = {
+            ...host,
+            resolveConnection: async (overrides) => {
+                const connection = await resolve(overrides);
+                return connection?.kind === 'oauth' && changed
+                    ? { ...connection, cloudProject: 'other-project' }
+                    : connection;
+            },
+            runtime: {
+                ...host.runtime,
+                prompt: async () => {
+                    changed = true;
+                    return 'yes';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--json'])).toBe(0);
+        expect(publishProject).toBe('project-1');
     });
 
     it('refuses an inconsistent preview before uploading', async () => {
@@ -1931,8 +1958,8 @@ describe('dexto workspace', () => {
         expect(
             await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
         ).toBe(4);
-        // Progress notes come first on stderr; the JSON error follows them.
-        const failure = JSON.parse(stderr.slice(stderr.indexOf('{')));
+        // JSON failures remain a single machine-readable document.
+        const failure = JSON.parse(stderr);
         expect(failure.error.message).toContain('--confirm-public');
         expect(failure.error.message).toContain('Team plan');
         expect(calls.at(-1)?.params.name).toBe('POST /v1/sites/publish');
@@ -1951,7 +1978,7 @@ describe('dexto workspace', () => {
             ])
         ).toBe(4);
         expect(calls.at(-1)?.params.arguments).toMatchObject({ confirmPublicName: 'Wrong' });
-        expect(JSON.parse(stderr.slice(stderr.indexOf('{'))).error.message).toContain('Team plan');
+        expect(JSON.parse(stderr).error.message).toContain('Team plan');
         expect(stdout).toBe('');
     });
 
@@ -2015,7 +2042,7 @@ describe('dexto workspace', () => {
         expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
         expect(publishProject).toBe('project-1');
         expect(calls.some((call) => call.method === 'tools/list')).toBe(false);
-        expect(stderr).toContain('unlisted: anyone with the link can open it');
+        expect(stderr).toBe('');
         expect(JSON.parse(stdout).visibility).toBe('unlisted');
     });
 
@@ -2031,7 +2058,7 @@ describe('dexto workspace', () => {
             visibility: 'private',
         };
         expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(0);
-        expect(stderr).toContain('private: only you and your organization can open it');
+        expect(stderr).toBe('');
         expect(JSON.parse(stdout).visibility).toBe('private');
         expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
     });
@@ -2088,9 +2115,7 @@ describe('dexto workspace', () => {
         ).toBe(0);
         expect(calls.at(-1)?.params.arguments).toMatchObject({ visibility: 'restricted' });
         expect(JSON.parse(stdout).visibility).toBe('restricted');
-        expect(stderr).toContain(
-            'restricted: only you, Owners, Admins and people you share it with can open it'
-        );
+        expect(stderr).toBe('');
         stdout = '';
         expect(
             await runCloud(host, [

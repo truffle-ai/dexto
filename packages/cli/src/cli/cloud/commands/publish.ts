@@ -8,7 +8,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
-import { CloudApiError, unwrap, type V1Response } from '@dexto/cloud-client';
+import { CloudApiError, createCloudClient, unwrap, type V1Response } from '@dexto/cloud-client';
 
 import {
     argument,
@@ -145,6 +145,13 @@ const publish: Command = {
                 'Choose a Cloud project with --project or dexto cloud projects use before publishing.',
                 null
             );
+        const client = createCloudClient({
+            apiBaseUrl: connection.apiBaseUrl,
+            cloudProject: connection.cloudProject,
+            token: connection.token,
+            fetch: context.runtime.fetch,
+        });
+        const publishContext = { ...context, connection: async () => connection };
         const target = path.resolve(argument(input, 0, 'path'));
         const found = await stat(target).catch(() => null);
         if (found === null || !(found.isFile() || found.isDirectory()))
@@ -166,9 +173,10 @@ const publish: Command = {
                 : [{ bytes: await readFile(target), path: path.basename(target) }];
             checkSizes(files);
             archive = zipArchive(files);
-            context.output.note(
-                `Packed ${files.length} file${files.length === 1 ? '' : 's'} into a ${formatBytes(archive.byteLength)} .zip.`
-            );
+            if (!context.output.json)
+                context.output.note(
+                    `Packed ${files.length} file${files.length === 1 ? '' : 's'} into a ${formatBytes(archive.byteLength)} .zip.`
+                );
         }
         if (archive.byteLength > MAX_UPLOAD_BYTES)
             throw new UsageError(
@@ -185,9 +193,7 @@ const publish: Command = {
         let previewResponse: unknown;
         try {
             previewResponse = await unwrap(
-                await (
-                    await context.client()
-                ).POST('/v1/sites/publish/preview', {
+                await client.POST('/v1/sites/publish/preview', {
                     params: { header: { 'Dexto-Cloud-Project': connection.cloudProject } },
                     body: call,
                 })
@@ -230,10 +236,10 @@ const publish: Command = {
             return;
         }
         await requireConsent(context, flag(input, 'yes'), description);
-        if (flag(input, 'yes')) context.output.note(description);
+        if (flag(input, 'yes') && !context.output.json) context.output.note(description);
 
         const prepared = PreparedSchema.safeParse(
-            await queryWorkspaceTool(context, 'dexto_upload_prepare', {
+            await queryWorkspaceTool(publishContext, 'dexto_upload_prepare', {
                 filename: `${path.basename(target, '.zip')}.zip`,
                 mimeType: 'application/zip',
                 purpose: 'site-files',
@@ -244,15 +250,14 @@ const publish: Command = {
         if (!prepared.success)
             throw new CommandFailure('failed', "Dexto didn't say where to upload the files.", null);
         const { headers, method, url } = prepared.data;
-        context.output.note(`Uploading ${formatBytes(archive.byteLength)}…`);
+        if (!context.output.json)
+            context.output.note(`Uploading ${formatBytes(archive.byteLength)}…`);
         await sendBytes(context, { headers, method, url }, new globalThis.Blob([archive]));
-        context.output.note(`Publishing ${name}…`);
+        if (!context.output.json) context.output.note(`Publishing ${name}…`);
         let response: unknown;
         try {
             response = await unwrap(
-                await (
-                    await context.client()
-                ).POST('/v1/sites/publish', {
+                await client.POST('/v1/sites/publish', {
                     body: {
                         ...call,
                         slug: preview.slug,
@@ -266,14 +271,17 @@ const publish: Command = {
             if (error instanceof CloudApiError && error.code === 'needs_confirmation') {
                 const changed = z
                     .object({
-                        reason: z.literal('visibility_changed'),
+                        reason: z.enum(['visibility_changed', 'site_changed']),
                         currentVisibility: VisibilitySchema,
+                        currentSiteId: z.string().nullable(),
                     })
                     .safeParse(error.details);
                 throw new CommandFailure(
                     'needs_confirmation',
                     changed.success
-                        ? `The Site's visibility changed to ${changed.data.currentVisibility} since the preview.`
+                        ? changed.data.reason === 'visibility_changed'
+                            ? `The Site's visibility changed to ${changed.data.currentVisibility} since the preview.`
+                            : `The target changed since the preview: ${changed.data.currentSiteId === null ? 'a new Site' : `Site ${changed.data.currentSiteId}`} with ${changed.data.currentVisibility} visibility.`
                         : `${error.message} Preview the Site again and confirm before publishing.${visibility === 'public' ? ' If the Site name needs confirmation, pass --confirm-public <site-name>.' : ''}`,
                     rerunWith({
                         invocation: context.invocation.filter(
@@ -310,7 +318,7 @@ const publish: Command = {
                 `The Site was published with ${published.visibility} visibility, not the requested ${visibility}. Check its visibility in Dexto before sharing it.`,
                 null
             );
-        if (flag(input, 'yes'))
+        if (flag(input, 'yes') && !context.output.json)
             context.output.note(
                 `Site visibility: ${published.visibility}: ${WHO_CAN_OPEN[published.visibility].note}.`
             );
