@@ -242,16 +242,22 @@ const publish: Command = {
                 })
             );
         } catch (error) {
-            if (error instanceof CloudApiError && error.code === 'needs_confirmation')
+            if (error instanceof CloudApiError && error.code === 'needs_confirmation') {
+                const changed = z
+                    .object({ currentVisibility: VisibilitySchema })
+                    .safeParse(error.details);
                 throw new CommandFailure(
                     'needs_confirmation',
-                    `${error.message} Preview the Site again and confirm before publishing.${visibility === 'public' ? ' If the Site name needs confirmation, pass --confirm-public <site-name>.' : ''}`,
+                    changed.success
+                        ? `The Site's visibility changed to ${changed.data.currentVisibility} since the preview.`
+                        : `${error.message} Preview the Site again and confirm before publishing.${visibility === 'public' ? ' If the Site name needs confirmation, pass --confirm-public <site-name>.' : ''}`,
                     rerunWith({
                         invocation: context.invocation.filter(
                             (arg) => arg !== '--yes' && arg !== '-y'
                         ),
                     })
                 );
+            }
             throw error;
         }
         const parsed = PublishedSchema.safeParse(response);

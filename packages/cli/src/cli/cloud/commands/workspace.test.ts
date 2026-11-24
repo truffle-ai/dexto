@@ -1733,7 +1733,7 @@ describe('dexto workspace', () => {
         publishResponse = {
             error: {
                 code: 'needs_confirmation',
-                message: 'Site visibility changed to public.',
+                message: 'The Site visibility does not match the preview.',
                 details: { currentVisibility: 'public' },
             },
         };
@@ -1741,9 +1741,33 @@ describe('dexto workspace', () => {
         const publication = calls.find((call) => call.params.name === 'POST /v1/sites/publish');
         expect(publication?.params.arguments).toMatchObject({ expected_visibility: 'private' });
         const failure = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
-        expect(failure.message).toContain('public');
-        expect(failure.fix).toContain('publish');
-        expect(failure.fix).not.toContain('--yes');
+        expect(failure.message).toBe("The Site's visibility changed to public since the preview.");
+        expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(stdout).toBe('');
+    });
+
+    it('prints the changed visibility and re-run command for a person', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewResponse = {
+            action: 'update',
+            slug: 'server-slug',
+            title: 'Team plan',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Visibility mismatch.',
+                details: { currentVisibility: 'public' },
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(4);
+        expect(stderr).toContain("The Site's visibility changed to public since the preview.");
+        expect(stderr).toContain(`Run: dexto publish ${file} --table`);
         expect(stdout).toBe('');
     });
 
