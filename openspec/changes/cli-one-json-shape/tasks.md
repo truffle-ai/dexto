@@ -6,9 +6,9 @@
 
 ## 2. Key case
 
-- [ ] 2.1 Test and add `jsonKeys`, which converts printed keys to snake_case and leaves data fields' keys as they are.
-- [ ] 2.2 Use it in `Output` and in every writer that prints JSON itself (connections, chat follow and credits streams).
-- [ ] 2.3 Update help `json_output` shapes and the tests that asserted camelCase output.
+- [x] 2.1 Test and add `jsonKeys`, which converts printed keys to snake_case and leaves data fields' keys as they are.
+- [x] 2.2 Use it in `Output` and in every writer that prints JSON itself (connections, chat follow and credits streams).
+- [x] 2.3 Update help `json_output` shapes and the tests that asserted camelCase output.
 
 ## 3. Exit codes
 

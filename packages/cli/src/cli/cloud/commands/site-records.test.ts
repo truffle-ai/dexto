@@ -31,6 +31,15 @@ const STORED = {
     value: { email: 'a@example.com' },
 };
 
+/** `STORED` as the CLI prints it, with snake_case keys. */
+const PRINTED = {
+    collection_id: 'c1',
+    created_at: '2026-11-18T00:00:00.000Z',
+    id: RECORD,
+    site_id: SITE,
+    updated_at: '2026-11-18T00:00:00.000Z',
+    value: { email: 'a@example.com' },
+};
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('These tests sign in with a saved login.');
 };
@@ -168,10 +177,10 @@ describe('dexto workspace sites records', () => {
         ]);
         expect(JSON.parse(stdout)).toEqual({
             collection: 'signups',
-            data: [STORED],
+            data: [PRINTED],
             has_more: false,
             next_after: null,
-            siteId: SITE,
+            site_id: SITE,
             slug: 'shop',
         });
     });
@@ -201,7 +210,7 @@ describe('dexto workspace sites records', () => {
                 arguments: { collection: 'signups', recordId: RECORD, siteId: SITE },
             },
         ]);
-        expect(JSON.parse(stdout).record).toEqual(STORED);
+        expect(JSON.parse(stdout).record).toEqual(PRINTED);
 
         stderr = '';
         const missing = '33333333-3333-4333-8333-333333333333';
@@ -269,7 +278,7 @@ describe('dexto workspace sites records', () => {
         expect(await records('delete', SITE, 'signups', RECORD, '--dry-run', '--json')).toBe(0);
         expect(calls).toHaveLength(0);
         expect(JSON.parse(stdout)).toEqual({
-            dryRun: true,
+            dry_run: true,
             tool: 'dexto_site_record_delete',
             arguments: { collection: 'signups', recordId: RECORD, siteId: SITE },
         });

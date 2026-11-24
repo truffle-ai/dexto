@@ -337,7 +337,7 @@ describe('dexto workspace', () => {
         stdout = '';
         creditResponses = [{ creditsUsd: 12.5 }];
         expect(await runCloud(host, ['credits', 'balance', '--json'])).toBe(0);
-        expect(JSON.parse(stdout)).toEqual({ creditsUsd: 12.5 });
+        expect(JSON.parse(stdout)).toEqual({ balance_usd: 12.5 });
     });
     it('reports an expired top-up and allows a later attempt', async () => {
         creditResponses = [
@@ -521,7 +521,7 @@ describe('dexto workspace', () => {
             json_output: {
                 schema: {
                     properties: {
-                        topupId: { type: 'string' },
+                        topup_id: { type: 'string' },
                         status: { enum: ['open', 'paid', 'failed', 'expired'] },
                     },
                 },
@@ -1158,6 +1158,14 @@ describe('dexto workspace', () => {
             pagination: { hasMore: true, limit: 1, nextCursor: 'next-1' },
             sessions: [chat],
         };
+        const printedChat = {
+            id: 'chat-1',
+            title: 'A task',
+            status: 'idle',
+            updated_at: '2026-11-18T10:00:00.000Z',
+            url: 'https://app.dexto.ai/chat/chat-1',
+            last_run: lastRun,
+        };
         expect(
             await runCloud(host, ['chat', 'list', '--status', 'idle', '--limit', '1', '--json'])
         ).toBe(0);
@@ -1165,7 +1173,11 @@ describe('dexto workspace', () => {
             method: 'tools/call',
             params: { name: 'dexto_chat_list', arguments: { status: 'idle', limit: 1 } },
         });
-        expect(JSON.parse(stdout)).toEqual({ data: [chat], has_more: true, next_after: 'next-1' });
+        expect(JSON.parse(stdout)).toEqual({
+            data: [printedChat],
+            has_more: true,
+            next_after: 'next-1',
+        });
     });
 
     it('exits 5 with a not_found error when chat get names no chat', async () => {
@@ -1258,7 +1270,7 @@ describe('dexto workspace', () => {
                     '--json',
                 ])
             ).toBe(code);
-            expect(JSON.parse(stdout)).toEqual(chatResponse);
+            expect(JSON.parse(stdout)).toEqual({ outcome, next_action: nextAction });
             expect(JSON.parse(stderr).error.fix).toBe(fix);
         }
     );
@@ -1447,7 +1459,16 @@ describe('dexto workspace', () => {
             },
         ]);
         expect(JSON.parse(stdout)).toEqual({
-            data: agentsResponse.agents,
+            data: [
+                {
+                    id: 'agent-1',
+                    name: 'Researcher',
+                    description: 'Finds sources',
+                    is_system: false,
+                    created_at: '2026-11-01T00:00:00.000Z',
+                    updated_at: '2026-11-02T00:00:00.000Z',
+                },
+            ],
             has_more: false,
             next_after: null,
         });
@@ -1511,11 +1532,11 @@ describe('dexto workspace', () => {
         expect(
             await runCloud(host, ['workspace', 'chat', 'get', '--session-id', 'chat-1', '--json'])
         ).toBe(0);
-        expect(JSON.parse(stdout).session.lastRun).toEqual(lastRun);
+        expect(JSON.parse(stdout).session.last_run).toEqual(lastRun);
         stdout = '';
         expect(await runCloud(host, ['workspace', 'chat', 'list', '--json'])).toBe(0);
         expect(
-            JSON.parse(stdout).sessions.map((chat: { lastRun: unknown }) => chat.lastRun)
+            JSON.parse(stdout).sessions.map((chat: { last_run: unknown }) => chat.last_run)
         ).toEqual([lastRun, null]);
     });
 

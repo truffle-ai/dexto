@@ -97,7 +97,7 @@ describe('chat import commands', () => {
         await local.run(list.context, { positionals: [], values: { from: 'claude-code' } });
         expect(JSON.parse(list.stdout()).data[0]).toMatchObject({
             title: 'Import titles from ai-title lines',
-            pullRequests: [{ number: 1050, repository: 'truffle-ai/dexto' }],
+            pull_requests: [{ number: 1050, repository: 'truffle-ai/dexto' }],
             repository: null,
         });
         const dry = harness(home, 'table');

@@ -144,7 +144,7 @@ describe('dexto chat share', () => {
                 await runCloud(host, ['chat', 'share', 'chat-1', access, '--yes', '--json'])
             ).toBe(0);
             expect(calls).toEqual([{ sessionId: 'chat-1', access, confirm: true }]);
-            expect(JSON.parse(stdout)).toEqual({ access, sessionId: 'chat-1' });
+            expect(JSON.parse(stdout)).toEqual({ access, session_id: 'chat-1' });
         }
     );
 
@@ -202,7 +202,7 @@ describe('dexto chat share', () => {
     it('shows the call with --dry-run, without asking or making it', async () => {
         expect(await runCloud(host, ['chat', 'share', 'chat-1', 'view', '--dry-run'])).toBe(0);
         expect(JSON.parse(stdout)).toEqual({
-            dryRun: true,
+            dry_run: true,
             tool: 'dexto_chat_share',
             arguments: { sessionId: 'chat-1', access: 'view' },
         });

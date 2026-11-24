@@ -36,7 +36,7 @@ Every key the cloud CLI prints in JSON SHALL be snake_case, whether it comes fro
 #### Scenario: One name for one value
 
 - **WHEN** an agent runs `dexto credits balance --json`
-- **THEN** it prints `credits_usd`
+- **THEN** it prints `balance_usd`, the name `dexto billing` and a checkout use for the same value
 
 ### Requirement: Malformed and missing ids
 

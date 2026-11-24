@@ -212,9 +212,14 @@ describe('dexto workspace network', () => {
         expect(JSON.parse(stdout)).toEqual({
             data: [
                 {
-                    lastActivityAt: '2026-11-18T10:00:00.000Z',
-                    person: PERSON,
-                    threadId: THREAD,
+                    last_activity_at: '2026-11-18T10:00:00.000Z',
+                    person: {
+                        handle: 'ada',
+                        name: 'Ada',
+                        organization: 'Analytical',
+                        user_id: 'u-ada',
+                    },
+                    thread_id: THREAD,
                     unread: true,
                 },
             ],
@@ -244,9 +249,9 @@ describe('dexto workspace network', () => {
             },
         ]);
         expect(JSON.parse(stdout)).toMatchObject({
-            untrustedContent: true,
-            previousCursor: 4,
-            messages: [{ sequence: 5, nextTextOffset: 4000, pending: false }],
+            untrusted_content: true,
+            previous_cursor: 4,
+            messages: [{ sequence: 5, next_text_offset: 4000, pending: false }],
         });
     });
 
@@ -312,7 +317,7 @@ describe('dexto workspace network', () => {
                 requestId: null,
             },
         ]);
-        expect(JSON.parse(stdout)).toEqual({ readSequence: 5, threadId: THREAD });
+        expect(JSON.parse(stdout)).toEqual({ read_sequence: 5, thread_id: THREAD });
         expect(await runCloud(host, ['workspace', 'network', 'mark-read', THREAD])).toBe(2);
         expect(calls).toHaveLength(1);
     });
@@ -332,7 +337,7 @@ describe('dexto workspace network', () => {
                 requestId: null,
             },
         ]);
-        expect(JSON.parse(stdout)).toMatchObject({ delivered: true, threadId: THREAD });
+        expect(JSON.parse(stdout)).toMatchObject({ delivered: true, thread_id: THREAD });
     });
 
     it('sends text from stdin, and refuses an empty message before calling', async () => {

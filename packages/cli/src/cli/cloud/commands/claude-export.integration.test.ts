@@ -134,7 +134,7 @@ it('previews a real-shape Claude export as redacted chats and Project files with
     ]);
     expect(preview.projects).toEqual([
         expect.objectContaining({
-            sourceId: '20000000-0000-4000-8000-000000000001',
+            source_id: '20000000-0000-4000-8000-000000000001',
             files: [
                 expect.objectContaining({
                     name: '50000000-0000-4000-8000-000000000001-release-notes.md',

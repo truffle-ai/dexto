@@ -12,6 +12,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
+import { jsonLine } from '../output.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool, WorkspaceToolFailure } from './workspace.js';
 
@@ -88,7 +89,7 @@ function submitCode(attempt: string): string {
     return `${resume('claude', attempt)} --code -`;
 }
 function writeResult(context: CommandContext, value: unknown, text: string): void {
-    if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(value)}\n`);
+    if (context.output.json) context.runtime.writeOutput(jsonLine(value));
     else context.output.result(value, text);
 }
 async function showAuthorization(

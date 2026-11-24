@@ -200,7 +200,7 @@ describe('cloud secrets, web and data-deletions', () => {
             ])
         ).toBe(0);
         expect(requests).toHaveLength(0);
-        expect(JSON.parse(stdout)).toMatchObject({ dryRun: true, title: 'Report', kind: 'plan' });
+        expect(JSON.parse(stdout)).toMatchObject({ dry_run: true, title: 'Report', kind: 'plan' });
     });
 
     it('rejects oversized Artifact HTML during dry run', async () => {

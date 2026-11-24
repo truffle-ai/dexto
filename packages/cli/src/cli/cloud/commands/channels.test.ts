@@ -147,14 +147,14 @@ describe('dexto channels over the Dexto MCP', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
-    it('lists channels as the tool returns them', async () => {
+    it('lists channels as data with snake_case keys', async () => {
         replies = [{ value: { channels: [channel] } }];
         expect(await cli('channels', 'list'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_channels_list', arguments: {} }]);
         expect(output()).toEqual({ data: [channel], has_more: false, next_after: null });
     });
 
-    it('reads a reply thread with its cursors and prints the page unchanged', async () => {
+    it('reads a reply thread with its cursors and prints the page with snake_case keys', async () => {
         replies = [{ value: page }];
         expect(
             await cli(
@@ -181,7 +181,25 @@ describe('dexto channels over the Dexto MCP', () => {
                 },
             },
         ]);
-        expect(output()).toEqual(page);
+        expect(output()).toEqual({
+            untrusted_content: true,
+            channel_id: CHANNEL_ID,
+            title: 'Releases',
+            messages: [
+                {
+                    id: ROOT_ID,
+                    author_name: 'Ada',
+                    text: 'Shipped 2.1.',
+                    sequence: 7,
+                    next_text_offset: null,
+                },
+            ],
+            previous_cursor: 7,
+            next_cursor: null,
+            thread_root: null,
+            threads: [],
+            files: [],
+        });
     });
 
     it('prints messages and the next cursor for people', async () => {
@@ -249,9 +267,9 @@ describe('dexto channels over the Dexto MCP', () => {
         });
         expect(output()).toEqual({
             accepted: true,
-            channelId: CHANNEL_ID,
-            messageId: 'm1',
-            requestKey,
+            channel_id: CHANNEL_ID,
+            message_id: 'm1',
+            request_key: requestKey,
         });
         expect(stderr).toContain(`Request key: ${String(requestKey)}`);
     });
@@ -271,7 +289,7 @@ describe('dexto channels over the Dexto MCP', () => {
         stdout = '';
         expect(await cli(...send), stderr).toBe(0);
         expect(calls.map((call) => call.arguments.requestKey)).toEqual(['k1', 'k1']);
-        expect(output().messageId).toBe('m1');
+        expect(output().message_id).toBe('m1');
     });
 
     it('sends stdin for -, and shows the call without sending on --dry-run', async () => {
@@ -281,7 +299,7 @@ describe('dexto channels over the Dexto MCP', () => {
         ).toBe(0);
         expect(calls).toEqual([]);
         expect(output()).toEqual({
-            dryRun: true,
+            dry_run: true,
             tool: 'dexto_channel_send',
             arguments: { channelId: CHANNEL_ID, text: 'From a pipe\n', requestKey: 'k2' },
         });

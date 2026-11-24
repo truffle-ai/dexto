@@ -105,7 +105,7 @@ describe('chat fork', () => {
             )
         ).toBe(0);
         expect(JSON.parse(stdout())).toEqual({
-            dryRun: true,
+            dry_run: true,
             tool: 'dexto_chat_fork',
             arguments: { sessionId: 'chat-1', messageId: 'msg-2' },
         });

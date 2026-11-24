@@ -23,7 +23,7 @@ import {
     runWorkspaceApp,
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
-import { createOutput, type OutputFormat } from './output.js';
+import { createOutput, printedSchema, type OutputFormat } from './output.js';
 import { guardRuntime, unfiltered, type CloudRuntime } from './runtime.js';
 import { forStream, safeText, signalOn } from '@dexto/tui/signal-text';
 import { jsonResult } from '../output.js';
@@ -683,7 +683,14 @@ function commandHelp(command: Command): string {
                     : [
                           {
                               title: 'json output',
-                              rows: [{ term: '', description: JSON.stringify(command.jsonOutput) }],
+                              rows: [
+                                  {
+                                      term: '',
+                                      description: JSON.stringify(
+                                          printedSchema(command.jsonOutput)
+                                      ),
+                                  },
+                              ],
                           },
                       ]),
                 optionSection('global options', GLOBAL_OPTIONS),
@@ -700,7 +707,7 @@ function commandHelp(command: Command): string {
             : ['Examples:', ...command.examples.map((example) => `  ${example}`), '']),
         ...(command.jsonOutput === undefined
             ? []
-            : ['JSON output:', JSON.stringify(command.jsonOutput, null, 2), '']),
+            : ['JSON output:', JSON.stringify(printedSchema(command.jsonOutput), null, 2), '']),
         'Global options:',
         ...optionLines(GLOBAL_OPTIONS),
         '',
@@ -718,7 +725,9 @@ function commandHelpJson(command: Command): unknown {
         summary: command.summary,
         usage: `dexto ${usage(command)}`,
         ...(command.examples === undefined ? {} : { examples: command.examples }),
-        ...(command.jsonOutput === undefined ? {} : { json_output: command.jsonOutput }),
+        ...(command.jsonOutput === undefined
+            ? {}
+            : { json_output: printedSchema(command.jsonOutput) }),
     };
 }
 

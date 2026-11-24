@@ -39,6 +39,8 @@ const SKILL = {
     slug: 'voice',
     title: 'Voice',
 };
+/** `SKILL` as the CLI prints it, with snake_case keys. */
+const PRINTED_SKILL = { ...SKILL, location: { kind: 'library', skill_id: SKILL_ID } };
 const AUTHORED = { skill: { id: SKILL_ID, slug: 'voice', title: 'Voice' } };
 
 const unusedSignIn = async (): Promise<never> => {
@@ -224,7 +226,7 @@ describe('dexto skills library commands', () => {
 
     it('reads a library Skill by id, and a Store Skill by name or listing id', async () => {
         expect(await runCloud(host, ['skills', 'get', SKILL_ID, '--json'])).toBe(0);
-        expect(JSON.parse(stdout)).toEqual(SKILL);
+        expect(JSON.parse(stdout)).toEqual(PRINTED_SKILL);
         expect(await runCloud(host, ['skills', 'get', '@dexto/voice', '--json'])).toBe(0);
         expect(await runCloud(host, ['skills', 'get', LISTING_ID, '--listing', '--json'])).toBe(0);
 
@@ -243,7 +245,7 @@ describe('dexto skills library commands', () => {
         ).toBe(0);
         expect(await readFile(out, 'utf8')).toBe('Be brief.');
         const shown = JSON.parse(stdout);
-        expect(shown).toMatchObject({ contentPath: out, file: { path: 'references/style.md' } });
+        expect(shown).toMatchObject({ content_path: out, file: { path: 'references/style.md' } });
         expect(shown.content).toBeUndefined();
 
         expect(await runCloud(host, ['skills', 'file', SKILL_ID, '.env', '--json'])).toBe(5);
@@ -281,7 +283,7 @@ describe('dexto skills library commands', () => {
         expect(await runCloud(host, [...args, '--dry-run'])).toBe(0);
         expect(calls).toEqual([]);
         expect(JSON.parse(stdout)).toEqual({
-            dryRun: true,
+            dry_run: true,
             tool: 'dexto_skill_create',
             arguments: {
                 description: 'Writes in our voice.',
@@ -346,7 +348,7 @@ describe('dexto skills library commands', () => {
 
     it('lists versions and restores one', async () => {
         expect(await runCloud(host, ['skills', 'versions', SKILL_ID, '--json'])).toBe(0);
-        expect(JSON.parse(stdout).data[0]).toMatchObject({ number: 2, versionId: VERSION_ID });
+        expect(JSON.parse(stdout).data[0]).toMatchObject({ number: 2, version_id: VERSION_ID });
         stdout = '';
 
         expect(await runCloud(host, ['skills', 'restore', SKILL_ID, VERSION_ID, '--json'])).toBe(4);
