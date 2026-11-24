@@ -10,11 +10,13 @@ import { z } from 'zod';
 import {
     argument,
     choiceOption,
+    DRY_RUN_OPTION,
     flag,
     integerOption,
     listOption,
     PAGE_OPTIONS,
     requiredOption,
+    showDryRun,
     stringOption,
     UsageError,
     YES_OPTION,
@@ -84,13 +86,6 @@ const CONTENT_OPTIONS = {
     },
     tag: { description: 'A tag; repeat for more.', multiple: true, type: 'string' },
     title: { description: "The Artifact's title.", type: 'string' },
-} as const satisfies Record<string, OptionSpec>;
-
-const DRY_RUN_OPTION = {
-    'dry-run': {
-        description: 'Check the input and show the call, without making it.',
-        type: 'boolean',
-    },
 } as const satisfies Record<string, OptionSpec>;
 
 const list: Command = {
@@ -350,10 +345,7 @@ function dryRun(context: CommandContext, tool: string, call: Record<string, unkn
     const { html, ...rest } = call;
     const shown =
         typeof html === 'string' ? { ...rest, htmlBytes: Buffer.byteLength(html, 'utf8') } : rest;
-    context.output.result(
-        { dryRun: true, tool, arguments: shown },
-        `Would call ${tool} with ${JSON.stringify(shown)}.`
-    );
+    showDryRun(context, tool, shown);
 }
 
 export const artifactCommands: readonly Command[] = [list, get, create, replace, share];

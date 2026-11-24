@@ -2,7 +2,7 @@
     "version": 1,
     "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
-    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
+    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. actionCommands cover some actions of a passthroughOnly tool; the tool leaves passthroughOnly only once its other actions have commands too. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
         "apps list": ["dexto_apps_list"],
         "apps get": ["dexto_app_get"],
@@ -182,7 +182,10 @@
         "projects recipes": ["dexto_automation_recipes_list"],
         "projects install-recipe": ["dexto_automation_recipe_install"]
     },
-    "actionCommands": {},
+    "actionCommands": {
+        "workspace share public": { "tool": "dexto_share", "actions": ["public"] },
+        "workspace share unshare-public": { "tool": "dexto_share", "actions": ["unshare_public"] }
+    },
     "localOnly": [
         {
             "command": "import list",
