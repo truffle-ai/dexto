@@ -360,9 +360,7 @@ const AgentsSchema = z
     .passthrough();
 const BrowserProfilesSchema = z
     .object({
-        profiles: z.array(
-            z.object({ id: z.string(), name: z.string(), available: z.boolean() }).passthrough()
-        ),
+        profiles: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()),
     })
     .passthrough();
 const LOCATION_MESSAGES: Record<z.output<typeof ChatStartRefusalSchema>['outcome'], string> = {
@@ -879,8 +877,7 @@ const start: Command = {
         'browser-profile': {
             type: 'string',
             valueName: 'ID',
-            description:
-                'An available browser profile from chat browser-profiles. Starts hosted compute.',
+            description: 'A browser profile from chat browser-profiles. Starts hosted compute.',
         },
         agent: {
             type: 'string',
@@ -1054,7 +1051,7 @@ const agents: Command = {
 
 const browserProfiles: Command = {
     path: ['chat', 'browser-profiles'],
-    summary: 'List your browser profiles and availability for chat start --browser-profile.',
+    summary: 'List your browser profiles for chat start --browser-profile.',
     async run(context) {
         const parsed = BrowserProfilesSchema.safeParse(
             await queryWorkspaceTool(context, 'dexto_chat_browser_profiles_list', {})
@@ -1071,7 +1068,6 @@ const browserProfiles: Command = {
             context.output.list({ data: result.profiles }, [
                 { header: 'id', value: (row) => row.id },
                 { header: 'name', value: (row) => row.name },
-                { header: 'available', value: (row) => (row.available ? 'yes' : 'in use') },
             ]);
     },
 };

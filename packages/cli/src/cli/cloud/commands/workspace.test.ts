@@ -107,7 +107,7 @@ describe('dexto workspace', () => {
         creditResponses = [];
         chatInspection = {};
         appScopes = {};
-        profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
+        profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work' }] };
         agentsResponse = {
             agents: [
                 {
@@ -1141,6 +1141,18 @@ describe('dexto workspace', () => {
             method: 'tools/call',
             params: { name: tool, arguments: {} },
         });
+    });
+
+    it('lists browser profiles as the server sends them, without availability', async () => {
+        expect(await runCloud(host, ['chat', 'browser-profiles', '--json'])).toBe(0);
+        expect(JSON.parse(stdout)).toEqual({ profiles: [{ id: 'profile-1', name: 'Work' }] });
+        expect(stderr).toBe('');
+
+        stdout = '';
+        expect(await runCloud(host, ['chat', 'browser-profiles', '--table'])).toBe(0);
+        expect(stdout).toContain('profile-1');
+        expect(stdout).toContain('Work');
+        expect(stdout).not.toContain('available');
     });
 
     it('lists cloud chats with chat list, as JSON with the next cursor', async () => {
