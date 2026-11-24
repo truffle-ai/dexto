@@ -167,6 +167,62 @@ describe('dexto cloud', () => {
         expect(stdout).toContain('cloud files download');
     });
 
+    it("lists a runnable command's subcommands in its help", async () => {
+        expect(await runCloud(host, ['import', '--help', '--json'])).toBe(0);
+        const help = JSON.parse(stdout);
+        expect(help.usage).toBe('dexto import');
+        expect(help.commands).toContainEqual({
+            summary: expect.any(String),
+            usage: 'dexto import list',
+        });
+
+        stdout = '';
+        expect(await runCloud(host, ['credits', 'topup', '--help', '--table'])).toBe(0);
+        expect(stdout).toContain('Commands:');
+        expect(stdout).toContain('credits topup status <id>');
+    });
+
+    it('leaves commands out of help for a command with no subcommands', async () => {
+        expect(await runCloud(host, ['import', 'list', '--help', '--json'])).toBe(0);
+        expect(JSON.parse(stdout)).not.toHaveProperty('commands');
+    });
+
+    it('reaches every command by walking help from each top-level word', async () => {
+        const seen = new Set<string>();
+        const queue = [...new Set(host.commands.map((command) => command.path[0] ?? ''))].map(
+            (word) => [word]
+        );
+        const visited = new Set<string>();
+        for (let words = queue.shift(); words !== undefined; words = queue.shift()) {
+            if (visited.has(words.join(' '))) continue;
+            visited.add(words.join(' '));
+            stdout = '';
+            expect(await runCloud(host, [...words, '--help', '--json'])).toBe(0);
+            const help: { usage: string; commands?: { usage: string }[] } = JSON.parse(stdout);
+            seen.add(help.usage);
+            for (const child of help.commands ?? []) {
+                seen.add(child.usage);
+                // Placeholders such as <id> are not words to type; walk the literal path.
+                queue.push(
+                    child.usage
+                        .split(' ')
+                        .slice(1)
+                        .filter((word) => !/^[<[]/u.test(word))
+                );
+            }
+        }
+        const unreached = host.commands
+            .map((command) =>
+                [
+                    'dexto',
+                    ...command.path,
+                    ...(command.arguments === undefined ? [] : [command.arguments]),
+                ].join(' ')
+            )
+            .filter((usage) => !seen.has(usage));
+        expect(unreached).toEqual([]);
+    });
+
     it('states the cloud API path restriction in help', async () => {
         expect(await runCloud(host, ['cloud', 'api', '--help', '--json'])).toBe(0);
         expect(stdout).toContain('only /v1/');
