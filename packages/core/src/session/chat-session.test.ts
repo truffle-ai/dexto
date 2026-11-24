@@ -1136,6 +1136,56 @@ describe('ChatSession', () => {
             return error;
         }
 
+        test('ends a cancelled turn driver setup once and frees the session', async () => {
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            mockServices.hookManager.executeHooks.mockImplementation(
+                async (_point: string, payload: unknown, ctx: { abortSignal: AbortSignal }) => {
+                    if (ctx.abortSignal.aborted) throw abortError();
+                    return payload;
+                }
+            );
+            const caller = new AbortController();
+            caller.abort();
+
+            await expect(
+                chatSession.createTurnDriver({
+                    kind: 'start',
+                    content: 'hello',
+                    signal: caller.signal,
+                })
+            ).rejects.toMatchObject({ name: 'AbortError' });
+
+            expect(mockLLMService.createTurnDriver).not.toHaveBeenCalled();
+            expect(runCompletes).toEqual([
+                expect.objectContaining({ finishReason: 'cancelled', stepCount: 0 }),
+            ]);
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
+                'run:complete',
+                expect.objectContaining({ sessionId, finishReason: 'cancelled' })
+            );
+            expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('does not duplicate a completion emitted during turn driver setup', async () => {
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            mockLLMService.createTurnDriver.mockImplementation(async () => {
+                chatSession.eventBus.emit('run:complete', {
+                    finishReason: 'cancelled',
+                    stepCount: 0,
+                    durationMs: 1,
+                });
+                throw abortError();
+            });
+
+            await expect(
+                chatSession.createTurnDriver({ kind: 'start', content: 'hello' })
+            ).rejects.toMatchObject({ name: 'AbortError' });
+            expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
+            expect(chatSession.isBusy()).toBe(false);
+        });
+
         test('ends the run once and frees the session when a beforeLLMRequest hook honours the abort', async () => {
             const runCompletes: SessionEventMap['run:complete'][] = [];
             chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));

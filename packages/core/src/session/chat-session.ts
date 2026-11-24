@@ -674,12 +674,20 @@ export class ChatSession {
         }
 
         this.currentRunController = new AbortController();
-        const signal = input.signal
-            ? this.combineSignals(input.signal, this.currentRunController.signal)
-            : this.currentRunController.signal;
-        const detachForwarders = this.attachRunEventForwarders(input.runContext);
+        const startedAt = Date.now();
+        let runCompleted = false;
+        const markRunCompleted = () => {
+            runCompleted = true;
+        };
+        this.eventBus.on('run:complete', markRunCompleted);
+        let detachForwarders: (() => void) | undefined;
+        let driverCreated = false;
 
         try {
+            const signal = input.signal
+                ? this.combineSignals(input.signal, this.currentRunController.signal)
+                : this.currentRunController.signal;
+            detachForwarders = this.attachRunEventForwarders(input.runContext);
             if (input.kind === 'start') {
                 this.logger.info('ChatSession turn input received', {
                     sessionId: this.id,
@@ -754,8 +762,28 @@ export class ChatSession {
                 this.logger
             );
 
-            return this.wrapTurnDriver(driver, signal, input.runContext, detachForwarders);
+            const wrappedDriver = this.wrapTurnDriver(
+                driver,
+                signal,
+                input.runContext,
+                detachForwarders
+            );
+            driverCreated = true;
+            return wrappedDriver;
         } catch (error) {
+            const aborted =
+                (error instanceof Error && error.name === 'AbortError') ||
+                (typeof error === 'object' &&
+                    error !== null &&
+                    'aborted' in error &&
+                    error.aborted === true);
+            if (aborted && !runCompleted) {
+                this.eventBus.emit('run:complete', {
+                    finishReason: 'cancelled',
+                    stepCount: 0,
+                    durationMs: Date.now() - startedAt,
+                });
+            }
             if (
                 input.kind === 'start' &&
                 error instanceof DextoRuntimeError &&
@@ -769,9 +797,13 @@ export class ChatSession {
                     .join('\n');
                 await this.saveBlockedInteraction(textContent, error.message);
             }
-            detachForwarders();
-            this.currentRunController = null;
             throw error;
+        } finally {
+            this.eventBus.off('run:complete', markRunCompleted);
+            if (!driverCreated) {
+                detachForwarders?.();
+                this.currentRunController = null;
+            }
         }
     }
 
