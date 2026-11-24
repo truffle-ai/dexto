@@ -235,7 +235,14 @@ const publish: Command = {
             );
             return;
         }
-        await requireConsent(context, flag(input, 'yes'), description);
+        await requireConsent(
+            {
+                invocation: context.invocation,
+                runtime: { prompt: context.output.json ? null : context.runtime.prompt },
+            },
+            flag(input, 'yes'),
+            description
+        );
         if (flag(input, 'yes') && !context.output.json) context.output.note(description);
 
         const prepared = PreparedSchema.safeParse(
@@ -270,11 +277,17 @@ const publish: Command = {
         } catch (error) {
             if (error instanceof CloudApiError && error.code === 'needs_confirmation') {
                 const changed = z
-                    .object({
-                        reason: z.enum(['visibility_changed', 'site_changed']),
-                        currentVisibility: VisibilitySchema,
-                        currentSiteId: z.string().nullable(),
-                    })
+                    .discriminatedUnion('reason', [
+                        z.object({
+                            reason: z.literal('visibility_changed'),
+                            currentVisibility: VisibilitySchema,
+                        }),
+                        z.object({
+                            reason: z.literal('site_changed'),
+                            currentVisibility: VisibilitySchema,
+                            currentSiteId: z.string().nullable(),
+                        }),
+                    ])
                     .safeParse(error.details);
                 throw new CommandFailure(
                     'needs_confirmation',

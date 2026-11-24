@@ -1691,6 +1691,22 @@ describe('dexto workspace', () => {
         expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
     });
 
+    it('returns a JSON confirmation refusal without writing an interactive prompt', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const prompt = vi.fn(async (question: string) => {
+            host.runtime.writeError(question);
+            return 'no';
+        });
+        host = { ...host, runtime: { ...host.runtime, prompt, stdoutIsTerminal: true } };
+        expect(await runCloud(host, ['publish', file, '--json'])).toBe(4);
+        expect(prompt).not.toHaveBeenCalled();
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toContain('https://server-chosen.dexto.dev');
+        expect(failure.fix).toContain('--yes');
+        expect(uploads).toHaveLength(0);
+    });
+
     it('reports a server preview refusal without prompting or publishing', async () => {
         const file = path.join(path.dirname(dir), 'preview.html');
         await writeFile(file, '<h1>hello</h1>');
@@ -1788,6 +1804,32 @@ describe('dexto workspace', () => {
         expect(stdout).toBe('');
     });
 
+    it('reads the visibility-only server refusal without requiring target details', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        const details = {
+            reason: 'visibility_changed',
+            currentVisibility: 'private',
+            expectedVisibility: 'unlisted',
+        };
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Generic refusal.',
+                details,
+                requestId: 'request-1',
+                retryable: false,
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toBe("The Site's visibility changed to private since the preview.");
+        expect(failure.details).toEqual(details);
+        expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(stdout).toBe('');
+    });
+
     it('prints the changed visibility and re-run command for a person', async () => {
         const file = path.join(path.dirname(dir), 'private.html');
         await writeFile(file, '<h1>private</h1>');
@@ -1872,7 +1914,7 @@ describe('dexto workspace', () => {
                 stdoutIsTerminal: true,
             },
         };
-        expect(await runCloud(host, ['publish', file, '--json'])).toBe(0);
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
         expect(publishProject).toBe('project-1');
     });
 
@@ -2077,7 +2119,7 @@ describe('dexto workspace', () => {
                 },
             },
         };
-        expect(await runCloud(host, ['publish', file, '--json'])).toBe(0);
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
         expect(questions).toHaveLength(1);
         expect(questions[0]).toContain('Create Server title');
         expect(questions[0]).toContain('unlisted');
