@@ -125,6 +125,18 @@ describe('subscription connections over MCP', () => {
         vi.restoreAllMocks();
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
+    it('provides copyable JSON examples for connection commands', async () => {
+        const commands = host.commands.filter((command) => command.path[0] === 'connections');
+        expect(commands.length).toBeGreaterThanOrEqual(3);
+        for (const command of commands) {
+            stdout = '';
+            expect(await runCloud(host, [...command.path, '--help', '--json'])).toBe(0);
+            const help = JSON.parse(stdout) as { examples?: string[] };
+            expect(help.examples, command.path.join(' ')).toEqual(
+                expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+            );
+        }
+    });
     it('rejects OAuth state as a connector attempt and prints only the opaque id to resume', async () => {
         const state = 'secret-oauth-state';
         const id = '00000000-0000-4000-8000-000000000123';

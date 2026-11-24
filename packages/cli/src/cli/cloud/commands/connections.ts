@@ -544,6 +544,7 @@ const ConnectionRow = z.discriminatedUnion('kind', [
 ]);
 const list: Command = {
     path: ['connections', 'list'],
+    examples: ['dexto connections list --json'],
     summary: 'List your cloud connections and subscription sign-ins.',
     async run(context) {
         // Without it Cloud still lists the model sign-ins, silently leaving out every connector.
@@ -561,6 +562,7 @@ const list: Command = {
 };
 const status: Command = {
     path: ['connections', 'status'],
+    examples: ['dexto connections status "$CONNECTION_NAME" --json'],
     arguments: '<name>',
     summary: 'Show the status of a cloud connection.',
     async run(context, input) {
@@ -602,6 +604,7 @@ const status: Command = {
 };
 const disconnect: Command = {
     path: ['connections', 'disconnect'],
+    examples: ['dexto connections disconnect "$CONNECTION_NAME" --yes --json'],
     arguments: '<name>',
     options: YES_OPTION,
     summary: 'Disconnect a cloud connection. Model API keys stay dashboard-managed.',
