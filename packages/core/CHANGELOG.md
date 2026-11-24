@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.19.7
+
+### Patch Changes
+
+- ee6dfd5: `LLMExecutionControl.toolChoice: 'required'` makes every model step that has tools call one, for hosts where plain text is never shown and a tool ends the turn. Claude steps that think leave the choice to the model, since Anthropic rejects a forced tool choice with thinking on; hosts keep `beforeTurnEnd` as the fallback.
+    - @dexto/llm@1.19.7
+
 ## 1.19.6
 
 ### Patch Changes

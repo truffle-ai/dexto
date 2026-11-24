@@ -1,5 +1,29 @@
 # dexto
 
+## 2.5.0
+
+### Minor Changes
+
+- d568625: Add `dexto apps list`, `get` and `uninstalled` to see the Dexto Apps available to you, one App's actions and launch URL, and the data kept for Apps you uninstalled.
+
+### Patch Changes
+
+- 1f9b644: `dexto publish --visibility restricted` publishes a Site that only you, Owners, Admins and people you share it with can open. The help and error text list the four visibilities, and the result says who can open the Site. The client's Site types include the `restricted` visibility.
+- Updated dependencies [1f9b644]
+- Updated dependencies [ee6dfd5]
+    - @dexto/cloud-client@1.19.7
+    - @dexto/core@1.19.7
+    - @dexto/agent-config@1.19.7
+    - @dexto/agent-management@1.19.7
+    - @dexto/analytics@1.19.7
+    - @dexto/client-sdk@1.19.7
+    - @dexto/image-local@1.19.7
+    - @dexto/image-logger-agent@1.19.7
+    - @dexto/storage@1.19.7
+    - @dexto/tui@1.19.7
+    - @dexto/llm@1.19.7
+    - @dexto/registry@1.19.7
+
 ## 2.4.0
 
 ### Minor Changes
