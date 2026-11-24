@@ -102,6 +102,7 @@ function projectLine(project: z.output<typeof ProjectSchema>): string {
 
 const list: Command = {
     path: ['projects', 'list'],
+    examples: ['dexto projects list --json'],
     summary: 'List your Projects, optionally only those matching words or imported from a tool.',
     options: {
         query: {
@@ -139,6 +140,7 @@ const list: Command = {
 
 const get: Command = {
     path: ['projects', 'get'],
+    examples: ['dexto projects get "$PROJECT_ID" --json'],
     arguments: PROJECT_ARGUMENT,
     summary: 'Show a Project, by id or link: its settings, coordinator and folder.',
     async run(context, input) {
@@ -160,6 +162,7 @@ const DESCRIPTION_OPTION = {
 
 const create: Command = {
     path: ['projects', 'create'],
+    examples: ['dexto projects create "Research" --yes --json'],
     arguments: '<name>',
     summary: 'Create a Project. Its coordinator starts once you send it a message.',
     options: {
@@ -225,6 +228,7 @@ function updateFields(input: CommandInput): Record<string, unknown> {
 
 const update: Command = {
     path: ['projects', 'update'],
+    examples: ['dexto projects update "$PROJECT_ID" --name "Research archive" --yes --json'],
     arguments: PROJECT_ARGUMENT,
     summary: "Change a Project's name, description, pin, or how its coordinator starts chats.",
     options: {
@@ -267,6 +271,7 @@ const update: Command = {
 
 const remove: Command = {
     path: ['projects', 'delete'],
+    examples: ['dexto projects delete "$PROJECT_ID" --chats keep --yes --json'],
     arguments: PROJECT_ARGUMENT,
     summary: "Delete a Project, keeping its chats or deleting them with it. It can't be undone.",
     options: {
@@ -305,6 +310,7 @@ const remove: Command = {
 
 const move: Command = {
     path: ['projects', 'move'],
+    examples: ['dexto projects move "$CHAT_ID" "$PROJECT_ID" --yes --json'],
     arguments: '<chat> [project]',
     summary: 'Move a chat into a Project, or with --out take it out of its Project.',
     options: {
@@ -354,6 +360,7 @@ const MODEL_OPTIONS = {
 
 const start: Command = {
     path: ['projects', 'start'],
+    examples: ['dexto projects start "$PROJECT_ID" "Summarize the latest research" --json'],
     arguments: `${PROJECT_ARGUMENT} <brief>`,
     summary:
         "Start a chat in a Project with a brief it can act on alone. The Project's start policy and daily cap apply.",
@@ -423,6 +430,7 @@ const start: Command = {
 
 const run: Command = {
     path: ['projects', 'run'],
+    examples: ['dexto projects run "$PROJECT_ID" "Plan the next steps" --yes --json'],
     arguments: `${PROJECT_ARGUMENT} <message>`,
     summary:
         "Message a Project's coordinator, opening it if needed. It steers the coordinator's current turn unless --follow-up.",
@@ -472,6 +480,7 @@ const RecipeSchema = z
 
 const recipes: Command = {
     path: ['projects', 'recipes'],
+    examples: ['dexto projects recipes --json'],
     summary:
         'List the Loop recipes a Project can install, with their default schedules. Listing installs nothing.',
     async run(context) {
@@ -511,6 +520,7 @@ const InstalledSchema = z
 
 const installRecipe: Command = {
     path: ['projects', 'install-recipe'],
+    examples: ['dexto projects install-recipe "$PROJECT_ID" "$RECIPE_ID" --yes --json'],
     arguments: `${PROJECT_ARGUMENT} <recipe>`,
     summary:
         'Install a Loop recipe in a Project (its id or link), or resume it when paused, keeping its edits. It schedules future runs; nothing runs now.',
