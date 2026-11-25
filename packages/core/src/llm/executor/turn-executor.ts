@@ -1762,7 +1762,10 @@ export class TurnExecutor {
         state: ModelStepRequestState,
         supportsTools: boolean
     ): Promise<ModelStepRequest> {
-        const toolDefinitions = supportsTools ? structuredClone(state.toolDefinitions) : {};
+        const toolDefinitions =
+            supportsTools && !this.toolManager.areAllToolsDisabled()
+                ? structuredClone(state.toolDefinitions)
+                : {};
 
         return {
             messages: cloneStructuredValuePreservingUrls(state.messages),

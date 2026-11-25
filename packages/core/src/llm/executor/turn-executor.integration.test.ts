@@ -473,6 +473,21 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Basic Execution Flow', () => {
+        it('sends no tools to a tool-free model turn', async () => {
+            toolManager.registerCoreTools([
+                createToolOutputReadTool({
+                    conversation: conversationStore,
+                    toolOutputs: new InMemoryToolOutputStore(),
+                }),
+            ]);
+            toolManager.disableAllTools();
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await executor.execute({ mcpManager }, true);
+
+            expect(vi.mocked(streamText).mock.calls[0]?.[0].tools).toEqual({});
+        });
+
         it('should execute and return result with real context manager', async () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
@@ -728,6 +743,34 @@ describe('TurnExecutor Integration Tests', () => {
                 );
             } finally {
                 rehydratedDriver.dispose();
+            }
+        });
+
+        it('does not restore tools into a tool-free turn from a prepared checkpoint', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'snapshot_tool',
+                    description: 'A tool',
+                    inputSchema: z.object({}).strict(),
+                    execute: vi.fn().mockResolvedValue('unused'),
+                }),
+            ]);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const firstDriver = await executor.createDriver({ mcpManager }, { streaming: true });
+            await firstDriver.prepareNextModelStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            firstDriver.dispose();
+            toolManager.disableAllTools();
+            const restarted = restartExecutor();
+            const driver = await restarted.executor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+            try {
+                await driver.runNextModelStep();
+                expect(vi.mocked(streamText).mock.calls[0]?.[0].tools).toEqual({});
+            } finally {
+                driver.dispose();
             }
         });
 

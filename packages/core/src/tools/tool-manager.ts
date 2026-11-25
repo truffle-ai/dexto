@@ -200,6 +200,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     excludeMethods: ['setHookSupport', 'getApprovalManager', 'getAllowedToolsProvider'],
 })
 export class ToolManager {
+    private allToolsDisabled = false;
     private mcpManager: MCPManager;
     private agentTools: Map<string, Tool> = new Map();
     /** Core-owned tools: always registered, never replaced by host tools or filtered per session. */
@@ -343,6 +344,15 @@ export class ToolManager {
      */
     async initialize(): Promise<void> {
         this.logger.debug('ToolManager initialization complete');
+    }
+
+    /** Permanently remove tools from model turns and reject execution through this manager. Does not cancel work already in flight. */
+    disableAllTools(): void {
+        this.allToolsDisabled = true;
+    }
+
+    areAllToolsDisabled(): boolean {
+        return this.allToolsDisabled;
     }
 
     registerCoreTools(tools: Tool[]): void {
@@ -569,6 +579,7 @@ export class ToolManager {
      * Filter a tool set based on disabled tools for a session.
      */
     filterToolsForSession(toolSet: ToolSet, sessionId?: string): ToolSet {
+        if (this.allToolsDisabled) return {};
         const filtered = this.sessionToolPolicy.filterToolsForSession(toolSet, sessionId);
         for (const tool of this.coreTools) {
             const definition = toolSet[tool.id];
@@ -1239,6 +1250,7 @@ export class ToolManager {
      * Uses caching to avoid rebuilding on every call
      */
     async getAllTools(): Promise<ToolSet> {
+        if (this.allToolsDisabled) return {};
         if (this.cacheValid) {
             await this.refreshDynamicToolDescriptions();
             return this.toolsCache;
@@ -1250,6 +1262,12 @@ export class ToolManager {
     }
 
     async prepareToolCall(input: PrepareToolCallInput): Promise<PreparedToolCall> {
+        if (this.allToolsDisabled)
+            return this.createPreparedToolError(
+                'unknown-tool',
+                input.toolName,
+                `Tool '${input.toolName}' not found`
+            );
         const sessionId = input.runContext?.sessionId ?? input.sessionId;
         const identity = this.resolveToolIdentity(input.toolName);
         if (identity === undefined) {
@@ -1899,6 +1917,7 @@ export class ToolManager {
         invocation?: ToolExecutionInvocation,
         options?: { throwOnError?: boolean }
     ): Promise<ToolExecutionResult> {
+        if (this.allToolsDisabled) throw ToolError.notFound(call.toolName);
         const { sessionId, abortSignal, runContext, hostRuntime } =
             this.resolveToolExecutionInvocation(invocation);
         const executionIdentity = this.resolveToolExecutionIdentity(
