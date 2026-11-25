@@ -74,7 +74,7 @@ function fakeEndpoint(initial: string[] = []) {
         connection: async () => ({
             kind: 'oauth',
             token: 'test-token',
-            source: 'login',
+            source: 'sign_in',
             profile: 'default',
             apiBaseUrl: 'https://fake.invalid',
             cloudProject: null,

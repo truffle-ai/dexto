@@ -22,6 +22,10 @@ Success is exit 0 with your account identity. Signed-out account commands exit 3
 `dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
 configured model or credits. This check starts no model run.
 
+Auth order: every command uses the first of `--api-key`, the profile's saved `dexto login`
+sign-in, `DEXTO_API_KEY`, then a saved API key. A `DEXTO_API_KEY` in the environment never
+overrides a sign-in; `dexto whoami` names the one in use.
+
 <a href="https://dexto.ai">
   <div align="center">
     <picture>

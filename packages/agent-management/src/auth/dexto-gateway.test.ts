@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type OAuthLogin, writeLogin } from './dexto-accounts.js';
+import { type OAuthLogin, SignInExpired, writeLogin } from './dexto-accounts.js';
 import { createModelAuthResolver } from './model-auth-handlers.js';
 import {
     type DextoGatewayOptions,
@@ -64,17 +64,31 @@ describe('Dexto models on the sign-in', () => {
 
     async function call(): Promise<void> {
         const auth = dextoGatewayRuntimeAuth(options);
-        expect(auth).not.toBeNull();
-        await auth?.fetch?.(`${API}/v1/chat/completions`, {
+        await auth.fetch?.(`${API}/v1/chat/completions`, {
             method: 'POST',
             headers: { authorization: `Bearer ${auth.apiKey}` },
             body: '{}',
         });
     }
 
-    it('leaves DEXTO_API_KEY to the 1.x key path', () => {
+    it('sends DEXTO_API_KEY as itself when signed out', async () => {
         options = { ...options, environment: { DEXTO_API_KEY: 'dxt_env' } };
-        expect(dextoGatewayRuntimeAuth(options)).toBeNull();
+
+        await call();
+
+        expect(sent[0]?.url).toBe(`${API}/v1/chat/completions`);
+        expect(sent[0]?.headers.get('authorization')).toBe('Bearer dxt_env');
+        expect(sent[0]?.headers.has('dexto-cloud-project')).toBe(false);
+    });
+
+    it('sends the sign-in, not DEXTO_API_KEY, when both are there', async () => {
+        await writeLogin(dir, 'default', signedIn());
+        options = { ...options, environment: { DEXTO_API_KEY: 'dxt_env' } };
+
+        await call();
+
+        expect(sent[0]?.headers.get('authorization')).toBe('Bearer access-1');
+        expect(sent[0]?.headers.get('dexto-cloud-project')).toBe('prj_main');
     });
 
     it("sends the sign-in's token and Cloud project to the public API", async () => {
@@ -104,6 +118,22 @@ describe('Dexto models on the sign-in', () => {
         await call();
 
         expect(sent[0]?.headers.get('authorization')).toBe('Bearer access-2');
+    });
+
+    it('asks only to sign in again when the sign-in expired: models take no --api-key', async () => {
+        await writeLogin(dir, 'default', signedIn({ expiresAt: new Date().toISOString() }));
+        options = {
+            ...options,
+            environment: { DEXTO_API_KEY: 'dxt_env' },
+            refresh: async () => {
+                throw new SignInExpired(null);
+            },
+        };
+
+        await expect(call()).rejects.toThrow(
+            /^Your Dexto sign-in \(profile default\) has expired\. Run dexto login\.$/u
+        );
+        expect(sent).toHaveLength(0);
     });
 
     it('sends a saved API key as itself, with no project', async () => {
@@ -151,8 +181,14 @@ describe('Dexto models on the sign-in', () => {
         });
         await writeLogin(dir, 'default', signedIn());
         await expect(dextoModelAccess(options)).resolves.toEqual({ status: 'ready' });
+    });
+
+    it('judges the sign-in, not DEXTO_API_KEY, when both are there', async () => {
         options = { ...options, environment: { DEXTO_API_KEY: 'dxt_env' } };
         await expect(dextoModelAccess(options)).resolves.toEqual({ status: 'ready' });
+
+        await writeLogin(dir, 'default', signedIn({ scopes: ['cloud:read'] }));
+        await expect(dextoModelAccess(options)).resolves.toEqual({ status: 'needs_scope' });
     });
 
     it('is how the model auth resolver runs dexto-nova', async () => {
