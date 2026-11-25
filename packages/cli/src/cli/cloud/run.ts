@@ -3,9 +3,11 @@
 
 import { CommandFailure, EXIT_CODE_MEANINGS, EXIT_CODES, type FailureKind } from '../failure.js';
 
+import { hostname } from 'node:os';
 import { parseArgs } from 'node:util';
 import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
+import { dextoSignIn } from '@dexto/agent-management';
 import {
     MissingScopeFailure,
     readValue,
@@ -54,10 +56,11 @@ export interface CloudHost {
     readonly resolveConnection: (overrides: ConnectionOverrides) => Promise<Connection | null>;
     /** The sign-in context login, logout, whoami and accounts run in. */
     readonly signIn: SignInFor;
-    /** Signs the profile in again asking for `scope`; true once it did. */
+    /** Discovers the full request, asks for confirmation, then signs in; false when declined. */
     readonly signInForScopes: (
         overrides: ConnectionOverrides,
-        scopes: readonly string[]
+        scopes: readonly string[],
+        confirm: (scopes: readonly string[]) => Promise<boolean>
     ) => Promise<boolean>;
 }
 
@@ -182,20 +185,20 @@ async function run(
         return (await command.run(contextFor(host, globals, output, state), parsed)) ?? 0;
     } catch (thrown) {
         const error = asMissingScope(signIn, thrown);
-        if (
+        const grant: Grant =
             mayGrant &&
             !globals.yes &&
             error instanceof MissingScopeFailure &&
             runtime.prompt !== null &&
-            !output.json &&
-            (await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error))
-        )
-            return await run(host, argv, false, state);
+            !output.json
+                ? await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error)
+                : { granted: false, failure: error };
+        if (grant.granted) return await run(host, argv, false, state);
         return reportError(
             signIn,
             output.json,
             { text: commandHelp(command), command: `dexto ${command.path.join(' ')} --help` },
-            error
+            grant.failure
         );
     }
 }
@@ -239,20 +242,20 @@ async function runWorkspace(
         );
     } catch (thrown) {
         const error = asMissingScope(context, thrown);
-        if (
+        const grant: Grant =
             mayGrant &&
             !globals.yes &&
             error instanceof MissingScopeFailure &&
             host.runtime.prompt !== null &&
-            !output.json &&
-            (await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error))
-        )
-            return await run(host, argv, false, state);
+            !output.json
+                ? await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error)
+                : { granted: false, failure: error };
+        if (grant.granted) return await run(host, argv, false, state);
         return reportError(
             context,
             output.json,
             { text: workspaceHelp(host, null), command: 'dexto workspace --help' },
-            error
+            grant.failure
         );
     }
 }
@@ -285,10 +288,6 @@ function workspaceHelp(host: CloudHost, apps: readonly WorkspaceApp[] | null): s
     ].join('\n');
 }
 
-/**
- * At a terminal and without --yes, offers to sign in again for the permission; true once that
- * sign-in succeeded. Under --yes the failure stands, with the sign-in that grants it as its fix.
- */
 function grantOverrides(
     overrides: ConnectionOverrides,
     pinned: PinnedConnection | null
@@ -296,17 +295,51 @@ function grantOverrides(
     return pinned === null ? overrides : { ...overrides, profile: pinned.profile };
 }
 
+type Grant = { readonly granted: true } | { readonly granted: false; readonly failure: unknown };
+
+/**
+ * At a terminal and without --yes, offers to sign in again for the permission. Otherwise the
+ * failure to report: the missing permission when declined, or whatever broke the sign-in. Under
+ * --yes the failure stands, with the sign-in that grants it as its fix.
+ */
 async function askToGrant(
     host: CloudHost,
     overrides: ConnectionOverrides,
     error: MissingScopeFailure
+): Promise<Grant> {
+    try {
+        return (await signInAgainFor(host, overrides, error))
+            ? { granted: true }
+            : { granted: false, failure: error };
+    } catch (failure) {
+        return { granted: false, failure };
+    }
+}
+
+async function signInAgainFor(
+    host: CloudHost,
+    overrides: ConnectionOverrides,
+    error: MissingScopeFailure
 ): Promise<boolean> {
-    const answer =
-        (await host.runtime.prompt?.(`${error.message} Sign in again to grant it? [y/N] `, {
-            secret: false,
-        })) ?? '';
-    if (!/^y(es)?$/iu.test(answer.trim())) return false;
-    return await host.signInForScopes(overrides, error.scopes);
+    const connection = await host.resolveConnection(overrides);
+    const signedInAs = connection?.kind === 'oauth' ? connection.login.signedInAs : null;
+    return await host.signInForScopes(overrides, error.scopes, async (scopes) => {
+        // The same rows the approval page shows, with every scope named before anything opens.
+        const rows = dextoSignIn.signInRequestRows({
+            account: signedInAs === null ? null : safeText(signedInAs.account.email),
+            organization: signedInAs === null ? null : safeText(signedInAs.organization.name),
+            code: null,
+            scopes: scopes.map(safeText),
+            computer: safeText(hostname()),
+            listScopes: true,
+        });
+        const answer =
+            (await host.runtime.prompt?.(
+                `${error.message} Sign in again to request:\n${dextoSignIn.signInRequestText(rows)}\nContinue? [y/N] `,
+                { secret: false }
+            )) ?? '';
+        return /^y(es)?$/iu.test(answer.trim());
+    });
 }
 
 function contextFor(

@@ -20,7 +20,7 @@ import {
     type Caps,
     type Span,
 } from '@dexto/tui/signal-text';
-import type { dextoSignIn } from '@dexto/agent-management';
+import { dextoSignIn } from '@dexto/agent-management';
 import {
     plainSignInScreen,
     type SignedIn,
@@ -71,30 +71,48 @@ function titleLines(command: string, subtitle: string): string[] {
     return cut.map((row, index) => `${row}    ${beside[index] ?? ''}`.trimEnd());
 }
 
-/** The user code: cut type at a terminal, the code in bold otherwise. */
-export function codeLines(code: string, faded: boolean): string[] {
-    return cutRows(code, faded ? 'faint' : 'hi');
+const ROW_LABEL_WIDTH = 14;
+
+/** The Code row, bright while waiting and faint once signed in. */
+export function codeRow(code: string, faded: boolean): string {
+    return line([
+        span('dim', `  ${'Code'.padEnd(ROW_LABEL_WIDTH)}`),
+        strong(faded ? 'faint' : 'hi', code),
+    ]);
 }
 
-/** Screen 2: open the link, enter the code. The waiting line follows. */
+/**
+ * The request as the approval page lays it out: Account, Organization, Code, From and Access,
+ * one labelled row each, so the terminal and the page read the same.
+ */
+export function requestRowLines(rows: readonly dextoSignIn.SignInRequestRow[]): string[] {
+    return rows.map((row) =>
+        row.label === 'Code'
+            ? codeRow(row.value, false)
+            : line([span('dim', `  ${row.label.padEnd(ROW_LABEL_WIDTH)}`), span('fg', row.value)])
+    );
+}
+
+/** Screen 2: open the link, check the rows. The waiting line follows. */
 export function devicePromptLines(prompt: Extract<SignInPrompt, { kind: 'device' }>): string[] {
     const open =
         prompt.verificationUriComplete === null
             ? [
                   span('dim', 'Open '),
                   link(prompt.verificationUri, shortUrl(prompt.verificationUri)),
-                  span('dim', ' on any device and enter:'),
+                  span('dim', ' on any device and enter the code below:'),
               ]
             : [
                   span('dim', 'Open '),
                   link(prompt.verificationUriComplete),
-                  span('dim', ' and check it shows:'),
+                  span('dim', ' and check it shows the code below:'),
               ];
     return [
         ...titleLines('dexto login --device', 'no browser on this machine, so: a code'),
         '',
         line(open),
-        ...codeLines(prompt.userCode, false),
+        '',
+        ...requestRowLines(dextoSignIn.devicePromptRows(prompt)),
         '',
     ];
 }
@@ -275,12 +293,11 @@ export function signalSignInScreen(
             timer = null;
             process.off('SIGINT', onInterrupt);
             write(CLEAR_LINE);
-            // The code is 3 rows, then a blank row, then this line: fade it in place.
+            // The Code row, then From, Access and a blank row, then this line: fade it in place.
             const code = shown;
             if (!signedIn || code?.kind !== 'device') return;
-            const faded = on(() => codeLines(code.userCode, true));
-            if (faded.length === 3)
-                write(`\u001B[4A${faded.map((row) => `${CLEAR_LINE}${row}`).join('\n')}\n\n`);
+            const faded = on(() => codeRow(code.userCode, true));
+            write(`\u001B[4A${CLEAR_LINE}${faded}\n\n\n\n`);
         },
     };
 }

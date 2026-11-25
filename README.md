@@ -26,6 +26,8 @@ Auth order: every command uses the first of `--api-key`, the profile's saved `de
 sign-in, `DEXTO_API_KEY`, then a saved API key. A `DEXTO_API_KEY` in the environment never
 overrides a sign-in; `dexto whoami` names the one in use.
 
+New users signing up with Google or GitHub receive a one-time $5 usage credit per verified email.
+
 <a href="https://dexto.ai">
   <div align="center">
     <picture>
