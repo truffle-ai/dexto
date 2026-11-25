@@ -45,7 +45,7 @@ describe('scanMarketplacePlugins with symlinks', () => {
 
     it('keeps a real directory inside the marketplace', () => {
         writeManifest(['./plugins/inside']);
-        expect(sourcesOf()).toEqual([path.join(marketplace, 'plugins', 'inside')]);
+        expect(sourcesOf()).toEqual([realpathSync(path.join(marketplace, 'plugins', 'inside'))]);
     });
 
     it('skips a source that is a symlink to a directory outside the marketplace', () => {
