@@ -1494,12 +1494,27 @@ setup:
         for (const args of [
             ['--no-such-option', '--json'],
             ['--json', '--no-such-option'],
+            ['--device=invalid', '--no-such-option', '--json'],
             ['--scope', 'cloud:write', '--no-such-option', '--json'],
         ]) {
             const viaAcp = await run(['acp', 'login', ...args]);
             const direct = await run(['login', ...args]);
             expect(direct.output).toContain('"code": "usage"');
+            if (args[0] === '--device=invalid')
+                expect(direct.output).toContain("Option '--device' does not take an argument");
             expect(viaAcp).toEqual(direct);
         }
+
+        const help = await run(['acp', 'login', '--help', '--json']);
+        expect(help.code).toBe(0);
+        expect(JSON.parse(help.output).examples).toContain('dexto acp login --device --json');
+        const tableHelp = await run(['acp', 'login', '--help', '--table']);
+        expect(tableHelp.code).toBe(0);
+        expect(tableHelp.output).toContain('dexto acp login --device --json');
+        const audit = await run(['--audit-agent-cli']);
+        expect(audit.code).toBe(0);
+        expect(JSON.parse(audit.output)).toContainEqual(
+            expect.objectContaining({ command: 'acp login', examples: true })
+        );
     }, 60000);
 });

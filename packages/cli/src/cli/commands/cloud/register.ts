@@ -53,13 +53,27 @@ export function registerCloudCommand(program: Command): void {
             .action((args: string[]) => runEngineCommand(word, [word, ...args]));
 }
 
-/** Runs `argv` on the cloud command engine and exits with its code, recorded as `name`. */
-export async function runEngineCommand(name: string, argv: string[]): Promise<void> {
+/** Runs `argv` on the cloud command engine and exits with its code, recorded as `name`.
+ * An alias may supply its own help examples while retaining the underlying command's behavior. */
+export async function runEngineCommand(
+    name: string,
+    argv: string[],
+    examples?: readonly string[]
+): Promise<void> {
     await withAnalytics(name, async () => {
         const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
             import('../../cloud/run.js'),
             import('../../cloud/host.js'),
         ]);
-        safeExit(name, await runCloud(nodeCloudHost(new AbortController().signal), argv));
+        const host = nodeCloudHost(new AbortController().signal);
+        const commands =
+            examples === undefined
+                ? host.commands
+                : host.commands.map((command) =>
+                      command.path.length === 1 && command.path[0] === argv[0]
+                          ? { ...command, examples: [...(command.examples ?? []), ...examples] }
+                          : command
+                  );
+        safeExit(name, await runCloud({ ...host, commands }, argv));
     })();
 }

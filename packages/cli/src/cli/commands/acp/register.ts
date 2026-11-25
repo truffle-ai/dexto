@@ -2,6 +2,8 @@ import { inspect } from 'node:util';
 import { runEngineCommand } from '../cloud/register.js';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
 
+const LOGIN_EXAMPLES = ['dexto acp login --device --json'] as const;
+
 export function registerAcpCommand({
     program,
     cliVersion,
@@ -46,7 +48,12 @@ Stdout carries only ACP messages; logs go to stderr.
         .allowExcessArguments()
         .option('--json', 'Print the result as JSON')
         .argument('[args...]')
+        .addHelpText('after', `\nExamples:\n  ${LOGIN_EXAMPLES.join('\n  ')}\n`)
         .action((args: string[], options: { json?: boolean }) =>
-            runEngineCommand('acp login', ['login', ...(options.json ? ['--json'] : []), ...args])
+            runEngineCommand(
+                'acp login',
+                ['login', ...(options.json ? ['--json'] : []), ...args],
+                LOGIN_EXAMPLES
+            )
         );
 }
