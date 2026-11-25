@@ -23,6 +23,8 @@ export interface OptionSpec {
 export interface Command {
     /** Such as `<agent_id> [message...]`; `<x>` is required, `[x]` optional. */
     readonly arguments?: string;
+    readonly examples?: readonly string[];
+    readonly jsonOutput?: unknown;
     readonly options?: Readonly<Record<string, OptionSpec>>;
     /** The words that select it, such as ["agents", "sessions", "list"]. */
     readonly path: readonly string[];
@@ -41,7 +43,8 @@ export interface CommandContext {
     readonly syncLocalChat?: (id: string) => Promise<void>;
     /** The /v1 client for the resolved credential; fails with how to sign in when there is none. */
     client(): Promise<CloudClient>;
-    connection(): Promise<Connection>;
+    /** Pin the resolved target for this invocation when a command needs stable consent. */
+    connection(options?: { readonly pin: true }): Promise<Connection>;
     /** The words the command was run with, its connection options included and any key left out. */
     readonly invocation: readonly string[];
     readonly output: Output;
@@ -99,6 +102,19 @@ export function integerOption(input: CommandInput, name: string): number | undef
     const parsed = Number(value);
     if (!Number.isInteger(parsed)) throw new UsageError(`--${name} must be a whole number.`);
     return parsed;
+}
+
+/** A whole-number option between `min` and `max`, checked before anything is sent. */
+export function boundedOption(
+    input: CommandInput,
+    name: string,
+    min: number,
+    max: number
+): number | undefined {
+    const value = integerOption(input, name);
+    if (value !== undefined && (value < min || value > max))
+        throw new UsageError(`--${name} must be between ${min} and ${max}.`);
+    return value;
 }
 
 /** A string option that must be one of `values`, checked before anything is sent. */

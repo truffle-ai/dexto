@@ -2,7 +2,13 @@ import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import type { LLMContext } from '@dexto/llm';
-import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
+import type {
+    InternalMessage,
+    AssistantMessage,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
+} from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -14,6 +20,8 @@ import {
     estimateMessagesTokens,
     isBinaryMediaMimeType,
     buildPrunedToolResultPlaceholder,
+    pickMessagesById,
+    pickToolResults,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -139,8 +147,8 @@ export class ContextManager<TMessage = unknown> {
         return getResourceKind(mimeType);
     }
 
-    private static hasRetainableMedia(message: InternalMessage): boolean {
-        if (!Array.isArray(message.content)) {
+    private static hasRetainableMedia(message: UserMessage | ToolMessage): boolean {
+        if (message.mediaWithheldAt !== undefined || !Array.isArray(message.content)) {
             return false;
         }
 
@@ -633,6 +641,27 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Every stored tool result answering one of these tool call ids, in history order. Reads only
+     * those results when the store can; otherwise picks them from the full history.
+     */
+    async getToolResults(toolCallIds: readonly string[]): Promise<ToolMessage[]> {
+        const input = { sessionId: this.sessionId, toolCallIds };
+        if (this.conversationStore.getToolResultsByCallId) {
+            return this.conversationStore.getToolResultsByCallId(input);
+        }
+        return pickToolResults(await this.conversationStore.listMessages(input), toolCallIds);
+    }
+
+    /** The stored messages with these ids, read alone when the store can. */
+    private async getMessagesById(messageIds: readonly string[]): Promise<InternalMessage[]> {
+        const input = { sessionId: this.sessionId, messageIds };
+        if (this.conversationStore.getMessagesById) {
+            return this.conversationStore.getMessagesById(input);
+        }
+        return pickMessagesById(await this.conversationStore.listMessages(input), messageIds);
+    }
+
+    /**
      * Flush any pending history updates to durable storage.
      * Should be called at turn boundaries (after streaming completes, on cancel, on error).
      * This ensures all message updates are persisted before returning control to the caller.
@@ -670,15 +699,14 @@ export class ContextManager<TMessage = unknown> {
 
     /**
      * Finds the assistant message of the reply being streamed. The one this manager started is
-     * held in memory; any other id is found with one read of the history and held from then on.
+     * held in memory; any other id is read from the store by id and held from then on.
      */
     private async loadAssistantMessage(messageId: string): Promise<AssistantMessage> {
         if (this.inFlightAssistant?.id === messageId) {
             return this.inFlightAssistant;
         }
 
-        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
-        const message = history.find((m) => m.id === messageId);
+        const [message] = await this.getMessagesById([messageId]);
         if (!message) {
             throw ContextError.messageNotFound(messageId);
         }
@@ -775,7 +803,7 @@ export class ContextManager<TMessage = unknown> {
         }
 
         this.inFlightAssistant = null;
-        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
+        const history = await this.getMessagesById(messageIds);
         const timestamp = Date.now();
         let markedCount = 0;
 
@@ -810,6 +838,27 @@ export class ContextManager<TMessage = unknown> {
             );
         }
 
+        return markedCount;
+    }
+
+    /**
+     * Withholds the media of every message that would still send it to the model, after a
+     * provider rejected a request that carried it. From then on the media goes as text
+     * placeholders, so one bad image or file cannot fail every later turn of the session.
+     *
+     * @returns Number of messages marked
+     */
+    async withholdModelMedia(): Promise<number> {
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
+        const timestamp = Date.now();
+        let markedCount = 0;
+        for (const message of history) {
+            if (!isUserMessage(message) && !isToolMessage(message)) continue;
+            if (!ContextManager.hasRetainableMedia(message)) continue;
+            message.mediaWithheldAt = timestamp;
+            await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
+            markedCount++;
+        }
         return markedCount;
     }
 

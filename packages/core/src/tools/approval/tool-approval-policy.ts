@@ -1,10 +1,11 @@
 import type { Tool, ToolApprovalDecision, ToolExecutionContext, ToolIdentity } from '../types.js';
 import { ToolError } from '../errors.js';
+import type { PermissionsMode } from '../schemas.js';
 
 /** Which check let a call run without asking: the first of the policy's checks that passed. */
 export type ToolApprovalReadyReason =
     | ExplicitToolAllow
-    | 'auto-approve-mode'
+    | 'full-access-mode'
     | 'tool-allows'
     | 'session-approved-key';
 
@@ -49,7 +50,7 @@ export type ToolApprovalPolicyInput = {
 };
 
 export type ToolApprovalPolicyDeps = {
-    getApprovalMode(): 'manual' | 'auto-approve';
+    getApprovalMode(): PermissionsMode;
     getLocalTool(toolName: string): Tool | undefined;
     isApprovalKeySessionApproved(input: {
         approvalKey: string;
@@ -80,8 +81,8 @@ export class ToolApprovalPolicy {
             return { because: explicitAllow, kind: 'ready' };
         }
 
-        if (this.deps.getApprovalMode() === 'auto-approve') {
-            return { because: 'auto-approve-mode', kind: 'ready' };
+        if (this.deps.getApprovalMode() === 'full-access') {
+            return { because: 'full-access-mode', kind: 'ready' };
         }
 
         if (authored.kind === 'allow') {

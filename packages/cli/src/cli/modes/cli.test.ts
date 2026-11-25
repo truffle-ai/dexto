@@ -45,14 +45,14 @@ function testContext(): MainModeContext {
     const config = AgentConfigSchema.parse({
         systemPrompt: 'Test',
         llm: { provider: 'openai', model: 'gpt-5', apiKey: 'fake-test-key' },
-        permissions: { mode: 'auto-approve' },
+        permissions: { mode: 'full-access' },
         elicitation: { enabled: false },
     });
     const agent = new DextoAgent({
         agentId: 'ownership-test',
         systemPrompt: 'Test',
         llm: { provider: 'openai', model: 'gpt-5', apiKey: 'fake-test-key' },
-        permissions: { mode: 'auto-approve' },
+        permissions: { mode: 'full-access' },
         elicitation: { enabled: false },
         stores: new InMemoryDextoStores(),
         logger: createLogger({

@@ -44,7 +44,11 @@ import {
 } from './tool-output-spill.js';
 import { findRepeatedPrunedToolCalls } from './repeated-pruned-tool-calls.js';
 import type { ExecutorResult, ModelToolCall, StreamProcessorResult } from './types.js';
-import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
+import {
+    buildProviderOptions,
+    canRequireToolCall,
+    getEffectiveReasoningBudgetTokens,
+} from './provider-options.js';
 import type {
     TokenUsage,
     LLMReasoningConfig,
@@ -69,6 +73,7 @@ import {
     isRejectedCredential,
     mapProviderError as mapCoreProviderError,
 } from './provider-error.js';
+import { isRejectedModelRequest, withholdRequestMedia } from './withheld-media.js';
 import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
@@ -459,7 +464,7 @@ export type TurnDriver = {
     executeToolCalls(): Promise<TurnDriverToolCalls>;
     decideNextStep(): Promise<TurnDriverNextAction>;
     finish(): Promise<ExecutorResult>;
-    fail(error: unknown): Promise<never>;
+    fail(error: unknown): Promise<Error>;
     getState(): TurnDriverState;
     checkpoint(): TurnDriverState;
     dispose(): void;
@@ -627,7 +632,7 @@ export class TurnExecutor {
                     }
                 }
             } catch (error) {
-                return await driver.fail(error);
+                throw await driver.fail(error);
             }
             return await driver.finish();
         } finally {
@@ -1108,7 +1113,7 @@ export class TurnExecutor {
         };
     }
 
-    private async failTurn(error: unknown, stepCount: number, startTime: number): Promise<never> {
+    private async failTurn(error: unknown, stepCount: number, startTime: number): Promise<Error> {
         const mappedError = this.mapProviderError(error);
         this.logger.error('TurnExecutor failed', { error: mappedError });
 
@@ -1133,7 +1138,7 @@ export class TurnExecutor {
             error: mappedError,
         });
 
-        throw mappedError;
+        return mappedError;
     }
 
     private advanceStep(stepCount: number): StepAdvance {
@@ -1285,13 +1290,12 @@ export class TurnExecutor {
             this.toolManager.endsTurn(call.toolName, call.input)
         );
         if (endingCalls.length === 0) return undefined;
-        const history = await this.contextManager.getHistory();
+        const results = await this.contextManager.getToolResults(
+            endingCalls.map((call) => call.toolCallId)
+        );
         return endingCalls.find((call) =>
-            history.some(
-                (message) =>
-                    message.role === 'tool' &&
-                    message.toolCallId === call.toolCallId &&
-                    message.success !== false
+            results.some(
+                (message) => message.toolCallId === call.toolCallId && message.success !== false
             )
         );
     }
@@ -1782,6 +1786,12 @@ export class TurnExecutor {
     }
 
     private async runModelStep(request: ModelStepRequest): Promise<StreamProcessorResult> {
+        const hostRequiresToolCall = this.config.executionControl?.requiresToolCall;
+        const requiresToolCall =
+            hostRequiresToolCall !== undefined &&
+            Object.keys(request.tools).length > 0 &&
+            canRequireToolCall(this.llmContext.model, request.providerOptions) &&
+            (await hostRequiresToolCall({ sessionId: this.sessionId }));
         const streamProcessor = new StreamProcessor(
             this.contextManager,
             this.eventBus,
@@ -1814,6 +1824,7 @@ export class TurnExecutor {
                         stopWhen: stepCountIs(1),
                         maxRetries: 0,
                         tools: request.tools,
+                        ...(requiresToolCall && { toolChoice: 'required' as const }),
                         abortSignal,
                         messages: request.messages,
                         experimental_download: safeDownload,
@@ -1840,15 +1851,36 @@ export class TurnExecutor {
     private async runModelStepWithRetry(request: ModelStepRequest): Promise<StreamProcessorResult> {
         let failedAttempts = 0;
         let emptyResponseRetries = 0;
+        let attemptRequest = request;
+        // 'retried' once a rejected request went again without its media, until it succeeds.
+        let media: 'sent' | 'retried' | 'withheld' = 'sent';
         for (;;) {
             const historyLengthBefore = await this.contextManager.countModelMessages();
 
             let result: StreamProcessorResult;
             try {
-                result = await this.runModelStep(request);
+                result = await this.runModelStep(attemptRequest);
             } catch (error) {
                 const historyLengthAfter = await this.contextManager.countModelMessages();
                 const historyLengthChanged = historyLengthAfter !== historyLengthBefore;
+
+                // A rejected request that carried media is tried once more without it: the media
+                // is the likeliest cause, and the same history would fail every later turn too.
+                const withoutMedia =
+                    media === 'sent' &&
+                    !historyLengthChanged &&
+                    !this.stepAbortController.signal.aborted &&
+                    isRejectedModelRequest(error)
+                        ? withholdRequestMedia(attemptRequest.messages, error)
+                        : null;
+                if (withoutMedia !== null) {
+                    media = 'retried';
+                    attemptRequest = { ...attemptRequest, messages: withoutMedia };
+                    this.logger.warn('Retrying a rejected model request without its media', {
+                        error: this.mapProviderError(error),
+                    });
+                    continue;
+                }
 
                 if (
                     !this.canRetryModelRequest(error, historyLengthChanged) ||
@@ -1875,6 +1907,14 @@ export class TurnExecutor {
                     error: mappedError,
                 });
                 continue;
+            }
+
+            if (media === 'retried' && result.finishReason !== 'cancelled') {
+                media = 'withheld';
+                // The provider took the request once its media was gone: keep it out of every
+                // later request of this session.
+                const withheldCount = await this.contextManager.withholdModelMedia();
+                this.logger.warn('Withheld media the model provider rejected', { withheldCount });
             }
 
             if (!isEmptyModelResponse(result)) {

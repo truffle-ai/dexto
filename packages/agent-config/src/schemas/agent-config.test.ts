@@ -62,7 +62,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage.blob.type).toBe('in-memory');
 
             expect(result.sessions.maxSessions).toBe(100);
-            expect(result.permissions.mode).toBe('auto-approve');
+            expect(result.permissions.mode).toBe('full-access');
         });
 
         it('should preserve explicit values from composed schemas', () => {
@@ -107,7 +107,7 @@ describe('AgentConfigSchema', () => {
                     sessionTTL: 1_800_000,
                 },
                 permissions: {
-                    mode: 'auto-approve',
+                    mode: 'full-access',
                     timeout: 15_000,
                 },
             };
@@ -121,7 +121,7 @@ describe('AgentConfigSchema', () => {
             expect(result.llm.provider).toBe('anthropic');
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(5);
-            expect(result.permissions.mode).toBe('auto-approve');
+            expect(result.permissions.mode).toBe('full-access');
         });
     });
 
@@ -254,7 +254,7 @@ describe('AgentConfigSchema', () => {
                     sessionTTL: 7_200_000,
                 },
                 permissions: {
-                    mode: 'manual',
+                    mode: 'asks-you',
                     timeout: 45_000,
                     allowedToolsStorage: 'storage',
                 },
@@ -322,7 +322,7 @@ elicitation: {}
 
             expect(result.agentFile.discoverInCwd).toBe(true);
             expect(result.sessions.maxSessions).toBe(100);
-            expect(result.permissions.mode).toBe('auto-approve');
+            expect(result.permissions.mode).toBe('full-access');
             expect(result.permissions.allowedToolsStorage).toBe('storage');
             expect(result.elicitation.enabled).toBe(false);
 

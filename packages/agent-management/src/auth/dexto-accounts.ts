@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { withRefreshLock } from './refresh-lock.js';
 
 export const DEFAULT_PROFILE = 'default';
 
@@ -238,52 +239,81 @@ async function readCloudCliSignedInAs(
 }
 
 /** Where a command's credential came from, so `whoami` can say. */
-export type CredentialSource = 'flag' | 'environment' | 'login';
+export type CredentialSource = 'flag' | 'sign_in' | 'environment' | 'saved_key';
 
 export type Credential =
     | {
           readonly kind: 'api_key';
           readonly token: string;
-          readonly source: CredentialSource;
+          readonly source: 'flag' | 'environment' | 'saved_key';
           readonly profile: string;
       }
     | {
           readonly kind: 'oauth';
           readonly token: string;
-          readonly source: 'login';
+          readonly source: 'sign_in';
           readonly profile: string;
           readonly login: OAuthLogin;
       };
 
-export interface ResolveCredentialInput {
+export interface ChooseCredentialInput {
     readonly dir: string;
     /** The global --api-key value. */
     readonly apiKey: string | null;
     /** The global --profile value. */
     readonly profile: string | null;
     readonly environment: Readonly<Record<string, string | undefined>>;
-    readonly refresh: (login: OAuthLogin) => Promise<OAuthLogin>;
+}
+
+export interface ResolveCredentialInput extends ChooseCredentialInput {
+    readonly refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
 }
 
 /**
- * --api-key, then DEXTO_API_KEY, then the profile's saved login; null when signed out. A saved
- * sign-in is refreshed first when its access token has expired or is about to.
+ * The one order every command picks a credential in: --api-key, then the profile's saved sign-in,
+ * then DEXTO_API_KEY, then the profile's saved API key; null when signed out. So a DEXTO_API_KEY
+ * left in the environment never overrides a sign-in. A sign-in's token may be expired here:
+ * resolveCredential refreshes it.
  */
-export async function resolveCredential(input: ResolveCredentialInput): Promise<Credential | null> {
+export async function chooseCredential(input: ChooseCredentialInput): Promise<Credential | null> {
     const profile = await resolveProfile(input.dir, input.profile, input.environment);
     if (input.apiKey !== null)
         return { kind: 'api_key', token: input.apiKey, source: 'flag', profile };
-    const environmentKey = nonEmpty(input.environment.DEXTO_API_KEY);
+    const stored = await readLogin(input.dir, profile);
+    if (stored?.kind === 'oauth')
+        return {
+            kind: 'oauth',
+            token: stored.accessToken,
+            source: 'sign_in',
+            profile,
+            login: stored,
+        };
+    const environmentKey = nonEmpty(input.environment.DEXTO_API_KEY?.trim());
     if (environmentKey !== null)
         return { kind: 'api_key', token: environmentKey, source: 'environment', profile };
-    const stored = await readLogin(input.dir, profile);
     if (stored === null) return null;
-    if (stored.kind === 'api_key')
-        return { kind: 'api_key', token: stored.apiKey, source: 'login', profile };
-    const login = isExpiring(stored)
-        ? await refreshSaved(input.dir, profile, stored, input.refresh)
-        : stored;
-    return { kind: 'oauth', token: login.accessToken, source: 'login', profile, login };
+    return { kind: 'api_key', token: stored.apiKey, source: 'saved_key', profile };
+}
+
+/**
+ * The credential chooseCredential picks, with a sign-in refreshed first when its access token has
+ * expired or is about to.
+ */
+export async function resolveCredential(input: ResolveCredentialInput): Promise<Credential | null> {
+    const chosen = await chooseCredential(input);
+    if (chosen?.kind !== 'oauth' || !isExpiring(chosen.login)) return chosen;
+    const login = await refreshSaved(input.dir, chosen.profile, chosen.login, input.refresh);
+    return { ...chosen, token: login.accessToken, login };
+}
+
+/** The server refused a sign-in's refresh token: only signing in again, or a key, gets past it. */
+export class SignInExpired extends Error {
+    constructor(readonly profile: string | null) {
+        super(
+            `Your Dexto sign-in${profile === null ? '' : ` (profile ${profile})`} has expired. Run dexto login, or pass --api-key.`
+        );
+        this.name = 'SignInExpired';
+    }
 }
 
 const REFRESH_MARGIN_MS = 60_000;
@@ -292,29 +322,85 @@ function isExpiring(login: OAuthLogin): boolean {
     return Date.parse(login.expiresAt) - Date.now() < REFRESH_MARGIN_MS;
 }
 
+/** Refreshes in flight in this process, by login file, so concurrent requests share one. */
+const refreshesInFlight = new Map<string, Promise<OAuthLogin>>();
+/** refreshSaved ends every refresh by then, whatever its caller's own timeout. */
+const REFRESH_TIMEOUT_MS = 10_000;
+
 /**
- * Refreshes and saves the login. Refresh tokens rotate, so when another process refreshed the
- * same login first this refresh fails; the tokens that process saved are used instead.
+ * Refreshes and saves the login, one refresh at a time per login: refresh tokens rotate, and the
+ * server ends the sign-in when a rotated token is presented again outside its short grace window.
+ * Requests in this process share one refresh; other processes wait on a lock file beside the login
+ * and then use the tokens the first one saved.
  */
-async function refreshSaved(
+function refreshSaved(
     dir: string,
     profile: string,
     stored: OAuthLogin,
-    refresh: (login: OAuthLogin) => Promise<OAuthLogin>
+    refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>
 ): Promise<OAuthLogin> {
+    const file = loginFile(dir, profile);
+    const inFlight = refreshesInFlight.get(file);
+    if (inFlight !== undefined) return inFlight;
+    const refreshing = withRefreshLock(`${file.slice(0, -'.json'.length)}.refresh.lock`, () =>
+        refreshUnlessSaved(dir, profile, stored, refresh)
+    ).finally(() => refreshesInFlight.delete(file));
+    refreshesInFlight.set(file, refreshing);
+    return refreshing;
+}
+
+/**
+ * Uses the tokens another process saved since `stored` was read, or refreshes. When the refresh
+ * fails because another process without the lock (an older CLI) won the race, its saved tokens are
+ * used instead.
+ */
+async function refreshUnlessSaved(
+    dir: string,
+    profile: string,
+    stored: OAuthLogin,
+    refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>
+): Promise<OAuthLogin> {
+    const savedByOther = async () => {
+        const current = await readLogin(dir, profile);
+        return current?.kind === 'oauth' &&
+            current.refreshToken !== stored.refreshToken &&
+            !isExpiring(current)
+            ? current
+            : null;
+    };
+    const saved = await savedByOther();
+    if (saved !== null) return saved;
     try {
-        const refreshed = await refresh(stored);
+        const refreshed = await withDeadline(REFRESH_TIMEOUT_MS, (signal) =>
+            refresh(stored, signal)
+        );
         await writeLogin(dir, profile, refreshed);
         return refreshed;
     } catch (error) {
-        const current = await readLogin(dir, profile);
-        if (
-            current?.kind === 'oauth' &&
-            current.refreshToken !== stored.refreshToken &&
-            !isExpiring(current)
-        )
-            return current;
-        throw error;
+        const current = await savedByOther();
+        if (current !== null) return current;
+        throw error instanceof SignInExpired ? new SignInExpired(profile) : error;
+    }
+}
+
+/**
+ * Runs `work` with a signal that aborts after `ms`, and rejects then even if `work` ignores it, so
+ * no refresh outlives the lock it holds.
+ */
+async function withDeadline<T>(ms: number, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+            const error = new Error(`Refreshing the Dexto sign-in timed out after ${ms} ms.`);
+            controller.abort(error);
+            reject(error);
+        }, ms);
+    });
+    try {
+        return await Promise.race([work(controller.signal), deadline]);
+    } finally {
+        clearTimeout(timer);
     }
 }
 

@@ -75,7 +75,7 @@ storage:
 
 # Auto-approve all tools since they're read-only
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 # Tools - unified tool factory configuration (builtins + custom tool providers)

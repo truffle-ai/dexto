@@ -1,4 +1,5 @@
 import { paint } from '../signal/index.js';
+import { parseQuotedArguments } from '../host-rules.js';
 import type {
     StyledOutput,
     SendMessageMarker,
@@ -56,48 +57,6 @@ export interface CommandDefinition {
  * Used by commands in ALWAYS_OVERLAY that are handled entirely by the overlay system.
  */
 export const overlayOnlyHandler = async (): Promise<CommandHandlerResult> => true;
-
-/**
- * Parse arguments respecting quotes and escape sequences
- */
-function parseQuotedArguments(input: string): string[] {
-    const args: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    let quoteChar = '';
-    let i = 0;
-
-    while (i < input.length) {
-        const char = input[i];
-        const nextChar = input[i + 1];
-
-        if (!inQuotes && (char === '"' || char === "'")) {
-            inQuotes = true;
-            quoteChar = char;
-        } else if (inQuotes && char === quoteChar) {
-            inQuotes = false;
-            quoteChar = '';
-        } else if (!inQuotes && char === ' ') {
-            if (current) {
-                args.push(current);
-                current = '';
-            }
-        } else if (char === '\\' && nextChar) {
-            // Handle escape sequences
-            current += nextChar;
-            i++; // Skip next character
-        } else {
-            current += char;
-        }
-        i++;
-    }
-
-    if (current) {
-        args.push(current);
-    }
-
-    return args.filter((arg) => arg.length > 0);
-}
 
 /**
  * Parses user input to determine if it's a slash command, shell command, or regular prompt

@@ -86,7 +86,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 sessionTTL: 3600,
             }),
             permissions: PermissionsConfigSchema.parse({
-                mode: 'auto-approve',
+                mode: 'full-access',
                 timeout: 120000,
             }),
             elicitation: ElicitationConfigSchema.parse({
@@ -170,6 +170,57 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(agent.isStarted()).toBe(false);
             expect(agent.isStopped()).toBe(false);
         });
+    });
+
+    describe('Context Stats', () => {
+        test.each([
+            ['summary-1', true],
+            [null, false],
+        ])(
+            'reports hasSummary from the model history load (summary %s) without the full chat',
+            async (summaryMessageId, hasSummary) => {
+                const agent = createTestAgent(mockValidatedConfig);
+                const modelHistory = {
+                    messages: [],
+                    stats: { returnedMessages: 0, skippedPreSummaryMessages: 4, summaryMessageId },
+                };
+                const contextManager = {
+                    loadModelHistory: vi.fn().mockResolvedValue(modelHistory),
+                    getHistory: vi.fn(),
+                    getMaxInputTokens: vi.fn().mockReturnValue(128000),
+                    getContextTokenEstimate: vi.fn().mockResolvedValue({
+                        estimated: 10,
+                        actual: null,
+                        breakdown: {
+                            systemPrompt: 5,
+                            tools: { total: 0, perTool: [] },
+                            messages: 5,
+                        },
+                        stats: {
+                            originalMessageCount: 4,
+                            filteredMessageCount: 0,
+                            prunedToolCount: 0,
+                        },
+                    }),
+                };
+                mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                    getContextManager: () => contextManager,
+                    getLLMService: () => ({ getEnabledTools: vi.fn().mockResolvedValue({}) }),
+                });
+
+                await agent.start();
+                const stats = await agent.getContextStats('test-session');
+
+                expect(stats.hasSummary).toBe(hasSummary);
+                expect(contextManager.loadModelHistory).toHaveBeenCalledTimes(1);
+                expect(contextManager.getContextTokenEstimate).toHaveBeenCalledWith(
+                    {},
+                    {},
+                    modelHistory
+                );
+                expect(contextManager.getHistory).not.toHaveBeenCalled();
+            }
+        );
     });
 
     describe('Prompt Inspection', () => {
@@ -1054,6 +1105,36 @@ describe('DextoAgent Lifecycle Management', () => {
             await iterator.return?.();
             deferred.resolve();
             await Promise.resolve();
+        });
+
+        test('ends the iterator when session.stream settles without a run:complete event', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const sessionStream = vi.fn().mockResolvedValue({ text: '' });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+                isBusy: vi.fn().mockReturnValue(false),
+            });
+
+            await agent.start();
+
+            const cancel = new AbortController();
+            const disconnect = new AbortController();
+            cancel.abort();
+            const drain = async (message: string) => {
+                const events: StreamingEvent[] = [];
+                for await (const event of await agent.stream(message, 'test-session', {
+                    signal: cancel.signal,
+                    disconnectSignal: disconnect.signal,
+                })) {
+                    events.push(event);
+                }
+                return events;
+            };
+
+            await expect(drain('hello')).resolves.toEqual([]);
+            await expect(drain('again')).resolves.toEqual([]);
+            expect(sessionStream).toHaveBeenCalledTimes(2);
         });
 
         test('should reject a new stream after disconnect when the session is still busy', async () => {

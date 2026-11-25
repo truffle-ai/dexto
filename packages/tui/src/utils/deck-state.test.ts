@@ -83,13 +83,13 @@ describe('deckReadout', () => {
     });
 
     it('leads with the permission mode during a run, since Shift+Tab still changes it', () => {
-        const auto = { ...base, permission: 'auto-approve' };
-        expect(deckReadout('stream', auto)).toBe('auto-approve · 1.9K tokens · 12s');
+        const auto = { ...base, permission: 'full access' };
+        expect(deckReadout('stream', auto)).toBe('full access · 1.9K tokens · 12s');
         expect(deckReadout('tool', { ...auto, compacting: true })).toBe(
-            'auto-approve · compacting · 12s'
+            'full access · compacting · 12s'
         );
         expect(deckReadout('steer', { ...auto, steerCount: 1 })).toBe(
-            'auto-approve · 1 steer queued'
+            'full access · 1 steer queued'
         );
     });
 
@@ -109,11 +109,11 @@ describe('deckReadout', () => {
         expect(
             deckReadout('idle', {
                 ...base,
-                permission: 'auto-approve',
+                permission: 'full access',
                 reasoning: 'medium',
                 rateLimitHint: 'cap 95%',
             })
-        ).toBe('auto-approve · cap 95% · r:medium');
+        ).toBe('full access · cap 95% · r:medium');
     });
 
     it('shows the reasoning variant when idle, so Tab has visible feedback', () => {
@@ -167,29 +167,29 @@ describe('permissionLabel', () => {
         planModeActive: false,
         autoApproveEdits: false,
         bypassPermissions: false,
-        configuredMode: 'manual',
+        configuredMode: 'asks-you',
     };
 
-    it('is null for manual approvals', () => {
+    it('is null when Dexto asks you', () => {
         expect(permissionLabel(none)).toBeNull();
     });
 
-    it('shows an agent configured to auto-approve, with no session override', () => {
-        expect(permissionLabel({ ...none, configuredMode: 'auto-approve' })).toBe('auto-approve');
+    it('shows an agent configured for Full access, with no session override', () => {
+        expect(permissionLabel({ ...none, configuredMode: 'full-access' })).toBe('full access');
     });
 
     it('names the session mode first and keeps configured auto-approval beside it', () => {
-        const configured = { ...none, configuredMode: 'auto-approve' };
+        const configured = { ...none, configuredMode: 'full-access' };
         expect(permissionLabel({ ...configured, planModeActive: true })).toBe(
-            'plan mode · auto-approve'
+            'plan mode · full access'
         );
         expect(permissionLabel({ ...configured, autoApproveEdits: true })).toBe(
-            'accept edits · auto-approve'
+            'accept edits · full access'
         );
         expect(permissionLabel({ ...none, autoApproveEdits: true })).toBe('accept edits');
-        expect(permissionLabel({ ...none, bypassPermissions: true })).toBe('auto-approve');
+        expect(permissionLabel({ ...none, bypassPermissions: true })).toBe('full access');
         expect(permissionLabel({ ...configured, isShellMode: true })).toBe(
-            'shell mode · auto-approve'
+            'shell mode · full access'
         );
     });
 });

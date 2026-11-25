@@ -409,7 +409,7 @@ describe('TurnExecutor Integration Tests', () => {
         // Create real approval manager
         approvalManager = new ApprovalManager(
             {
-                permissions: { mode: 'auto-approve', timeout: 120000 },
+                permissions: { mode: 'full-access', timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             },
             logger,
@@ -427,7 +427,7 @@ describe('TurnExecutor Integration Tests', () => {
             mcpManager,
             approvalManager,
             mockAllowedToolsProvider,
-            'auto-approve',
+            'full-access',
             agentEventBus,
             { alwaysAllow: [] },
             [],
@@ -1012,7 +1012,7 @@ describe('TurnExecutor Integration Tests', () => {
                 "["llm:chunk",{"chunkType":"text","content":"n"}]",
                 "["llm:chunk",{"chunkType":"text","content":"g"}]",
                 "["llm:chunk",{"chunkType":"text","content":"."}]",
-                "["llm:response",{"content":"Checking.","reasoning":"Hm.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":251,"finishReason":"tool-calls"}]",
+                "["llm:response",{"content":"Checking.","reasoning":"Hm.","provider":"openai","model":"gpt-4","tokenUsage":{"inputTokens":100,"outputTokens":50,"totalTokens":150,"cacheReadTokens":0,"cacheWriteTokens":0},"messageId":"<id>","estimatedCost":0.006,"costBreakdown":{"inputUsd":0.003,"outputUsd":0.003,"reasoningUsd":0,"cacheReadUsd":0,"cacheWriteUsd":0,"totalUsd":0.006},"pricingStatus":"estimated","estimatedInputTokens":145,"finishReason":"tool-calls"}]",
                 "["llm:tool-call",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"args":{"value":"one"},"callId":"call-stream"}]",
                 "["llm:tool-result",{"toolName":"stream_tool","presentationSnapshot":{"version":1,"source":{"type":"local"},"header":{"title":"Stream Tool"}},"callId":"call-stream","success":true,"sanitized":{"content":[{"type":"text","text":"tool done"}],"meta":{"toolName":"stream_tool","toolCallId":"call-stream","success":true}},"rawResult":"tool done"}]",
                 "["llm:chunk",{"chunkType":"text","content":"D"}]",
@@ -1972,7 +1972,7 @@ describe('TurnExecutor Integration Tests', () => {
             const manualApprovalStore = createInMemorySessionApprovalStore(logger);
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -1998,7 +1998,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -2100,7 +2100,7 @@ describe('TurnExecutor Integration Tests', () => {
         it('appends an error tool result when approval handling throws', async () => {
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2115,7 +2115,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2198,7 +2198,7 @@ describe('TurnExecutor Integration Tests', () => {
             });
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2223,7 +2223,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2352,7 +2352,7 @@ describe('TurnExecutor Integration Tests', () => {
                 handler: ApprovalHandler,
                 tools: ReturnType<typeof siblingTools>['tools'],
                 approvals: ReturnType<typeof approvalStore>,
-                mode: 'manual' | 'auto-approve' = 'manual'
+                mode: 'asks-you' | 'full-access' = 'asks-you'
             ) => {
                 const processApprovals = new ApprovalManager(
                     {
@@ -2492,7 +2492,7 @@ describe('TurnExecutor Integration Tests', () => {
                     throw new ApprovalDeferredError(request.approvalId);
                 });
                 const firstDriver = await (
-                    await startSiblingProcess(deferringHandler, tools, approvals, 'auto-approve')
+                    await startSiblingProcess(deferringHandler, tools, approvals, 'full-access')
                 ).createDriver({ mcpManager }, { streaming: true });
                 await firstDriver.runNextModelStep();
                 const deferred = await firstDriver.executeToolCalls();
@@ -2519,7 +2519,7 @@ describe('TurnExecutor Integration Tests', () => {
                     status: ApprovalStatus.APPROVED,
                 }));
                 const resumedDriver = await (
-                    await startSiblingProcess(answeringHandler, tools, approvals, 'auto-approve')
+                    await startSiblingProcess(answeringHandler, tools, approvals, 'full-access')
                 ).createDriver({ mcpManager }, { streaming: true, state: savedState });
                 try {
                     expect(await resumedDriver.executeToolCalls()).toEqual({ kind: 'executed' });
@@ -2595,7 +2595,7 @@ describe('TurnExecutor Integration Tests', () => {
         it('fails a turn that cannot pause when its approval is deferred', async () => {
             const deferringApprovals = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2613,7 +2613,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2663,7 +2663,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalHandler = createPendingApprovalHandler();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2687,7 +2687,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2772,7 +2772,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalHandler = createPendingApprovalHandler();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2796,7 +2796,7 @@ describe('TurnExecutor Integration Tests', () => {
                 mcpManager,
                 manualApprovalManager,
                 allowedToolsProvider,
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -2884,7 +2884,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalHandler = createPendingApprovalHandler();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -2903,7 +2903,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [
@@ -3086,12 +3086,20 @@ describe('TurnExecutor Integration Tests', () => {
         it('ends the turn after a successful turn-ending tool call without another model step', async () => {
             toolManager.addTools([replyTool()]);
             vi.mocked(streamText).mockImplementationOnce(() => replyStep('call-reply', 'done'));
+            const getHistory = vi.spyOn(contextManager, 'getHistory');
+            const getToolResultsByCallId = vi.spyOn(conversationStore, 'getToolResultsByCallId');
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
             const result = await executorWith().execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('tool-ended');
             expect(streamText).toHaveBeenCalledTimes(1);
+            // The ending call is checked by its own result, not by reading the whole chat.
+            expect(getToolResultsByCallId).toHaveBeenCalledWith({
+                sessionId,
+                toolCallIds: ['call-reply'],
+            });
+            expect(getHistory).not.toHaveBeenCalled();
             expect(await contextManager.getHistory()).toContainEqual(
                 expect.objectContaining({ role: 'tool', toolCallId: 'call-reply', success: true })
             );
@@ -3184,6 +3192,97 @@ describe('TurnExecutor Integration Tests', () => {
                     metadata: { hostReminder: 'reply' },
                 })
             );
+        });
+
+        it('requires a tool call on every step when the host asks for one', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => replyStep('call-progress', 'working'))
+                .mockImplementationOnce(() => replyStep('call-final', 'done'));
+            const requiresToolCall = vi.fn(async () => true);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Long task' }]);
+            await executorWith({ requiresToolCall }).execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            for (const [options] of vi.mocked(streamText).mock.calls) {
+                expect(options.toolChoice).toBe('required');
+            }
+            expect(requiresToolCall).toHaveBeenCalledTimes(2);
+            expect(requiresToolCall).toHaveBeenCalledWith({ sessionId });
+        });
+
+        it('asks the host before each step, so input steered in after the answer can end in text', async () => {
+            let answered = false;
+            toolManager.addTools([
+                replyTool(
+                    vi.fn().mockImplementationOnce(async () => {
+                        answered = true;
+                        await steerQueue.enqueue({
+                            content: [{ type: 'text', text: 'Subagent finished; nothing new' }],
+                        });
+                        return { status: 'sent' };
+                    })
+                ),
+            ]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => replyStep('call-reply', 'done'))
+                .mockImplementationOnce(() => textStep('Nothing to add.'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            const result = await executorWith({
+                requiresToolCall: async () => !answered,
+            }).execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('stop');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(vi.mocked(streamText).mock.calls[0]?.[0].toolChoice).toBe('required');
+            expect(vi.mocked(streamText).mock.calls[1]?.[0]).not.toHaveProperty('toolChoice');
+        });
+
+        it('leaves the tool choice to the model by default', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText).mockImplementationOnce(() => replyStep('call-reply', 'done'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            await executorWith().execute({ mcpManager }, true);
+
+            expect(vi.mocked(streamText).mock.calls[0]?.[0]).not.toHaveProperty('toolChoice');
+        });
+
+        it('does not require a tool call when the step has no tools', async () => {
+            vi.mocked(streamText).mockImplementationOnce(() => textStep('Done.'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hi' }]);
+            await executorWith({ requiresToolCall: async () => true }).execute(
+                { mcpManager },
+                true
+            );
+
+            expect(vi.mocked(streamText).mock.calls[0]?.[0]).not.toHaveProperty('toolChoice');
+        });
+
+        it('does not require a tool call from Claude while it thinks', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText).mockImplementationOnce(() => replyStep('call-reply', 'done'));
+            const executor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, executionControl: { requiresToolCall: async () => true } },
+                { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(vi.mocked(streamText).mock.calls[0]?.[0]).not.toHaveProperty('toolChoice');
         });
 
         it('ends normally when beforeTurnEnd lets the turn end', async () => {
@@ -4481,6 +4580,38 @@ describe('TurnExecutor Integration Tests', () => {
                 isRetryable: input.isRetryable,
             });
 
+        it('records a failed model turn without rejecting the failure handler', async () => {
+            const providerError = apiCallError({
+                message: 'Your model connection could not complete the request.',
+                statusCode: 502,
+                isRetryable: false,
+            });
+            vi.mocked(streamText).mockImplementation(() => {
+                throw providerError;
+            });
+            const completeHandler = vi.fn();
+            sessionEventBus.on('run:complete', completeHandler);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                const failure = await driver.runNextModelStep().then(
+                    () => undefined,
+                    (error: unknown) => error
+                );
+                expect(failure).toBe(providerError);
+                await expect(driver.fail(failure)).resolves.toMatchObject({
+                    code: 'llm_generation_failed',
+                });
+                expect(completeHandler).toHaveBeenCalledTimes(1);
+                expect(completeHandler).toHaveBeenCalledWith(
+                    expect.objectContaining({ finishReason: 'error' })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('retries a retryable model request failure before terminal run failure', async () => {
             const retryableError = apiCallError({
                 message: 'Provider unavailable',
@@ -4559,9 +4690,15 @@ describe('TurnExecutor Integration Tests', () => {
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
-            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
-                code: 'llm_generation_failed',
-            });
+            const failure = await executor.execute({ mcpManager }, true).then(
+                () => undefined,
+                (error: unknown) => error
+            );
+            expect(failure).toMatchObject({ code: 'llm_generation_failed' });
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ error: failure })
+            );
+            expect(completeHandler.mock.calls[0]?.[0].error).toBe(failure);
 
             expect(streamText).toHaveBeenCalledTimes(3);
             expect(retryingHandler).toHaveBeenCalledTimes(2);
@@ -4576,6 +4713,60 @@ describe('TurnExecutor Integration Tests', () => {
                     finishReason: 'error',
                 })
             );
+        });
+
+        it('keeps a chat working after the provider rejects an image in its history', async () => {
+            const createImageModelExecutor = () =>
+                new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10 },
+                    { provider: 'openai', model: 'gpt-5.2' },
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                );
+            const carriesMedia = (messages: ModelMessage[] | undefined) =>
+                (messages ?? []).some(
+                    (message) =>
+                        message.role === 'user' &&
+                        Array.isArray(message.content) &&
+                        message.content.some((part) => part.type !== 'text')
+                );
+            vi.mocked(streamText).mockImplementation((options) => {
+                if (carriesMedia(options.messages)) {
+                    throw apiCallError({
+                        message: 'Image could not be decoded',
+                        statusCode: 400,
+                        isRetryable: false,
+                    });
+                }
+                return createMockStream({ text: 'Answer' }) as unknown as ReturnType<
+                    typeof streamText
+                >;
+            });
+
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'What is in this picture?' },
+                { type: 'image', image: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+            ]);
+            await createImageModelExecutor().execute({ mcpManager }, true);
+            await contextManager.addUserMessage([{ type: 'text', text: 'And now?' }]);
+            await createImageModelExecutor().execute({ mcpManager }, true);
+
+            const requests = vi.mocked(streamText).mock.calls.map(([options]) => options.messages);
+            expect(requests.map(carriesMedia)).toEqual([true, false, false]);
+            expect(JSON.stringify(requests[1])).toContain(
+                '[Image not read: the model provider could not open it because it is damaged or not a valid file.'
+            );
+            const history = await contextManager.getHistory();
+            expect(history.find((message) => message.role === 'user')).toMatchObject({
+                mediaWithheldAt: expect.any(Number),
+            });
         });
 
         it('does not retry non-retryable model request failures', async () => {
@@ -4886,27 +5077,18 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Stalled model streams', () => {
-        const stalledAfter = (events: Array<{ type: string; [key: string]: unknown }>) =>
+        const stalledAfter = (
+            events: Array<{ type: string; [key: string]: unknown }>,
+            readStarted: () => void
+        ) =>
             ({
                 fullStream: (async function* () {
                     yield* events;
+                    readStarted();
                     // A provider socket that stays open and never sends again, even when aborted.
                     await new Promise(() => {});
                 })(),
             }) as unknown as ReturnType<typeof streamText>;
-
-        /** Advances fake time in small steps so timers set after async work still fire. */
-        const settleWithin = async <T>(execution: Promise<T>, ms: number): Promise<T> => {
-            let settled = false;
-            const observed = execution.finally(() => {
-                settled = true;
-            });
-            observed.catch(() => {});
-            for (let elapsed = 0; elapsed < ms && !settled; elapsed += 1_000) {
-                await vi.advanceTimersByTimeAsync(1_000);
-            }
-            return observed;
-        };
 
         beforeEach(() => {
             vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
@@ -4917,8 +5099,9 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('retries a model stream that goes silent before any output', async () => {
+            const readStarted = createDeferred<void>();
             vi.mocked(streamText)
-                .mockImplementationOnce(() => stalledAfter([]))
+                .mockImplementationOnce(() => stalledAfter([], readStarted.resolve))
                 .mockImplementationOnce(
                     () =>
                         createMockStream({
@@ -4930,10 +5113,14 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus.on('llm:retrying', retryingHandler);
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            const result = await settleWithin(
-                executor.execute({ mcpManager }, true),
-                2 * MODEL_STREAM_IDLE_TIMEOUT_MS
+            const execution = executor.execute({ mcpManager }, true);
+            await waitForDeferredBoundary(
+                readStarted.promise,
+                execution,
+                'Stream ended before stalling'
             );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS);
+            const result = await execution;
 
             expect(result.text).toBe('Recovered');
             expect(streamText).toHaveBeenCalledTimes(2);
@@ -4947,37 +5134,47 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('fails with a clear error when a model stream goes silent after output', async () => {
+            const readStarted = createDeferred<void>();
             vi.mocked(streamText).mockImplementation(() =>
-                stalledAfter([{ type: 'text-delta', text: 'Partial answer' }])
+                stalledAfter([{ type: 'text-delta', text: 'Partial answer' }], readStarted.resolve)
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            await expect(
-                settleWithin(
-                    executor.execute({ mcpManager }, true),
-                    2 * MODEL_STREAM_IDLE_TIMEOUT_MS
-                )
-            ).rejects.toMatchObject({
+            const execution = executor.execute({ mcpManager }, true);
+            const result = expect(execution).rejects.toMatchObject({
                 code: 'llm_stream_stalled',
                 type: 'third_party',
             });
+            await waitForDeferredBoundary(
+                readStarted.promise,
+                execution,
+                'Stream ended before stalling'
+            );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS);
+            await result;
 
             expect(streamText).toHaveBeenCalledTimes(1);
         });
 
         it('keeps a stream that pauses for less than the idle limit', async () => {
+            const firstPause = createDeferred<void>();
+            const secondPause = createDeferred<void>();
             vi.mocked(streamText).mockImplementation(
                 () =>
                     ({
                         fullStream: (async function* () {
                             yield { type: 'reasoning-delta', text: 'Thinking' };
-                            await new Promise((resolve) =>
+                            const firstDelay = new Promise((resolve) =>
                                 setTimeout(resolve, MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000)
                             );
+                            firstPause.resolve();
+                            await firstDelay;
                             yield { type: 'text-delta', text: 'Done' };
-                            await new Promise((resolve) =>
+                            const secondDelay = new Promise((resolve) =>
                                 setTimeout(resolve, MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000)
                             );
+                            secondPause.resolve();
+                            await secondDelay;
                             yield {
                                 type: 'finish',
                                 finishReason: 'stop',
@@ -4988,14 +5185,24 @@ describe('TurnExecutor Integration Tests', () => {
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            const result = await settleWithin(
-                executor.execute({ mcpManager }, true),
-                3 * MODEL_STREAM_IDLE_TIMEOUT_MS
+            const execution = executor.execute({ mcpManager }, true);
+            await waitForDeferredBoundary(
+                firstPause.promise,
+                execution,
+                'Stream ended before first pause'
             );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000);
+            await waitForDeferredBoundary(
+                secondPause.promise,
+                execution,
+                'Stream ended before second pause'
+            );
+            await vi.advanceTimersByTimeAsync(MODEL_STREAM_IDLE_TIMEOUT_MS - 1_000);
+            const result = await execution;
 
             expect(result.text).toBe('Done');
             expect(streamText).toHaveBeenCalledTimes(1);
-        });
+        }, 15_000);
     });
 
     describe('Empty replies', () => {
@@ -5437,7 +5644,7 @@ describe('TurnExecutor Integration Tests', () => {
             const approvalStarted = createDeferred<void>();
             const manualApprovalManager = new ApprovalManager(
                 {
-                    permissions: { mode: 'manual', timeout: 120000 },
+                    permissions: { mode: 'asks-you', timeout: 120000 },
                     elicitation: { enabled: false, timeout: 120000 },
                 },
                 logger,
@@ -5458,7 +5665,7 @@ describe('TurnExecutor Integration Tests', () => {
                     allowTool: vi.fn(),
                     disallowTool: vi.fn(),
                 },
-                'manual',
+                'asks-you',
                 agentEventBus,
                 { alwaysAllow: [] },
                 [

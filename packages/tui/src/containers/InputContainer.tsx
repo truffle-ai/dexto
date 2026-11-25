@@ -29,6 +29,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { captureAnalytics } from '../host/index.js';
 import { getOverlayPresentation } from '../utils/overlayPresentation.js';
+import { PLAN_MODE_PROMPT, withPlanMode } from '../host-rules.js';
 import {
     supportsAttachments,
     supportsReasoningCycle,
@@ -930,12 +931,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         let messageText = trimmed;
                         if (ui.planModeActive && !ui.planModeInitialized) {
                             try {
-                                const planSkill = await agent.resolvePrompt(
-                                    'config:dexto-plan-mode',
-                                    {}
-                                );
+                                const planSkill = await agent.resolvePrompt(PLAN_MODE_PROMPT, {});
                                 if (planSkill.text) {
-                                    messageText = `<plan-mode>\n${planSkill.text}\n</plan-mode>\n\n${trimmed}`;
+                                    messageText = withPlanMode(trimmed, planSkill.text);
                                     // Mark plan mode as initialized after injection
                                     setUi((prev) => ({ ...prev, planModeInitialized: true }));
                                 }

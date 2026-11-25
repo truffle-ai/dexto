@@ -46,7 +46,7 @@ mcpServers:
       OPENAI_API_KEY: $OPENAI_API_KEY
 
 permissions:
-  mode: "auto-approve"
+  mode: full-access
   allowedToolsStorage: "memory"
 
 llm:

@@ -4,19 +4,69 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 import { z } from 'zod';
-import { type OAuthLogin, SignedInAsSchema } from './dexto-accounts.js';
+import { type OAuthLogin, SignedInAsSchema, SignInExpired } from './dexto-accounts.js';
 
 /** Dexto's pre-registered public client for this CLI: no secret, no registration. */
 export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
 
+/**
+ * Every scope the Dexto CLI names itself: the base `cloud:read`, what its commands require before
+ * calling Cloud (and tell people to sign in again with), and Chat sync's `chats:sync`. Cloud's
+ * device and browser sign-in must accept each one; its drift test imports this list.
+ */
+export const CLI_LOGIN_SCOPES = [
+    'applications:read',
+    'apps:execute',
+    'apps:read',
+    'apps:write',
+    'artifacts:read',
+    'artifacts:write',
+    'autobots:read',
+    'autobots:write',
+    'automations:read',
+    'automations:write',
+    'chats:sync',
+    'cloud:read',
+    'cloud:write',
+    'computers:read',
+    'computers:write',
+    'connections:read',
+    'contacts:read',
+    'contacts:write',
+    'drive:read',
+    'drive:write',
+    'functions:read',
+    'functions:write',
+    'marketplace:read',
+    'marketplace:write',
+    'messages:read',
+    'messages:write',
+    'network:read',
+    'network:write',
+    'notifications:read',
+    'notifications:write',
+    'projects:read',
+    'projects:write',
+    'runs:read',
+    'sessions:read',
+    'sessions:write',
+    'sites:read',
+    'sites:write',
+    'skills:read',
+    'skills:write',
+] as const;
+
+/** A scope the CLI asks for by name. */
+export type CliLoginScope = (typeof CLI_LOGIN_SCOPES)[number];
+
 /** Ask once for Project chats and their output; Loops and direct computer writes are step-ups. */
-const BASE_TASK_SCOPES = [
+const BASE_TASK_SCOPES: readonly CliLoginScope[] = [
     'cloud:read',
     'runs:read',
     'artifacts:read',
     'sessions:write',
     'projects:write',
-] as const;
+];
 
 const DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
@@ -391,8 +441,7 @@ export async function refreshSignIn(
             resource: login.resource,
         });
     } catch (error) {
-        if (error instanceof OAuthHttpError && error.status === 400)
-            throw new Error('Your Dexto sign-in has expired. Run dexto login again.');
+        if (error instanceof OAuthHttpError && error.status === 400) throw new SignInExpired(null);
         throw error;
     }
     const tokens = TokenResponseSchema.parse(body);

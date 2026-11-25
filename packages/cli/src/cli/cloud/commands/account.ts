@@ -147,7 +147,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
     const modelsList: Command = {
         path: ['models', 'list'],
         summary:
-            'List the Dexto gateway catalog as dexto/<model>. For chat models available to your account, run dexto workspace chat models.',
+            'List the Dexto gateway catalog as dexto/<model>. For chat models available to your account, run dexto chat models.',
         async run(context) {
             const models = await unwrap(await (await context.client()).GET('/v1/models'));
             context.output.list(

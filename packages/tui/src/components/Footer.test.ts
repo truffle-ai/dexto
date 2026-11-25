@@ -7,45 +7,45 @@ import type { TuiAgentBackend } from '../agent-backend.js';
 import { setTuiRuntimeServices } from '../host/index.js';
 
 describe('configured approval policy in the TUI footer', () => {
-    it.each(['manual', 'auto-approve'])(
-        'shows %s independently of session shortcuts',
-        async (mode) => {
-            const stdout = Object.assign(new PassThrough(), {
-                columns: 120,
-                rows: 40,
-                isTTY: false,
-            });
-            let output = '';
-            stdout.on('data', (chunk) => {
-                output += String(chunk);
-            });
-            const agent = {
-                capabilities: { contextStats: false },
-                getEffectiveConfig: () => ({ permissions: { mode } }),
-            } as unknown as TuiAgentBackend;
-            const view = render(
-                createElement(Footer, {
-                    agent,
-                    sessionId: null,
-                    modelName: 'test-model',
-                    autoApproveEdits: true,
-                }),
-                {
-                    stdout: stdout as unknown as NodeJS.WriteStream,
-                    debug: true,
-                    patchConsole: false,
-                    exitOnCtrlC: false,
-                }
-            );
-            try {
-                await vi.waitFor(() => expect(output).toContain(`approvals: ${mode}`));
-                expect(output).toContain('accept edits');
-            } finally {
-                view.unmount();
-                stdout.destroy();
+    it.each([
+        ['asks-you', 'Asks you'],
+        ['full-access', 'Full access'],
+    ])('shows %s as "%s" independently of session shortcuts', async (mode, label) => {
+        const stdout = Object.assign(new PassThrough(), {
+            columns: 120,
+            rows: 40,
+            isTTY: false,
+        });
+        let output = '';
+        stdout.on('data', (chunk) => {
+            output += String(chunk);
+        });
+        const agent = {
+            capabilities: { contextStats: false },
+            getEffectiveConfig: () => ({ permissions: { mode } }),
+        } as unknown as TuiAgentBackend;
+        const view = render(
+            createElement(Footer, {
+                agent,
+                sessionId: null,
+                modelName: 'test-model',
+                autoApproveEdits: true,
+            }),
+            {
+                stdout: stdout as unknown as NodeJS.WriteStream,
+                debug: true,
+                patchConsole: false,
+                exitOnCtrlC: false,
             }
+        );
+        try {
+            await vi.waitFor(() => expect(output).toContain(`permissions: ${label}`));
+            expect(output).toContain('accept edits');
+        } finally {
+            view.unmount();
+            stdout.destroy();
         }
-    );
+    });
 });
 
 describe('Dexto credits in the TUI footer', () => {
@@ -58,7 +58,7 @@ describe('Dexto credits in the TUI footer', () => {
         });
         const agent = {
             capabilities: { contextStats: false },
-            getEffectiveConfig: () => ({ permissions: { mode: 'manual' } }),
+            getEffectiveConfig: () => ({ permissions: { mode: 'asks-you' } }),
             getCurrentLLMConfig: () => ({ provider, model: 'openai/gpt-5' }),
             on: () => undefined,
         } as unknown as TuiAgentBackend;
@@ -72,7 +72,7 @@ describe('Dexto credits in the TUI footer', () => {
             }
         );
         try {
-            await vi.waitFor(() => expect(output).toContain('approvals: manual'));
+            await vi.waitFor(() => expect(output).toContain('permissions: Asks you'));
             await new Promise((resolve) => setTimeout(resolve, 20));
             return output;
         } finally {

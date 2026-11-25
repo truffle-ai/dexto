@@ -85,6 +85,11 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             if (err instanceof ExitSignal) {
                 const exitCode = err.code ?? 0;
                 process.exitCode = exitCode;
+                // Exit only once stdout and stderr have reached the OS: on a pipe they are
+                // asynchronous, and exiting first cuts a large --json output short (DEXTO-3501).
+                // Start now, before recording analytics: its I/O gives an early-closing reader's
+                // EPIPE time to arrive, and the flush must already be listening for it.
+                const output = Promise.all([flushed(process.stdout), flushed(process.stderr)]);
                 try {
                     const endMeta: Partial<
                         Omit<CliCommandEndEvent, 'name' | 'phase' | 'success' | 'durationMs'>
@@ -101,7 +106,7 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                 } catch {
                     // Ignore analytics errors when propagating ExitSignal.
                 }
-                // Actually exit the process after analytics
+                await output;
                 process.exit(exitCode);
             }
             try {
@@ -118,6 +123,20 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             if (timeout) clearTimeout(timeout);
         }
     };
+}
+
+/** Resolves once everything written to the stream so far has been handed to the OS. */
+function flushed(stream: NodeJS.WriteStream): Promise<void> {
+    // Nothing queued: write nothing. A zero-length write to a pipe whose reader has gone can
+    // raise EPIPE on macOS and crash `dexto ... --json | head -1`.
+    if (stream.writableLength === 0) return Promise.resolve();
+    // Writes complete in order, so an empty write's callback runs after every earlier write's.
+    // When the reader has gone (`| head`), a queued write fails with EPIPE and the stream emits
+    // 'error'; nothing can be flushed then, so take that as done instead of crashing the exit.
+    return new Promise((resolve) => {
+        stream.once('error', () => resolve());
+        stream.write('', () => resolve());
+    });
 }
 
 export class ExitSignal extends Error {

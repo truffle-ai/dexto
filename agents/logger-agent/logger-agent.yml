@@ -72,7 +72,7 @@ storage:
 
 # Tool confirmation settings
 permissions:
-  mode: manual
+  mode: asks-you
   # timeout: omitted = infinite wait
   allowedToolsStorage: memory
 

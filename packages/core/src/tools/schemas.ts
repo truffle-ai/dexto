@@ -1,13 +1,60 @@
 import { z } from 'zod';
 export { ToolIdentitySchema } from './identity.js';
 
-export const PERMISSIONS_MODES = ['manual', 'auto-approve'] as const;
+/**
+ * Permission modes, matching the hosted app:
+ * - `full-access` ("Full access"): tools run without asking.
+ * - `asks-you` ("Asks you"): the agent asks before file edits, shell commands and other
+ *   approval-sensitive actions.
+ */
+export const PERMISSIONS_MODES = ['full-access', 'asks-you'] as const;
 export type PermissionsMode = (typeof PERMISSIONS_MODES)[number];
+
+export const PERMISSIONS_MODE_LABELS: Readonly<Record<PermissionsMode, string>> = {
+    'full-access': 'Full access',
+    'asks-you': 'Asks you',
+};
+
+/**
+ * Deprecated mode values and the mode each one maps to. Accepted for one release, then removed.
+ */
+export const LEGACY_PERMISSIONS_MODES = {
+    manual: 'asks-you',
+    'auto-approve': 'full-access',
+} as const satisfies Record<string, PermissionsMode>;
+export type LegacyPermissionsMode = keyof typeof LEGACY_PERMISSIONS_MODES;
+
+function isLegacyPermissionsMode(value: unknown): value is LegacyPermissionsMode {
+    return typeof value === 'string' && Object.hasOwn(LEGACY_PERMISSIONS_MODES, value);
+}
+
+/**
+ * Returns the deprecation warning for an old `permissions.mode` value, or null when the value is
+ * not deprecated. Hosts print it where they read raw config or flags.
+ */
+export function getDeprecatedPermissionsModeWarning(value: unknown): string | null {
+    if (!isLegacyPermissionsMode(value)) {
+        return null;
+    }
+    const replacement = LEGACY_PERMISSIONS_MODES[value];
+    return `Permissions mode "${value}" is deprecated; use "${replacement}" (${PERMISSIONS_MODE_LABELS[replacement]}) instead. "${value}" will stop working in the next release.`;
+}
+
+/** Maps a current or deprecated mode value to the current mode. */
+export function resolvePermissionsMode(
+    value: PermissionsMode | LegacyPermissionsMode
+): PermissionsMode {
+    return isLegacyPermissionsMode(value) ? LEGACY_PERMISSIONS_MODES[value] : value;
+}
+
+const PermissionsModeSchema = z
+    .enum([...PERMISSIONS_MODES, 'manual', 'auto-approve'])
+    .transform(resolvePermissionsMode);
 
 export const ALLOWED_TOOLS_STORAGE_TYPES = ['memory', 'storage'] as const;
 export type AllowedToolsStorageType = (typeof ALLOWED_TOOLS_STORAGE_TYPES)[number];
 
-export const DEFAULT_PERMISSIONS_MODE: PermissionsMode = 'auto-approve';
+export const DEFAULT_PERMISSIONS_MODE: PermissionsMode = 'full-access';
 export const DEFAULT_ALLOWED_TOOLS_STORAGE: AllowedToolsStorageType = 'storage';
 
 // Tool policies schema - static allow list for fine-grained approval control
@@ -28,10 +75,9 @@ export type ToolPolicies = z.output<typeof ToolPoliciesSchema>;
 
 export const PermissionsConfigSchema = z
     .object({
-        mode: z
-            .enum(PERMISSIONS_MODES)
-            .default(DEFAULT_PERMISSIONS_MODE)
-            .describe('Tool permissions mode: manual (interactive), auto-approve (all tools)'),
+        mode: PermissionsModeSchema.default(DEFAULT_PERMISSIONS_MODE).describe(
+            'Tool permissions mode: full-access (Full access: tools run without asking) or asks-you (Asks you: asks before file edits, shell commands and other approval-sensitive actions). The deprecated values auto-approve and manual map to full-access and asks-you.'
+        ),
         timeout: z
             .number()
             .int()
@@ -76,7 +122,7 @@ export const ElicitationConfigSchema = z
     })
     .strict()
     .describe(
-        'Elicitation configuration for user input requests. Independent from tool permissions mode, allowing auto-approve for tools while still supporting elicitation.'
+        'Elicitation configuration for user input requests. Independent from tool permissions mode, allowing Full access for tools while still supporting elicitation.'
     );
 
 export type ElicitationConfig = z.input<typeof ElicitationConfigSchema>;

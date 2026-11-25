@@ -53,18 +53,14 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'anthropic.claude-haiku-4-5-20251001-v1:0',
         'amazon.nova-pro-v1:0',
     ],
+    // Only models the Dexto gateway serves (`GET /v1/models`); it rejects any other id with a 400.
+    // dexto-cloudflare's picker-models test fails when one here is not served there (DEXTO-3551).
     'dexto-nova': [
-        'anthropic/claude-haiku-4.5',
-        'anthropic/claude-sonnet-4.5',
-        'anthropic/claude-opus-4.5',
-        'openai/gpt-5.2',
-        'openai/gpt-5.2-codex',
-        'google/gemini-3.1-pro-preview',
-        'google/gemini-3-flash-preview',
-        'qwen/qwen3-coder:free',
-        'deepseek/deepseek-r1-0528',
-        'z-ai/glm-4.7',
-        'minimax/minimax-m2.5',
-        'moonshotai/kimi-k2.5',
+        'anthropic/claude-sonnet-5',
+        'openai/gpt-5.6-sol',
+        'openai/gpt-5.6-terra',
+        'openai/gpt-5.6-luna',
+        'moonshotai/kimi-k3',
+        'minimax/minimax-m3',
     ],
 };

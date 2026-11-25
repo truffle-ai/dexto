@@ -1,5 +1,98 @@
 # @dexto/agent-config
 
+## 1.19.10
+
+### Patch Changes
+
+- Updated dependencies [db49ce8]
+    - @dexto/core@1.19.10
+    - @dexto/storage@1.19.10
+
+## 1.19.9
+
+### Patch Changes
+
+- Updated dependencies [d688240]
+    - @dexto/core@1.19.9
+    - @dexto/storage@1.19.9
+
+## 1.19.8
+
+### Patch Changes
+
+- Updated dependencies [98eb8fb]
+    - @dexto/core@1.19.8
+    - @dexto/storage@1.19.8
+
+## 1.19.7
+
+### Patch Changes
+
+- Updated dependencies [ee6dfd5]
+    - @dexto/core@1.19.7
+    - @dexto/storage@1.19.7
+
+## 1.19.6
+
+### Patch Changes
+
+- Updated dependencies [234787b]
+- Updated dependencies [197b5f5]
+    - @dexto/core@1.19.6
+    - @dexto/storage@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- Updated dependencies [eec24ce]
+    - @dexto/core@1.19.5
+    - @dexto/storage@1.19.5
+
+## 1.19.4
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/storage@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- Updated dependencies [023c262]
+    - @dexto/core@1.19.3
+    - @dexto/storage@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- @dexto/core@1.19.2
+- @dexto/storage@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/storage@1.19.1
+
+## 1.19.0
+
+### Patch Changes
+
+- Updated dependencies [46915b1]
+- Updated dependencies [d57b42d]
+- Updated dependencies [e229d40]
+- Updated dependencies [110d8e5]
+    - @dexto/core@1.19.0
+    - @dexto/storage@1.19.0
+
 ## 1.18.1
 
 ### Patch Changes

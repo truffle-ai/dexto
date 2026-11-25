@@ -45,6 +45,19 @@ export type LLMExecutionControl = {
      * for example reminding the model once to deliver its answer.
      */
     beforeTurnEnd?: ((context: BeforeTurnEndContext) => Promise<BeforeTurnEndDecision>) | undefined;
+    /**
+     * Asked before each model step that has tools: `true` makes the step call one, for hosts where
+     * plain text is never shown and a tool ends the turn. Asked per step because the answer can
+     * change within a turn: input steered in after a turn-ending tool continues the turn, and a
+     * host that has its answer can let that step end in text. Steps whose model cannot be forced
+     * (Claude while it thinks) leave the choice to the model, so keep `beforeTurnEnd` as the
+     * fallback.
+     */
+    requiresToolCall?: ((context: RequiresToolCallContext) => Promise<boolean>) | undefined;
+};
+
+export type RequiresToolCallContext = {
+    sessionId: string;
 };
 
 export type BeforeTurnEndContext = {

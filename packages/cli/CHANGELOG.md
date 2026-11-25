@@ -1,5 +1,304 @@
 # dexto
 
+## 2.5.3
+
+### Patch Changes
+
+- 97ca497: Show the server-provided Site address and create or update action before publishing, and support a dry run.
+- 8792614: Cloud commands now refuse an argument past their last one instead of dropping it. `dexto workspace call <tool> '<json>'` used to call the tool with `{}`; it now exits 2 and says to pass the body with `--data '<json>'`.
+- Updated dependencies [db49ce8]
+- Updated dependencies [97ca497]
+    - @dexto/core@1.19.10
+    - @dexto/cloud-client@1.19.10
+    - @dexto/agent-config@1.19.10
+    - @dexto/agent-management@1.19.10
+    - @dexto/analytics@1.19.10
+    - @dexto/client-sdk@1.19.10
+    - @dexto/image-local@1.19.10
+    - @dexto/image-logger-agent@1.19.10
+    - @dexto/storage@1.19.10
+    - @dexto/tui@1.19.10
+    - @dexto/llm@1.19.10
+    - @dexto/registry@1.19.10
+
+## 2.5.2
+
+### Patch Changes
+
+- Updated dependencies [d688240]
+    - @dexto/core@1.19.9
+    - @dexto/agent-config@1.19.9
+    - @dexto/agent-management@1.19.9
+    - @dexto/analytics@1.19.9
+    - @dexto/client-sdk@1.19.9
+    - @dexto/image-local@1.19.9
+    - @dexto/image-logger-agent@1.19.9
+    - @dexto/storage@1.19.9
+    - @dexto/tui@1.19.9
+    - @dexto/llm@1.19.9
+    - @dexto/cloud-client@1.19.9
+    - @dexto/registry@1.19.9
+
+## 2.5.1
+
+### Patch Changes
+
+- Updated dependencies [98eb8fb]
+    - @dexto/core@1.19.8
+    - @dexto/agent-config@1.19.8
+    - @dexto/agent-management@1.19.8
+    - @dexto/analytics@1.19.8
+    - @dexto/client-sdk@1.19.8
+    - @dexto/image-local@1.19.8
+    - @dexto/image-logger-agent@1.19.8
+    - @dexto/storage@1.19.8
+    - @dexto/tui@1.19.8
+    - @dexto/llm@1.19.8
+    - @dexto/cloud-client@1.19.8
+    - @dexto/registry@1.19.8
+
+## 2.5.0
+
+### Minor Changes
+
+- d568625: Add `dexto apps list`, `get` and `uninstalled` to see the Dexto Apps available to you, one App's actions and launch URL, and the data kept for Apps you uninstalled.
+
+### Patch Changes
+
+- 1f9b644: `dexto publish --visibility restricted` publishes a Site that only you, Owners, Admins and people you share it with can open. The help and error text list the four visibilities, and the result says who can open the Site. The client's Site types include the `restricted` visibility.
+- Updated dependencies [1f9b644]
+- Updated dependencies [ee6dfd5]
+    - @dexto/cloud-client@1.19.7
+    - @dexto/core@1.19.7
+    - @dexto/agent-config@1.19.7
+    - @dexto/agent-management@1.19.7
+    - @dexto/analytics@1.19.7
+    - @dexto/client-sdk@1.19.7
+    - @dexto/image-local@1.19.7
+    - @dexto/image-logger-agent@1.19.7
+    - @dexto/storage@1.19.7
+    - @dexto/tui@1.19.7
+    - @dexto/llm@1.19.7
+    - @dexto/registry@1.19.7
+
+## 2.4.0
+
+### Minor Changes
+
+- 234787b: `dexto acp` offers the Dexto account's models and reasoning effort, explains a model that needs a key or sign-in, and starts on the saved model even with `--agent`. A saved model on another provider no longer keeps the agent's endpoint or key. Installed agents that still enable `invoke_skill` load with `skill_load`. A model switch to another provider no longer keeps the previous provider's `baseURL`.
+- 1b3fe94: `dexto acp` sessions offer the TUI's four modes (Asks you, Plan, Accept edits, Full access), list and run the agent's slash commands, and report context usage after each turn. `@dexto/tui` exports the shared rules as `@dexto/tui/host-rules`.
+- e5b010d: `dexto acp` offers **Sign in to Dexto** to ACP apps that can open a terminal, which runs `dexto login --scope cloud:write`. New `dexto acp login` is the same as `dexto login`.
+
+### Patch Changes
+
+- aa8605d: `dexto acp` withdraws a tool permission request left unanswered past `permissions.timeout`, or when its turn is cancelled.
+- 4d958f5: `dexto cloud import` redacts a quoted password or secret whole, spaces included, before it uploads a chat (DEXTO-3596).
+- Updated dependencies [234787b]
+- Updated dependencies [1b3fe94]
+- Updated dependencies [197b5f5]
+    - @dexto/agent-management@1.19.6
+    - @dexto/core@1.19.6
+    - @dexto/tui@1.19.6
+    - @dexto/analytics@1.19.6
+    - @dexto/image-local@1.19.6
+    - @dexto/image-logger-agent@1.19.6
+    - @dexto/agent-config@1.19.6
+    - @dexto/client-sdk@1.19.6
+    - @dexto/storage@1.19.6
+    - @dexto/llm@1.19.6
+    - @dexto/cloud-client@1.19.6
+    - @dexto/registry@1.19.6
+
+## 2.3.0
+
+### Minor Changes
+
+- ed1c456: Add `dexto applications list`, `get`, `release` and `logs` to inspect your managed Applications, one release, and its bounded, redacted logs.
+- 0689ed2: Add `dexto autobots` commands to list your AutoBots, read their configuration and status, and save, publish, answer and message them.
+- af8f5d5: `dexto acp` asks `ask_user` questions and MCP elicitations as ACP forms when the client supports them. When it cannot show the form, `ask_user` tells the model to ask in chat, and an MCP elicitation is declined.
+- 304d911: Add `dexto acp`, which serves the Dexto agent over the Agent Client Protocol on stdio so ACP clients such as T3 Code and Zed can drive it: sessions, streamed replies and tool calls, permission requests, cancel and model selection.
+- bf5ec0e: `dexto acp` lists, resumes and closes sessions, and titles a session after its first prompt.
+- d0f3d0f: `dexto acp` shows file edits as ACP diffs (also in permission requests), shell results as the command with its output, and tool kinds from Dexto's activity categories.
+- 606fcc5: Add `dexto docs search` and `dexto docs read` to search Dexto's public documentation and read a page as Markdown.
+- 2792485: Add `dexto loops list` and `dexto loops get` to inspect your account's, an agent's or a Project's Loops and their runs over the Dexto MCP (DEXTO-3482).
+- 9c1b4ce: Add `dexto workspace share access <kind> <id>` to see who can open something you own (its organization, people, public link and access level), and `dexto workspace share received [--kind]` to list what others shared with you, newest first, with invitations you have not answered.
+- 754aca2: Fork a cloud chat from the terminal with `dexto chat fork`, optionally choosing the message to fork through.
+- 368e293: Read your cloud chats from the terminal: `dexto chat list` lists and searches them, `dexto chat get` reads one's messages, and `dexto chat models` lists the models a chat can use. `dexto chat list --local` lists this machine's chats, which `dexto chat list` showed before. `dexto chat follow` and `dexto chat outputs` now run from `dexto` itself.
+- e7b851c: Continue and stop a cloud chat from the terminal: `dexto chat send` messages a chat (steering its current turn, or after it with `--follow-up`; `--wait` follows the answer), and `dexto chat cancel` stops its current run.
+- 95e5daa: Add `dexto chat share <chat-id> private|view|prompt` to set who in your organization can open one of your cloud chats. It always asks first, and for `prompt` it says that members' turns use your organization's credits.
+- 1c0e47d: Add `dexto channels list`, `read` and `send` to list your Dexto channels, read their messages and reply threads, and send a message to one.
+- 6565c8e: Add `dexto skills` commands to read a Skill and its files, check a Skill folder, create, update and delete your Skills, install and uninstall them, list and restore their versions, and publish one to the Store.
+- 7cc877f: Add `dexto marketplace search`, `get`, `install`, `uninstall`, `preview`, `publish` and `unpublish` to find and install Marketplace listings and publish your own Dexto Apps and Skills from the terminal.
+- 476529c: Add `dexto notifications list`, `get` and `mark-read` to list your Dexto notifications, read one without marking it read, and mark the ones you name read.
+- c33a527: Add `dexto workspace sites records` commands to list, read, create, update and delete the records in a Site's data collections.
+
+### Patch Changes
+
+- 9a3ee21: Say in `dexto acp --help` that the command is in preview.
+- c9943e3: `dexto chat agents` lists the agent profiles you can chat with, for `dexto chat start --agent`, from the Dexto MCP's `dexto_agents_list`. `--limit` takes 1 to 50 (default 20) and `--json` prints the tool's result; a sign-in without `agents:read` is asked to sign in again with it (DEXTO-3481).
+- 80e53da: `dexto connections list` and `dexto connections status` now ask a sign-in without `connections:read` to sign in again, instead of listing only the model sign-ins and hiding the person's connectors (DEXTO-2923). `connections:read` joins `CLI_LOGIN_SCOPES`.
+- f4475d7: Add `dexto workspace contacts` to list, search, connect with, answer, remove, block and unblock your Dexto Contacts, and show your invite link.
+- 7299d0c: A command's whole output now reaches a pipe before the CLI exits, so a large `--json` result such as `dexto workspace tools --json | jq` is no longer cut off (DEXTO-3501). The CLI waits for stdout and stderr to flush before it exits.
+- 0572e3d: Add `dexto workspace network list`, `read`, `mark-read` and `send` to read and answer Network conversations from the terminal.
+- fb815eb: `dexto projects recipes` lists the Loop recipes a Project can install, and `dexto projects install-recipe <project> <recipe>` installs one, or resumes it when paused, after asking (or with `--yes`). It schedules future runs only; `--timezone` defaults to this computer's (DEXTO-3483). `automations:read` and `automations:write` join `CLI_LOGIN_SCOPES`.
+- c4faec8: A command run with `--yes` no longer asks to sign in again when the sign-in lacks a permission. It fails with exit 3 (`needs_permission`) and the sign-in that grants the permission as its fix, in `{"error":{"code","message","fix"}}` under `--json` (DEXTO-3589).
+- Updated dependencies [80e53da]
+- Updated dependencies [f4475d7]
+- Updated dependencies [7cc877f]
+- Updated dependencies [0572e3d]
+- Updated dependencies [0689ed2]
+- Updated dependencies [ed1c456]
+- Updated dependencies [1c0e47d]
+- Updated dependencies [fb815eb]
+- Updated dependencies [eec24ce]
+    - @dexto/agent-management@1.19.5
+    - @dexto/core@1.19.5
+    - @dexto/analytics@1.19.5
+    - @dexto/image-local@1.19.5
+    - @dexto/image-logger-agent@1.19.5
+    - @dexto/tui@1.19.5
+    - @dexto/agent-config@1.19.5
+    - @dexto/client-sdk@1.19.5
+    - @dexto/storage@1.19.5
+    - @dexto/llm@1.19.5
+    - @dexto/cloud-client@1.19.5
+    - @dexto/registry@1.19.5
+
+## 2.2.3
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/agent-management@1.19.4
+    - @dexto/analytics@1.19.4
+    - @dexto/client-sdk@1.19.4
+    - @dexto/image-local@1.19.4
+    - @dexto/image-logger-agent@1.19.4
+    - @dexto/storage@1.19.4
+    - @dexto/tui@1.19.4
+    - @dexto/llm@1.19.4
+    - @dexto/cloud-client@1.19.4
+    - @dexto/registry@1.19.4
+
+## 2.2.2
+
+### Patch Changes
+
+- 0cd288b: Export `dextoSignIn.CLI_LOGIN_SCOPES`, every scope the CLI asks a sign-in for by name, so Dexto Cloud can test that its sign-in accepts each one. The CLI's own scope checks now only accept scopes from that list.
+- Updated dependencies [023c262]
+- Updated dependencies [0cd288b]
+    - @dexto/core@1.19.3
+    - @dexto/agent-management@1.19.3
+    - @dexto/agent-config@1.19.3
+    - @dexto/analytics@1.19.3
+    - @dexto/client-sdk@1.19.3
+    - @dexto/image-local@1.19.3
+    - @dexto/image-logger-agent@1.19.3
+    - @dexto/storage@1.19.3
+    - @dexto/tui@1.19.3
+    - @dexto/llm@1.19.3
+    - @dexto/cloud-client@1.19.3
+    - @dexto/registry@1.19.3
+
+## 2.2.1
+
+### Patch Changes
+
+- 5293e60: Refresh a saved Dexto sign-in one at a time: concurrent requests in a process share one refresh, and other processes wait on a lock file beside the login and use the tokens it saved, so two refreshes of one rotating token no longer race (DEXTO-3437). Each refresh is bounded at 10 s whatever its caller, the lock names its holder and only the holder releases it, and a crashed process's lock is taken over atomically.
+- Updated dependencies [5293e60]
+    - @dexto/agent-management@1.19.2
+    - @dexto/analytics@1.19.2
+    - @dexto/image-local@1.19.2
+    - @dexto/image-logger-agent@1.19.2
+    - @dexto/tui@1.19.2
+    - @dexto/client-sdk@1.19.2
+    - @dexto/core@1.19.2
+    - @dexto/storage@1.19.2
+    - @dexto/llm@1.19.2
+    - @dexto/agent-config@1.19.2
+    - @dexto/cloud-client@1.19.2
+    - @dexto/registry@1.19.2
+
+## 2.2.0
+
+### Minor Changes
+
+- 8c1bcfd: Add commands to publish HTML Artifacts to your organization, list them, and print their links.
+
+### Patch Changes
+
+- 4e2ecf7: Add `dexto credits balance`, `dexto credits topup`, and `dexto credits topup status`, and report resumable credit errors with the next command to run.
+- e7198e9: Explain whether logging out ended the sign-in on the server or only forgot an API key locally.
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/agent-management@1.19.1
+    - @dexto/analytics@1.19.1
+    - @dexto/client-sdk@1.19.1
+    - @dexto/image-local@1.19.1
+    - @dexto/image-logger-agent@1.19.1
+    - @dexto/storage@1.19.1
+    - @dexto/tui@1.19.1
+    - @dexto/llm@1.19.1
+    - @dexto/cloud-client@1.19.1
+    - @dexto/registry@1.19.1
+
+## 2.1.0
+
+### Minor Changes
+
+- 46915b1: Permissions now use the hosted app's two modes: **Full access** (`full-access`) and **Asks you** (`asks-you`). Manual approval mode is removed.
+
+    **Upgrade note: rename `permissions.mode` values.** `manual` becomes `asks-you` and `auto-approve` becomes `full-access`. The old values still work in this release: they map to the new mode and print a warning that names the new value. The next release rejects them.
+
+    ```yaml
+    permissions:
+        mode: asks-you # was: manual
+        # mode: full-access  # was: auto-approve
+    ```
+
+    ```bash
+    dexto --permissions-mode asks-you      # was: --permissions-mode manual
+    dexto --permissions-mode full-access   # was: --permissions-mode auto-approve
+    ```
+
+    `--auto-approve` and `--bypass-permissions` still select Full access.
+
+    Behavior changes:
+    - Asks you now asks before writing or editing files inside the workspace, not only before shell commands and paths outside it. "Allow for session" covers further edits in the same directory. Full access does not ask.
+    - `PermissionsMode` is now `'full-access' | 'asks-you'`. Code that compares `config.permissions.mode` with `'manual'` or `'auto-approve'` must compare with the new values. `PERMISSIONS_MODE_LABELS`, `resolvePermissionsMode()` and `getDeprecatedPermissionsModeWarning()` are exported from `@dexto/core`.
+    - The tool approval reason `auto-approve-mode` is renamed `full-access-mode`.
+    - The TUI footer and `/config` show "Full access" or "Asks you".
+
+### Patch Changes
+
+- 1ac079d: Tell people when the CLI is out of date
+
+    The update check read GitHub's latest release, which in this monorepo is whichever package released last (such as `@dexto/image-logger-agent@1.18.1`), so it compared the CLI against another package's version and almost never said a newer CLI was out. It now reads the `dexto` package's own latest version from npm. Every command except the interactive CLI (which shows its own notice) and `dexto upgrade` now shows the notice to a person at a terminal, on stderr. It never appears in `--json` or `--stream-json` output, or when stdout is piped. A fresh cached result answers at once; a day-old cache is refreshed first, waiting at most 1.5 s. A failed lookup is cached too (keeping any newer version it already knew of), so an offline machine waits at most once a day. `DEXTO_NO_UPDATE_CHECK=true` still turns the check off.
+
+- 6d1d17c: `dexto import` and `dexto chat import` now send the model that answered each imported turn (and Codex's reasoning effort), read from Codex `turn_context` lines and Claude Code's `message.model`. When the server says which Dexto model an imported chat continues on, `dexto import` shows it per session, and prints a hint to run `dexto connect codex` when a Codex chat can't continue on its own model (in `--json`, as `hints`). Re-running an import on a session imported before fills in its models. Needs a Dexto Cloud server that accepts the per-message `model` and `reasoningEffort` fields.
+- 5f2c71c: `dexto cloud sites deploy` packs a plain static folder itself: a project with no `.dexto/pack.mjs` and no `pack` script deploys the pages its `dexto.json` names, instead of failing in `pnpm run pack`.
+- Updated dependencies [46915b1]
+- Updated dependencies [d57b42d]
+- Updated dependencies [e229d40]
+- Updated dependencies [110d8e5]
+    - @dexto/core@1.19.0
+    - @dexto/agent-management@1.19.0
+    - @dexto/tui@1.19.0
+    - @dexto/agent-config@1.19.0
+    - @dexto/analytics@1.19.0
+    - @dexto/client-sdk@1.19.0
+    - @dexto/image-local@1.19.0
+    - @dexto/image-logger-agent@1.19.0
+    - @dexto/storage@1.19.0
+    - @dexto/llm@1.19.0
+    - @dexto/cloud-client@1.19.0
+    - @dexto/registry@1.19.0
+
 ## 2.0.1
 
 ### Patch Changes

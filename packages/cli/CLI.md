@@ -105,6 +105,18 @@ Use `@` to reference files and resources:
 - **Resume interactively**: Use `/resume` or `/session switch` in CLI
 - **Auto-save**: Sessions are automatically saved
 - **Read a chat**: `dexto chat history <session-id>`
+- **List this machine's chats**: `dexto chat list --local`
+
+### Cloud Chats
+- **List or search**: `dexto chat list [--status S] [--query WORDS] [--imported-from SOURCE] [--limit N] [--after CURSOR]`, newest first, with each chat's status and how its last run ended
+- **Read one**: `dexto chat get "$CHAT_ID" [--limit N] [--after CURSOR]`, its status and latest messages; `--after` reads older ones
+- **Models**: `dexto chat models`, the models a chat can start on or switch to, and how each is paid for
+- **Start and follow**: `dexto chat start "message" --wait`, `dexto chat follow "$CHAT_ID"`
+- **Continue one**: `dexto chat send "$CHAT_ID" "message" [--follow-up] [--model ID] [--wait] --yes` steers its current turn, or with `--follow-up` queues the message for after it; an idle chat starts its next turn. `--wait` prints only what follows your message
+- **Stop its run**: `dexto chat cancel "$CHAT_ID" --yes`; the chat stays, and an idle one returns `cancelled: false`
+- **Fork one**: `dexto chat fork "$CHAT_ID" [--message "$MESSAGE_ID"] --yes` creates a new chat through the chosen message, or the latest when omitted. Use `--dry-run` to preview the call without sending it.
+
+Each takes `--json`. They read your chats with the `sessions:read` permission of `dexto login`; `send`, `cancel` and `fork` need `sessions:write`.
 
 ### Model Switching
 
@@ -129,10 +141,10 @@ dexto -m gpt-4o
 ### Tool Confirmation
 
 ```bash
-# Auto-approve all tool executions
+# Full access: run tools without asking
 dexto --auto-approve
 
-# Manual approval (default)
+# Asks you (when the agent sets permissions.mode: asks-you)
 dexto
 ```
 
@@ -204,7 +216,7 @@ packages/cli/src/cli/ink-cli/
 
 ### Session Not Found
 
-- List sessions: `dexto chat list`
+- List sessions: `dexto chat list --local`
 - Sessions are stored in `~/.dexto/sessions/` (or repo `.dexto/` in dev mode)
 - Use session ID from list output
 

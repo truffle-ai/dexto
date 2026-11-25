@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createOutput } from '../output.js';
 import { nodeCloudRuntime } from '../runtime.js';
 import type { CommandContext } from '../command.js';
-import { importCommands } from './import.js';
+import { CONNECT_CODEX_HINT, importCommands } from './import.js';
 import { findLocalChats } from '../../import/local-chats.js';
 import { findPersonalSkills } from '../../import/personal-skills.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -555,5 +555,137 @@ describe('headless import', () => {
         await expect(
             command.run(context, { positionals: [], values: { select: 'all', yes: true } })
         ).rejects.toThrow(/not a folder/i);
+    });
+});
+
+describe('imported models', () => {
+    const chat = (source: 'claude-code' | 'codex', id: string) => ({
+        id,
+        source,
+        title: 'Test',
+        cwd: '/tmp/test',
+        gitBranch: null,
+        path: '/tmp/test.jsonl',
+        pullRequests: [],
+        repository: null,
+        startedAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:01Z',
+        messages: [
+            { role: 'user' as const, text: 'hello', createdAt: '2026-01-01T00:00:00Z' },
+            {
+                role: 'assistant' as const,
+                text: 'hi',
+                createdAt: '2026-01-01T00:00:01Z',
+                model: 'gpt-6.1-sol',
+                reasoningEffort: 'high',
+            },
+        ],
+    });
+    const imported = (reason: 'same_model' | 'not_usable', model: string) => ({
+        session: { id: 'created' },
+        status: 'imported',
+        url: 'https://example.test/chat',
+        continuation: { model, sourceModel: 'gpt-6.1-sol', reason },
+    });
+    async function runImport(format: 'json' | 'table', values: Record<string, string | boolean>) {
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, format),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        const code = await command.run(context, { positionals: [], values });
+        return { code, output };
+    }
+
+    it('sends the model and effort of each answer', async () => {
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [], notices: [] })
+            .mockResolvedValueOnce({ chats: [chat('codex', 'one')], notices: [] });
+        vi.mocked(queryWorkspaceTool).mockClear();
+        await runImport('json', { select: 'codex:one', yes: true });
+        expect(vi.mocked(queryWorkspaceTool).mock.calls[0]?.[2]).toMatchObject({
+            messages: [
+                { role: 'user', text: 'hello' },
+                { role: 'assistant', model: 'gpt-6.1-sol', reasoningEffort: 'high' },
+            ],
+        });
+    });
+
+    it('says which model each chat continues on, and hints once at connecting Codex', async () => {
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [chat('claude-code', 'cc')], notices: [] })
+            .mockResolvedValueOnce({
+                chats: [chat('codex', 'one'), chat('codex', 'two')],
+                notices: [],
+            });
+        vi.mocked(queryWorkspaceTool)
+            .mockResolvedValueOnce(imported('same_model', 'anthropic/claude-opus-5-5'))
+            .mockResolvedValueOnce(imported('same_model', 'openai/gpt-6.1-sol'))
+            .mockResolvedValueOnce(imported('not_usable', 'anthropic/claude-opus-5-5'));
+        const { code, output } = await runImport('table', {
+            select: 'claude-code:cc,codex:one,codex:two',
+            yes: true,
+        });
+        expect(code).toBe(0);
+        expect(output).toContain(
+            'codex:one: imported https://example.test/chat\n  continues on openai/gpt-6.1-sol (same model as in Codex)'
+        );
+        expect(output).toContain('(same model as in Claude Code)');
+        expect(output).toContain(
+            "continues on anthropic/claude-opus-5-5: Dexto can't run gpt-6.1-sol for your account"
+        );
+        expect(output.split(CONNECT_CODEX_HINT)).toHaveLength(2);
+        expect(output.trimEnd().endsWith(CONNECT_CODEX_HINT)).toBe(true);
+        expect(CONNECT_CODEX_HINT).toContain('`dexto connect codex`');
+    });
+
+    it('gives the hint as a field in JSON, and none when every Codex chat keeps its model', async () => {
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [chat('claude-code', 'cc')], notices: [] })
+            .mockResolvedValueOnce({ chats: [chat('codex', 'one')], notices: [] });
+        vi.mocked(queryWorkspaceTool)
+            .mockResolvedValueOnce(imported('not_usable', 'openai/gpt-6.1-sol'))
+            .mockResolvedValueOnce(imported('not_usable', 'anthropic/claude-opus-5-5'));
+        const withHint = await runImport('json', { select: 'claude-code:cc,codex:one', yes: true });
+        expect(JSON.parse(withHint.output)).toMatchObject({
+            hints: [CONNECT_CODEX_HINT],
+            sessions: [
+                { id: 'claude-code:cc', continuation: { reason: 'not_usable' } },
+                { id: 'codex:one', continuation: { model: 'anthropic/claude-opus-5-5' } },
+            ],
+        });
+
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [chat('claude-code', 'cc')], notices: [] })
+            .mockResolvedValueOnce({ chats: [chat('codex', 'one')], notices: [] });
+        vi.mocked(queryWorkspaceTool)
+            .mockResolvedValueOnce(imported('not_usable', 'openai/gpt-6.1-sol'))
+            .mockResolvedValueOnce({
+                session: { id: 'created' },
+                status: 'already_imported',
+                url: 'https://example.test/chat',
+            });
+        const withoutHint = await runImport('json', {
+            select: 'claude-code:cc,codex:one',
+            yes: true,
+        });
+        expect(JSON.parse(withoutHint.output).hints).toEqual([]);
     });
 });

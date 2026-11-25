@@ -1,4 +1,11 @@
-import type { ContentPart, FilePart, ImagePart, InternalMessage, TextPart } from './types.js';
+import type {
+    ContentPart,
+    FilePart,
+    ImagePart,
+    InternalMessage,
+    TextPart,
+    ToolMessage,
+} from './types.js';
 
 function cloneBinaryData(
     data: ImagePart['image'] | FilePart['data']
@@ -149,12 +156,15 @@ export function cloneInternalMessage(message: InternalMessage): InternalMessage 
             const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
             return { ...cloned, content: cloneContentParts(content) };
         }
-        case 'tool': {
-            const { content, ...messageWithoutContent } = message;
-            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
-            return { ...cloned, content: cloneContentParts(content) };
-        }
+        case 'tool':
+            return cloneToolMessage(message);
     }
+}
+
+export function cloneToolMessage(message: ToolMessage): ToolMessage {
+    const { content, ...messageWithoutContent } = message;
+    const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
+    return { ...cloned, content: cloneContentParts(content) };
 }
 
 export function cloneInternalMessages(messages: InternalMessage[]): InternalMessage[] {

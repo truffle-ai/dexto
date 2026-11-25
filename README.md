@@ -22,6 +22,10 @@ Success is exit 0 with your account identity. Signed-out account commands exit 3
 `dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
 configured model or credits. This check starts no model run.
 
+Auth order: every command uses the first of `--api-key`, the profile's saved `dexto login`
+sign-in, `DEXTO_API_KEY`, then a saved API key. A `DEXTO_API_KEY` in the environment never
+overrides a sign-in; `dexto whoami` names the one in use.
+
 New users signing up with Google or GitHub receive a one-time $5 usage credit per verified email.
 
 <a href="https://dexto.ai">
@@ -210,8 +214,8 @@ Fine-grained control over what your agent can do:
 
 ```yaml
 permissions:
-  mode: manual           # Require approval for each tool
-  # mode: auto-approve   # Trust mode for local development
+  mode: asks-you         # Asks you: approve file edits, shell commands and other changes
+  # mode: full-access    # Full access: run tools without asking
   toolPolicies:
     alwaysAllow:
       - mcp--filesystem--read_file
@@ -463,7 +467,7 @@ storage:
     connectionString: $POSTGRES_CONNECTION_STRING
 
 permissions:
-  mode: manual
+  mode: asks-you
 ```
 
 ### LLM Providers
@@ -582,7 +586,7 @@ Options:
 
 Commands:
   login | logout | whoami  Sign in to Dexto
-  chat list|history        Your chats on this machine
+  chat list|get|start      Your cloud chats (chat list --local: this machine's)
   cloud, workspace, ...    Dexto Cloud and your workspace
 ```
 

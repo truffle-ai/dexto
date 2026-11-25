@@ -158,9 +158,9 @@ storage:
   database:
     type: sqlite
 
-# Tool confirmation - auto-approve for seamless domain checking
+# Tool confirmation - Full access for seamless domain checking
 permissions:
-  mode: auto-approve
+  mode: full-access
   allowedToolsStorage: memory
 
 # Prompts - product name research examples shown as clickable buttons in WebUI

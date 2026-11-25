@@ -49,7 +49,7 @@ describe('subscription connections over MCP', () => {
             apiBaseUrl: 'https://api.dexto.ai',
             resource: MCP,
             tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
-            scopes: ['cloud:read', 'cloud:write', 'email:send', 'sites:write'],
+            scopes: ['cloud:read', 'cloud:write', 'connections:read', 'email:send', 'sites:write'],
             savedAt: '2026-11-01T00:00:00.000Z',
             signedInAs: null,
             cloudProject: { id: 'project-1', name: 'Main' },
@@ -296,6 +296,23 @@ describe('subscription connections over MCP', () => {
             )
         ).toBe(false);
     });
+    it.each([[['connections', 'list', '--json']], [['connections', 'status', 'x', '--json']]])(
+        'asks a sign-in without connections:read to sign in again instead of hiding its connectors: %j (DEXTO-2923)',
+        async (argv) => {
+            const login = await dextoAccounts.readLogin(dir, 'default');
+            if (login?.kind !== 'oauth') throw new Error('Expected the OAuth fixture login.');
+            await dextoAccounts.writeLogin(dir, 'default', {
+                ...login,
+                scopes: login.scopes.filter((scope) => scope !== 'connections:read'),
+            });
+            expect(await runCloud(host, argv)).toBe(3);
+            expect(calls).toHaveLength(0);
+            expect(JSON.parse(stderr).error).toMatchObject({
+                code: 'needs_permission',
+                fix: 'dexto login --scope connections:read',
+            });
+        }
+    );
     it('returns a resumable connector attempt without waiting', async () => {
         replies = [
             {

@@ -19,7 +19,13 @@ import {
     type SignInContext,
 } from './command.js';
 import type { SignInFor } from './commands/account.js';
-import type { Connection, ConnectionOverrides } from './connection.js';
+import {
+    matchesPinnedConnection,
+    pinConnection,
+    type Connection,
+    type ConnectionOverrides,
+    type PinnedConnection,
+} from './connection.js';
 import {
     listWorkspaceApps,
     runWorkspaceApp,
@@ -102,13 +108,18 @@ const NO_OVERRIDES: ConnectionOverrides = {
 
 /** Runs one command line, such as `cloud secrets list --json`; returns its exit code. */
 export async function runCloud(host: CloudHost, argv: readonly string[]): Promise<number> {
-    return await run(host, argv, true);
+    return await run(host, argv, true, { pinned: null });
+}
+
+interface RunState {
+    pinned: PinnedConnection | null;
 }
 
 async function run(
     unguarded: CloudHost,
     argv: readonly string[],
-    mayGrant: boolean
+    mayGrant: boolean,
+    state: RunState
 ): Promise<number> {
     // Every command prints through the guarded runtime: see guardRuntime.
     const host: CloudHost = { ...unguarded, runtime: guardRuntime(unguarded.runtime) };
@@ -135,7 +146,7 @@ async function run(
     // `workspace` alone lists the apps; `workspace <app> …` is one of them, its operations from the
     // server. The CLI's own `workspace` commands, such as `tools` and `drive put`, match above.
     if (command === null && words[0] === 'workspace')
-        return await runWorkspace(host, globals, argv, mayGrant);
+        return await runWorkspace(host, globals, argv, mayGrant, state);
     if (command === null) {
         if (!host.commands.some((each) => startsWith(each.path, words)))
             return reportError(
@@ -170,17 +181,19 @@ async function run(
         const required = (command.arguments ?? '').match(/<[^>]+>/gu)?.length ?? 0;
         if (parsed.positionals.length < required)
             throw new UsageError(`Missing arguments: ${command.arguments ?? ''}`);
-        return (await command.run(contextFor(host, globals, output), parsed)) ?? 0;
+        refuseExtraArguments(command, parsed.positionals);
+        return (await command.run(contextFor(host, globals, output, state), parsed)) ?? 0;
     } catch (thrown) {
         const error = asMissingScope(signIn, thrown);
         if (
             mayGrant &&
+            !globals.yes &&
             error instanceof MissingScopeFailure &&
             runtime.prompt !== null &&
             !output.json &&
-            (await askToGrant(host, globals.overrides, error))
+            (await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error))
         )
-            return await run(host, argv, false);
+            return await run(host, argv, false, state);
         return reportError(
             signIn,
             output.json,
@@ -195,10 +208,11 @@ async function runWorkspace(
     host: CloudHost,
     globals: Globals,
     argv: readonly string[],
-    mayGrant: boolean
+    mayGrant: boolean,
+    state: RunState
 ): Promise<number> {
     const output = createOutput(host.runtime, globals.format);
-    const context = contextFor(host, globals, output);
+    const context = contextFor(host, globals, output, state);
     const args = globals.rest.slice(1);
     try {
         if (args.every((arg) => arg.startsWith('-'))) {
@@ -230,12 +244,13 @@ async function runWorkspace(
         const error = asMissingScope(context, thrown);
         if (
             mayGrant &&
+            !globals.yes &&
             error instanceof MissingScopeFailure &&
             host.runtime.prompt !== null &&
             !output.json &&
-            (await askToGrant(host, globals.overrides, error))
+            (await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error))
         )
-            return await run(host, argv, false);
+            return await run(host, argv, false, state);
         return reportError(
             context,
             output.json,
@@ -273,7 +288,17 @@ function workspaceHelp(host: CloudHost, apps: readonly WorkspaceApp[] | null): s
     ].join('\n');
 }
 
-/** At a terminal, offers to sign in again for the permission; true once that sign-in succeeded. */
+/**
+ * At a terminal and without --yes, offers to sign in again for the permission; true once that
+ * sign-in succeeded. Under --yes the failure stands, with the sign-in that grants it as its fix.
+ */
+function grantOverrides(
+    overrides: ConnectionOverrides,
+    pinned: PinnedConnection | null
+): ConnectionOverrides {
+    return pinned === null ? overrides : { ...overrides, profile: pinned.profile };
+}
+
 async function askToGrant(
     host: CloudHost,
     overrides: ConnectionOverrides,
@@ -303,17 +328,36 @@ async function askToGrant(
 function contextFor(
     host: CloudHost,
     globals: Globals,
-    output: CommandContext['output']
+    output: CommandContext['output'],
+    state: RunState
 ): CommandContext {
     const { overrides } = globals;
-    const connection = async (): Promise<Connection> => {
-        const resolved = await host.resolveConnection(overrides);
-        if (resolved !== null) return resolved;
-        throw new CommandFailure(
-            'needs_sign_in',
-            'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
-            signInCommand({ overrides, runtime: host.runtime }, [])
+    const connection = async (options?: { readonly pin: true }): Promise<Connection> => {
+        const pinned = state.pinned;
+        const resolved = await host.resolveConnection(
+            pinned === null ? overrides : { ...overrides, profile: pinned.profile }
         );
+        if (pinned !== null && (resolved === null || !matchesPinnedConnection(pinned, resolved)))
+            throw new CommandFailure(
+                'failed',
+                'Your Dexto account, project, or server changed during publishing. Re-run to preview the Site again.',
+                null
+            );
+        if (resolved === null)
+            throw new CommandFailure(
+                'needs_sign_in',
+                'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
+                signInCommand({ overrides, runtime: host.runtime }, [])
+            );
+        if (options?.pin === true && pinned === null && resolved.kind === 'oauth')
+            state.pinned = pinConnection(resolved);
+        else if (
+            pinned?.accountId === null &&
+            resolved.kind === 'oauth' &&
+            resolved.login.signedInAs !== null
+        )
+            state.pinned = pinConnection(resolved);
+        return resolved;
     };
     return {
         client: async () => {
@@ -368,9 +412,16 @@ interface Help {
  * the command's usage (for a usage mistake) or the command that fixes it. On Signal, the fault
  * block, and a usage mistake points at help instead of printing it.
  */
-function reportError(context: SignInContext, json: boolean, help: Help, error: unknown): number {
+export function reportError(
+    context: SignInContext,
+    json: boolean,
+    help: Help,
+    error: unknown,
+    fixOverride?: string
+): number {
     const { runtime } = context;
-    const failure = describeFailure(context, error);
+    const described = describeFailure(context, asMissingScope(context, error));
+    const failure = fixOverride === undefined ? described : { ...described, fix: fixOverride };
     if (json) {
         const error = {
             code: failure.code,
@@ -395,7 +446,8 @@ function reportError(context: SignInContext, json: boolean, help: Help, error: u
         runtime.writeError(
             `Error${failure.apiCode === null ? '' : ` (${safeText(failure.apiCode)})`}: ${safeText(failure.message)}\n`
         );
-        if (failure.details !== null) runtime.writeError(jsonResult(failure.details));
+        if (failure.details !== null && !(error instanceof CommandFailure))
+            runtime.writeError(jsonResult(failure.details));
         if (failure.fix !== null) runtime.writeError(`Run: ${safeText(failure.fix)}\n`);
     }
     return EXIT_CODES[failure.code];
@@ -412,7 +464,7 @@ function describeFailure(context: SignInContext, error: unknown): FailureReport 
     if (error instanceof UsageError || isParseArgsError(error))
         return report('usage', error.message, null, null, null);
     if (error instanceof CommandFailure)
-        return report(error.kind, error.message, error.fix, null, null);
+        return report(error.kind, error.message, error.fix, null, error.details);
     if (error instanceof CloudApiError) {
         if (error.status === 401)
             return report(
@@ -447,6 +499,8 @@ interface Globals {
     readonly invocation: readonly string[];
     readonly overrides: ConnectionOverrides;
     readonly rest: readonly string[];
+    /** `--yes` was passed: never ask anything, fail with the fix instead. */
+    readonly yes: boolean;
 }
 
 /**
@@ -463,6 +517,7 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
     let help = false;
     let json = false;
     let table = false;
+    let yes = false;
     const invocation: string[] = [];
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index] ?? '';
@@ -512,6 +567,8 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
             }
             continue;
         }
+        // `--yes` stays for the command to read as well.
+        if (token === '--yes') yes = true;
         if (token === '--json') json = true;
         else if (token === '--table') table = true;
         else if (token === '--help' || token === '-h') help = true;
@@ -525,12 +582,31 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
         invocation,
         overrides: { apiBaseUrl, apiKey, cloudProject, profile },
         rest,
+        yes,
     };
 }
 
 function splitOption(token: string): [string, string | null] {
     const equals = token.indexOf('=');
     return equals === -1 ? [token, null] : [token.slice(0, equals), token.slice(equals + 1)];
+}
+
+/**
+ * Fails on a word past the command's last argument, which would otherwise be dropped silently.
+ * A command whose last argument takes several words (`<x...>`) takes any number.
+ */
+function refuseExtraArguments(command: Command, positionals: readonly string[]): void {
+    const declared = (command.arguments ?? '').match(/<[^>]+>|\[[^\]]+\]/gu) ?? [];
+    if (declared.at(-1)?.includes('...') === true) return;
+    const extra = positionals[declared.length];
+    if (extra === undefined) return;
+    throw new UsageError(
+        `Unexpected argument: ${extra}.${
+            command.options?.data !== undefined && /^\s*[[{]/u.test(extra)
+                ? " Pass the request body with --data '<json>'."
+                : ` Usage: dexto ${usage(command)}`
+        }`
+    );
 }
 
 /** The longest command whose path the leading words spell. */
@@ -646,6 +722,25 @@ function commandHelp(command: Command): string {
                 ...(command.options === undefined
                     ? []
                     : [optionSection('options', command.options)]),
+                ...(command.examples === undefined
+                    ? []
+                    : [
+                          {
+                              title: 'examples',
+                              rows: command.examples.map((example) => ({
+                                  term: example,
+                                  description: '',
+                              })),
+                          },
+                      ]),
+                ...(command.jsonOutput === undefined
+                    ? []
+                    : [
+                          {
+                              title: 'json output',
+                              rows: [{ term: '', description: JSON.stringify(command.jsonOutput) }],
+                          },
+                      ]),
                 optionSection('global options', GLOBAL_OPTIONS),
             ]
         );
@@ -655,6 +750,12 @@ function commandHelp(command: Command): string {
         command.summary,
         '',
         ...(command.options === undefined ? [] : ['Options:', ...optionLines(command.options), '']),
+        ...(command.examples === undefined
+            ? []
+            : ['Examples:', ...command.examples.map((example) => `  ${example}`), '']),
+        ...(command.jsonOutput === undefined
+            ? []
+            : ['JSON output:', JSON.stringify(command.jsonOutput, null, 2), '']),
         'Global options:',
         ...optionLines(GLOBAL_OPTIONS),
         '',
@@ -671,6 +772,8 @@ function commandHelpJson(command: Command): unknown {
         })),
         summary: command.summary,
         usage: `dexto ${usage(command)}`,
+        ...(command.examples === undefined ? {} : { examples: command.examples }),
+        ...(command.jsonOutput === undefined ? {} : { json_output: command.jsonOutput }),
     };
 }
 

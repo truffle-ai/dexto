@@ -5,10 +5,34 @@ import { redactSecrets, truncate } from './redaction.js';
 export type LocalChatSource = 'claude-code' | 'codex';
 export const LOCAL_CHAT_SOURCES: readonly LocalChatSource[] = ['claude-code', 'codex'];
 
-export interface LocalChatMessage {
-    readonly createdAt: string;
-    readonly role: 'assistant' | 'user';
-    readonly text: string;
+/** The model that wrote an assistant turn, as the source agent recorded it. */
+export interface AnsweredBy {
+    readonly model: string;
+    /** The reasoning effort the turn ran at, when the source records one. */
+    readonly reasoningEffort?: string;
+}
+
+export type LocalChatMessage =
+    | { readonly createdAt: string; readonly role: 'user'; readonly text: string }
+    | ({
+          readonly createdAt: string;
+          readonly role: 'assistant';
+          readonly text: string;
+      } & Partial<AnsweredBy>);
+
+/** `dexto_chat_import` takes a model id of 1-200 characters with no control characters. */
+const MODEL_ID = /^[^\p{Cc}]{1,200}$/u;
+const REASONING_EFFORT = /^[a-z0-9_-]{1,32}$/u;
+
+/**
+ * Who answered, from a source's model and effort fields; null when the model is missing or not one
+ * the import takes. An effort the import would refuse is left out.
+ */
+export function answeredBy(model: unknown, effort: unknown): AnsweredBy | null {
+    if (typeof model !== 'string' || !MODEL_ID.test(model) || model.trim() === '') return null;
+    return typeof effort === 'string' && REASONING_EFFORT.test(effort)
+        ? { model, reasoningEffort: effort }
+        : { model };
 }
 
 /** A pull request the session opened or worked on, as Claude Code's `pr-link` lines record it. */
@@ -59,7 +83,8 @@ export type ParsedChat = Omit<LocalChat, 'repository'> & {
  */
 export function createTurns() {
     const messages: LocalChatMessage[] = [];
-    let assistant: { createdAt: string; parts: string[] } | null = null;
+    let assistant: { answeredBy: AnsweredBy | null; createdAt: string; parts: string[] } | null =
+        null;
     let lastAt: string | null = null;
     const flush = () => {
         if (assistant !== null && assistant.parts.length > 0)
@@ -67,14 +92,20 @@ export function createTurns() {
                 createdAt: assistant.createdAt,
                 role: 'assistant',
                 text: assistant.parts.join('\n\n'),
+                ...assistant.answeredBy,
             });
         assistant = null;
     };
     return {
-        assistant(text: string, createdAt: string) {
+        /**
+         * Adds to the assistant's turn. The turn keeps the model of the last part that names one,
+         * as a source line that names none (a tool result) was written by the same model.
+         */
+        assistant(text: string, createdAt: string, by: AnsweredBy | null = null) {
             if (text.trim() === '') return;
-            assistant ??= { createdAt, parts: [] };
+            assistant ??= { answeredBy: null, createdAt, parts: [] };
             assistant.parts.push(text.trim());
+            if (by !== null) assistant.answeredBy = by;
             lastAt = createdAt;
         },
         /** The turns, and when the last thing in them happened. */

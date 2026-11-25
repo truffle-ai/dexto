@@ -3,8 +3,16 @@
 
 import { getDextoGlobalPath, type LlmRuntimeAuthOverrides } from '@dexto/core';
 import { z } from 'zod';
-import { type Credential, type OAuthLogin, resolveCredential } from './dexto-accounts.js';
-import { refreshSignIn } from './dexto-sign-in.js';
+import {
+    type Credential,
+    type OAuthLogin,
+    resolveCredential,
+    SignInExpired,
+} from './dexto-accounts.js';
+import { type CliLoginScope, refreshSignIn } from './dexto-sign-in.js';
+
+/** The scope a sign-in needs to spend credits on Dexto models. */
+const SPEND_SCOPE: CliLoginScope = 'cloud:write';
 
 const DEXTO_CLOUD_PROJECT_HEADER = 'Dexto-Cloud-Project';
 /** Satisfies the provider's "has a key" check; every request's real token is set per call. */
@@ -17,7 +25,7 @@ export interface DextoGatewayOptions {
     /** The public API new sign-ins use; requests go to the one their sign-in was saved for. */
     readonly apiBaseUrl: string;
     readonly fetch: typeof globalThis.fetch;
-    readonly refresh: (login: OAuthLogin) => Promise<OAuthLogin>;
+    readonly refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
 }
 
 /** This machine's sign-in, Dexto's public API and the global fetch. */
@@ -31,7 +39,7 @@ export function defaultDextoGatewayOptions(): DextoGatewayOptions {
             ''
         ),
         fetch,
-        refresh: (login) => refreshSignIn({ fetch, signal: AbortSignal.timeout(10_000) }, login),
+        refresh: (login, signal) => refreshSignIn({ fetch, signal }, login),
     };
 }
 
@@ -43,7 +51,6 @@ export type DextoModelAccess =
     | { readonly status: 'needs_project' };
 
 export async function dextoModelAccess(options: DextoGatewayOptions): Promise<DextoModelAccess> {
-    if (nonEmpty(options.environment.DEXTO_API_KEY)) return { status: 'ready' };
     const credential = await currentCredential(options);
     if (credential === null) return { status: 'signed_out' };
     if (credential.kind === 'api_key') return { status: 'ready' };
@@ -53,13 +60,10 @@ export async function dextoModelAccess(options: DextoGatewayOptions): Promise<De
 }
 
 /**
- * The runtime auth for `dexto-nova` when DEXTO_API_KEY isn't set: the public API's gateway, with a
- * fetch that signs each request as the current profile. Null leaves DEXTO_API_KEY to the key path.
+ * The runtime auth for `dexto-nova`: the public API's gateway, with a fetch that signs each request
+ * with the credential resolveCredential picks then, so a sign-in beats DEXTO_API_KEY here too.
  */
-export function dextoGatewayRuntimeAuth(
-    options: DextoGatewayOptions
-): LlmRuntimeAuthOverrides | null {
-    if (nonEmpty(options.environment.DEXTO_API_KEY)) return null;
+export function dextoGatewayRuntimeAuth(options: DextoGatewayOptions): LlmRuntimeAuthOverrides {
     return {
         apiKey: SIGN_IN_PLACEHOLDER_KEY,
         baseURL: `${options.apiBaseUrl}/v1`,
@@ -75,7 +79,7 @@ export function dextoGatewayRuntimeAuth(
             if (credential.kind === 'oauth') {
                 if (!canSpend(credential.login))
                     throw new Error(
-                        'Dexto models spend credits, which this sign-in may not do yet. Run dexto login --scope cloud:write.'
+                        `Dexto models spend credits, which this sign-in may not do yet. Run dexto login --scope ${SPEND_SCOPE}.`
                     );
                 if (credential.login.cloudProject === null)
                     throw new Error(
@@ -154,7 +158,7 @@ export async function dextoBillingSummary(
     };
 }
 
-/** Reads a public `/v1` path as the current sign-in or DEXTO_API_KEY; null when signed out. */
+/** Reads a public `/v1` path with the current credential; null when signed out. */
 async function readDexto(options: DextoGatewayOptions, path: string): Promise<unknown> {
     const credential = await currentCredential(options);
     if (credential === null) return null;
@@ -168,26 +172,32 @@ async function readDexto(options: DextoGatewayOptions, path: string): Promise<un
     return await response.json();
 }
 
-/** The current profile's credential, refreshed when expiring; null when signed out. */
+/**
+ * The current profile's credential, refreshed when expiring; null when signed out. Dexto models and
+ * the Dexto MCP take no --api-key, so an expired sign-in asks only to sign in again.
+ */
 export async function currentCredential(options: DextoGatewayOptions): Promise<Credential | null> {
-    return await resolveCredential({
-        dir: options.dir,
-        apiKey: null,
-        profile: null,
-        environment: options.environment,
-        refresh: options.refresh,
-    });
+    try {
+        return await resolveCredential({
+            dir: options.dir,
+            apiKey: null,
+            profile: null,
+            environment: options.environment,
+            refresh: options.refresh,
+        });
+    } catch (error) {
+        if (!(error instanceof SignInExpired)) throw error;
+        throw new Error(
+            `Your Dexto sign-in${error.profile === null ? '' : ` (profile ${error.profile})`} has expired. Run dexto login.`
+        );
+    }
 }
 
 function canSpend(login: OAuthLogin): boolean {
-    return login.scopes.includes('cloud:write');
+    return login.scopes.includes(SPEND_SCOPE);
 }
 
 /** The same path on the API the sign-in was saved for. */
 function rebase(url: string, from: string, to: string): string {
     return from === to || !url.startsWith(from) ? url : `${to}${url.slice(from.length)}`;
-}
-
-function nonEmpty(value: string | undefined): boolean {
-    return value !== undefined && value.trim().length > 0;
 }

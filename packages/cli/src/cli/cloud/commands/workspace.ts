@@ -245,14 +245,19 @@ function toolFailure(
     return new CommandFailure('failed', message, null);
 }
 
-/** Calls a workspace tool for its value, without printing it; the tool's own error fails. */
+/**
+ * Calls a workspace tool for its value, without printing it; the tool's own error fails.
+ * `requestId` names the request to the server, which keys a write's idempotency on it, so the same
+ * id sent again repeats the first call's effect instead of acting twice; null lets the server pick.
+ */
 export async function queryWorkspaceTool(
     context: CommandContext,
     name: string,
-    input: unknown
+    input: unknown,
+    requestId: string | null = null
 ): Promise<unknown> {
     const result = ToolResultSchema.parse(
-        await callMcp(context, 'tools/call', { arguments: input, name })
+        await callMcp(context, 'tools/call', { arguments: input, name }, requestId)
     );
     if (result.isError === true) throw toolFailure(context, result);
     return toolValue(result);
@@ -284,7 +289,12 @@ let nextRequestId = 1;
  * One JSON-RPC request to the Dexto MCP with the person's token. It takes only a person's sign-in:
  * the workspace acts as a person, never as a project key.
  */
-async function callMcp(context: CommandContext, method: string, params: unknown): Promise<unknown> {
+async function callMcp(
+    context: CommandContext,
+    method: string,
+    params: unknown,
+    requestId: string | null = null
+): Promise<unknown> {
     const connection = await context.connection();
     if (connection.kind !== 'oauth')
         throw new CommandFailure(
@@ -303,11 +313,12 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
             accept: 'application/json, text/event-stream',
             authorization: `Bearer ${connection.token}`,
             'content-type': 'application/json',
+            ...(requestId === null ? {} : { 'x-request-id': requestId }),
         },
         method: 'POST',
         signal: context.runtime.signal,
     });
-    if (response.status === 401 || response.status === 403)
+    if (response.status === 401)
         throw new CommandFailure(
             'needs_sign_in',
             "Your sign-in can't reach the workspace. Sign in again to grant it.",

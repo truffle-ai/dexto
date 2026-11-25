@@ -102,7 +102,7 @@ describe('headless approval handling', () => {
             agentId: 'headless-approval-test',
             systemPrompt: 'Test agent',
             llm: { provider: 'openai', model: 'gpt-5', apiKey: 'unused-test-key' },
-            permissions: { mode: 'auto-approve' },
+            permissions: { mode: 'full-access' },
             elicitation: { enabled: false },
             stores: new InMemoryDextoStores(),
             logger: createLogger({

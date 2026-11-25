@@ -1,5 +1,156 @@
 # @dexto/agent-management
 
+## 1.19.10
+
+### Patch Changes
+
+- Updated dependencies [db49ce8]
+    - @dexto/core@1.19.10
+    - @dexto/agent-config@1.19.10
+    - @dexto/tools-builtins@1.19.10
+    - @dexto/llm@1.19.10
+
+## 1.19.9
+
+### Patch Changes
+
+- Updated dependencies [d688240]
+    - @dexto/core@1.19.9
+    - @dexto/agent-config@1.19.9
+    - @dexto/tools-builtins@1.19.9
+    - @dexto/llm@1.19.9
+
+## 1.19.8
+
+### Patch Changes
+
+- Updated dependencies [98eb8fb]
+    - @dexto/core@1.19.8
+    - @dexto/agent-config@1.19.8
+    - @dexto/tools-builtins@1.19.8
+    - @dexto/llm@1.19.8
+
+## 1.19.7
+
+### Patch Changes
+
+- Updated dependencies [ee6dfd5]
+    - @dexto/core@1.19.7
+    - @dexto/agent-config@1.19.7
+    - @dexto/tools-builtins@1.19.7
+    - @dexto/llm@1.19.7
+
+## 1.19.6
+
+### Patch Changes
+
+- 234787b: `dexto acp` offers the Dexto account's models and reasoning effort, explains a model that needs a key or sign-in, and starts on the saved model even with `--agent`. A saved model on another provider no longer keeps the agent's endpoint or key. Installed agents that still enable `invoke_skill` load with `skill_load`. A model switch to another provider no longer keeps the previous provider's `baseURL`.
+- Updated dependencies [234787b]
+- Updated dependencies [197b5f5]
+    - @dexto/core@1.19.6
+    - @dexto/agent-config@1.19.6
+    - @dexto/tools-builtins@1.19.6
+    - @dexto/llm@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- 80e53da: `dexto connections list` and `dexto connections status` now ask a sign-in without `connections:read` to sign in again, instead of listing only the model sign-ins and hiding the person's connectors (DEXTO-2923). `connections:read` joins `CLI_LOGIN_SCOPES`.
+- f4475d7: `contacts:read`, `contacts:write` join `CLI_LOGIN_SCOPES`, so `dexto workspace contacts` can ask a sign-in that lacks them to sign in again.
+- 7cc877f: `apps:write`, `marketplace:read`, `marketplace:write`, `skills:read`, `skills:write` join `CLI_LOGIN_SCOPES`, so `dexto marketplace` can ask a sign-in that lacks them to sign in again.
+- 0572e3d: `network:read`, `network:write` join `CLI_LOGIN_SCOPES`, so `dexto workspace network` can ask a sign-in that lacks them to sign in again.
+- 0689ed2: `autobots:read` and `autobots:write` join `CLI_LOGIN_SCOPES`, so `dexto autobots` can ask a sign-in that lacks them to sign in again.
+- ed1c456: `applications:read` joins `CLI_LOGIN_SCOPES`, so `dexto applications` can ask a sign-in that lacks it to sign in again.
+- 1c0e47d: `messages:read`, `messages:write`, `notifications:read` and `notifications:write` join `CLI_LOGIN_SCOPES`, so `dexto channels` and `dexto notifications` can ask a sign-in that lacks them to sign in again.
+- fb815eb: `dexto projects recipes` lists the Loop recipes a Project can install, and `dexto projects install-recipe <project> <recipe>` installs one, or resumes it when paused, after asking (or with `--yes`). It schedules future runs only; `--timezone` defaults to this computer's (DEXTO-3483). `automations:read` and `automations:write` join `CLI_LOGIN_SCOPES`.
+- Updated dependencies [eec24ce]
+    - @dexto/core@1.19.5
+    - @dexto/agent-config@1.19.5
+    - @dexto/tools-builtins@1.19.5
+    - @dexto/llm@1.19.5
+
+## 1.19.4
+
+### Patch Changes
+
+- Updated dependencies [ccca53c]
+    - @dexto/core@1.19.4
+    - @dexto/agent-config@1.19.4
+    - @dexto/tools-builtins@1.19.4
+    - @dexto/llm@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- 0cd288b: Export `dextoSignIn.CLI_LOGIN_SCOPES`, every scope the CLI asks a sign-in for by name, so Dexto Cloud can test that its sign-in accepts each one. The CLI's own scope checks now only accept scopes from that list.
+- Updated dependencies [023c262]
+    - @dexto/core@1.19.3
+    - @dexto/agent-config@1.19.3
+    - @dexto/tools-builtins@1.19.3
+    - @dexto/llm@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- 5293e60: Refresh a saved Dexto sign-in one at a time: concurrent requests in a process share one refresh, and other processes wait on a lock file beside the login and use the tokens it saved, so two refreshes of one rotating token no longer race (DEXTO-3437). Each refresh is bounded at 10 s whatever its caller, the lock names its holder and only the holder releases it, and a crashed process's lock is taken over atomically.
+    - @dexto/core@1.19.2
+    - @dexto/llm@1.19.2
+    - @dexto/agent-config@1.19.2
+    - @dexto/tools-builtins@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- Updated dependencies [5d74a71]
+- Updated dependencies [6042c83]
+- Updated dependencies [e0db54d]
+    - @dexto/core@1.19.1
+    - @dexto/agent-config@1.19.1
+    - @dexto/tools-builtins@1.19.1
+    - @dexto/llm@1.19.1
+
+## 1.19.0
+
+### Minor Changes
+
+- 46915b1: Permissions now use the hosted app's two modes: **Full access** (`full-access`) and **Asks you** (`asks-you`). Manual approval mode is removed.
+
+    **Upgrade note: rename `permissions.mode` values.** `manual` becomes `asks-you` and `auto-approve` becomes `full-access`. The old values still work in this release: they map to the new mode and print a warning that names the new value. The next release rejects them.
+
+    ```yaml
+    permissions:
+        mode: asks-you # was: manual
+        # mode: full-access  # was: auto-approve
+    ```
+
+    ```bash
+    dexto --permissions-mode asks-you      # was: --permissions-mode manual
+    dexto --permissions-mode full-access   # was: --permissions-mode auto-approve
+    ```
+
+    `--auto-approve` and `--bypass-permissions` still select Full access.
+
+    Behavior changes:
+    - Asks you now asks before writing or editing files inside the workspace, not only before shell commands and paths outside it. "Allow for session" covers further edits in the same directory. Full access does not ask.
+    - `PermissionsMode` is now `'full-access' | 'asks-you'`. Code that compares `config.permissions.mode` with `'manual'` or `'auto-approve'` must compare with the new values. `PERMISSIONS_MODE_LABELS`, `resolvePermissionsMode()` and `getDeprecatedPermissionsModeWarning()` are exported from `@dexto/core`.
+    - The tool approval reason `auto-approve-mode` is renamed `full-access-mode`.
+    - The TUI footer and `/config` show "Full access" or "Asks you".
+
+### Patch Changes
+
+- Updated dependencies [46915b1]
+- Updated dependencies [d57b42d]
+- Updated dependencies [e229d40]
+- Updated dependencies [110d8e5]
+    - @dexto/core@1.19.0
+    - @dexto/agent-config@1.19.0
+    - @dexto/tools-builtins@1.19.0
+    - @dexto/llm@1.19.0
+
 ## 1.18.1
 
 ### Patch Changes

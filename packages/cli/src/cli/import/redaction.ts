@@ -41,8 +41,15 @@ const SECRET_PATTERNS: readonly (readonly [kind: string, pattern: RegExp])[] = [
     ['auth_token', /\bAuthorization\s*:\s*(?:Basic|Token)\s+[A-Za-z0-9._~+/=-]{8,}/giu],
 ];
 
-/** `password = value` and the like: the name stays, the value goes. */
-const SECRET_ASSIGNMENT = /\b([A-Za-z_][A-Za-z0-9_-]*)(\\*["']?\s*[:=]\s*\\*["']?)([^\s"'[]{8,})/gu;
+/**
+ * `password = value` and the like: the name stays, the value goes. A quoted value goes whole, up
+ * to its closing quote (escaped to the same depth as the opening one), spaces and all; an unquoted
+ * one goes up to the first space or quote.
+ */
+const SECRET_ASSIGNMENTS = [
+    /\b([A-Za-z_][A-Za-z0-9_-]*)(\\*["']?\s*[:=]\s*(\\*["']))((?:(?!\3|\[redacted:)[^\n]){8,200}?)(?=\3)/gu,
+    /\b([A-Za-z_][A-Za-z0-9_-]*)(\\*["']?\s*[:=]\s*\\*["']?)([^\s"'[]{8,})/gu,
+];
 
 const REDACTED_MARKER = /\[redacted:([a-z_]+)\]/gu;
 
@@ -64,9 +71,9 @@ export function redactSecrets(text: string): { counts: Record<string, number>; t
             return `${prefix}[redacted:url_password]${suffix}`;
         }
     );
-    redacted = redacted.replace(
-        SECRET_ASSIGNMENT,
-        (match, name: string, separator: string, value: string) => {
+    for (const pattern of SECRET_ASSIGNMENTS)
+        redacted = redacted.replace(pattern, (match, name: string, separator: string) => {
+            const value = match.slice(name.length + separator.length);
             const words = name
                 .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
                 .toLowerCase()
@@ -82,8 +89,7 @@ export function redactSecrets(text: string): { counts: Record<string, number>; t
             if (!secret || /^z\.\w+\(/u.test(value)) return match;
             count('assignment');
             return `${name}${separator}[redacted:assignment]`;
-        }
-    );
+        });
     return { counts, text: redacted };
 }
 
@@ -127,14 +133,10 @@ export function toImportInput(
     if (!SOURCE_SESSION_ID.test(chat.id))
         return { kind: 'skipped', reason: "Its session id isn't one Dexto takes." };
     let truncated = 0;
-    const bounded = chat.messages.map((message) => {
+    const bounded = chat.messages.map((message): LocalChatMessage => {
         const { text } = redactSecrets(message.text);
         if (text.length > MAX_MESSAGE_CHARS) truncated += 1;
-        return {
-            createdAt: message.createdAt,
-            role: message.role,
-            text: truncate(text, MAX_MESSAGE_CHARS),
-        };
+        return { ...message, text: truncate(text, MAX_MESSAGE_CHARS) };
     });
     const { leftOut, messages } = newestWithin(bounded, chat.source);
     const title = redactSecrets(chat.title).text.slice(0, MAX_TITLE_CHARS);

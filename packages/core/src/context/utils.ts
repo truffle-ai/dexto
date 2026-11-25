@@ -7,6 +7,7 @@ import {
     UIResourcePart,
     ContentPart,
     SanitizedToolResult,
+    ToolMessage,
     isToolMessage,
 } from './types.js';
 import { clonePromptContentPart } from './content-clone.js';
@@ -16,6 +17,7 @@ import {
     DEFAULT_MODEL_REGISTRY,
     validateModelFileSupport,
     type LLMContext,
+    type LLMProvider,
     type ModelRegistry,
 } from '@dexto/llm';
 import { safeStringify } from '../utils/safe-stringify.js';
@@ -1001,6 +1003,28 @@ export async function expandBlobReferences(
     return expandedParts;
 }
 
+/** The declared type comes from the uploading client, so only a plain type name is quoted. */
+const QUOTABLE_IMAGE_TYPE_PATTERN = /^image\/[a-z0-9.+-]{1,40}$/i;
+
+/** Endpoints the user configures: core cannot know which image types they accept. */
+const USER_ENDPOINT_PROVIDERS: ReadonlySet<LLMProvider> = new Set([
+    'openai-compatible',
+    'litellm',
+    'ollama',
+    'local',
+]);
+
+/** Image types Gemini reads beyond the registry's common ones (jpeg, png, webp, gif). */
+const GEMINI_EXTRA_IMAGE_TYPES: ReadonlySet<string> = new Set(['image/heic', 'image/heif']);
+
+/** Whether the provider may view an image type the registry does not know. */
+function mayViewUnrecognizedImageType(provider: LLMProvider, mimeType: string): boolean {
+    if (USER_ENDPOINT_PROVIDERS.has(provider)) return true;
+    if (provider !== 'google' && provider !== 'vertex') return false;
+    const baseType = mimeType.toLowerCase().split(';')[0]?.trim() ?? '';
+    return GEMINI_EXTRA_IMAGE_TYPES.has(baseType);
+}
+
 /**
  * Filters message content based on LLM capabilities.
  * Removes unsupported file attachments while preserving supported content.
@@ -1056,6 +1080,26 @@ export function filterMessagesByLLMCapabilities(
                                 {
                                     type: 'text' as const,
                                     text: `ERROR: Cannot read image (this model does not support image input). Inform the user.`,
+                                },
+                            ];
+                        }
+                        // Only an image type the registry does not know comes back without a file
+                        // type. Sending one the provider cannot view makes it fail or reply with
+                        // nothing.
+                        if (
+                            validation.fileType === undefined &&
+                            !mayViewUnrecognizedImageType(config.provider, mimeType)
+                        ) {
+                            const typeName = QUOTABLE_IMAGE_TYPE_PATTERN.test(mimeType)
+                                ? mimeType
+                                : 'an unrecognized image type';
+                            logger.info(
+                                `Replaced an image of unrecognized type ${typeName} for ${config.model}`
+                            );
+                            return [
+                                {
+                                    type: 'text' as const,
+                                    text: `ERROR: Cannot read image (${typeName} is not an image type this model can view). Inform the user.`,
                                 },
                             ];
                         }
@@ -2122,6 +2166,26 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
         return isLikelyBase64String(content) ? '[binary data omitted]' : content;
     }
     return String(content ?? '');
+}
+
+/** The messages with these ids, in history order. */
+export function pickMessagesById(
+    history: readonly InternalMessage[],
+    messageIds: readonly string[]
+): InternalMessage[] {
+    const ids = new Set(messageIds);
+    return history.filter((message) => message.id !== undefined && ids.has(message.id));
+}
+
+/** Every tool result answering one of these tool call ids, in history order. */
+export function pickToolResults(
+    history: readonly InternalMessage[],
+    toolCallIds: readonly string[]
+): ToolMessage[] {
+    const ids = new Set(toolCallIds);
+    return history.filter(
+        (message): message is ToolMessage => isToolMessage(message) && ids.has(message.toolCallId)
+    );
 }
 
 /**

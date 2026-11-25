@@ -84,6 +84,142 @@ describe('cloud secrets, web and data-deletions', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it('publishes an HTML file as an organization Artifact', async () => {
+        const file = path.join(path.dirname(dir), 'report.html');
+        await writeFile(file, '<h1>Report</h1>');
+        reply = () =>
+            Response.json(
+                {
+                    id: 'art_1',
+                    object: 'artifact',
+                    title: 'Report',
+                    url: 'https://app.dexto.ai/a/1',
+                },
+                { status: 201 }
+            );
+        expect(
+            await runCloud(host, ['artifacts', 'publish', file, '--title', 'Report', '--json'])
+        ).toBe(0);
+        expect(requests[0]).toMatchObject({
+            method: 'POST',
+            url: 'https://api.dexto.ai/v1/artifacts',
+            body: { title: 'Report', html: '<h1>Report</h1>' },
+        });
+        expect(JSON.parse(stdout)).toMatchObject({ id: 'art_1', url: 'https://app.dexto.ai/a/1' });
+    });
+
+    it('uses a stable key for identical titles and file bytes', async () => {
+        const file = path.join(path.dirname(dir), 'report.html');
+        await writeFile(file, '<p>First</p>');
+        reply = () =>
+            Response.json(
+                {
+                    id: 'art_1',
+                    object: 'artifact',
+                    title: 'Report',
+                    url: 'https://app.dexto.ai/a/1',
+                },
+                { status: 201 }
+            );
+        const args = ['artifacts', 'publish', file, '--title', 'Report', '--json'];
+        expect(await runCloud(host, args)).toBe(0);
+        expect(await runCloud(host, args)).toBe(0);
+        const first = requests[0]?.body as { idempotency_key: string };
+        const second = requests[1]?.body as { idempotency_key: string };
+        expect(first.idempotency_key).toBeTruthy();
+        expect(second.idempotency_key).toBe(first.idempotency_key);
+        expect(await runCloud(host, [...args, '--kind', 'document'])).toBe(0);
+        expect((requests[2]?.body as { idempotency_key: string }).idempotency_key).toBe(
+            first.idempotency_key
+        );
+        expect(await runCloud(host, [...args, '--kind', 'plan'])).toBe(0);
+        expect((requests[3]?.body as { idempotency_key: string }).idempotency_key).not.toBe(
+            first.idempotency_key
+        );
+        await writeFile(file, '<p>Second</p>');
+        expect(await runCloud(host, args)).toBe(0);
+        expect((requests[4]?.body as { idempotency_key: string }).idempotency_key).not.toBe(
+            first.idempotency_key
+        );
+        expect(
+            await runCloud(host, ['artifacts', 'publish', file, '--title', 'Different', '--json'])
+        ).toBe(0);
+        expect((requests[5]?.body as { idempotency_key: string }).idempotency_key).not.toBe(
+            (requests[4]?.body as { idempotency_key: string }).idempotency_key
+        );
+    });
+
+    it('lists and opens Artifact links through the public API', async () => {
+        const artifact = {
+            id: 'art_1',
+            object: 'artifact',
+            title: 'Report',
+            url: 'https://app.dexto.ai/a/1',
+        };
+        reply = (url) =>
+            Response.json(
+                url.includes('?')
+                    ? { object: 'list', data: [artifact], has_more: false, next_after: null }
+                    : artifact
+            );
+        expect(await runCloud(host, ['artifacts', 'list', '--limit', '5', '--json'])).toBe(0);
+        expect(requests[0]?.url).toBe('https://api.dexto.ai/v1/artifacts?limit=5');
+        expect(JSON.parse(stdout).data).toEqual([artifact]);
+        stdout = '';
+        expect(await runCloud(host, ['artifacts', 'open', 'art_1', '--json'])).toBe(0);
+        expect(requests[1]?.url).toBe('https://api.dexto.ai/v1/artifacts/art_1');
+        expect(JSON.parse(stdout)).toEqual(artifact);
+    });
+
+    it('validates Artifact input and previews without publishing', async () => {
+        const file = path.join(path.dirname(dir), 'report.html');
+        await writeFile(file, '<p>Report</p>');
+        expect(await runCloud(host, ['artifacts', 'publish', file])).toBe(2);
+        expect(
+            await runCloud(host, [
+                'artifacts',
+                'publish',
+                file,
+                '--title',
+                'Report',
+                '--kind',
+                'bad',
+            ])
+        ).toBe(2);
+        expect(
+            await runCloud(host, [
+                'artifacts',
+                'publish',
+                file,
+                '--title',
+                'Report',
+                '--kind',
+                'plan',
+                '--dry-run',
+                '--json',
+            ])
+        ).toBe(0);
+        expect(requests).toHaveLength(0);
+        expect(JSON.parse(stdout)).toMatchObject({ dryRun: true, title: 'Report', kind: 'plan' });
+    });
+
+    it('rejects oversized Artifact HTML during dry run', async () => {
+        const file = path.join(path.dirname(dir), 'large.html');
+        await writeFile(file, 'x'.repeat(524289));
+        expect(
+            await runCloud(host, [
+                'artifacts',
+                'publish',
+                file,
+                '--title',
+                'Report',
+                '--dry-run',
+                '--json',
+            ])
+        ).toBe(2);
+        expect(requests).toHaveLength(0);
+    });
+
     it('creates a secret from stdin, never from an argument, sent as a bearer by default', async () => {
         stdin = 'ghp_value\n';
         reply = () => Response.json({ id: 'sec_1', name: 'GITHUB' }, { status: 201 });
@@ -693,8 +829,92 @@ describe('cloud secrets, web and data-deletions', () => {
         });
 
         it('refuses to deploy a Function as a Site', async () => {
+            const project = path.join(path.dirname(dir), 'fn');
+            await mkdir(project, { recursive: true });
+            await writeFile(
+                path.join(project, 'package.json'),
+                JSON.stringify({ scripts: { pack: 'node pack.mjs' } })
+            );
             packed = { entry: 'index.js' };
-            expect(await runCloud(host, ['cloud', 'sites', 'deploy', path.dirname(dir)])).toBe(2);
+
+            expect(await runCloud(host, ['cloud', 'sites', 'deploy', project])).toBe(2);
+            expect(ran[0]?.command).toBe('pnpm');
+            expect(requests).toHaveLength(0);
+        });
+
+        it('packs a plain static folder itself when the project has no packer', async () => {
+            const project = path.join(path.dirname(dir), 'plain');
+            await mkdir(path.join(project, 'dist', 'css'), { recursive: true });
+            await writeFile(
+                path.join(project, 'dexto.json'),
+                JSON.stringify({ assets: 'dist', slug: 'plain-page', title: 'Plain page' })
+            );
+            await writeFile(path.join(project, 'dist', 'index.html'), '<link href="css/a.css">');
+            await writeFile(path.join(project, 'dist', 'css', 'a.css'), 'body{}');
+            reply = () =>
+                Response.json({
+                    deployment: { id: 'dep_1' },
+                    promoted: true,
+                    site: { id: 'site_1', slug: 'plain-page' },
+                    url: 'https://plain-page.dexto.site',
+                });
+
+            const code = await runCloud(host, ['cloud', 'sites', 'deploy', project, '--table']);
+
+            expect(code).toBe(0);
+            expect(ran).toHaveLength(0);
+            expect(requests[0]?.body).toEqual({
+                assets: [
+                    { contentBase64: Buffer.from('body{}').toString('base64'), path: 'css/a.css' },
+                    {
+                        contentBase64: Buffer.from('<link href="css/a.css">').toString('base64'),
+                        path: 'index.html',
+                    },
+                ],
+                entrypoint: 'index.html',
+                runtime: { kind: 'static' },
+                schemaVersion: 1,
+                slug: 'plain-page',
+                spaFallback: true,
+                title: 'Plain page',
+                visibility: 'unlisted',
+            });
+        });
+
+        it('names the packer a project needs beyond static pages', async () => {
+            const project = path.join(path.dirname(dir), 'with-function');
+            await mkdir(path.join(project, 'dist'), { recursive: true });
+            await writeFile(
+                path.join(project, 'dexto.json'),
+                JSON.stringify({
+                    assets: 'dist',
+                    function: { main: 'api.ts' },
+                    slug: 'with-function',
+                    title: 'With function',
+                })
+            );
+            await writeFile(path.join(project, 'dist', 'index.html'), '<p>hi</p>');
+
+            expect(await runCloud(host, ['cloud', 'sites', 'deploy', project])).toBe(2);
+            expect(stderr).toContain('.dexto/pack.mjs');
+            expect(ran).toHaveLength(0);
+            expect(requests).toHaveLength(0);
+        });
+
+        it('refuses root-absolute asset URLs, which break previews', async () => {
+            const project = path.join(path.dirname(dir), 'absolute');
+            await mkdir(path.join(project, 'dist'), { recursive: true });
+            await writeFile(
+                path.join(project, 'dexto.json'),
+                JSON.stringify({ assets: 'dist', slug: 'absolute', title: 'Absolute' })
+            );
+            await writeFile(
+                path.join(project, 'dist', 'index.html'),
+                '<script src="/app.js"></script>'
+            );
+
+            expect(await runCloud(host, ['cloud', 'sites', 'deploy', project])).toBe(2);
+            expect(stderr).toContain('relative asset URLs');
             expect(requests).toHaveLength(0);
         });
 

@@ -66,6 +66,7 @@ import {
     loadImage,
     resolveServicesFromConfig,
     toDextoAgentOptions,
+    type AgentConfig,
     type DextoImage,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
@@ -92,11 +93,13 @@ import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.j
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import {
     applyCLIOverrides,
+    getPermissionsModeDeprecationWarning,
     applyStartupLLMFallback,
     applyUserPreferences,
 } from './config/cli-overrides.js';
 import { CommandFailure } from './cli/failure.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
+import { registerAcpCommand } from './cli/commands/acp/register.js';
 import { registerReviewCommand } from './cli/commands/review/register.js';
 import { gitIn, readBundledReviewSkill } from './cli/commands/review/review.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
@@ -127,6 +130,30 @@ const USAGE_ERRORS: ReadonlySet<string> = new Set([
 ]);
 program.exitOverride((error) => {
     if (USAGE_ERRORS.has(error.code)) process.exit(2);
+});
+// Every command but the interactive CLI, which shows its own, and `upgrade` itself tells a person
+// at a terminal that this CLI is out of date (DEXTO-3134). Never in a JSON mode, whose stderr holds
+// only its failure. A fresh cache answers at once; a stale one is refreshed here, held to 1.5 s,
+// since most commands end in process.exit, which would cut a background refresh short. A failed
+// lookup is cached too, so this waits at most once a day.
+program.hook('preAction', async (_program, actionCommand) => {
+    if (actionCommand === program || actionCommand.name() === 'upgrade') return;
+    const argv = process.argv.slice(2);
+    if (
+        process.stdout.isTTY !== true ||
+        process.stderr.isTTY !== true ||
+        argv.includes('--json') ||
+        argv.includes('--stream-json')
+    )
+        return;
+    const { checkForUpdates, displayUpdateNotification, readCachedUpdate } = await import(
+        './cli/utils/version-check.js'
+    );
+    const cached = await readCachedUpdate(cliVersion);
+    const update = cached.stale
+        ? await checkForUpdates(cliVersion, { timeoutMs: 1500 })
+        : cached.update;
+    if (update !== null) displayUpdateNotification(update);
 });
 
 /** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */
@@ -216,12 +243,15 @@ program
         new Option(
             '--permissions-mode <mode>',
             "Override the local agent's configured approval mode"
-        ).choices(['manual', 'auto-approve'])
+        ).choices(['full-access', 'asks-you', 'manual', 'auto-approve'])
     )
-    .option('--auto-approve', 'Select auto-approve permissions (mandatory approvals still apply)')
+    .option(
+        '--auto-approve',
+        'Select Full access permissions (alias for --permissions-mode full-access; mandatory approvals still apply)'
+    )
     .option(
         '--bypass-permissions',
-        'Select auto-approve permissions (alias for --permissions-mode auto-approve)'
+        'Select Full access permissions (alias for --permissions-mode full-access)'
     )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session')
@@ -275,13 +305,32 @@ program
         })
     );
 
+// Printed to stderr so headless JSON output and MCP stdio stay clean.
+function printPermissionsModeDeprecation(config: AgentConfig): void {
+    const warning = getPermissionsModeDeprecationWarning(config);
+    if (warning !== null) {
+        console.warn(`⚠️  ${warning}`);
+    }
+}
+
 // Helper to bootstrap a minimal agent for non-interactive commands
+/**
+ * The config with the person's saved model choice, once setup has saved one. Unreadable
+ * preferences are skipped, as in the interactive CLI.
+ */
+async function withSavedModel(config: AgentConfig): Promise<AgentConfig> {
+    if (!globalPreferencesExist()) return config;
+    const preferences = await loadGlobalPreferences().catch(() => null);
+    if (!preferences?.setup.completed) return config;
+    return applyUserPreferences(config, preferences);
+}
+
 async function bootstrapAgentFromGlobalOpts(options: {
     mode: BootstrapAgentMode;
     modelOverride?: string;
 }) {
     const { mode, modelOverride } = options;
-    const isHeadlessRun = mode === 'headless-run';
+    const isHeadlessRun = mode === 'headless-run' || mode === 'acp';
     await ensureDextoSignInsCarriedOver();
     await syncCloudSkillsOnce();
     await ensureImageImporterConfigured();
@@ -315,10 +364,16 @@ async function bootstrapAgentFromGlobalOpts(options: {
     const resolvedPath = await resolveAgentPath(globalOpts.agent);
     const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
     const rawConfig = await loadAgentConfig(resolvedPath);
-    const mergedConfig = applyCLIOverrides(rawConfig, {
+    let mergedConfig = applyCLIOverrides(rawConfig, {
         ...globalOpts,
         ...(modelOverride ? { model: modelOverride } : {}),
     });
+    // An ACP client starts on the person's saved model, for any agent, as the TUI does; an
+    // explicit --model wins.
+    if (mode === 'acp' && !effectiveModel) {
+        mergedConfig = await withSavedModel(mergedConfig);
+    }
+    printPermissionsModeDeprecation(mergedConfig);
     if (effectiveModel) {
         mergedConfig.llm.model = effectiveModel;
     }
@@ -374,7 +429,9 @@ async function bootstrapAgentFromGlobalOpts(options: {
     }
 
     enrichedConfig.elicitation = {
-        enabled: false,
+        // Only an ACP client can answer ask_user and MCP elicitation forms; an explicit
+        // `enabled: false` (or --no-elicitation) still turns them off.
+        enabled: mode === 'acp' && enrichedConfig.elicitation?.enabled !== false,
         ...(enrichedConfig.elicitation?.timeout !== undefined && {
             timeout: enrichedConfig.elicitation.timeout,
         }),
@@ -424,6 +481,7 @@ const runtimeCommandContext = {
     bootstrapAgentFromGlobalOpts,
 };
 registerRunCommand(runtimeCommandContext);
+registerAcpCommand(runtimeCommandContext);
 registerReviewCommand(runtimeCommandContext, {
     git: gitIn(process.cwd()),
     readSkill: readBundledReviewSkill,
@@ -441,7 +499,7 @@ program
             '  dexto -c | -r <id>      Continue the latest chat, or resume one\n' +
             '  dexto -a ./agent.yml    Use an agent file\n' +
             '  dexto run "query"       Run one headless task\n' +
-            "  dexto chat list         This machine's chats\n" +
+            "  dexto chat list         Your cloud chats; --local for this machine's\n" +
             '  dexto login             Sign in for Dexto models and the cloud commands\n\n' +
             'Docs: https://cli.dexto.ai'
     )
@@ -644,6 +702,7 @@ program
                     // Load raw config and apply CLI overrides
                     const rawConfig = await loadAgentConfig(resolvedPath);
                     let mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+                    printPermissionsModeDeprecation(mergedConfig);
 
                     // ——— PREFERENCE-AWARE CONFIG HANDLING ———
                     // User's LLM preferences from preferences.yml apply to ALL agents

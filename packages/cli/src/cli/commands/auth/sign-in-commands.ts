@@ -20,6 +20,7 @@ type SignInPrompt = dextoSignIn.SignInPrompt;
 
 const {
     DEFAULT_PROFILE,
+    chooseCredential,
     forgetLogin,
     listAccounts: readAccounts,
     profileNameFor,
@@ -37,7 +38,7 @@ export interface DextoSignIn {
     readonly signInWithBrowser: (input: BrowserSignInInput) => Promise<OAuthLogin>;
     readonly signInWithDevice: (input: SignInInput) => Promise<OAuthLogin>;
     readonly endSignIn: (login: OAuthLogin) => Promise<EndedSignIn>;
-    readonly refreshSignIn: (login: OAuthLogin) => Promise<OAuthLogin>;
+    readonly refreshSignIn: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
     /** The Cloud projects the signed-in organization has. */
     readonly listProjects: (login: OAuthLogin) => Promise<readonly CloudProject[]>;
     /** Whether the public API accepts the key; false on 401. */
@@ -258,13 +259,18 @@ async function saveApiKey(context: SignInContext, profile: string, apiKey: strin
 
 /** Who the current profile acts as, in a few words, or null when signed out. */
 export async function describeSignIn(context: SignInContext): Promise<string | null> {
-    const environmentKey = nonEmpty(context.environment.DEXTO_API_KEY);
-    if (environmentKey !== null) return `API key ${maskApiKey(environmentKey)} from DEXTO_API_KEY`;
-    const profile = await resolveProfile(context.dir, null, context.environment);
-    const saved = await readLogin(context.dir, profile);
-    if (saved === null) return null;
-    const suffix = profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`;
-    if (saved.kind === 'api_key') return `API key ${maskApiKey(saved.apiKey)}${suffix}`;
+    const credential = await chooseCredential({
+        dir: context.dir,
+        apiKey: null,
+        profile: null,
+        environment: context.environment,
+    });
+    if (credential === null) return null;
+    if (credential.source === 'environment')
+        return `API key ${maskApiKey(credential.token)} from DEXTO_API_KEY`;
+    const suffix = credential.profile === DEFAULT_PROFILE ? '' : ` (profile ${credential.profile})`;
+    if (credential.kind === 'api_key') return `API key ${maskApiKey(credential.token)}${suffix}`;
+    const saved = credential.login;
     const who =
         saved.signedInAs === null
             ? safeText(saved.appUrl)
@@ -277,11 +283,16 @@ export async function logout(
     options: { readonly profile: string | null }
 ): Promise<void> {
     const profile = await resolveProfile(context.dir, options.profile, context.environment);
-    const removed = await logOutProfile(context, profile);
+    const result = await logOutProfile(context, profile);
     const named = profile === DEFAULT_PROFILE ? '' : ` for profile ${profile}`;
+    const detail = result.endedOnServer
+        ? ' This ended the sign-in on the server, so any other computer, script or agent using this same sign-in is signed out too.'
+        : result.kind === 'api_key'
+          ? ' The API key still works until it is deleted in Settings.'
+          : '';
     context.result(
-        { profile, logged_out: removed },
-        removed ? `Logged out${named}.` : `No saved sign-in${named}.`
+        { profile, logged_out: result.removed, ended_on_server: result.endedOnServer },
+        result.removed ? `Logged out${named}.${detail}` : `No saved sign-in${named}.`
     );
 }
 
@@ -289,16 +300,26 @@ export async function logout(
  * Ends a profile's sign-in on its server, then forgets it here. A sign-in the server didn't end
  * keeps working until it expires, so a note says where to end it.
  */
-async function logOutProfile(context: SignInContext, profile: string): Promise<boolean> {
+async function logOutProfile(
+    context: SignInContext,
+    profile: string
+): Promise<{
+    removed: boolean;
+    endedOnServer: boolean;
+    kind: StoredLogin['kind'] | null;
+}> {
     const saved = await readLogin(context.dir, profile);
+    let endedOnServer = false;
     if (saved?.kind === 'oauth') {
         const ended = await context.dexto.endSignIn(saved);
+        endedOnServer = ended.status === 'ended';
         if (ended.status === 'failed')
             context.note(
                 `Couldn't end the sign-in on ${safeText(saved.appUrl)} (${safeText(ended.reason)}). Sign it out at ${safeText(new URL('/settings/sign-ins', saved.appUrl).href)}, or it keeps working until it expires.`
             );
     }
-    return await forgetLogin(context.dir, profile);
+    const removed = await forgetLogin(context.dir, profile);
+    return { removed, endedOnServer, kind: saved?.kind ?? null };
 }
 
 export async function whoami(
@@ -333,7 +354,7 @@ export async function whoami(
                 ? ' (from --api-key)'
                 : credential.source === 'environment'
                   ? ' (from DEXTO_API_KEY)'
-                  : `, profile ${credential.profile}`;
+                  : ` (saved key, profile ${credential.profile})`;
         context.result(
             { as: 'api_key', key: maskApiKey(credential.token), source: credential.source },
             field('api key', `${maskApiKey(credential.token)}${from}`)
@@ -341,9 +362,12 @@ export async function whoami(
         return;
     }
     const { login: saved } = credential;
+    if (nonEmpty(context.environment.DEXTO_API_KEY?.trim()) !== null)
+        context.note('DEXTO_API_KEY is set, but the saved sign-in comes first, so it is not used.');
     const text = signalOn()
         ? whoamiLines(credential.profile, saved).join('\n')
         : [
+              field('source', 'sign-in'),
               field('profile', credential.profile),
               field('account', safeText(saved.signedInAs?.account.email ?? 'unknown')),
               field(
@@ -358,6 +382,7 @@ export async function whoami(
     context.result(
         {
             as: 'person',
+            source: credential.source,
             profile: credential.profile,
             account: saved.signedInAs?.account ?? null,
             organization: saved.signedInAs?.organization ?? null,

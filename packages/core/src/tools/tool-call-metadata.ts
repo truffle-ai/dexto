@@ -18,20 +18,16 @@ const META_SCHEMA: JSONSchema7 = {
     properties: {
         callActivity: {
             type: 'object',
-            description:
-                'Concise action-only descriptions for the tool call. Use present-progressive tense while running and past tense when complete. Write in sentence case without terminal punctuation; do not speculate about the outcome.',
             properties: {
                 running: {
                     type: 'string',
                     maxLength: 120,
-                    description:
-                        'Present-progressive description of the action currently being performed, in concise sentence case without terminal punctuation.',
+                    description: 'e.g. Reading config file',
                 },
                 completed: {
                     type: 'string',
                     maxLength: 120,
-                    description:
-                        'Past-tense description of the action that was performed, in concise sentence case without terminal punctuation.',
+                    description: 'e.g. Read config file',
                 },
             },
             required: ['running', 'completed'],
@@ -167,6 +163,9 @@ function flattenObjectUnionSchema(parameters: JSONSchema7): JSONSchema7 | undefi
 
     return {
         ...(parameters.description === undefined ? {} : { description: parameters.description }),
+        // An alternative's $ref points into the root's definitions, so they move with it.
+        ...(parameters.definitions === undefined ? {} : { definitions: parameters.definitions }),
+        ...(parameters.$defs === undefined ? {} : { $defs: parameters.$defs }),
         type: 'object',
         properties,
         ...(required === undefined ? {} : { required }),

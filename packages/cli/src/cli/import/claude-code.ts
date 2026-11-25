@@ -3,6 +3,7 @@
 import path from 'node:path';
 
 import {
+    answeredBy,
     createTurns,
     finishChat,
     isRecord,
@@ -54,7 +55,8 @@ function pullRequest(line: Record<string, unknown>): LocalPullRequest | null {
 /**
  * A Claude Code session file: one Agent SDK message per line (`type` `user` or `assistant`, with
  * Anthropic `message.content`), plus title, `pr-link` and bookkeeping lines. Sidechain (subagent),
- * meta and compact-summary lines are left out, as is thinking.
+ * meta and compact-summary lines are left out, as is thinking. An assistant line's `message.model`
+ * names who answered; Claude Code records no effort, and `<synthetic>` marks a line no model wrote.
  */
 export function parseClaudeCodeTranscript(text: string, file: string): ParsedChat | null {
     const turns = createTurns();
@@ -81,9 +83,13 @@ export function parseClaudeCodeTranscript(text: string, file: string): ParsedCha
         sessionId ??= stringField(line, 'sessionId');
         cwd ??= stringField(line, 'cwd');
         gitBranch ??= stringField(line, 'gitBranch');
+        const by =
+            line.type === 'assistant' && message.model !== '<synthetic>'
+                ? answeredBy(message.model, null)
+                : null;
         const content = message.content;
         if (typeof content === 'string') {
-            if (line.type === 'assistant') turns.assistant(content, at);
+            if (line.type === 'assistant') turns.assistant(content, at, by);
             else if (!CLAUDE_CODE_INJECTED.test(content)) turns.user(content, at);
             continue;
         }
@@ -91,15 +97,16 @@ export function parseClaudeCodeTranscript(text: string, file: string): ParsedCha
         for (const block of content) {
             if (!isRecord(block)) continue;
             if (block.type === 'text' && typeof block.text === 'string') {
-                if (line.type === 'assistant') turns.assistant(block.text, at);
+                if (line.type === 'assistant') turns.assistant(block.text, at, by);
                 else if (!CLAUDE_CODE_INJECTED.test(block.text)) turns.user(block.text, at);
             } else if (block.type === 'tool_use') {
                 turns.assistant(
                     toolCallText(stringField(block, 'name') ?? 'tool', block.input),
-                    at
+                    at,
+                    by
                 );
             } else if (block.type === 'tool_result') {
-                turns.assistant(toolResultText(claudeToolResultText(block.content)), at);
+                turns.assistant(toolResultText(claudeToolResultText(block.content)), at, by);
             } else if (block.type === 'image' && line.type === 'user') {
                 turns.user('[An image was attached here; it was not imported.]', at);
             }

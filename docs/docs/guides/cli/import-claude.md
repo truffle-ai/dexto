@@ -69,6 +69,6 @@ dexto chat import --from claude-code --all --yes --json
 Use session IDs instead of `--all` to choose particular sessions. `--dir` overrides
 the local session root. `--from codex` reads local Codex sessions instead. These
 local commands import text transcripts; they do not copy local instruction files
-or memories.
+or memories. Imports keep which model answered each turn, and continuing an imported chat uses that model (connect ChatGPT with `dexto connect codex` to continue Codex chats on your ChatGPT plan).
 
 Claude export instructions: [Export your Claude data](https://support.claude.com/en/articles/9450526-export-your-claude-data).

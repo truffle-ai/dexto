@@ -1,3 +1,4 @@
+import type { JSONSchema7 } from 'json-schema';
 import { describe, expect, it } from 'vitest';
 import { wrapToolParametersSchema } from './tool-call-metadata.js';
 
@@ -45,6 +46,33 @@ describe('wrapToolParametersSchema', () => {
         expect(schema.properties?.format).toEqual({ enum: ['email', 'sms'] });
     });
 
+    it('keeps root definitions when it flattens a union, so a $ref still resolves', () => {
+        // z.json() and other recursive zod schemas emit a $ref into root definitions; xAI
+        // rejects a tool whose $ref points nowhere with HTTP 400.
+        const definitions: JSONSchema7['definitions'] = {
+            __schema0: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        };
+        const $defs: JSONSchema7['$defs'] = { Value: { type: 'number' } };
+        const schema = wrapToolParametersSchema({
+            oneOf: [
+                {
+                    type: 'object',
+                    properties: { body: { $ref: '#/definitions/__schema0' } },
+                },
+                {
+                    type: 'object',
+                    properties: { value: { $ref: '#/$defs/Value' } },
+                },
+            ],
+            definitions,
+            $defs,
+        });
+
+        expect(schema.properties?.body).toEqual({ $ref: '#/definitions/__schema0' });
+        expect(schema.definitions).toEqual(definitions);
+        expect(schema.$defs).toEqual($defs);
+    });
+
     it('injects grouped model-authored call activity metadata', () => {
         const schema = wrapToolParametersSchema({
             type: 'object',
@@ -72,10 +100,20 @@ describe('wrapToolParametersSchema', () => {
                         },
                         required: ['running', 'completed'],
                         additionalProperties: false,
-                        description: expect.any(String),
                     },
                 }),
             })
         );
+    });
+
+    it('keeps the call activity schema short, since every tool carries a copy', () => {
+        const schema = wrapToolParametersSchema({
+            type: 'object',
+            properties: {
+                path: { type: 'string' },
+            },
+        });
+
+        expect(JSON.stringify(schema.properties?.__meta).length).toBeLessThanOrEqual(360);
     });
 });

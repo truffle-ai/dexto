@@ -15,6 +15,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
+import { CHAT_SYNC_SCOPE } from '../../chat-sync/host.js';
 import { nodeChatSyncStore, startNodeChatSync } from '../../chat-sync/node.js';
 import {
     buildWorkingTree,
@@ -49,16 +50,16 @@ import { chatMoveScreen } from '../../screens/chat-move.js';
 async function localChat(context: CommandContext, id: string) {
     if (!/^[A-Za-z0-9._:-]{1,200}$/u.test(id)) throw new UsageError('Invalid local chat id.');
     const connection = await context.connection();
-    if (connection.kind !== 'oauth' || connection.source !== 'login')
+    if (connection.kind !== 'oauth')
         throw new CommandFailure(
             'needs_sign_in',
             'Chat hand-off needs your saved OAuth sign-in.',
             'dexto login'
         );
-    if (!connection.login.scopes.includes('chats:sync'))
+    if (!connection.login.scopes.includes(CHAT_SYNC_SCOPE))
         throw new CommandFailure(
             'needs_permission',
-            'Chat hand-off needs chats:sync permission.',
+            `Chat hand-off needs ${CHAT_SYNC_SCOPE} permission.`,
             'dexto login'
         );
     const who = connection.login.signedInAs;

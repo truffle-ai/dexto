@@ -112,7 +112,7 @@ describe('validateAgentConfig', () => {
                 baseURL: 'codex://chatgpt',
             },
             permissions: {
-                mode: 'manual',
+                mode: 'asks-you',
                 allowedToolsStorage: 'storage',
             },
         };

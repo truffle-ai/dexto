@@ -50,7 +50,7 @@ mcpServers:
     connectionMode: strict
 
 permissions:
-  mode: "auto-approve"
+  mode: full-access
   allowedToolsStorage: "memory"
 
 llm:

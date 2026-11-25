@@ -1,5 +1,114 @@
 # @dexto/core
 
+## 1.19.10
+
+### Patch Changes
+
+- db49ce8: Emit a cancelled run completion when turn driver setup is aborted before the turn starts.
+    - @dexto/llm@1.19.10
+
+## 1.19.9
+
+### Patch Changes
+
+- d688240: Context stats, the turn-ending tool check, compaction marks and streaming into a reply the manager did not start no longer load the whole chat. `getContextStats` takes `hasSummary` from the model history load its estimate already does. The other paths read only the messages they need through two new optional `ConversationStore` methods, `getMessagesById` and `getToolResultsByCallId`; a store without them falls back to `listMessages` as before.
+    - @dexto/llm@1.19.9
+
+## 1.19.8
+
+### Patch Changes
+
+- 98eb8fb: `LLMExecutionControl.requiresToolCall` replaces `toolChoice: 'required'` (added in 1.19.7). Core asks the host before each model step that has tools whether that step must call one. A host can then stop forcing once the turn is answered, for example when input steered in after a turn-ending tool continues the turn and needs no answer.
+    - @dexto/llm@1.19.8
+
+## 1.19.7
+
+### Patch Changes
+
+- ee6dfd5: `LLMExecutionControl.toolChoice: 'required'` makes every model step that has tools call one, for hosts where plain text is never shown and a tool ends the turn. Claude steps that think leave the choice to the model, since Anthropic rejects a forced tool choice with thinking on; hosts keep `beforeTurnEnd` as the fallback.
+    - @dexto/llm@1.19.7
+
+## 1.19.6
+
+### Patch Changes
+
+- 234787b: `dexto acp` offers the Dexto account's models and reasoning effort, explains a model that needs a key or sign-in, and starts on the saved model even with `--agent`. A saved model on another provider no longer keeps the agent's endpoint or key. Installed agents that still enable `invoke_skill` load with `skill_load`. A model switch to another provider no longer keeps the previous provider's `baseURL`.
+- 197b5f5: A run aborted before its turn starts (for example in a `beforeLLMRequest` hook) now ends with `run:complete` (`finishReason: 'cancelled'`) and frees the session, and the `DextoAgent.stream` iterator always ends once the run settles.
+    - @dexto/llm@1.19.6
+
+## 1.19.5
+
+### Patch Changes
+
+- eec24ce: Feature only Dexto models the gateway serves: the curated `dexto-nova` list named retired models such as `qwen/qwen3-coder:free` and `google/gemini-3-flash-preview`, which the gateway rejects with "Request validation failed".
+    - @dexto/llm@1.19.5
+
+## 1.19.4
+
+### Patch Changes
+
+- ccca53c: Keep the Dexto gateway's reasoning items through a tool loop. On `dexto-nova`, a tool call now keeps its `openrouter.reasoning_details` in history and sends them back on the next request, so GPT models keep their encrypted reasoning and Claude keeps its signed thinking between tool calls. The OpenRouter client's `[REDACTED]` placeholder for an encrypted reasoning item is no longer shown as reasoning text.
+    - @dexto/llm@1.19.4
+
+## 1.19.3
+
+### Patch Changes
+
+- 023c262: When a model provider refuses a file or image because it is damaged (corrupted, badly formatted, could not be read), the note that replaces it now says the file looks damaged and that sending it again will not help, instead of "withheld". A model told only "withheld" asked the person to re-upload the same broken file (DEXTO-3266).
+    - @dexto/llm@1.19.3
+
+## 1.19.2
+
+### Patch Changes
+
+- @dexto/llm@1.19.2
+
+## 1.19.1
+
+### Patch Changes
+
+- 5d74a71: Resolve turn driver failure handling after recording the failure instead of rethrowing the provider error.
+- 6042c83: Keep a tool schema's root `definitions` and `$defs` when flattening a union root, so a `$ref` inside an alternative still resolves. xAI rejects a tool whose `$ref` points nowhere.
+- e0db54d: Replace an image of a type the provider cannot view (such as HEIC sent to Anthropic, OpenAI or a gateway) with a text note instead of sending it. Core used to log `Could not validate image support` and send the image anyway, which made the provider fail or stop with no reply. The note names the image type, so the model can tell the user. Google and Vertex still receive HEIC and HEIF, which Gemini reads, and endpoints you configure yourself (openai-compatible, LiteLLM, Ollama, local) still receive any image type, as before.
+    - @dexto/llm@1.19.1
+
+## 1.19.0
+
+### Minor Changes
+
+- 46915b1: Permissions now use the hosted app's two modes: **Full access** (`full-access`) and **Asks you** (`asks-you`). Manual approval mode is removed.
+
+    **Upgrade note: rename `permissions.mode` values.** `manual` becomes `asks-you` and `auto-approve` becomes `full-access`. The old values still work in this release: they map to the new mode and print a warning that names the new value. The next release rejects them.
+
+    ```yaml
+    permissions:
+        mode: asks-you # was: manual
+        # mode: full-access  # was: auto-approve
+    ```
+
+    ```bash
+    dexto --permissions-mode asks-you      # was: --permissions-mode manual
+    dexto --permissions-mode full-access   # was: --permissions-mode auto-approve
+    ```
+
+    `--auto-approve` and `--bypass-permissions` still select Full access.
+
+    Behavior changes:
+    - Asks you now asks before writing or editing files inside the workspace, not only before shell commands and paths outside it. "Allow for session" covers further edits in the same directory. Full access does not ask.
+    - `PermissionsMode` is now `'full-access' | 'asks-you'`. Code that compares `config.permissions.mode` with `'manual'` or `'auto-approve'` must compare with the new values. `PERMISSIONS_MODE_LABELS`, `resolvePermissionsMode()` and `getDeprecatedPermissionsModeWarning()` are exported from `@dexto/core`.
+    - The tool approval reason `auto-approve-mode` is renamed `full-access-mode`.
+    - The TUI footer and `/config` show "Full access" or "Asks you".
+
+### Patch Changes
+
+- d57b42d: Tool schemas sent to the model are shorter: the `__meta.callActivity` schema on every tool keeps its fields and limits but carries two short examples instead of three long descriptions (765 to 341 characters), and uuid fields are described by `format: "uuid"` alone, without zod's long uuid pattern. Hosts that want detailed call-activity guidance give it once in their system prompt.
+- e229d40: Stop runs from failing when an attachment is a file type the provider's SDK cannot send
+
+    **Upgrade note: attachments the provider cannot receive now reach the model as a short text note instead of failing the run.** The model registry lists "document" support for models such as OpenAI's, but the provider SDKs only send some types (OpenAI sends images and PDFs; Anthropic images and PDFs; Groq, xAI and OpenAI-compatible endpoints images). A `.docx`, `.xlsx` or `.pptx` attached to such a model used to throw `AI_UnsupportedFunctionalityError` before any request was made, which failed the whole run. Core now checks each file part against what the provider SDK actually sends. Text-like files are still inlined as text. Any other unsupported file is replaced by a note naming the file and its type, so the model can read it with tools or tell the user. Supported types (images, PDFs and so on) are sent exactly as before. No configuration change is needed.
+
+- 110d8e5: Keep a chat working after a provider rejects a request that carries media. A 400 on a request with images or files is retried once with that media as text placeholders; when the retry succeeds, the media is marked withheld so later turns stop resending it.
+    - @dexto/llm@1.19.0
+
 ## 1.18.1
 
 ### Patch Changes

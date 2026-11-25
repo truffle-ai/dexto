@@ -7,7 +7,7 @@
 
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
-import { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js';
+import { formatHistoryMessage } from './helpers/formatters.js';
 
 /**
  * Helper to get most recent session info (for non-interactive CLI)
@@ -64,63 +64,6 @@ async function displaySessionHistory(sessionId: string, agent: DextoAgent): Prom
 }
 
 /**
- * List all available sessions
- */
-export async function handleSessionListCommand(agent: DextoAgent): Promise<void> {
-    try {
-        console.log(chalk.bold.blue('\n📋 Sessions:\n'));
-
-        const sessionIds = await agent.listSessions();
-        const mostRecent = await getMostRecentSessionInfo(agent);
-
-        if (sessionIds.length === 0) {
-            console.log(
-                chalk.gray(
-                    '  No sessions found. Run `dexto` to start a new session, or use `dexto -c`/`dexto -r <id>`.\n'
-                )
-            );
-            return;
-        }
-
-        // Fetch metadata concurrently; errors do not abort listing
-        const entries = await Promise.all(
-            sessionIds.map(async (id) => {
-                try {
-                    const metadata = await agent.getSessionMetadata(id);
-                    return { id, metadata };
-                } catch (e) {
-                    logger.error(
-                        `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`,
-                        null,
-                        'red'
-                    );
-                    return { id, metadata: undefined as SessionMetadata | undefined };
-                }
-            })
-        );
-
-        let displayed = 0;
-        for (const { id, metadata } of entries) {
-            if (!metadata) continue;
-            // Mark most recent session with indicator (instead of "current")
-            const isMostRecent = mostRecent ? id === mostRecent.id : false;
-            console.log(`  ${formatSessionInfo(id, metadata, isMostRecent)}`);
-            displayed++;
-        }
-
-        console.log(chalk.gray(`\n  Total: ${displayed} of ${sessionIds.length} sessions`));
-        console.log(chalk.gray('  💡 Use `dexto -r <id>` to resume a session\n'));
-    } catch (error) {
-        logger.error(
-            `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`,
-            null,
-            'red'
-        );
-        throw error;
-    }
-}
-
-/**
  * Show session history
  */
 export async function handleSessionHistoryCommand(
@@ -145,7 +88,7 @@ export async function handleSessionHistoryCommand(
     } catch (error) {
         if (error instanceof Error && error.message.includes('not found')) {
             console.log(chalk.red(`❌ Session not found: ${sessionId || 'current'}`));
-            console.log(chalk.gray('   Use `dexto chat list` to see available sessions'));
+            console.log(chalk.gray('   Use `dexto chat list --local` to see available sessions'));
         } else if (error instanceof Error && error.message !== 'No sessions found') {
             logger.error(`Failed to get session history: ${error.message}`, null, 'red');
         }
