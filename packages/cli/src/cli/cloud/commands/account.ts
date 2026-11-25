@@ -88,6 +88,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
 
     const logout: Command = {
         path: ['logout'],
+        examples: ['dexto logout --json'],
         summary: 'End the sign-in on the server and forget it here.',
         async run(context) {
             await (
