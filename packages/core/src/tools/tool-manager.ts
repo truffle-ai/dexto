@@ -1085,13 +1085,13 @@ export class ToolManager {
 
         const validationResult = tool.inputSchema.safeParse(args);
         if (!validationResult.success) {
-            this.logger.error(
-                `❌ Invalid arguments for tool ${toolName}: ${validationResult.error.message}`
-            );
-            throw ToolError.validationFailed(
+            const error = ToolError.validationFailed(
                 toolName,
                 `Invalid arguments: ${validationResult.error.message}`
             );
+            // The model sent bad arguments; it gets the error back as the tool result.
+            this.logger.warn('Invalid arguments for tool', { toolName, code: error.code });
+            throw error;
         }
 
         const validated = validationResult.data;
@@ -1133,21 +1133,15 @@ export class ToolManager {
             throw ToolError.notFound(toolName);
         }
 
-        try {
-            const context = this.buildToolExecutionContext({
-                sessionId: options?.sessionId,
-                abortSignal: options?.abortSignal,
-                executionIdentity: options?.executionIdentity,
-                toolCallId: options?.toolCallId,
-                parentToolCallId: options?.parentToolCallId,
-                runContext: options?.runContext,
-            });
-            const result = await tool.execute(args, context);
-            return result;
-        } catch (error) {
-            this.logger.error(`Local tool execution failed: ${toolName}`);
-            throw error;
-        }
+        const context = this.buildToolExecutionContext({
+            sessionId: options?.sessionId,
+            abortSignal: options?.abortSignal,
+            executionIdentity: options?.executionIdentity,
+            toolCallId: options?.toolCallId,
+            parentToolCallId: options?.parentToolCallId,
+            runContext: options?.runContext,
+        });
+        return tool.execute(args, context);
     }
 
     /**
@@ -1967,6 +1961,9 @@ export class ToolManager {
         }
 
         const startTime = Date.now();
+        // True while the tool itself runs. A throw then is the tool's own failure (a missing
+        // file, a failed command): normal agent work, returned to the model as the result.
+        let toolRunning = false;
 
         try {
             this.logger.info(
@@ -2018,6 +2015,7 @@ export class ToolManager {
 
             let result: unknown;
 
+            toolRunning = true;
             if (call.identity.type === 'mcp') {
                 const actualToolName = call.toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
@@ -2047,6 +2045,7 @@ export class ToolManager {
                     runContext,
                 });
             }
+            toolRunning = false;
 
             const duration = Date.now() - startTime;
             this.logger.debug(
@@ -2118,10 +2117,17 @@ export class ToolManager {
 
             return executionResult;
         } catch (error) {
-            const duration = Date.now() - startTime;
-            this.logger.error(
-                `Prepared tool execution failed for ${call.toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}`
-            );
+            const failure = {
+                toolName: call.toolName,
+                ...(error instanceof DextoRuntimeError && { code: error.code }),
+                durationMs: Date.now() - startTime,
+                sessionId: sessionId ?? 'global',
+            };
+            if (toolRunning) {
+                this.logger.warn('Prepared tool execution failed', failure);
+            } else {
+                this.logger.error('Prepared tool execution failed', failure);
+            }
             const message = error instanceof Error ? error.message : String(error);
 
             if (executionId !== undefined) {

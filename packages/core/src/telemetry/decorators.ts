@@ -240,13 +240,9 @@ export function withSpan(options: {
                     // Return regular results
                     return result;
                 } catch (error) {
-                    // Try to use instance logger if available (DI pattern)
-                    const logger = (this as any)?.logger as Logger | undefined;
+                    // Record the error on the span and rethrow; the caller decides whether and
+                    // how to log it, as on the promise path above.
                     if (captureErrors) {
-                        logger?.error(
-                            `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
-                            { error }
-                        );
                         span.setStatus({
                             code: SpanStatusCode.ERROR,
                             message: error instanceof Error ? error.message : 'Unknown error',
@@ -255,7 +251,6 @@ export function withSpan(options: {
                             span.recordException(error);
                         }
                     } else {
-                        logger?.error(`withSpan: Error in method '${methodName}'`);
                         span.setStatus({ code: SpanStatusCode.ERROR });
                     }
                     throw error;

@@ -7,6 +7,7 @@ import {
     SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { InstrumentClass, withSpan } from './decorators.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 describe('InstrumentClass', () => {
     let contextManager: AsyncHooksContextManager | undefined;
@@ -70,6 +71,26 @@ describe('InstrumentClass', () => {
         expect(JSON.stringify(defaultSpan?.attributes)).not.toContain('secret-token');
         expect(defaultSpan?.attributes['default.connect.argument.0']).toBeUndefined();
         expect(JSON.stringify(optedInSpan?.attributes)).toContain('secret-token');
+    });
+
+    it('rethrows a synchronous error without logging it, leaving that to the caller', () => {
+        const error = new Error('invalid arguments');
+        const logger = createMockLogger();
+
+        @InstrumentClass({ prefix: 'sync' })
+        class SyncService {
+            readonly logger = logger;
+
+            validate(): never {
+                throw error;
+            }
+        }
+
+        expect(() => new SyncService().validate()).toThrow(error);
+        expect(logger.error).not.toHaveBeenCalled();
+        expect(
+            exporter.getFinishedSpans().find((span) => span.name === 'sync.validate')?.status
+        ).toEqual({ code: SpanStatusCode.ERROR, message: 'invalid arguments' });
     });
 
     it('can trace method timing without copying private values into telemetry', async () => {
