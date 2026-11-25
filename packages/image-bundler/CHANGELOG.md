@@ -1,5 +1,13 @@
 # @dexto/image-bundler
 
+## 1.19.10
+
+### Patch Changes
+
+- Updated dependencies [db49ce8]
+    - @dexto/core@1.19.10
+    - @dexto/agent-config@1.19.10
+
 ## 1.19.9
 
 ### Patch Changes
