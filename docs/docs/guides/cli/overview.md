@@ -502,7 +502,15 @@ dexto apps get "$APP_ID" --json
 dexto apps uninstalled --json
 ```
 
-These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps and removing kept data are not `apps` commands.
+These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps is not an `apps` command.
+
+To remove an uninstalled App's kept data for good, before its deletion date, name the App twice:
+
+```bash
+dexto apps remove-data "$APP_ID" --confirm-app-id "$APP_ID" --yes --json
+```
+
+This needs `apps:write` and cannot be undone. `--confirm-app-id` must equal the App id, or nothing is called. It asks before it runs: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it. Without `--yes` and with no terminal to ask at, it fails with `needs_confirmation` and removes nothing. An App with no kept data fails with the server's not-found message; `--json` prints the server's result unchanged.
 
 ## Your Dexto Workspace
 
