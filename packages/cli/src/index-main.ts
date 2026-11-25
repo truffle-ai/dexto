@@ -289,6 +289,7 @@ program
     .description('Remove dexto from this machine')
     .option('--purge', 'Also remove ~/.dexto completely')
     .option('--dry-run', 'Print actions without deleting files')
+    .addHelpText('after', '\nExamples:\n  dexto uninstall --dry-run\n')
     .action(
         withAnalytics('uninstall', async (options: Partial<UninstallCliCommandOptions>) => {
             try {
