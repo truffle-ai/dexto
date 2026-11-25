@@ -23,6 +23,7 @@ import {
     readLogin,
     requireProfileName,
     resolveCredential,
+    SignInExpired,
     writeCurrentProfile,
     writeLogin,
 } from './dexto-accounts.js';
@@ -322,6 +323,24 @@ describe('accounts', () => {
                 token: 'dxt_saved',
                 source: 'saved_key',
             });
+        });
+
+        it('names the profile whose sign-in expired, and uses no DEXTO_API_KEY instead', async () => {
+            await writeLogin(dir, 'work', oauthLogin({ expiresAt: new Date().toISOString() }));
+
+            await expect(
+                resolveCredential({
+                    dir,
+                    apiKey: null,
+                    environment: { DEXTO_API_KEY: 'dxt_env', DEXTO_PROFILE: 'work' },
+                    profile: null,
+                    refresh: async () => {
+                        throw new SignInExpired(null);
+                    },
+                })
+            ).rejects.toThrow(
+                'Your Dexto sign-in (profile work) has expired. Run dexto login, or pass --api-key.'
+            );
         });
 
         it('refreshes an expiring sign-in even when DEXTO_API_KEY is set', async () => {

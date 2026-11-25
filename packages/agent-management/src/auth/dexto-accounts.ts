@@ -306,6 +306,16 @@ export async function resolveCredential(input: ResolveCredentialInput): Promise<
     return { ...chosen, token: login.accessToken, login };
 }
 
+/** The server refused a sign-in's refresh token: only signing in again, or a key, gets past it. */
+export class SignInExpired extends Error {
+    constructor(readonly profile: string | null) {
+        super(
+            `Your Dexto sign-in${profile === null ? '' : ` (profile ${profile})`} has expired. Run dexto login, or pass --api-key.`
+        );
+        this.name = 'SignInExpired';
+    }
+}
+
 const REFRESH_MARGIN_MS = 60_000;
 
 function isExpiring(login: OAuthLogin): boolean {
@@ -369,7 +379,7 @@ async function refreshUnlessSaved(
     } catch (error) {
         const current = await savedByOther();
         if (current !== null) return current;
-        throw error;
+        throw error instanceof SignInExpired ? new SignInExpired(profile) : error;
     }
 }
 

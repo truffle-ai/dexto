@@ -435,7 +435,7 @@ describe('refreshSignIn', () => {
         const server = fakeServer(() => ({ status: 400, body: { error: 'invalid_grant' } }));
 
         await expect(refreshSignIn(runtime(server.fetch), saved)).rejects.toThrow(
-            'Your Dexto sign-in has expired. Run dexto login again, or dexto logout to use DEXTO_API_KEY instead: a sign-in comes before it.'
+            'Your Dexto sign-in has expired. Run dexto login, or pass --api-key.'
         );
     });
 });
