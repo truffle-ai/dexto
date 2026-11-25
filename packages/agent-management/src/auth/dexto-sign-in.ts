@@ -102,7 +102,7 @@ export function signInPromptText(prompt: SignInPrompt): string {
         prompt.verificationUriComplete === null
             ? `To sign in, open this link on any device and enter ${prompt.userCode}:\n${prompt.verificationUri}`
             : `To sign in, open this link on any device and check it shows ${prompt.userCode}:\n${prompt.verificationUriComplete}`,
-        'Only approve this if you just ran dexto login.',
+        'Only approve this if you just started this sign-in.',
     ].join('\n');
 }
 
@@ -128,21 +128,25 @@ export interface SignInRuntime extends OAuthServerRuntime {
     readonly sleep: (ms: number) => Promise<void>;
 }
 
-export interface SignInInput {
+interface SignInTarget {
     /** The Dexto app origin, home of its authorization server and MCP. */
     readonly appUrl: string;
     /** The public API the login is saved for. */
     readonly apiBaseUrl: string;
     /** The organization to sign in for (id, slug or name), where the approval page starts. */
     readonly organization: string | null;
-    /** Scopes asked for on purpose, besides reading the workspace and Cloud. */
-    readonly extraScopes: readonly string[];
 }
 
-export interface BrowserSignInInput extends SignInInput {
+export type SignInInput = SignInTarget &
+    (
+        | { readonly purpose: 'operator-credits' }
+        | { readonly purpose?: 'workspace'; readonly extraScopes: readonly string[] }
+    );
+
+export type BrowserSignInInput = SignInInput & {
     /** Open the browser; when false the URL is only printed. */
     readonly openBrowser: boolean;
-}
+};
 
 const ProtectedResourceSchema = z.object({
     authorization_servers: z.array(z.string().url()).min(1),
@@ -185,10 +189,21 @@ interface Discovered {
     readonly server: z.output<typeof AuthorizationServerSchema>;
 }
 
-async function readMetadata(runtime: OAuthServerRuntime, appUrl: string) {
+async function readMetadata(
+    runtime: OAuthServerRuntime,
+    appUrl: string,
+    purpose?: 'operator-credits' | 'workspace'
+) {
     const resource = ProtectedResourceSchema.parse(
-        await getJson(runtime, `${appUrl}/.well-known/oauth-protected-resource/mcp`)
+        await getJson(
+            runtime,
+            purpose === 'operator-credits'
+                ? `${appUrl}/.well-known/oauth-protected-resource/api/internal/admin/mcp`
+                : `${appUrl}/.well-known/oauth-protected-resource/mcp`
+        )
     );
+    if (purpose === 'operator-credits' && resource.resource !== `${appUrl}/api/internal/admin/mcp`)
+        throw new Error('The operator authorization resource did not match this Dexto app.');
     const issuer = (resource.authorization_servers[0] ?? appUrl).replace(/\/+$/u, '');
     const server = AuthorizationServerSchema.parse(
         await getJson(runtime, `${issuer}/.well-known/oauth-authorization-server`)
@@ -199,9 +214,12 @@ async function readMetadata(runtime: OAuthServerRuntime, appUrl: string) {
 /** Finds the MCP's authorization server and the scopes to ask for. */
 async function discover(runtime: SignInRuntime, input: SignInInput): Promise<Discovered> {
     const appUrl = input.appUrl.replace(/\/+$/u, '');
-    const { resource, server } = await readMetadata(runtime, appUrl);
+    const { resource, server } = await readMetadata(runtime, appUrl, input.purpose);
     const reading = resource.scopes_supported.filter((scope) => scope.endsWith(':read'));
-    const scopes = [...new Set([...reading, ...BASE_CLOUD_SCOPES, ...input.extraScopes])];
+    const scopes =
+        input.purpose === 'operator-credits'
+            ? ['admin:credits']
+            : [...new Set([...reading, ...BASE_CLOUD_SCOPES, ...input.extraScopes])];
     return { appUrl, resource: resource.resource, scopes, server };
 }
 

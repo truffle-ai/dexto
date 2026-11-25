@@ -26,7 +26,7 @@ export type SignInFor = (io: {
     readonly signal: AbortSignal;
 }) => Promise<SignInContext>;
 
-function signInIo(context: CommandContext) {
+export function signInIo(context: CommandContext) {
     const note = (text: string) => context.output.note(text);
     return {
         result: (value: unknown, text: string) => context.output.result(value, text),

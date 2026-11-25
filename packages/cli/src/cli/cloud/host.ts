@@ -20,6 +20,7 @@ import { channelCommands } from './commands/channels.js';
 import { chatCommands } from './commands/chats.js';
 import { importCommands } from './commands/import.js';
 import { creditCommands } from './commands/credits.js';
+import { adminCreditCommands } from './commands/admin-credits.js';
 import { chatOutputsCommand } from './commands/chat-outputs.js';
 import { chatReadCommands } from './commands/chat-read.js';
 import { chatShareCommand } from './commands/chat-share.js';
@@ -82,6 +83,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
     return [
         ...accountCommands(signIn, DEXTO_CREDITS_URL),
         ...creditCommands,
+        ...adminCreditCommands(dir, signIn),
         ...projectCommands,
         projectsUse(dir),
         ...agentCommands,

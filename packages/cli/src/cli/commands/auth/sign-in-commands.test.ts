@@ -106,6 +106,8 @@ describe('sign-in commands', () => {
             dexto: {
                 signInWithBrowser: async (input) => {
                     browserInputs.push(input);
+                    if (input.purpose === 'operator-credits')
+                        throw new Error('Expected workspace sign-in.');
                     return signedIn(organization, {
                         scopes: ['cloud:read', ...input.extraScopes],
                     });
@@ -264,11 +266,11 @@ describe('sign-in commands', () => {
         it('asks for chats:sync only while chat sync is on', async () => {
             chatSyncOn = true;
             await login(context, noOptions);
-            expect(browserInputs[0]?.extraScopes).toEqual(['chats:sync']);
+            expect(browserInputs[0]).toMatchObject({ extraScopes: ['chats:sync'] });
 
             chatSyncOn = false;
             await login(context, noOptions);
-            expect(browserInputs[1]?.extraScopes).toEqual(['cloud:read']);
+            expect(browserInputs[1]).toMatchObject({ extraScopes: ['cloud:read'] });
         });
 
         it("won't save another organization over a profile --org named", async () => {
