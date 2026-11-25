@@ -1,5 +1,11 @@
 # @dexto/cloud-client
 
+## 1.19.10
+
+### Patch Changes
+
+- 97ca497: Show the server-provided Site address and create or update action before publishing, and support a dry run.
+
 ## 1.19.9
 
 ## 1.19.8
