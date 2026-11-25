@@ -93,17 +93,12 @@ dexto_function_secret_delete
 dexto_functions_list
 dexto_gigs_finding
 dexto_gigs_posting
-dexto_gpu_process_get
-dexto_gpu_process_logs
 dexto_gpu_process_start
 dexto_gpu_process_stop
-dexto_gpu_profiles_list
 dexto_gpu_sandbox_delete
-dexto_gpu_sandbox_get
 dexto_gpu_sandbox_provision
 dexto_gpu_sandbox_start
 dexto_gpu_sandbox_stop
-dexto_gpu_sandboxes_list
 dexto_mcp_server_import
 dexto_open
 dexto_share

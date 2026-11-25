@@ -39,6 +39,7 @@ import { skillLibraryCommands } from './commands/skill-library.js';
 import { skillCommands } from './commands/skills.js';
 import { traceCommands } from './commands/traces.js';
 import { fileCommands } from './commands/files.js';
+import { gpuCommands } from './commands/gpus.js';
 import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
 import { sandboxCommands } from './commands/sandboxes.js';
@@ -106,6 +107,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...networkCommands,
         ...publicArtifactCommands,
         ...notificationCommands,
+        ...gpuCommands,
         ...marketplaceCommands,
         ...siteRecordCommands,
         ...findCommands,
