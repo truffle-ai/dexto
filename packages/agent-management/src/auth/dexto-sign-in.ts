@@ -363,7 +363,9 @@ export async function refreshSignIn(
         });
     } catch (error) {
         if (error instanceof OAuthHttpError && error.status === 400)
-            throw new Error('Your Dexto sign-in has expired. Run dexto login again.');
+            throw new Error(
+                'Your Dexto sign-in has expired. Run dexto login again, or dexto logout to use DEXTO_API_KEY instead: a sign-in comes before it.'
+            );
         throw error;
     }
     const tokens = TokenResponseSchema.parse(body);
