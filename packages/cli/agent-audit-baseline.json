@@ -1215,7 +1215,7 @@
     "json": false,
     "dryRun": true,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "whoami",
