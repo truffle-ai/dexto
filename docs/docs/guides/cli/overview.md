@@ -408,6 +408,17 @@ dexto docs read cli/output
 
 `search` takes `--limit` (1 to 20, default 5) and returns `{results}`, each with `title`, `path`, `url`, `description` and a `snippet`. `read` prints the page as Markdown, or with `--json` its `{title, path, url, description, markdown}`; with no path it reads the docs home. A path with no page exits with a `not_found` failure. Both need a signed-in user, as other workspace commands do.
 
+## Search your capability catalog
+
+Page through the capabilities your account can use: Dexto platform tools, tools from your connected MCP servers, and managed connections:
+
+```bash
+dexto capabilities search "deploy a site" --json
+dexto capabilities search github --limit 50 --offset 50 --json
+```
+
+This needs `capabilities:read` and searches only what your sign-in can see; it never calls a capability. `--limit` takes 1 to 100 (default 20) and `--offset` skips that many results. JSON returns the catalog's own page `{items, total, hasMore, nextOffset}`; pass `nextOffset` as `--offset` for the next page, which is `null` on the last. Each item names the capability, its paths in `aliases`, its description and whether it can be invoked. To find a command to run for something you want to do, use `dexto find` instead.
+
 ## Your managed Applications
 
 Inspect the Dockerfile Applications you own in the signed-in organization, one release, and its logs:
