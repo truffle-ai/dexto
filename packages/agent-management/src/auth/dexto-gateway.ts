@@ -46,7 +46,6 @@ export type DextoModelAccess =
     | { readonly status: 'needs_project' };
 
 export async function dextoModelAccess(options: DextoGatewayOptions): Promise<DextoModelAccess> {
-    if (nonEmpty(options.environment.DEXTO_API_KEY)) return { status: 'ready' };
     const credential = await currentCredential(options);
     if (credential === null) return { status: 'signed_out' };
     if (credential.kind === 'api_key') return { status: 'ready' };
@@ -56,13 +55,10 @@ export async function dextoModelAccess(options: DextoGatewayOptions): Promise<De
 }
 
 /**
- * The runtime auth for `dexto-nova` when DEXTO_API_KEY isn't set: the public API's gateway, with a
- * fetch that signs each request as the current profile. Null leaves DEXTO_API_KEY to the key path.
+ * The runtime auth for `dexto-nova`: the public API's gateway, with a fetch that signs each request
+ * with the credential resolveCredential picks then, so a sign-in beats DEXTO_API_KEY here too.
  */
-export function dextoGatewayRuntimeAuth(
-    options: DextoGatewayOptions
-): LlmRuntimeAuthOverrides | null {
-    if (nonEmpty(options.environment.DEXTO_API_KEY)) return null;
+export function dextoGatewayRuntimeAuth(options: DextoGatewayOptions): LlmRuntimeAuthOverrides {
     return {
         apiKey: SIGN_IN_PLACEHOLDER_KEY,
         baseURL: `${options.apiBaseUrl}/v1`,
@@ -157,7 +153,7 @@ export async function dextoBillingSummary(
     };
 }
 
-/** Reads a public `/v1` path as the current sign-in or DEXTO_API_KEY; null when signed out. */
+/** Reads a public `/v1` path with the current credential; null when signed out. */
 async function readDexto(options: DextoGatewayOptions, path: string): Promise<unknown> {
     const credential = await currentCredential(options);
     if (credential === null) return null;
@@ -189,8 +185,4 @@ function canSpend(login: OAuthLogin): boolean {
 /** The same path on the API the sign-in was saved for. */
 function rebase(url: string, from: string, to: string): string {
     return from === to || !url.startsWith(from) ? url : `${to}${url.slice(from.length)}`;
-}
-
-function nonEmpty(value: string | undefined): boolean {
-    return value !== undefined && value.trim().length > 0;
 }

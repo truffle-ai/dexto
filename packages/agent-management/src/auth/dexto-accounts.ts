@@ -239,52 +239,71 @@ async function readCloudCliSignedInAs(
 }
 
 /** Where a command's credential came from, so `whoami` can say. */
-export type CredentialSource = 'flag' | 'environment' | 'login';
+export type CredentialSource = 'flag' | 'sign_in' | 'environment' | 'saved_key';
 
 export type Credential =
     | {
           readonly kind: 'api_key';
           readonly token: string;
-          readonly source: CredentialSource;
+          readonly source: 'flag' | 'environment' | 'saved_key';
           readonly profile: string;
       }
     | {
           readonly kind: 'oauth';
           readonly token: string;
-          readonly source: 'login';
+          readonly source: 'sign_in';
           readonly profile: string;
           readonly login: OAuthLogin;
       };
 
-export interface ResolveCredentialInput {
+export interface ChooseCredentialInput {
     readonly dir: string;
     /** The global --api-key value. */
     readonly apiKey: string | null;
     /** The global --profile value. */
     readonly profile: string | null;
     readonly environment: Readonly<Record<string, string | undefined>>;
+}
+
+export interface ResolveCredentialInput extends ChooseCredentialInput {
     readonly refresh: (login: OAuthLogin, signal: AbortSignal) => Promise<OAuthLogin>;
 }
 
 /**
- * --api-key, then DEXTO_API_KEY, then the profile's saved login; null when signed out. A saved
- * sign-in is refreshed first when its access token has expired or is about to.
+ * The one order every command picks a credential in: --api-key, then the profile's saved sign-in,
+ * then DEXTO_API_KEY, then the profile's saved API key; null when signed out. So a DEXTO_API_KEY
+ * left in the environment never overrides a sign-in. A sign-in's token may be expired here:
+ * resolveCredential refreshes it.
  */
-export async function resolveCredential(input: ResolveCredentialInput): Promise<Credential | null> {
+export async function chooseCredential(input: ChooseCredentialInput): Promise<Credential | null> {
     const profile = await resolveProfile(input.dir, input.profile, input.environment);
     if (input.apiKey !== null)
         return { kind: 'api_key', token: input.apiKey, source: 'flag', profile };
-    const environmentKey = nonEmpty(input.environment.DEXTO_API_KEY);
+    const stored = await readLogin(input.dir, profile);
+    if (stored?.kind === 'oauth')
+        return {
+            kind: 'oauth',
+            token: stored.accessToken,
+            source: 'sign_in',
+            profile,
+            login: stored,
+        };
+    const environmentKey = nonEmpty(input.environment.DEXTO_API_KEY?.trim());
     if (environmentKey !== null)
         return { kind: 'api_key', token: environmentKey, source: 'environment', profile };
-    const stored = await readLogin(input.dir, profile);
     if (stored === null) return null;
-    if (stored.kind === 'api_key')
-        return { kind: 'api_key', token: stored.apiKey, source: 'login', profile };
-    const login = isExpiring(stored)
-        ? await refreshSaved(input.dir, profile, stored, input.refresh)
-        : stored;
-    return { kind: 'oauth', token: login.accessToken, source: 'login', profile, login };
+    return { kind: 'api_key', token: stored.apiKey, source: 'saved_key', profile };
+}
+
+/**
+ * The credential chooseCredential picks, with a sign-in refreshed first when its access token has
+ * expired or is about to.
+ */
+export async function resolveCredential(input: ResolveCredentialInput): Promise<Credential | null> {
+    const chosen = await chooseCredential(input);
+    if (chosen?.kind !== 'oauth' || !isExpiring(chosen.login)) return chosen;
+    const login = await refreshSaved(input.dir, chosen.profile, chosen.login, input.refresh);
+    return { ...chosen, token: login.accessToken, login };
 }
 
 const REFRESH_MARGIN_MS = 60_000;

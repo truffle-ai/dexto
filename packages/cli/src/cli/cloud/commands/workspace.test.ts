@@ -1634,6 +1634,8 @@ describe('dexto workspace', () => {
     });
 
     it('acts as a person only: an API key is told to sign in', async () => {
+        // A saved sign-in comes before DEXTO_API_KEY, so only the key is left here.
+        await dextoAccounts.forgetLogin(dir, 'default');
         environment.DEXTO_API_KEY = 'dxt_key';
 
         expect(await runCloud(host, ['workspace', 'tools'])).toBe(3);

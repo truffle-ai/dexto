@@ -50,7 +50,7 @@ import { chatMoveScreen } from '../../screens/chat-move.js';
 async function localChat(context: CommandContext, id: string) {
     if (!/^[A-Za-z0-9._:-]{1,200}$/u.test(id)) throw new UsageError('Invalid local chat id.');
     const connection = await context.connection();
-    if (connection.kind !== 'oauth' || connection.source !== 'login')
+    if (connection.kind !== 'oauth')
         throw new CommandFailure(
             'needs_sign_in',
             'Chat hand-off needs your saved OAuth sign-in.',

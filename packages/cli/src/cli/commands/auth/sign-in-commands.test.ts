@@ -324,6 +324,12 @@ describe('sign-in commands', () => {
             context = { ...context, environment: { DEXTO_API_KEY: 'dxt_1234567890abcd' } };
             expect(await describeSignIn(context)).toBe('API key dxt_123…abcd from DEXTO_API_KEY');
         });
+
+        it('names the sign-in when DEXTO_API_KEY is set too', async () => {
+            await writeLogin(dir, 'default', signedIn(ACME));
+            context = { ...context, environment: { DEXTO_API_KEY: 'dxt_1234567890abcd' } };
+            expect(await describeSignIn(context)).toBe('ada@example.com in Acme');
+        });
     });
 
     describe('logout', () => {
@@ -426,6 +432,7 @@ describe('sign-in commands', () => {
 
             expect(printed).toEqual([
                 [
+                    'source        sign-in',
                     'profile       work',
                     'account       ada@example.com',
                     'organization  Acme (acme)',
@@ -451,6 +458,7 @@ describe('sign-in commands', () => {
 
             expect(printed).toEqual([
                 [
+                    'source        sign-in',
                     'profile       default',
                     'account       unknown',
                     'organization  unknown',
@@ -461,6 +469,7 @@ describe('sign-in commands', () => {
             expect(values).toEqual([
                 {
                     as: 'person',
+                    source: 'sign_in',
                     profile: 'default',
                     account: null,
                     organization: null,
@@ -481,8 +490,32 @@ describe('sign-in commands', () => {
 
             await whoami(context, { profile: null, apiKey: null });
 
-            expect(printed).toEqual(['api key       dxt_123…abcd, profile default']);
-            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'login' }]);
+            expect(printed).toEqual(['api key       dxt_123…abcd (saved key, profile default)']);
+            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'saved_key' }]);
+        });
+
+        it('shows a key from --api-key as the flag, even when signed in', async () => {
+            await writeLogin(dir, 'default', signedIn(ACME));
+
+            await whoami(context, { profile: null, apiKey: 'dxt_1234567890abcd' });
+
+            expect(printed).toEqual(['api key       dxt_123…abcd (from --api-key)']);
+            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'flag' }]);
+        });
+
+        it('shows the sign-in when DEXTO_API_KEY is set too, and says the key is not used', async () => {
+            await writeLogin(dir, 'default', signedIn(ACME));
+            context = { ...context, environment: { DEXTO_API_KEY: 'dxt_1234567890abcd' } };
+
+            await whoami(context, { profile: null, apiKey: null });
+
+            expect(values).toEqual([
+                expect.objectContaining({ as: 'person', source: 'sign_in', profile: 'default' }),
+            ]);
+            expect(notes).toEqual([
+                'DEXTO_API_KEY is set, but the saved sign-in comes first, so it is not used.',
+            ]);
+            expect(JSON.stringify([printed, values, notes])).not.toContain('dxt_1234567890abcd');
         });
     });
 
@@ -551,6 +584,7 @@ describe('sign-in commands', () => {
         expect(values).toEqual([
             {
                 as: 'person',
+                source: 'sign_in',
                 profile: 'work',
                 account: { email: 'ada@example.com', id: 'acc_1', name: 'Ada' },
                 organization: ACME,
@@ -661,8 +695,8 @@ describe('sign-in commands', () => {
 
             expectClean(printed[0]);
             const lines = printed[0]?.split('\n') ?? [];
-            expect(lines).toHaveLength(5);
-            expect(lines[2]).toBe(
+            expect(lines).toHaveLength(6);
+            expect(lines[3]).toBe(
                 'organization  Evil[2J Org]0;pwned 31mInc (evilEvil[2J Org]0;pwned 31mInc)'
             );
         });
@@ -756,11 +790,11 @@ describe('sign-in commands', () => {
             await withSignal(() => whoami(context, { profile: null, apiKey: null }));
 
             expect(printed).toEqual([
-                'api key       dxt_123…abcd, profile default',
+                'api key       dxt_123…abcd (saved key, profile default)',
                 'api key       dxt_abc…3456 (from DEXTO_API_KEY)',
             ]);
             expect(values).toEqual([
-                { as: 'api_key', key: 'dxt_123…abcd', source: 'login' },
+                { as: 'api_key', key: 'dxt_123…abcd', source: 'saved_key' },
                 { as: 'api_key', key: 'dxt_abc…3456', source: 'environment' },
             ]);
         });

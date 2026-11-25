@@ -74,7 +74,7 @@ export interface ResolveConnectionInput {
     ) => Promise<dextoAccounts.OAuthLogin>;
 }
 
-/** --api-key, then DEXTO_API_KEY, then the profile's sign-in, refreshed when due; null when none. */
+/** The credential resolveCredential picks, with its API origin and Cloud project; null when none. */
 export async function resolveConnection(input: ResolveConnectionInput): Promise<Connection | null> {
     const credential = await dextoAccounts.resolveCredential({
         dir: input.dir,
@@ -87,7 +87,7 @@ export async function resolveConnection(input: ResolveConnectionInput): Promise<
     const saved =
         credential.kind === 'oauth'
             ? credential.login
-            : credential.source === 'login'
+            : credential.source === 'saved_key'
               ? await dextoAccounts.readLogin(input.dir, credential.profile)
               : null;
     const apiBaseUrl = (
