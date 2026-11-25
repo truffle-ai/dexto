@@ -131,7 +131,7 @@ const publish: Command = {
         const confirmPublicName = stringOption(input, 'confirm-public');
         if (confirmPublicName !== undefined && visibility !== 'public')
             throw new UsageError('--confirm-public requires --visibility public.');
-        const connection = await context.connection();
+        const connection = await context.connection({ pin: true });
         const publishContext = { ...context, connection: async () => connection };
         await requireLoginScopes(publishContext, ['sites:write', 'cloud:write']);
         if (connection.kind !== 'oauth')
@@ -149,7 +149,7 @@ const publish: Command = {
         const client = createCloudClient({
             apiBaseUrl: connection.apiBaseUrl,
             cloudProject: connection.cloudProject,
-            token: connection.token,
+            token: async () => (await context.connection()).token,
             fetch: context.runtime.fetch,
         });
         const target = path.resolve(argument(input, 0, 'path'));
@@ -246,7 +246,7 @@ const publish: Command = {
         if (flag(input, 'yes') && !context.output.json) context.output.note(description);
 
         const prepared = PreparedSchema.safeParse(
-            await queryWorkspaceTool(publishContext, 'dexto_upload_prepare', {
+            await queryWorkspaceTool(context, 'dexto_upload_prepare', {
                 filename: `${path.basename(target, '.zip')}.zip`,
                 mimeType: 'application/zip',
                 purpose: 'site-files',
@@ -314,7 +314,7 @@ const publish: Command = {
             )
                 throw new CommandFailure(
                     'conflict',
-                    'A Site with that name now exists. Re-run to update it.',
+                    'A Site with that name was just created. Pick another name, or re-run to see a fresh preview.',
                     rerunWith({
                         invocation: context.invocation.filter(
                             (arg) => arg !== '--yes' && arg !== '-y'

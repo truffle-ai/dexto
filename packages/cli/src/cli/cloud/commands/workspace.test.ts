@@ -1940,7 +1940,9 @@ describe('dexto workspace', () => {
             await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
         ).toBe(1);
         const failure = JSON.parse(stderr).error;
-        expect(failure.message).toBe('A Site with that name now exists. Re-run to update it.');
+        expect(failure.message).toBe(
+            'A Site with that name was just created. Pick another name, or re-run to see a fresh preview.'
+        );
         expect(failure.fix).toBe(`dexto publish ${file} --visibility public --json`);
         expect(calls.at(-1)?.params.arguments).toMatchObject({ expectedSiteId: null });
         expect(stdout).toBe('');
@@ -1959,7 +1961,9 @@ describe('dexto workspace', () => {
         };
 
         expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(1);
-        expect(stderr).toContain('A Site with that name now exists. Re-run to update it.');
+        expect(stderr).toContain(
+            'A Site with that name was just created. Pick another name, or re-run to see a fresh preview.'
+        );
         expect(stderr).toContain(`Run: dexto publish ${file} --table`);
         expect(stdout).toBe('');
     });
@@ -1985,13 +1989,15 @@ describe('dexto workspace', () => {
     it('keeps the preview account and project if the profile changes during confirmation', async () => {
         const file = path.join(path.dirname(dir), 'page.html');
         await writeFile(file, '<h1>hello</h1>');
-        const resolve = vi.fn(host.resolveConnection);
+        const resolve = host.resolveConnection;
+        const profiles: (string | null)[] = [];
         let changed = false;
         host = {
             ...host,
             resolveConnection: async (overrides) => {
+                profiles.push(overrides.profile);
                 const connection = await resolve(overrides);
-                return connection?.kind === 'oauth' && changed
+                return connection?.kind === 'oauth' && changed && overrides.profile === null
                     ? {
                           ...connection,
                           profile: 'other-profile',
@@ -2011,13 +2017,347 @@ describe('dexto workspace', () => {
             },
         };
         expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
-        expect(resolve).toHaveBeenCalledOnce();
+        expect(profiles.length).toBeGreaterThan(1);
+        expect(profiles[0]).toBeNull();
+        expect(profiles.slice(1).every((profile) => profile === 'default')).toBe(true);
         expect(publishProject).toBe('project-1');
         expect(calls.map((call) => call.params.name)).toEqual([
             'POST /v1/sites/publish/preview',
             'dexto_upload_prepare',
             'POST /v1/sites/publish',
         ]);
+        expect(uploads).toHaveLength(1);
+    });
+
+    it.each(['prompt', 'upload'] as const)(
+        'refreshes the pinned sign-in when it expires during %s',
+        async (expiresDuring) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            const before = await resolve({
+                apiBaseUrl: null,
+                apiKey: null,
+                cloudProject: null,
+                profile: null,
+            });
+            if (before?.kind !== 'oauth') throw new Error('Expected an OAuth sign-in.');
+            const refreshed = `${before.token}-refreshed`;
+            const fetch = host.runtime.fetch;
+            const checked: boolean[] = [];
+            let expired = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const current = await resolve(overrides);
+                    if (current?.kind !== 'oauth' || !expired) return current;
+                    return { ...current, token: refreshed };
+                },
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        if (
+                            expired &&
+                            (request.url === MCP || request.url.endsWith('/v1/sites/publish'))
+                        ) {
+                            const isFresh =
+                                request.headers.get('authorization') === `Bearer ${refreshed}`;
+                            checked.push(isFresh);
+                            if (!isFresh)
+                                return Response.json(
+                                    { error: { code: 'expired', message: 'Sign-in expired.' } },
+                                    { status: 401 }
+                                );
+                        }
+                        if (
+                            expiresDuring === 'upload' &&
+                            request.url.startsWith('https://upload.example/')
+                        )
+                            expired = true;
+                        return await fetch(request);
+                    },
+                    prompt: async () => {
+                        if (expiresDuring === 'prompt') expired = true;
+                        return 'yes';
+                    },
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+            expect(checked).toEqual(expiresDuring === 'prompt' ? [true, true] : [true]);
+            expect(publishProject).toBe('project-1');
+            expect(uploads).toHaveLength(1);
+        }
+    );
+
+    it.each(['account', 'organization', 'project', 'server'] as const)(
+        'refuses to publish when the refreshed %s changes',
+        async (changedField) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            let changed = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const connection = await resolve(overrides);
+                    if (connection?.kind !== 'oauth') return connection;
+                    return {
+                        ...connection,
+                        cloudProject:
+                            changed && changedField === 'project'
+                                ? 'other-project'
+                                : connection.cloudProject,
+                        apiBaseUrl:
+                            changed && changedField === 'server'
+                                ? 'https://other-api.invalid'
+                                : connection.apiBaseUrl,
+                        login: {
+                            ...connection.login,
+                            signedInAs: {
+                                account: {
+                                    id:
+                                        changed && changedField === 'account'
+                                            ? 'other-account'
+                                            : 'account-1',
+                                    email: 'person@example.invalid',
+                                    name: 'Person',
+                                },
+                                organization: {
+                                    id:
+                                        changed && changedField === 'organization'
+                                            ? 'other-org'
+                                            : 'org-1',
+                                    name: 'Org',
+                                    slug: 'org',
+                                },
+                            },
+                        },
+                    };
+                },
+                runtime: {
+                    ...host.runtime,
+                    prompt: async () => {
+                        changed = true;
+                        return 'yes';
+                    },
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).not.toBe(0);
+            expect(stderr).toContain('changed during publishing');
+            expect(uploads).toHaveLength(0);
+            expect(calls.map((call) => call.params.name)).toEqual([
+                'POST /v1/sites/publish/preview',
+            ]);
+        }
+    );
+
+    it.each(['known before preview', 'learned on refresh'] as const)(
+        'refuses promotion if the account %s changes during upload',
+        async (identityTiming) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            const fetch = host.runtime.fetch;
+            let changed = false;
+            let confirmed = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const connection = await resolve(overrides);
+                    if (connection?.kind !== 'oauth') return connection;
+                    return {
+                        ...connection,
+                        login: {
+                            ...connection.login,
+                            signedInAs:
+                                identityTiming === 'learned on refresh' && !confirmed
+                                    ? null
+                                    : {
+                                          account: {
+                                              id: changed ? 'other-account' : 'account-1',
+                                              email: 'person@example.invalid',
+                                              name: 'Person',
+                                          },
+                                          organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                                      },
+                        },
+                    };
+                },
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        if (request.url.startsWith('https://upload.example/')) changed = true;
+                        return await fetch(request);
+                    },
+                    prompt: async () => {
+                        confirmed = true;
+                        return 'yes';
+                    },
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).not.toBe(0);
+            expect(stderr).toContain('changed during publishing');
+            expect(uploads).toHaveLength(1);
+            expect(calls.map((call) => call.params.name)).not.toContain('POST /v1/sites/publish');
+        }
+    );
+
+    it('keeps the pinned profile through a permission-grant retry', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const resolve = host.resolveConnection;
+        let granted = false;
+        let switched = false;
+        let grantProfile: string | null = null;
+        host = {
+            ...host,
+            resolveConnection: async (overrides) => {
+                const connection = await resolve(overrides);
+                if (connection?.kind !== 'oauth') return connection;
+                const other = switched && overrides.profile === null;
+                return {
+                    ...connection,
+                    profile: other ? 'other-profile' : connection.profile,
+                    cloudProject: other ? 'other-project' : connection.cloudProject,
+                    login: {
+                        ...connection.login,
+                        savedAt: granted ? '2026-11-02T00:00:00.000Z' : connection.login.savedAt,
+                        scopes: granted
+                            ? connection.login.scopes
+                            : connection.login.scopes.filter((scope) => scope !== 'sites:write'),
+                        signedInAs: {
+                            account: {
+                                id: 'account-1',
+                                email: 'person@example.invalid',
+                                name: 'Person',
+                            },
+                            organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                        },
+                    },
+                };
+            },
+            signInForScopes: async (overrides) => {
+                grantProfile = overrides.profile;
+                granted = true;
+                return true;
+            },
+            runtime: {
+                ...host.runtime,
+                prompt: async () => {
+                    switched = true;
+                    return 'yes';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+        expect(grantProfile).toBe('default');
+        expect(publishProject).toBe('project-1');
+        expect(uploads).toHaveLength(1);
+    });
+
+    it.each(['different account', 'unknown account'] as const)(
+        'refuses a permission-grant retry with %s',
+        async (identity) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            let granted = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const connection = await resolve(overrides);
+                    if (connection?.kind !== 'oauth') return connection;
+                    return {
+                        ...connection,
+                        login: {
+                            ...connection.login,
+                            savedAt: granted
+                                ? '2026-11-02T00:00:00.000Z'
+                                : connection.login.savedAt,
+                            scopes: granted
+                                ? connection.login.scopes
+                                : connection.login.scopes.filter(
+                                      (scope) => scope !== 'sites:write'
+                                  ),
+                            signedInAs:
+                                identity === 'unknown account'
+                                    ? null
+                                    : {
+                                          account: {
+                                              id: granted ? 'other-account' : 'account-1',
+                                              email: 'person@example.invalid',
+                                              name: 'Person',
+                                          },
+                                          organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                                      },
+                        },
+                    };
+                },
+                signInForScopes: async () => {
+                    granted = true;
+                    return true;
+                },
+                runtime: {
+                    ...host.runtime,
+                    prompt: async () => 'yes',
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).not.toBe(0);
+            expect(stderr).toContain('changed during publishing');
+            expect(calls).toHaveLength(0);
+            expect(uploads).toHaveLength(0);
+        }
+    );
+
+    it('accepts identity details added by a refresh of the same saved sign-in', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const resolve = host.resolveConnection;
+        let refreshed = false;
+        host = {
+            ...host,
+            resolveConnection: async (overrides) => {
+                const connection = await resolve(overrides);
+                if (connection?.kind !== 'oauth' || !refreshed) return connection;
+                return {
+                    ...connection,
+                    login: {
+                        ...connection.login,
+                        signedInAs: {
+                            account: {
+                                id: 'account-1',
+                                email: 'person@example.invalid',
+                                name: 'Person',
+                            },
+                            organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                        },
+                    },
+                };
+            },
+            runtime: {
+                ...host.runtime,
+                prompt: async () => {
+                    refreshed = true;
+                    return 'yes';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+        expect(publishProject).toBe('project-1');
         expect(uploads).toHaveLength(1);
     });
 

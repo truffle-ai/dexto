@@ -17,7 +17,13 @@ import {
     type SignInContext,
 } from './command.js';
 import type { SignInFor } from './commands/account.js';
-import type { Connection, ConnectionOverrides } from './connection.js';
+import {
+    matchesPinnedConnection,
+    pinConnection,
+    type Connection,
+    type ConnectionOverrides,
+    type PinnedConnection,
+} from './connection.js';
 import {
     listWorkspaceApps,
     runWorkspaceApp,
@@ -99,13 +105,18 @@ const NO_OVERRIDES: ConnectionOverrides = {
 
 /** Runs one command line, such as `cloud secrets list --json`; returns its exit code. */
 export async function runCloud(host: CloudHost, argv: readonly string[]): Promise<number> {
-    return await run(host, argv, true);
+    return await run(host, argv, true, { pinned: null });
+}
+
+interface RunState {
+    pinned: PinnedConnection | null;
 }
 
 async function run(
     unguarded: CloudHost,
     argv: readonly string[],
-    mayGrant: boolean
+    mayGrant: boolean,
+    state: RunState
 ): Promise<number> {
     // Every command prints through the guarded runtime: see guardRuntime.
     const host: CloudHost = { ...unguarded, runtime: guardRuntime(unguarded.runtime) };
@@ -132,7 +143,7 @@ async function run(
     // `workspace` alone lists the apps; `workspace <app> …` is one of them, its operations from the
     // server. The CLI's own `workspace` commands, such as `tools` and `drive put`, match above.
     if (command === null && words[0] === 'workspace')
-        return await runWorkspace(host, globals, argv, mayGrant);
+        return await runWorkspace(host, globals, argv, mayGrant, state);
     if (command === null) {
         if (!host.commands.some((each) => startsWith(each.path, words)))
             return reportError(
@@ -167,7 +178,7 @@ async function run(
         const required = (command.arguments ?? '').match(/<[^>]+>/gu)?.length ?? 0;
         if (parsed.positionals.length < required)
             throw new UsageError(`Missing arguments: ${command.arguments ?? ''}`);
-        return (await command.run(contextFor(host, globals, output), parsed)) ?? 0;
+        return (await command.run(contextFor(host, globals, output, state), parsed)) ?? 0;
     } catch (thrown) {
         const error = asMissingScope(signIn, thrown);
         if (
@@ -176,9 +187,9 @@ async function run(
             error instanceof MissingScopeFailure &&
             runtime.prompt !== null &&
             !output.json &&
-            (await askToGrant(host, globals.overrides, error))
+            (await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error))
         )
-            return await run(host, argv, false);
+            return await run(host, argv, false, state);
         return reportError(
             signIn,
             output.json,
@@ -193,10 +204,11 @@ async function runWorkspace(
     host: CloudHost,
     globals: Globals,
     argv: readonly string[],
-    mayGrant: boolean
+    mayGrant: boolean,
+    state: RunState
 ): Promise<number> {
     const output = createOutput(host.runtime, globals.format);
-    const context = contextFor(host, globals, output);
+    const context = contextFor(host, globals, output, state);
     const args = globals.rest.slice(1);
     try {
         if (args.every((arg) => arg.startsWith('-'))) {
@@ -232,9 +244,9 @@ async function runWorkspace(
             error instanceof MissingScopeFailure &&
             host.runtime.prompt !== null &&
             !output.json &&
-            (await askToGrant(host, globals.overrides, error))
+            (await askToGrant(host, grantOverrides(globals.overrides, state.pinned), error))
         )
-            return await run(host, argv, false);
+            return await run(host, argv, false, state);
         return reportError(
             context,
             output.json,
@@ -276,6 +288,13 @@ function workspaceHelp(host: CloudHost, apps: readonly WorkspaceApp[] | null): s
  * At a terminal and without --yes, offers to sign in again for the permission; true once that
  * sign-in succeeded. Under --yes the failure stands, with the sign-in that grants it as its fix.
  */
+function grantOverrides(
+    overrides: ConnectionOverrides,
+    pinned: PinnedConnection | null
+): ConnectionOverrides {
+    return pinned === null ? overrides : { ...overrides, profile: pinned.profile };
+}
+
 async function askToGrant(
     host: CloudHost,
     overrides: ConnectionOverrides,
@@ -292,17 +311,36 @@ async function askToGrant(
 function contextFor(
     host: CloudHost,
     globals: Globals,
-    output: CommandContext['output']
+    output: CommandContext['output'],
+    state: RunState
 ): CommandContext {
     const { overrides } = globals;
-    const connection = async (): Promise<Connection> => {
-        const resolved = await host.resolveConnection(overrides);
-        if (resolved !== null) return resolved;
-        throw new CommandFailure(
-            'needs_sign_in',
-            'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
-            signInCommand({ overrides, runtime: host.runtime }, [])
+    const connection = async (options?: { readonly pin: true }): Promise<Connection> => {
+        const pinned = state.pinned;
+        const resolved = await host.resolveConnection(
+            pinned === null ? overrides : { ...overrides, profile: pinned.profile }
         );
+        if (pinned !== null && (resolved === null || !matchesPinnedConnection(pinned, resolved)))
+            throw new CommandFailure(
+                'failed',
+                'Your Dexto account, project, or server changed during publishing. Re-run to preview the Site again.',
+                null
+            );
+        if (resolved === null)
+            throw new CommandFailure(
+                'needs_sign_in',
+                'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
+                signInCommand({ overrides, runtime: host.runtime }, [])
+            );
+        if (options?.pin === true && pinned === null && resolved.kind === 'oauth')
+            state.pinned = pinConnection(resolved);
+        else if (
+            pinned?.accountId === null &&
+            resolved.kind === 'oauth' &&
+            resolved.login.signedInAs !== null
+        )
+            state.pinned = pinConnection(resolved);
+        return resolved;
     };
     return {
         client: async () => {

@@ -43,7 +43,8 @@ export interface CommandContext {
     readonly syncLocalChat?: (id: string) => Promise<void>;
     /** The /v1 client for the resolved credential; fails with how to sign in when there is none. */
     client(): Promise<CloudClient>;
-    connection(): Promise<Connection>;
+    /** Pin the resolved target for this invocation when a command needs stable consent. */
+    connection(options?: { readonly pin: true }): Promise<Connection>;
     /** The words the command was run with, its connection options included and any key left out. */
     readonly invocation: readonly string[];
     readonly output: Output;
