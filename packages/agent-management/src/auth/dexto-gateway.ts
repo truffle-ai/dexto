@@ -3,7 +3,12 @@
 
 import { getDextoGlobalPath, type LlmRuntimeAuthOverrides } from '@dexto/core';
 import { z } from 'zod';
-import { type Credential, type OAuthLogin, resolveCredential } from './dexto-accounts.js';
+import {
+    type Credential,
+    type OAuthLogin,
+    resolveCredential,
+    SignInExpired,
+} from './dexto-accounts.js';
 import { type CliLoginScope, refreshSignIn } from './dexto-sign-in.js';
 
 /** The scope a sign-in needs to spend credits on Dexto models. */
@@ -167,15 +172,25 @@ async function readDexto(options: DextoGatewayOptions, path: string): Promise<un
     return await response.json();
 }
 
-/** The current profile's credential, refreshed when expiring; null when signed out. */
+/**
+ * The current profile's credential, refreshed when expiring; null when signed out. Dexto models and
+ * the Dexto MCP take no --api-key, so an expired sign-in asks only to sign in again.
+ */
 export async function currentCredential(options: DextoGatewayOptions): Promise<Credential | null> {
-    return await resolveCredential({
-        dir: options.dir,
-        apiKey: null,
-        profile: null,
-        environment: options.environment,
-        refresh: options.refresh,
-    });
+    try {
+        return await resolveCredential({
+            dir: options.dir,
+            apiKey: null,
+            profile: null,
+            environment: options.environment,
+            refresh: options.refresh,
+        });
+    } catch (error) {
+        if (!(error instanceof SignInExpired)) throw error;
+        throw new Error(
+            `Your Dexto sign-in${error.profile === null ? '' : ` (profile ${error.profile})`} has expired. Run dexto login.`
+        );
+    }
 }
 
 function canSpend(login: OAuthLogin): boolean {

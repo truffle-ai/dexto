@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type OAuthLogin, writeLogin } from './dexto-accounts.js';
+import { type OAuthLogin, SignInExpired, writeLogin } from './dexto-accounts.js';
 import { createModelAuthResolver } from './model-auth-handlers.js';
 import {
     type DextoGatewayOptions,
@@ -118,6 +118,22 @@ describe('Dexto models on the sign-in', () => {
         await call();
 
         expect(sent[0]?.headers.get('authorization')).toBe('Bearer access-2');
+    });
+
+    it('asks only to sign in again when the sign-in expired: models take no --api-key', async () => {
+        await writeLogin(dir, 'default', signedIn({ expiresAt: new Date().toISOString() }));
+        options = {
+            ...options,
+            environment: { DEXTO_API_KEY: 'dxt_env' },
+            refresh: async () => {
+                throw new SignInExpired(null);
+            },
+        };
+
+        await expect(call()).rejects.toThrow(
+            /^Your Dexto sign-in \(profile default\) has expired\. Run dexto login\.$/u
+        );
+        expect(sent).toHaveLength(0);
     });
 
     it('sends a saved API key as itself, with no project', async () => {
