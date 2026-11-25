@@ -25,7 +25,7 @@
     "json": false,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "acp login",

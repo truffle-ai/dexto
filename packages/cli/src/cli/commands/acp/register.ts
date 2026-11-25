@@ -17,6 +17,9 @@ export function registerAcpCommand({
 Preview: this command and its ACP behaviour may change between releases.
 For ACP clients such as T3 Code or Zed: add a local ACP command "dexto" with argument "acp".
 Stdout carries only ACP messages; logs go to stderr.
+
+Examples:
+  dexto acp
 `
         )
         .action(async (options: { model?: string }) => {
