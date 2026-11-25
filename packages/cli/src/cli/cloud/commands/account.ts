@@ -70,6 +70,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
             },
         },
         path: ['login'],
+        examples: ['dexto login --device --json'],
         summary:
             'Sign in to Dexto with your browser or a device code; --api-key saves a key instead, for CI.',
         async run(context, input) {

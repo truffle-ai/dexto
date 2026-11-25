@@ -258,6 +258,12 @@ describe('dexto cloud', () => {
         );
     });
 
+    it('shows a JSON example for device login', async () => {
+        expect(await runCloud(host, ['login', '--help', '--json'])).toBe(0);
+        expect(JSON.parse(stdout).examples).toContain('dexto login --device --json');
+        expect(requests).toHaveLength(0);
+    });
+
     it('needs a sign-in: exit 3 with the command that fixes it', async () => {
         const code = await runCloud(host, ['cloud', 'projects', 'list']);
 
