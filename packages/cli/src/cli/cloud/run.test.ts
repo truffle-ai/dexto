@@ -484,6 +484,33 @@ describe('dexto cloud', () => {
         }
     );
 
+    it.each([
+        ['a command', ['cloud', 'projects', 'create', 'New', '--table']],
+        ['a workspace app', ['workspace', 'drive', '--table']],
+    ])('reports a failed step-up sign-in from %s as an error, not a crash', async (_name, argv) => {
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: 'forbidden',
+                        message: 'This needs computers:write.',
+                        details: { scope: 'computers:write' },
+                    },
+                },
+                { status: 403 }
+            );
+        host = {
+            ...host,
+            runtime: { ...host.runtime, stdoutIsTerminal: true, prompt: async () => 'y' },
+            signInForScopes: async () => {
+                throw new Error('Could not read the sign-in metadata.');
+            },
+        };
+        expect(await runCloud(host, argv)).toBe(1);
+        expect(stderr).toContain('Could not read the sign-in metadata.');
+    });
+
     it('keeps cloud api on the public API', async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
 
