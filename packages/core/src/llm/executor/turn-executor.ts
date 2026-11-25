@@ -1290,13 +1290,12 @@ export class TurnExecutor {
             this.toolManager.endsTurn(call.toolName, call.input)
         );
         if (endingCalls.length === 0) return undefined;
-        const history = await this.contextManager.getHistory();
+        const results = await this.contextManager.getToolResults(
+            endingCalls.map((call) => call.toolCallId)
+        );
         return endingCalls.find((call) =>
-            history.some(
-                (message) =>
-                    message.role === 'tool' &&
-                    message.toolCallId === call.toolCallId &&
-                    message.success !== false
+            results.some(
+                (message) => message.toolCallId === call.toolCallId && message.success !== false
             )
         );
     }

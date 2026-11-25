@@ -7,6 +7,7 @@ import {
     UIResourcePart,
     ContentPart,
     SanitizedToolResult,
+    ToolMessage,
     isToolMessage,
 } from './types.js';
 import { clonePromptContentPart } from './content-clone.js';
@@ -2165,6 +2166,26 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
         return isLikelyBase64String(content) ? '[binary data omitted]' : content;
     }
     return String(content ?? '');
+}
+
+/** The messages with these ids, in history order. */
+export function pickMessagesById(
+    history: readonly InternalMessage[],
+    messageIds: readonly string[]
+): InternalMessage[] {
+    const ids = new Set(messageIds);
+    return history.filter((message) => message.id !== undefined && ids.has(message.id));
+}
+
+/** Every tool result answering one of these tool call ids, in history order. */
+export function pickToolResults(
+    history: readonly InternalMessage[],
+    toolCallIds: readonly string[]
+): ToolMessage[] {
+    const ids = new Set(toolCallIds);
+    return history.filter(
+        (message): message is ToolMessage => isToolMessage(message) && ids.has(message.toolCallId)
+    );
 }
 
 /**

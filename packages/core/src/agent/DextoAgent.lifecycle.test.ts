@@ -172,6 +172,57 @@ describe('DextoAgent Lifecycle Management', () => {
         });
     });
 
+    describe('Context Stats', () => {
+        test.each([
+            ['summary-1', true],
+            [null, false],
+        ])(
+            'reports hasSummary from the model history load (summary %s) without the full chat',
+            async (summaryMessageId, hasSummary) => {
+                const agent = createTestAgent(mockValidatedConfig);
+                const modelHistory = {
+                    messages: [],
+                    stats: { returnedMessages: 0, skippedPreSummaryMessages: 4, summaryMessageId },
+                };
+                const contextManager = {
+                    loadModelHistory: vi.fn().mockResolvedValue(modelHistory),
+                    getHistory: vi.fn(),
+                    getMaxInputTokens: vi.fn().mockReturnValue(128000),
+                    getContextTokenEstimate: vi.fn().mockResolvedValue({
+                        estimated: 10,
+                        actual: null,
+                        breakdown: {
+                            systemPrompt: 5,
+                            tools: { total: 0, perTool: [] },
+                            messages: 5,
+                        },
+                        stats: {
+                            originalMessageCount: 4,
+                            filteredMessageCount: 0,
+                            prunedToolCount: 0,
+                        },
+                    }),
+                };
+                mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                    getContextManager: () => contextManager,
+                    getLLMService: () => ({ getEnabledTools: vi.fn().mockResolvedValue({}) }),
+                });
+
+                await agent.start();
+                const stats = await agent.getContextStats('test-session');
+
+                expect(stats.hasSummary).toBe(hasSummary);
+                expect(contextManager.loadModelHistory).toHaveBeenCalledTimes(1);
+                expect(contextManager.getContextTokenEstimate).toHaveBeenCalledWith(
+                    {},
+                    {},
+                    modelHistory
+                );
+                expect(contextManager.getHistory).not.toHaveBeenCalled();
+            }
+        );
+    });
+
     describe('Prompt Inspection', () => {
         test('should include session context when getting a session system prompt', async () => {
             const agent = createTestAgent(mockValidatedConfig);
