@@ -65,6 +65,8 @@ describe('dexto workspace', () => {
     let publishResponse: unknown;
     let publishProject: string | null;
     let publishStatus: number;
+    let previewStatus: number;
+    let previewResponse: unknown;
     let chatResponse: unknown;
     let computersResponse: unknown;
     let profilesResponse: unknown;
@@ -83,6 +85,8 @@ describe('dexto workspace', () => {
         environment = {};
         uploads = [];
         publishResponse = undefined;
+        previewResponse = undefined;
+        previewStatus = 200;
         chatResponse = {
             session: {
                 id: 'chat-1',
@@ -152,6 +156,28 @@ describe('dexto workspace', () => {
                         bytes: new Uint8Array(await request.arrayBuffer()),
                     });
                     return new Response(null, { status: 200 });
+                }
+                if (request.url === 'https://api.dexto.ai/v1/sites/publish/preview') {
+                    const body: unknown = await request.json();
+                    calls.push({
+                        method: 'POST',
+                        params: { name: 'POST /v1/sites/publish/preview', arguments: body },
+                    });
+                    const visibility =
+                        typeof body === 'object' && body !== null && 'visibility' in body
+                            ? body.visibility
+                            : 'unlisted';
+                    return Response.json(
+                        previewResponse ?? {
+                            action: 'create',
+                            siteId: null,
+                            slug: 'server-slug',
+                            title: 'Server title',
+                            url: 'https://server-chosen.dexto.dev',
+                            visibility,
+                        },
+                        { status: previewStatus }
+                    );
                 }
                 if (request.url === 'https://api.dexto.ai/v1/sites/publish') {
                     const body: unknown = await request.json();
@@ -1640,6 +1666,742 @@ describe('dexto workspace', () => {
         expect(calls).toHaveLength(0);
     });
 
+    it('explains that --yes applies to the current invocation preview', async () => {
+        expect(await runCloud(host, ['publish', '--help', '--json'])).toBe(0);
+        expect(stdout).toContain('preview from this invocation');
+    });
+
+    it('shows the server address and action before confirmation without publishing when declined', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewResponse = {
+            action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            slug: 'server-slug',
+            title: 'Existing',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        const questions: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                prompt: async (question) => {
+                    questions.push(question);
+                    return 'no';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+        expect(await runCloud(host, ['publish', file])).toBe(4);
+        expect(questions[0]).toContain('https://server-chosen.dexto.dev');
+        expect(questions[0]).toMatch(/update/iu);
+        expect(questions[0]).toContain('private');
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).not.toContain('POST /v1/sites/publish');
+        expect(calls.map((call) => call.params.name)).not.toContain('dexto_upload_prepare');
+    });
+
+    it('returns the server preview in JSON dry-run without publishing', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        expect(await runCloud(host, ['publish', file, '--dry-run', '--json'])).toBe(0);
+        expect(JSON.parse(stdout)).toMatchObject({
+            action: 'create',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'unlisted',
+        });
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+        expect(calls[0]?.params.arguments).not.toHaveProperty('expectedSiteId');
+        expect(calls[0]?.params.arguments).not.toHaveProperty('expectedVisibility');
+    });
+
+    it('returns a JSON confirmation refusal without writing an interactive prompt', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const prompt = vi.fn(async (question: string) => {
+            host.runtime.writeError(question);
+            return 'no';
+        });
+        host = { ...host, runtime: { ...host.runtime, prompt, stdoutIsTerminal: true } };
+        expect(await runCloud(host, ['publish', file, '--json'])).toBe(4);
+        expect(prompt).not.toHaveBeenCalled();
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toContain('https://server-chosen.dexto.dev');
+        expect(failure.fix).toContain('--yes');
+        expect(uploads).toHaveLength(0);
+    });
+
+    it('reports a server preview refusal without prompting or publishing', async () => {
+        const file = path.join(path.dirname(dir), 'preview.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewStatus = 409;
+        previewResponse = { error: { code: 'conflict', message: 'That Site is unavailable.' } };
+        const prompt = vi.fn(async () => 'yes');
+        host = { ...host, runtime: { ...host.runtime, prompt, stdoutIsTerminal: true } };
+        expect(await runCloud(host, ['publish', file, '--json'])).not.toBe(0);
+        expect(stderr).toContain('That Site is unavailable.');
+        expect(prompt).not.toHaveBeenCalled();
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
+    it('explains the server confirmation refusal before upload', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewStatus = 409;
+        previewResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Confirm the Site name "Team plan" before making it public.',
+            },
+        };
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(4);
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toContain('Team plan');
+        expect(failure.message).toContain('--confirm-public');
+        expect(failure.fix).toContain('--confirm-public');
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
+    it('gives confirmation guidance for the older conflict response before upload', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewStatus = 409;
+        previewResponse = {
+            error: {
+                code: 'conflict',
+                message: 'Confirm the Site name "Team plan" before making it public.',
+            },
+        };
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(1);
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toContain('Team plan');
+        expect(failure.message).toContain('--confirm-public');
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
+    it('sends the previewed visibility as a precondition and asks for fresh consent after a race', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewResponse = {
+            action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            slug: 'server-slug',
+            title: 'Team plan',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'The Site is public now, not private. Confirm publishing it as public.',
+                details: {
+                    reason: 'visibility_changed',
+                    currentVisibility: 'public',
+                    currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+                },
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        const publication = calls.find((call) => call.params.name === 'POST /v1/sites/publish');
+        expect(publication?.params.arguments).toMatchObject({
+            expectedVisibility: 'private',
+            expectedSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            slug: 'server-slug',
+        });
+        expect(publication?.params.arguments).not.toHaveProperty('expected_visibility');
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toBe("The Site's visibility changed to public since the preview.");
+        expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(failure.details).toEqual({
+            reason: 'visibility_changed',
+            currentVisibility: 'public',
+            currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+        });
+        expect(stdout).toBe('');
+    });
+
+    it('reads the visibility-change server refusal with a null target', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        const details = {
+            reason: 'visibility_changed',
+            currentVisibility: 'private',
+            currentSiteId: null,
+        };
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Generic refusal.',
+                details,
+                requestId: 'request-1',
+                retryable: false,
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toBe("The Site's visibility changed to private since the preview.");
+        expect(failure.details).toEqual(details);
+        expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(stdout).toBe('');
+    });
+
+    it('prints the changed visibility and re-run command for a person', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        previewResponse = {
+            action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            slug: 'server-slug',
+            title: 'Team plan',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Visibility mismatch.',
+                details: {
+                    reason: 'visibility_changed',
+                    currentVisibility: 'public',
+                    currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+                },
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(4);
+        expect(stderr).toContain("The Site's visibility changed to public since the preview.");
+        expect(stderr).toContain(`Run: dexto publish ${file} --table`);
+        expect(stderr).not.toContain('currentSiteId');
+        expect(stdout).toBe('');
+    });
+
+    it('preserves a target-change refusal and asks for a fresh preview', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const details = {
+            reason: 'site_changed',
+            currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            currentVisibility: 'unlisted',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'A generic refusal.',
+                details,
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        const publication = calls.find((call) => call.params.name === 'POST /v1/sites/publish');
+        expect(publication?.params.arguments).toMatchObject({
+            slug: 'server-slug',
+            expectedSiteId: null,
+            expectedVisibility: 'unlisted',
+        });
+        const failure = JSON.parse(stderr).error;
+        expect(failure.details).toEqual(details);
+        expect(failure.message).toContain(details.currentSiteId);
+        expect(failure.message).toContain(details.currentVisibility);
+        expect(failure.fix).toBe(`dexto publish ${file} --json`);
+        expect(stdout).toBe('');
+    });
+
+    it('passes a restricted preview visibility through to the publish precondition', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewResponse = {
+            action: 'update',
+            siteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+            slug: 'server-slug',
+            title: 'Existing',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'restricted',
+        };
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Visibility mismatch.',
+                details: {
+                    reason: 'visibility_changed',
+                    currentSiteId: 'c89f3559-e248-4ce2-a8f7-f357bcb885de',
+                    currentVisibility: 'private',
+                },
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(4);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ expectedVisibility: 'restricted' });
+        expect(JSON.parse(stderr).error.message).toContain('changed to private');
+        expect(stdout).toBe('');
+    });
+
+    it('explains a Site created between the publish check and insert', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'conflict',
+                message:
+                    'server-slug is taken by another Site. Choose another slug, or delete that Site first if it is yours.',
+            },
+        };
+
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(1);
+        const failure = JSON.parse(stderr).error;
+        expect(failure.message).toBe(
+            'A Site with that name was just created. Pick another name, or re-run to see a fresh preview.'
+        );
+        expect(failure.fix).toBe(`dexto publish ${file} --visibility public --json`);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ expectedSiteId: null });
+        expect(stdout).toBe('');
+    });
+
+    it('prints a plain re-run command after a concurrent Site create', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'conflict',
+                message:
+                    'server-slug is taken by another Site. Choose another slug, or delete that Site first if it is yours.',
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(1);
+        expect(stderr).toContain(
+            'A Site with that name was just created. Pick another name, or re-run to see a fresh preview.'
+        );
+        expect(stderr).toContain(`Run: dexto publish ${file} --table`);
+        expect(stdout).toBe('');
+    });
+
+    it('does not mistake an unrelated public Site conflict for a concurrent create', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'conflict',
+                message: 'Confirm the Site name "Team plan" before making it public.',
+            },
+        };
+
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(1);
+        expect(JSON.parse(stderr).error.message).toContain('--confirm-public');
+        expect(stdout).toBe('');
+    });
+
+    it('keeps the preview account and project if the profile changes during confirmation', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const resolve = host.resolveConnection;
+        const profiles: (string | null)[] = [];
+        let changed = false;
+        host = {
+            ...host,
+            resolveConnection: async (overrides) => {
+                profiles.push(overrides.profile);
+                const connection = await resolve(overrides);
+                return connection?.kind === 'oauth' && changed && overrides.profile === null
+                    ? {
+                          ...connection,
+                          profile: 'other-profile',
+                          cloudProject: 'other-project',
+                          apiBaseUrl: 'https://other-api.invalid',
+                          login: { ...connection.login, resource: 'https://other-app.invalid/mcp' },
+                      }
+                    : connection;
+            },
+            runtime: {
+                ...host.runtime,
+                prompt: async () => {
+                    changed = true;
+                    return 'yes';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+        expect(profiles.length).toBeGreaterThan(1);
+        expect(profiles[0]).toBeNull();
+        expect(profiles.slice(1).every((profile) => profile === 'default')).toBe(true);
+        expect(publishProject).toBe('project-1');
+        expect(calls.map((call) => call.params.name)).toEqual([
+            'POST /v1/sites/publish/preview',
+            'dexto_upload_prepare',
+            'POST /v1/sites/publish',
+        ]);
+        expect(uploads).toHaveLength(1);
+    });
+
+    it.each(['prompt', 'upload'] as const)(
+        'refreshes the pinned sign-in when it expires during %s',
+        async (expiresDuring) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            const before = await resolve({
+                apiBaseUrl: null,
+                apiKey: null,
+                cloudProject: null,
+                profile: null,
+            });
+            if (before?.kind !== 'oauth') throw new Error('Expected an OAuth sign-in.');
+            const refreshed = `${before.token}-refreshed`;
+            const fetch = host.runtime.fetch;
+            const checked: boolean[] = [];
+            let expired = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const current = await resolve(overrides);
+                    if (current?.kind !== 'oauth' || !expired) return current;
+                    return { ...current, token: refreshed };
+                },
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        if (
+                            expired &&
+                            (request.url === MCP || request.url.endsWith('/v1/sites/publish'))
+                        ) {
+                            const isFresh =
+                                request.headers.get('authorization') === `Bearer ${refreshed}`;
+                            checked.push(isFresh);
+                            if (!isFresh)
+                                return Response.json(
+                                    { error: { code: 'expired', message: 'Sign-in expired.' } },
+                                    { status: 401 }
+                                );
+                        }
+                        if (
+                            expiresDuring === 'upload' &&
+                            request.url.startsWith('https://upload.example/')
+                        )
+                            expired = true;
+                        return await fetch(request);
+                    },
+                    prompt: async () => {
+                        if (expiresDuring === 'prompt') expired = true;
+                        return 'yes';
+                    },
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+            expect(checked).toEqual(expiresDuring === 'prompt' ? [true, true] : [true]);
+            expect(publishProject).toBe('project-1');
+            expect(uploads).toHaveLength(1);
+        }
+    );
+
+    it.each(['account', 'organization', 'project', 'server'] as const)(
+        'refuses to publish when the refreshed %s changes',
+        async (changedField) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            let changed = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const connection = await resolve(overrides);
+                    if (connection?.kind !== 'oauth') return connection;
+                    return {
+                        ...connection,
+                        cloudProject:
+                            changed && changedField === 'project'
+                                ? 'other-project'
+                                : connection.cloudProject,
+                        apiBaseUrl:
+                            changed && changedField === 'server'
+                                ? 'https://other-api.invalid'
+                                : connection.apiBaseUrl,
+                        login: {
+                            ...connection.login,
+                            signedInAs: {
+                                account: {
+                                    id:
+                                        changed && changedField === 'account'
+                                            ? 'other-account'
+                                            : 'account-1',
+                                    email: 'person@example.invalid',
+                                    name: 'Person',
+                                },
+                                organization: {
+                                    id:
+                                        changed && changedField === 'organization'
+                                            ? 'other-org'
+                                            : 'org-1',
+                                    name: 'Org',
+                                    slug: 'org',
+                                },
+                            },
+                        },
+                    };
+                },
+                runtime: {
+                    ...host.runtime,
+                    prompt: async () => {
+                        changed = true;
+                        return 'yes';
+                    },
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).not.toBe(0);
+            expect(stderr).toContain('changed during publishing');
+            expect(uploads).toHaveLength(0);
+            expect(calls.map((call) => call.params.name)).toEqual([
+                'POST /v1/sites/publish/preview',
+            ]);
+        }
+    );
+
+    it.each(['known before preview', 'learned on refresh'] as const)(
+        'refuses promotion if the account %s changes during upload',
+        async (identityTiming) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            const fetch = host.runtime.fetch;
+            let changed = false;
+            let confirmed = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const connection = await resolve(overrides);
+                    if (connection?.kind !== 'oauth') return connection;
+                    return {
+                        ...connection,
+                        login: {
+                            ...connection.login,
+                            signedInAs:
+                                identityTiming === 'learned on refresh' && !confirmed
+                                    ? null
+                                    : {
+                                          account: {
+                                              id: changed ? 'other-account' : 'account-1',
+                                              email: 'person@example.invalid',
+                                              name: 'Person',
+                                          },
+                                          organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                                      },
+                        },
+                    };
+                },
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        if (request.url.startsWith('https://upload.example/')) changed = true;
+                        return await fetch(request);
+                    },
+                    prompt: async () => {
+                        confirmed = true;
+                        return 'yes';
+                    },
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).not.toBe(0);
+            expect(stderr).toContain('changed during publishing');
+            expect(uploads).toHaveLength(1);
+            expect(calls.map((call) => call.params.name)).not.toContain('POST /v1/sites/publish');
+        }
+    );
+
+    it('keeps the pinned profile through a permission-grant retry', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const resolve = host.resolveConnection;
+        let granted = false;
+        let switched = false;
+        let grantProfile: string | null = null;
+        host = {
+            ...host,
+            resolveConnection: async (overrides) => {
+                const connection = await resolve(overrides);
+                if (connection?.kind !== 'oauth') return connection;
+                const other = switched && overrides.profile === null;
+                return {
+                    ...connection,
+                    profile: other ? 'other-profile' : connection.profile,
+                    cloudProject: other ? 'other-project' : connection.cloudProject,
+                    login: {
+                        ...connection.login,
+                        savedAt: granted ? '2026-11-02T00:00:00.000Z' : connection.login.savedAt,
+                        scopes: granted
+                            ? connection.login.scopes
+                            : connection.login.scopes.filter((scope) => scope !== 'sites:write'),
+                        signedInAs: {
+                            account: {
+                                id: 'account-1',
+                                email: 'person@example.invalid',
+                                name: 'Person',
+                            },
+                            organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                        },
+                    },
+                };
+            },
+            signInForScopes: async (overrides) => {
+                grantProfile = overrides.profile;
+                granted = true;
+                return true;
+            },
+            runtime: {
+                ...host.runtime,
+                prompt: async () => {
+                    switched = true;
+                    return 'yes';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+        expect(grantProfile).toBe('default');
+        expect(publishProject).toBe('project-1');
+        expect(uploads).toHaveLength(1);
+    });
+
+    it.each(['different account', 'unknown account'] as const)(
+        'refuses a permission-grant retry with %s',
+        async (identity) => {
+            const file = path.join(path.dirname(dir), 'page.html');
+            await writeFile(file, '<h1>hello</h1>');
+            const resolve = host.resolveConnection;
+            let granted = false;
+            host = {
+                ...host,
+                resolveConnection: async (overrides) => {
+                    const connection = await resolve(overrides);
+                    if (connection?.kind !== 'oauth') return connection;
+                    return {
+                        ...connection,
+                        login: {
+                            ...connection.login,
+                            savedAt: granted
+                                ? '2026-11-02T00:00:00.000Z'
+                                : connection.login.savedAt,
+                            scopes: granted
+                                ? connection.login.scopes
+                                : connection.login.scopes.filter(
+                                      (scope) => scope !== 'sites:write'
+                                  ),
+                            signedInAs:
+                                identity === 'unknown account'
+                                    ? null
+                                    : {
+                                          account: {
+                                              id: granted ? 'other-account' : 'account-1',
+                                              email: 'person@example.invalid',
+                                              name: 'Person',
+                                          },
+                                          organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                                      },
+                        },
+                    };
+                },
+                signInForScopes: async () => {
+                    granted = true;
+                    return true;
+                },
+                runtime: {
+                    ...host.runtime,
+                    prompt: async () => 'yes',
+                    stdoutIsTerminal: true,
+                },
+            };
+
+            expect(await runCloud(host, ['publish', file, '--table'])).not.toBe(0);
+            expect(stderr).toContain('changed during publishing');
+            expect(calls).toHaveLength(0);
+            expect(uploads).toHaveLength(0);
+        }
+    );
+
+    it('accepts identity details added by a refresh of the same saved sign-in', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>hello</h1>');
+        const resolve = host.resolveConnection;
+        let refreshed = false;
+        host = {
+            ...host,
+            resolveConnection: async (overrides) => {
+                const connection = await resolve(overrides);
+                if (connection?.kind !== 'oauth' || !refreshed) return connection;
+                return {
+                    ...connection,
+                    login: {
+                        ...connection.login,
+                        signedInAs: {
+                            account: {
+                                id: 'account-1',
+                                email: 'person@example.invalid',
+                                name: 'Person',
+                            },
+                            organization: { id: 'org-1', name: 'Org', slug: 'org' },
+                        },
+                    },
+                };
+            },
+            runtime: {
+                ...host.runtime,
+                prompt: async () => {
+                    refreshed = true;
+                    return 'yes';
+                },
+                stdoutIsTerminal: true,
+            },
+        };
+
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
+        expect(publishProject).toBe('project-1');
+        expect(uploads).toHaveLength(1);
+    });
+
+    it('refuses an inconsistent preview before uploading', async () => {
+        const file = path.join(path.dirname(dir), 'site.html');
+        await writeFile(file, '<h1>hello</h1>');
+        previewResponse = {
+            action: 'update',
+            siteId: null,
+            slug: 'server-slug',
+            title: 'Site',
+            url: 'https://server-chosen.dexto.dev',
+            visibility: 'private',
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).not.toBe(0);
+        expect(uploads).toHaveLength(0);
+        expect(calls.map((call) => call.params.name)).toEqual(['POST /v1/sites/publish/preview']);
+    });
+
     it('requires gateway access before uploading a Site', async () => {
         const login = await dextoAccounts.readLogin(dir, 'default');
         if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
@@ -1706,8 +2468,8 @@ describe('dexto workspace', () => {
         expect(
             await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
         ).toBe(4);
-        // Progress notes come first on stderr; the JSON error follows them.
-        const failure = JSON.parse(stderr.slice(stderr.indexOf('{')));
+        // JSON failures remain a single machine-readable document.
+        const failure = JSON.parse(stderr);
         expect(failure.error.message).toContain('--confirm-public');
         expect(failure.error.message).toContain('Team plan');
         expect(calls.at(-1)?.params.name).toBe('POST /v1/sites/publish');
@@ -1726,7 +2488,7 @@ describe('dexto workspace', () => {
             ])
         ).toBe(4);
         expect(calls.at(-1)?.params.arguments).toMatchObject({ confirmPublicName: 'Wrong' });
-        expect(JSON.parse(stderr.slice(stderr.indexOf('{'))).error.message).toContain('Team plan');
+        expect(JSON.parse(stderr).error.message).toContain('Team plan');
         expect(stdout).toBe('');
     });
 
@@ -1790,7 +2552,7 @@ describe('dexto workspace', () => {
         expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
         expect(publishProject).toBe('project-1');
         expect(calls.some((call) => call.method === 'tools/list')).toBe(false);
-        expect(stderr).toContain('unlisted: anyone with the link can open it');
+        expect(stderr).toBe('');
         expect(JSON.parse(stdout).visibility).toBe('unlisted');
     });
 
@@ -1806,7 +2568,7 @@ describe('dexto workspace', () => {
             visibility: 'private',
         };
         expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(0);
-        expect(stderr).toContain('private: only you and your organization can open it');
+        expect(stderr).toBe('');
         expect(JSON.parse(stdout).visibility).toBe('private');
         expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
     });
@@ -1825,11 +2587,12 @@ describe('dexto workspace', () => {
                 },
             },
         };
-        expect(await runCloud(host, ['publish', file, '--json'])).toBe(0);
+        expect(await runCloud(host, ['publish', file, '--table'])).toBe(0);
         expect(questions).toHaveLength(1);
-        expect(questions[0]).toContain('new Site is unlisted');
+        expect(questions[0]).toContain('Create Server title');
+        expect(questions[0]).toContain('unlisted');
         expect(questions[0]).toContain('anyone with the link can open it');
-        expect(questions[0]).toContain('existing Site keeps its visibility');
+        expect(questions[0]).toContain('publishing decides again');
         expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
     });
 
@@ -1862,9 +2625,7 @@ describe('dexto workspace', () => {
         ).toBe(0);
         expect(calls.at(-1)?.params.arguments).toMatchObject({ visibility: 'restricted' });
         expect(JSON.parse(stdout).visibility).toBe('restricted');
-        expect(stderr).toContain(
-            'restricted: only you, Owners, Admins and people you share it with can open it'
-        );
+        expect(stderr).toBe('');
         stdout = '';
         expect(
             await runCloud(host, [
@@ -1903,7 +2664,13 @@ describe('dexto workspace', () => {
             method: 'POST',
             params: {
                 name: 'POST /v1/sites/publish',
-                arguments: { name: 'hello', uploadPath: 'uploads/u1.zip' },
+                arguments: {
+                    name: 'hello',
+                    slug: 'server-slug',
+                    expectedSiteId: null,
+                    expectedVisibility: 'unlisted',
+                    uploadPath: 'uploads/u1.zip',
+                },
             },
         });
         expect(stdout).toContain(
@@ -1911,7 +2678,7 @@ describe('dexto workspace', () => {
         );
         // Progress goes to stderr, a line per step, so stdout keeps only the result.
         expect(stderr).toMatch(
-            /Packed 2 files into a \d+ B \.zip\.\nUploading \d+ B…\nPublishing hello…\nSite visibility: unlisted: anyone with the link can open it\.\n$/u
+            /Packed 2 files into a \d+ B \.zip\.\nCreate Server title at https:\/\/server-chosen\.dexto\.dev \(unlisted: anyone with the link can open it\)\. Preview only; publishing decides again\.\nUploading \d+ B…\nPublishing hello…\nSite visibility: unlisted: anyone with the link can open it\.\n$/u
         );
     });
 });

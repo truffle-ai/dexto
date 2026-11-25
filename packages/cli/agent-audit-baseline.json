@@ -1073,7 +1073,7 @@
   {
     "command": "publish",
     "json": true,
-    "dryRun": false,
+    "dryRun": true,
     "nonInteractiveFlag": true,
     "examples": false
   },
