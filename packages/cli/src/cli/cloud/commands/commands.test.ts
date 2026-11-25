@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { dextoAccounts } from '@dexto/agent-management';
+import { dextoAccounts, dextoSignIn } from '@dexto/agent-management';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConnection } from '../connection.js';
 import { cloudCommands, CLOUD_GROUPS } from '../host.js';
@@ -148,9 +148,6 @@ describe('cloud secrets, web and data-deletions', () => {
         expect(await runCloud(host, [...command, '--api-key', 'wrong-key'])).not.toBe(0);
         expect(requests).toHaveLength(4);
         stderr = '';
-        reply = () => {
-            throw new TypeError('connection dropped');
-        };
         expect(
             await runCloud(host, [
                 'admin',
@@ -162,9 +159,16 @@ describe('cloud secrets, web and data-deletions', () => {
                 'test support',
                 '--json',
             ])
-        ).toBe(1);
+        ).toBe(2);
+        expect(JSON.parse(stderr).error.message).toContain('--idempotency-key');
+        expect(requests).toHaveLength(4);
+        stderr = '';
+        reply = () => {
+            throw new TypeError('connection dropped');
+        };
+        expect(await runCloud(host, command)).toBe(1);
         const attempted = requests[4]?.body as { idempotency_key: string };
-        expect(attempted.idempotency_key).toBeTruthy();
+        expect(attempted.idempotency_key).toBe('request-1');
         expect(JSON.parse(stderr).error.fix).toContain(
             `--idempotency-key ${attempted.idempotency_key}`
         );
@@ -240,6 +244,37 @@ describe('cloud secrets, web and data-deletions', () => {
         expect(
             await dextoAccounts.readLogin(path.join(dir, 'operator-credits'), 'default')
         ).toEqual(operator);
+        await dextoAccounts.writeLogin(path.join(dir, 'operator-credits'), 'default', {
+            ...operator,
+            expiresAt: '2000-01-01T00:00:00.000Z',
+        });
+        const expiredSignIn = async () => ({
+            ...auth,
+            dexto: {
+                ...auth.dexto,
+                refreshSignIn: async () => {
+                    throw new dextoSignIn.SignInEnded('expired', 'Expired');
+                },
+            },
+        });
+        host = { ...host, commands: cloudCommands(dir, expiredSignIn), signIn: expiredSignIn };
+        stderr = '';
+        expect(await runCloud(host, ['admin', 'credits', 'list', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toBe('dexto admin login --device');
+        const transientSignIn = async () => ({
+            ...auth,
+            dexto: {
+                ...auth.dexto,
+                refreshSignIn: async () => {
+                    throw new TypeError('network unavailable');
+                },
+            },
+        });
+        host = { ...host, commands: cloudCommands(dir, transientSignIn), signIn: transientSignIn };
+        stderr = '';
+        expect(await runCloud(host, ['admin', 'credits', 'list', '--json'])).toBe(1);
+        expect(JSON.parse(stderr).error.fix).toBeUndefined();
+        host = { ...host, commands: cloudCommands(dir, signIn), signIn };
         expect(await runCloud(host, ['admin', 'logout', '--json'])).toBe(0);
         expect(
             await dextoAccounts.readLogin(path.join(dir, 'operator-credits'), 'default')

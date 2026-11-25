@@ -1,7 +1,7 @@
 // Operator credits have a separate OAuth grant, stored away from ordinary workspace profiles.
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { dextoAccounts } from '@dexto/agent-management';
+import { dextoAccounts, dextoSignIn } from '@dexto/agent-management';
 import { CloudApiError, createCloudClient, unwrap } from '@dexto/cloud-client';
 import { z } from 'zod';
 import { CommandFailure } from '../../failure.js';
@@ -45,8 +45,19 @@ async function operatorClient(dir: string, signIn: SignInFor, context: CommandCo
         profile: PROFILE,
         apiKey: null,
         environment: {},
-        refresh: async (login, signal) =>
-            (await signIn(signInIo(context))).dexto.refreshSignIn(login, signal),
+        refresh: async (login, signal) => {
+            try {
+                return await (await signIn(signInIo(context))).dexto.refreshSignIn(login, signal);
+            } catch (error) {
+                if (error instanceof dextoSignIn.SignInEnded && error.reason === 'expired')
+                    throw new CommandFailure(
+                        'needs_sign_in',
+                        'Operator sign-in expired.',
+                        'dexto admin login --device'
+                    );
+                throw error;
+            }
+        },
     });
     if (
         credential === null ||
@@ -188,7 +199,7 @@ export function adminCreditCommands(dir: string, signIn: SignInFor): readonly Co
             },
         },
         examples: [
-            'dexto admin credits grant person@example.com 25 --reason "Test account" --json',
+            'dexto admin credits grant person@example.com 25 --reason "Test account" --idempotency-key "$GRANT_KEY" --json',
             'dexto admin credits grant person@example.com 25 --reason "Test account" --dry-run',
         ],
         jsonOutput: {
@@ -217,19 +228,26 @@ export function adminCreditCommands(dir: string, signIn: SignInFor): readonly Co
                 throw new UsageError('Amount must be $0.01 to $100 in cents.');
             if (reason.length < 3 || reason.length > 500)
                 throw new UsageError('--reason must be 3 to 500 characters.');
-            const key = stringOption(input, 'idempotency-key') ?? randomUUID();
-            if (key.trim().length === 0 || key.length > 200)
-                throw new UsageError('--idempotency-key must be 1 to 200 characters.');
+            const requestedKey = stringOption(input, 'idempotency-key');
             const dryRun = flag(input, 'dry-run');
-            const retry =
-                stringOption(input, 'idempotency-key') === undefined
-                    ? rerunWith(context, '--idempotency-key', key)
-                    : rerunWith(context);
             if (
                 !dryRun &&
-                !context.output.json &&
-                stringOption(input, 'idempotency-key') === undefined
+                requestedKey === undefined &&
+                (context.output.json ||
+                    context.runtime.prompt === null ||
+                    context.invocation.includes('--yes'))
             )
+                throw new UsageError(
+                    '--idempotency-key is required for non-interactive or JSON grants. Reuse it to retry safely.'
+                );
+            const key = requestedKey ?? randomUUID();
+            if (key.trim().length === 0 || key.length > 200)
+                throw new UsageError('--idempotency-key must be 1 to 200 characters.');
+            const retry =
+                requestedKey === undefined
+                    ? rerunWith(context, '--idempotency-key', key)
+                    : rerunWith(context);
+            if (!dryRun && !context.output.json && requestedKey === undefined)
                 context.output.note(`If the result is unknown, retry safely: ${retry}`);
             const organization = stringOption(input, 'organization');
             const client = await operatorClient(dir, signIn, context);

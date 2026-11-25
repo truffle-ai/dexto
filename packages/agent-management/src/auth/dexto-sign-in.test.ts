@@ -476,6 +476,9 @@ describe('refreshSignIn', () => {
         await expect(refreshSignIn(runtime(server.fetch), saved)).rejects.toThrow(
             'Your Dexto sign-in has expired. Run dexto login again.'
         );
+        await expect(refreshSignIn(runtime(server.fetch), saved)).rejects.toMatchObject({
+            reason: 'expired',
+        });
     });
 });
 
