@@ -1681,13 +1681,13 @@ export interface paths {
         };
         /**
          * List operator credit grants
-         * @description List manual grants. Requires an operator's separately consented Dexto CLI admin:credits OAuth token; API keys and workspace tokens are refused.
+         * @description List manual grants. Requires an operator's separately consented admin:credits OAuth token for the Dexto CLI's public client ID; API keys and workspace tokens are refused. The public client ID does not authenticate the executable.
          */
         get: operations["listOperatorCreditGrants"];
         put?: never;
         /**
          * Grant operator credits
-         * @description Grant at most $100, with a $500 per-operator UTC-day CLI limit. Requires explicitly consented Dexto CLI admin:credits OAuth and an operator on the current allowlist. Supply an organization for an email with multiple memberships. Repeat the same idempotency key to recover a result.
+         * @description Grant at most $100, with a $500 per-operator UTC-day CLI limit. Requires explicitly consented admin:credits OAuth for the Dexto CLI's public client ID and an operator on the current allowlist; the client ID does not authenticate the executable. Supply an organization for an email with multiple memberships. Repeat the same idempotency key to recover a result.
          */
         post: operations["grantOperatorCredits"];
         delete?: never;
