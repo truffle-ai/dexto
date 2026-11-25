@@ -54,6 +54,46 @@ const received = {
     ],
 };
 
+/** `access` as the CLI prints it, with snake_case keys. */
+const printedAccess = {
+    access: 'people',
+    organization: null,
+    people: [
+        {
+            avatar_url: null,
+            email: 'ana@example.com',
+            name: 'Ana',
+            role: 'viewer',
+            since: '2026-11-20T00:00:00.000Z',
+            user_id: '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+        },
+    ],
+    public: null,
+    title: 'Roadmap.md',
+};
+
+/** `received.shared` as the CLI prints it, with snake_case keys. */
+const printedShared = [
+    {
+        target: { kind: 'drive', id: 'file-2' },
+        title: 'Q4 plan',
+        path: '/drive/file-2',
+        url: 'https://app.dexto.ai/drive/file-2',
+        owner: { display_name: 'Ana', handle: 'ana' },
+        resource_id: 'resource-2',
+        via: 'organization',
+    },
+    {
+        target: { kind: 'skill', id: 'skill-1' },
+        title: 'Release notes',
+        path: '/skills/skill-1',
+        url: 'https://app.dexto.ai/skills/skill-1',
+        owner: { display_name: 'Bo', handle: null },
+        resource_id: 'resource-1',
+        via: 'person',
+    },
+];
+
 /** One MCP answer: the tool's structured result, or a JSON-RPC refusal. */
 type Reply = { result: unknown } | { error: { code: number; message: string; data?: unknown } };
 
@@ -162,7 +202,7 @@ describe('sharing reads over the Dexto MCP', () => {
             expect(calls).toEqual([
                 { name: 'dexto_share_access', arguments: { kind: 'drive', id: 'file-1' } },
             ]);
-            expect(output()).toEqual(access);
+            expect(output()).toEqual(printedAccess);
         });
 
         it('passes the App and collection for an App record', async () => {
@@ -283,7 +323,12 @@ describe('sharing reads over the Dexto MCP', () => {
             replies = [{ result: received }];
             expect(await cli('workspace', 'share', 'received', '--json'), stderr).toBe(0);
             expect(calls).toEqual([{ name: 'dexto_share_received', arguments: {} }]);
-            expect(output()).toEqual(received);
+            expect(output()).toEqual({
+                data: printedShared,
+                has_more: false,
+                invitations: received.invitations,
+                next_after: null,
+            });
         });
 
         it('narrows to one kind', async () => {

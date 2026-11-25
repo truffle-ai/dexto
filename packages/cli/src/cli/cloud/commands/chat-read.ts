@@ -3,7 +3,6 @@
 import { z } from 'zod';
 import { CommandFailure } from '../../failure.js';
 import {
-    argument,
     choiceOption,
     flag,
     PAGE_OPTIONS,
@@ -13,6 +12,7 @@ import {
     type Command,
     type CommandContext,
     type CommandInput,
+    chatArgument,
 } from '../command.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -224,7 +224,7 @@ const get: Command = {
         'dexto chat get "$CHAT_ID" --after "$CURSOR" --json',
     ],
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = chatArgument(input, 0);
         const args = { sessionId, ...pageArgs(input) };
         await requireLoginScopes(context, ['sessions:read']);
         const page = parsed(

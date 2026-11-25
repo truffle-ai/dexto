@@ -22,7 +22,10 @@ const search: Command = {
                 },
             })
         );
-        if (context.output.json) return context.output.record(result);
+        if (context.output.json) {
+            const { results, ...facts } = result;
+            return context.output.list({ ...facts, data: results }, []);
+        }
         for (const item of result.results)
             context.runtime.writeOutput(
                 `${item.title ?? item.url}\n  ${item.url}${item.highlights.length === 0 ? '' : `\n  ${item.highlights[0]}`}\n\n`

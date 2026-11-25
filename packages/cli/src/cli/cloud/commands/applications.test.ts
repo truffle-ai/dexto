@@ -48,21 +48,29 @@ describe('dexto applications', () => {
         ]);
     });
 
-    it('lists with the list tool and prints its whole response as JSON', async () => {
+    it('lists with the list tool and prints the releases beside the list as JSON', async () => {
         const { context, output } = contextWith(['applications:read']);
         const value = { applications: [application], deployments: [deployment] };
         query.mockResolvedValueOnce(value);
         await list?.run(context, { positionals: [], values: {} });
         expect(query).toHaveBeenCalledWith(context, 'dexto_applications_list', {});
-        expect(output.record).toHaveBeenCalledWith(value);
-        expect(output.list).not.toHaveBeenCalled();
+        expect(output.list).toHaveBeenCalledTimes(1);
+        expect(output.list).toHaveBeenCalledWith(
+            { data: [application], deployments: [deployment] },
+            expect.any(Array)
+        );
+        expect(output.record).not.toHaveBeenCalled();
     });
 
     it('shows people one table of Applications and one of releases', async () => {
         const { context, output } = contextWith(['applications:read'], false);
         query.mockResolvedValueOnce({ applications: [application], deployments: [deployment] });
         await list?.run(context, { positionals: [], values: {} });
-        expect(output.list).toHaveBeenNthCalledWith(1, { data: [application] }, expect.any(Array));
+        expect(output.list).toHaveBeenNthCalledWith(
+            1,
+            { data: [application], deployments: [deployment] },
+            expect.any(Array)
+        );
         expect(output.list).toHaveBeenNthCalledWith(2, { data: [deployment] }, expect.any(Array));
         query.mockResolvedValueOnce({ applications: [], deployments: [] });
         await list?.run(context, { positionals: [], values: {} });

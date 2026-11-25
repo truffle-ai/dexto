@@ -12,6 +12,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
+import { jsonLine } from '../output.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool, WorkspaceToolFailure } from './workspace.js';
 
@@ -88,7 +89,7 @@ function submitCode(attempt: string): string {
     return `${resume('claude', attempt)} --code -`;
 }
 function writeResult(context: CommandContext, value: unknown, text: string): void {
-    if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(value)}\n`);
+    if (context.output.json) context.runtime.writeOutput(jsonLine(value));
     else context.output.result(value, text);
 }
 async function showAuthorization(
@@ -548,11 +549,10 @@ const list: Command = {
     async run(context) {
         // Without it Cloud still lists the model sign-ins, silently leaving out every connector.
         await requireLoginScopes(context, ['connections:read']);
-        const result = z
+        const { connections } = z
             .object({ connections: z.array(ConnectionRow) })
             .parse(await queryWorkspaceTool(context, 'dexto_connections_list', {}));
-        if (context.output.json) return writeResult(context, result, '');
-        context.output.list({ data: result.connections }, [
+        context.output.list({ data: connections }, [
             { header: 'name', value: (r) => r.name },
             { header: 'kind', value: (r) => r.kind },
             { header: 'status', value: (r) => r.status },

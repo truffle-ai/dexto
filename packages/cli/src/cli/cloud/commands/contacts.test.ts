@@ -35,6 +35,7 @@ const TOOLS = [
 ];
 
 const PERSON = { handle: 'ada', name: 'Ada', organization: 'Acme', userId: USER };
+const PRINTED_PERSON = { handle: 'ada', name: 'Ada', organization: 'Acme', user_id: USER };
 
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('These tests sign in with a saved login.');
@@ -175,7 +176,9 @@ describe('dexto workspace contacts', () => {
         await signIn();
         expect(await run('list', '--query', '@ad', '--json')).toBe(0);
         expect(JSON.parse(stdout)).toEqual({
-            data: [{ ...PERSON, contactId: CONTACT, status: 'connected' }],
+            data: [{ ...PRINTED_PERSON, contact_id: CONTACT, status: 'connected' }],
+            has_more: false,
+            next_after: null,
         });
         stdout = '';
         expect(await run('list', '--blocked')).toBe(0);
@@ -190,11 +193,11 @@ describe('dexto workspace contacts', () => {
     it('searches people, requests and the invite link with their inputs', async () => {
         await signIn();
         expect(await run('search', 'ada')).toBe(0);
-        expect(JSON.parse(stdout).data).toEqual([{ ...PERSON, organizationId: ORG }]);
+        expect(JSON.parse(stdout).data).toEqual([{ ...PRINTED_PERSON, organization_id: ORG }]);
         stdout = '';
         expect(await run('requests')).toBe(0);
         expect(JSON.parse(stdout).data[0]).toMatchObject({
-            contactId: CONTACT,
+            contact_id: CONTACT,
             direction: 'incoming',
         });
         stdout = '';
@@ -245,7 +248,7 @@ describe('dexto workspace contacts', () => {
                 arguments: { handle: '@ada', organizationId: ORG, userId: USER, confirm: true },
             },
         ]);
-        expect(JSON.parse(stdout)).toMatchObject({ contactId: CONTACT, status: 'requested' });
+        expect(JSON.parse(stdout)).toMatchObject({ contact_id: CONTACT, status: 'requested' });
     });
 
     it('needs --user and --organization to connect', async () => {
@@ -286,7 +289,7 @@ describe('dexto workspace contacts', () => {
         for (const verb of ['remove', 'block', 'unblock']) {
             stdout = '';
             expect(await run(verb, CONTACT, '--yes')).toBe(0);
-            expect(JSON.parse(stdout).contactId).toBe(CONTACT);
+            expect(JSON.parse(stdout).contact_id).toBe(CONTACT);
         }
         expect(calls).toEqual([
             { name: 'dexto_contacts_remove', arguments: { contactId: CONTACT } },

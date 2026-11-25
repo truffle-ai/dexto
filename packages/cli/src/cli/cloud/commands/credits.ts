@@ -161,13 +161,14 @@ const balance: Command = {
     examples: ['dexto credits balance --json'],
     jsonOutput: {
         description: 'Current organization credit balance in USD.',
-        schema: z.toJSONSchema(z.object({ creditsUsd: z.number() })),
+        schema: z.toJSONSchema(z.object({ balanceUsd: z.number() })),
     },
     async run(context) {
-        const result = z
+        const { creditsUsd } = z
             .object({ creditsUsd: z.number() })
             .parse(await queryWorkspaceTool(context, 'dexto_credits_balance', {}));
-        context.output.result(result, `Balance $${result.creditsUsd.toFixed(2)}.`);
+        // The same value `dexto billing` and a checkout call balance_usd.
+        context.output.result({ balanceUsd: creditsUsd }, `Balance $${creditsUsd.toFixed(2)}.`);
     },
 };
 const topup: Command = {

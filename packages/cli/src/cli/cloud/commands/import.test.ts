@@ -89,7 +89,12 @@ describe('headless import', () => {
         const command = importCommands.find((item) => item.path.length === 1);
         if (!command) throw new Error('missing import command');
         await command.run(context, { positionals: [], values: {} });
-        expect(JSON.parse(output)).toMatchObject({ sessions: [] });
+        expect(JSON.parse(output)).toEqual({
+            data: [],
+            has_more: false,
+            next_after: null,
+            skills: [],
+        });
     });
 
     it('fails safely when the current session cannot be identified', async () => {

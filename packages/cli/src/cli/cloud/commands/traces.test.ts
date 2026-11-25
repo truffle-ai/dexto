@@ -303,4 +303,12 @@ describe('trace and span', () => {
 
         expect(JSON.parse(stderr).error).toMatchObject({ code: 'not_found' });
     });
+
+    it('refuses a malformed run id as invalid input, before calling', async () => {
+        expect(await runCloud(host, ['trace', 'view', 'nope', '--json'])).toBe(2);
+        expect(await runCloud(host, ['span', 'list', 'nope', '--json'])).toBe(2);
+
+        expect(urls).toHaveLength(0);
+        expect(stderr.match(/"code": "invalid_input"/gu)).toHaveLength(2);
+    });
 });

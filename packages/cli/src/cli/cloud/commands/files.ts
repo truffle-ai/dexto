@@ -20,6 +20,7 @@ import {
     YES_OPTION,
     type Command,
     type CommandContext,
+    UUID,
 } from '../command.js';
 import type { Column } from '../output.js';
 import { sendV1, v1Failure } from '../v1.js';
@@ -305,8 +306,6 @@ export async function uploadFile(context: CommandContext, upload: FileUpload): P
         throw error;
     }
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 /**
  * A file id as given, or the id of the file at a path. The API addresses files only by id, so a

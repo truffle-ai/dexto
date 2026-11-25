@@ -19,6 +19,7 @@ import {
     type CommandContext,
     type CommandInput,
     type OptionSpec,
+    chatArgument,
 } from '../command.js';
 import {
     findLocalChats,
@@ -689,7 +690,7 @@ const send: Command = {
         'dexto chat send "$CHAT_ID" "Then open a PR" --follow-up --yes',
     ],
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = chatArgument(input, 0);
         const message = argument(input, 1, 'message');
         const model = stringOption(input, 'model');
         const followUp = flag(input, 'follow-up');
@@ -757,7 +758,7 @@ const cancel: Command = {
     options: YES_OPTION,
     examples: ['dexto chat cancel "$CHAT_ID" --yes', 'dexto chat cancel "$CHAT_ID" --json --yes'],
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = chatArgument(input, 0);
         await requireLoginScopes(context, ['sessions:write']);
         await requireConsent(
             consentContext(context),
@@ -818,7 +819,7 @@ const fork: Command = {
         ...YES_OPTION,
     },
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = chatArgument(input, 0);
         const messageId = stringOption(input, 'message');
         if (messageId !== undefined && messageId.trim().length === 0)
             throw new UsageError('--message must be a non-empty message id.');
@@ -1002,19 +1003,17 @@ const computers: Command = {
         );
         if (!parsed.success)
             throw new CommandFailure('failed', "Dexto didn't return a valid computer list.", null);
-        const result = parsed.data;
-        if (context.output.json) context.output.result(result, '');
-        else
-            context.output.list({ data: result.computers }, [
-                { header: 'id', value: (row) => row.id },
-                { header: 'name', value: (row) => row.name },
-                { header: 'presence', value: (row) => row.presence },
-                { header: 'compatible', value: (row) => (row.compatible ? 'yes' : 'no') },
-                {
-                    header: 'feature',
-                    value: (row) => (row.feature.enabled ? 'enabled' : 'disabled'),
-                },
-            ]);
+        const { computers, ...facts } = parsed.data;
+        context.output.list({ ...facts, data: computers }, [
+            { header: 'id', value: (row) => row.id },
+            { header: 'name', value: (row) => row.name },
+            { header: 'presence', value: (row) => row.presence },
+            { header: 'compatible', value: (row) => (row.compatible ? 'yes' : 'no') },
+            {
+                header: 'feature',
+                value: (row) => (row.feature.enabled ? 'enabled' : 'disabled'),
+            },
+        ]);
     },
 };
 
@@ -1040,15 +1039,13 @@ const agents: Command = {
         );
         if (!parsed.success)
             throw new CommandFailure('failed', "Dexto didn't return a valid agent list.", null);
-        const result = parsed.data;
-        if (context.output.json) context.output.result(result, '');
-        else
-            context.output.list({ data: result.agents }, [
-                { header: 'id', value: (row) => row.id },
-                { header: 'name', value: (row) => row.name },
-                { header: 'system', value: (row) => (row.isSystem ? 'yes' : 'no') },
-                { header: 'description', value: (row) => row.description ?? '' },
-            ]);
+        const { agents, ...facts } = parsed.data;
+        context.output.list({ ...facts, data: agents }, [
+            { header: 'id', value: (row) => row.id },
+            { header: 'name', value: (row) => row.name },
+            { header: 'system', value: (row) => (row.isSystem ? 'yes' : 'no') },
+            { header: 'description', value: (row) => row.description ?? '' },
+        ]);
     },
 };
 
@@ -1065,14 +1062,12 @@ const browserProfiles: Command = {
                 "Dexto didn't return a valid browser profile list.",
                 null
             );
-        const result = parsed.data;
-        if (context.output.json) context.output.result(result, '');
-        else
-            context.output.list({ data: result.profiles }, [
-                { header: 'id', value: (row) => row.id },
-                { header: 'name', value: (row) => row.name },
-                { header: 'available', value: (row) => (row.available ? 'yes' : 'in use') },
-            ]);
+        const { profiles, ...facts } = parsed.data;
+        context.output.list({ ...facts, data: profiles }, [
+            { header: 'id', value: (row) => row.id },
+            { header: 'name', value: (row) => row.name },
+            { header: 'available', value: (row) => (row.available ? 'yes' : 'in use') },
+        ]);
     },
 };
 

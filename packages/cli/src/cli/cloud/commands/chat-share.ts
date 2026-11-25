@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { CommandFailure } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
-import { argument, flag, UsageError, YES_OPTION, type Command } from '../command.js';
+import { argument, chatArgument, flag, UsageError, YES_OPTION, type Command } from '../command.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
 
@@ -50,7 +50,7 @@ export const chatShareCommand: Command = {
     summary:
         'Set who in your organization can open one of your own chats: private (only you), view (members read it) or prompt (members also send messages, using organization credits). Always asks first. Requires sessions:write.',
     async run(context, input) {
-        const sessionId = argument(input, 0, 'chat_id');
+        const sessionId = chatArgument(input, 0);
         const given = argument(input, 1, 'access');
         const access = ACCESS.find((each) => each === given);
         if (access === undefined)

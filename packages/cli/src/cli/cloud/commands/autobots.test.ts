@@ -21,12 +21,26 @@ const autobot = {
     updatedAt: '2026-11-18T00:00:00.000Z',
     visibility: 'private',
 };
+/** The same AutoBot as the CLI prints it, with snake_case keys. */
+const printedAutobot = {
+    id: AUTOBOT_ID,
+    profile: { name: 'Scout', role: 'Watches competitors' },
+    updated_at: '2026-11-18T00:00:00.000Z',
+    visibility: 'private',
+};
 const statusOf = (waiting: string | null) => ({
     autobot: { id: AUTOBOT_ID, name: 'Scout', agentId: 'agent-1', slug: 'scout' },
     goals: [],
     sessions: [],
     status: 'idle',
     waitingOnUser: waiting === null ? null : { text: waiting },
+});
+const printedStatusOf = (waiting: string | null) => ({
+    autobot: { id: AUTOBOT_ID, name: 'Scout', agent_id: 'agent-1', slug: 'scout' },
+    goals: [],
+    sessions: [],
+    status: 'idle',
+    waiting_on_user: waiting === null ? null : { text: waiting },
 });
 
 /** A refusal as the Dexto MCP sends it: a JSON-RPC error with its kind. */
@@ -131,7 +145,7 @@ describe('AutoBots over the Dexto MCP', () => {
         replies = [{ autobots: [autobot] }];
         expect(await cli('autobots', 'list', '--limit', '5'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_autobots_list', arguments: { limit: 5 } }]);
-        expect(output()).toEqual({ data: [autobot] });
+        expect(output()).toEqual({ data: [printedAutobot], has_more: false, next_after: null });
     });
 
     it('checks the limit and the sign-in permission before calling the server', async () => {
@@ -155,7 +169,7 @@ describe('AutoBots over the Dexto MCP', () => {
             },
         ];
         expect(await cli('autobots', 'get', AUTOBOT_ID), stderr).toBe(0);
-        expect(output()).toEqual({ autobot });
+        expect(output()).toEqual({ autobot: printedAutobot });
         expect(await cli('autobots', 'get', AUTOBOT_ID)).toBe(5);
         expect(stderr).toContain('no AutoBot you can use');
         expect(calls.map((call) => call.arguments)).toEqual([
@@ -171,7 +185,7 @@ describe('AutoBots over the Dexto MCP', () => {
         ];
         expect(await cli('autobots', 'status', '--limit', '1'), stderr).toBe(0);
         expect(output()).toEqual({
-            data: [statusOf('Pick a city')],
+            data: [printedStatusOf('Pick a city')],
             has_more: true,
             next_after: 'c-1',
         });
@@ -194,7 +208,10 @@ describe('AutoBots over the Dexto MCP', () => {
             name: 'dexto_autobot_status',
             arguments: { autobotId: AUTOBOT_ID },
         });
-        expect(output()).toEqual(page);
+        expect(output()).toEqual({
+            pagination: { next_cursor: null },
+            statuses: [printedStatusOf(null)],
+        });
     });
 
     it('asks before saving, and maps flags and JSON onto one save', async () => {
@@ -268,7 +285,11 @@ describe('AutoBots over the Dexto MCP', () => {
         expect(
             await cli('autobots', 'publish', AUTOBOT_ID, '--distribution', 'public', '--yes')
         ).toBe(4);
-        expect(output()).toEqual(asked);
+        expect(output()).toEqual({
+            message: 'Publishing also publishes 1 Skill.',
+            skills_to_publish: [{ id: 'skill-1' }],
+            status: 'confirmation_required',
+        });
         expect(stderr).toContain('--publish-skills');
         expect(
             await cli(
@@ -327,7 +348,12 @@ describe('AutoBots over the Dexto MCP', () => {
             name: 'dexto_autobot_input_submit',
             arguments: { approvalId: APPROVAL_ID, formData: { city: 'Paris' }, confirm: true },
         });
-        expect(output()).toEqual(submitted);
+        expect(output()).toEqual({
+            approval_id: APPROVAL_ID,
+            run_id: 'run-1',
+            session_id: 'chat-1',
+            status: 'approved',
+        });
     });
 
     it('messages an AutoBot in your own conversation with it', async () => {
@@ -341,6 +367,6 @@ describe('AutoBots over the Dexto MCP', () => {
             name: 'dexto_autobot_chat_start',
             arguments: { autobotId: AUTOBOT_ID, message: 'What changed?', title: 'Weekly' },
         });
-        expect(output()).toEqual({ autobotId: AUTOBOT_ID, session });
+        expect(output()).toEqual({ autobot_id: AUTOBOT_ID, session });
     });
 });

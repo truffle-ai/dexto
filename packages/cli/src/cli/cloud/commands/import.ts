@@ -137,6 +137,11 @@ async function runImport(
             messages: chat.messages.length,
             updatedAt: chat.updatedAt,
         }));
+        // JSON lists the sessions as data, with the personal skills beside them.
+        if (context.output.json) {
+            context.output.list({ data: sessions, skills }, []);
+            return 0;
+        }
         context.output.result(
             { sessions, skills },
             [

@@ -2,7 +2,13 @@
 
 import { unwrap, type paths, type V1Response } from '@dexto/cloud-client';
 
-import { argument, choiceOption, integerOption, stringOption, type Command } from '../command.js';
+import {
+    uuidArgument,
+    choiceOption,
+    integerOption,
+    stringOption,
+    type Command,
+} from '../command.js';
 import type { Column } from '../output.js';
 
 type TraceSummary = V1Response<'/v1/traces', 'get'>['data'][number];
@@ -100,7 +106,7 @@ const traceView: Command = {
     path: ['trace', 'view'],
     summary: "Show one run's trace: its spans in start order, with any errors.",
     async run(context, input) {
-        const runId = argument(input, 0, 'run_id');
+        const runId = uuidArgument(input, 0, 'run_id');
         const trace = await unwrap(
             await (
                 await context.client()
@@ -128,7 +134,7 @@ const spanList: Command = {
     path: ['span', 'list'],
     summary: "List one run's spans.",
     async run(context, input) {
-        const runId = argument(input, 0, 'run_id');
+        const runId = uuidArgument(input, 0, 'run_id');
         const limit = integerOption(input, 'limit');
         const name = stringOption(input, 'name');
         const sort = choiceOption(input, 'sort', SPAN_SORTS);

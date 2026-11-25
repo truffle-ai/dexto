@@ -184,7 +184,7 @@ describe('dexto workspace artifacts', () => {
         ]);
         const page = JSON.parse(stdout);
         expect(page).toMatchObject({ has_more: true, next_after: 'c2' });
-        expect(page.data[0].artifactId).toBe('a1');
+        expect(page.data[0].artifact_id).toBe('a1');
     });
 
     it('passes --chat and paging to the Artifact MCP tool in JSON mode', async () => {
@@ -209,7 +209,7 @@ describe('dexto workspace artifacts', () => {
             },
         ]);
         expect(JSON.parse(stdout)).toMatchObject({
-            data: [{ artifactId: 'a1' }],
+            data: [{ artifact_id: 'a1' }],
             next_after: 'c2',
         });
     });
@@ -221,7 +221,7 @@ describe('dexto workspace artifacts', () => {
 
         expect(await readFile(out, 'utf8')).toBe('<h1>Old</h1>');
         const shown = JSON.parse(stdout);
-        expect(shown).toMatchObject({ artifactId: 'a1', htmlPath: out });
+        expect(shown).toMatchObject({ artifact_id: 'a1', html_path: out });
         expect(shown.html).toBeUndefined();
     });
 
@@ -253,7 +253,7 @@ describe('dexto workspace artifacts', () => {
             },
         ]);
         expect(JSON.parse(stdout)).toMatchObject({
-            artifact: { artifactId: 'a1' },
+            artifact: { artifact_id: 'a1' },
         });
     });
 
@@ -293,7 +293,7 @@ describe('dexto workspace artifacts', () => {
         expect(code).toBe(0);
         expect(calls).toHaveLength(0);
         expect(JSON.parse(stdout)).toEqual({
-            dryRun: true,
+            dry_run: true,
             tool: 'dexto_artifacts_create',
             arguments: {
                 htmlBytes: 20,

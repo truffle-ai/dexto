@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createOutput } from './output.js';
+import { createOutput, jsonKeys, printedSchema } from './output.js';
 import { nodeCloudRuntime } from './runtime.js';
 
 const ESC = '\u001B';
@@ -75,5 +75,121 @@ describe('createOutput for people', () => {
             'Created agent a_1 (Evil[2J Org]0;pwned 31mInctxt).\nNext: dexto run\n'
         );
         expect(stderr()).toBe('Session Evil[2J Org]0;pwned 31mInctxt\n');
+    });
+});
+
+function jsonOutput() {
+    let stdout = '';
+    const runtime = {
+        ...nodeCloudRuntime(new AbortController().signal),
+        stdoutIsTerminal: false,
+        writeOutput: (text: string) => {
+            stdout += text;
+        },
+    };
+    return { output: createOutput(runtime, 'json'), json: (): unknown => JSON.parse(stdout) };
+}
+
+describe('jsonKeys', () => {
+    it('turns camelCase keys into snake_case, nested and in lists', () => {
+        expect(
+            jsonKeys({
+                activeRunId: 'r',
+                items: [{ updatedAt: 't', htmlURL: 'u', contextOver200kPerM: 1 }],
+                pagination: { nextCursor: null },
+            })
+        ).toEqual({
+            active_run_id: 'r',
+            items: [{ updated_at: 't', html_url: 'u', context_over200k_per_m: 1 }],
+            pagination: { next_cursor: null },
+        });
+    });
+
+    it('leaves keys that are not camelCase words as they are', () => {
+        expect(jsonKeys({ 'dexto/app': 1, 'Content-Type': 2, MY_VAR: 3, 'a.b': 4 })).toEqual({
+            'dexto/app': 1,
+            'Content-Type': 2,
+            MY_VAR: 3,
+            'a.b': 4,
+        });
+    });
+
+    it("keeps the keys inside someone's data: schemas, tool input, metadata and record values", () => {
+        const schema = { properties: { attemptId: { type: 'string' } }, required: ['attemptId'] };
+        expect(
+            jsonKeys({
+                _meta: { appKind: 'x' },
+                inputSchema: schema,
+                nextAction: { tool: 't', arguments: { attemptId: 'a' } },
+                records: [{ createdAt: 'c', value: { firstName: 'Ada' } }],
+                record: { data: { firstName: 'Ada' } },
+                rows: { data: [{ firstName: 'Ada' }] },
+            })
+        ).toEqual({
+            _meta: { appKind: 'x' },
+            input_schema: schema,
+            next_action: { tool: 't', arguments: { attemptId: 'a' } },
+            records: [{ created_at: 'c', value: { firstName: 'Ada' } }],
+            record: { data: { firstName: 'Ada' } },
+            rows: { data: [{ first_name: 'Ada' }] },
+        });
+    });
+});
+
+describe('printedSchema', () => {
+    it("names a help schema's properties as the JSON prints them", () => {
+        expect(
+            printedSchema({
+                description: 'Balance.',
+                schema: {
+                    properties: { creditsUsd: { type: 'number' } },
+                    required: ['creditsUsd'],
+                    type: 'object',
+                },
+            })
+        ).toEqual({
+            description: 'Balance.',
+            schema: {
+                properties: { credits_usd: { type: 'number' } },
+                required: ['credits_usd'],
+                type: 'object',
+            },
+        });
+    });
+});
+
+describe('createOutput for agents', () => {
+    it('prints every key snake_case', () => {
+        const { output, json } = jsonOutput();
+        output.list({ data: [{ updatedAt: 't' }], has_more: true, next_after: 'c' }, []);
+        expect(json()).toEqual({ data: [{ updated_at: 't' }], has_more: true, next_after: 'c' });
+    });
+
+    it('prints a list that is not paged with has_more false and next_after null', () => {
+        const { output, json } = jsonOutput();
+        output.list({ data: [{ id: 'a' }] }, []);
+        expect(json()).toEqual({ data: [{ id: 'a' }], has_more: false, next_after: null });
+    });
+
+    it("keeps a page's other facts beside data and drops the second cursor name", () => {
+        const { output, json } = jsonOutput();
+        output.list(
+            {
+                data: [],
+                deployments: [{ id: 'd' }],
+                has_more: true,
+                next_after: 'c2',
+                next_cursor: 'c2',
+                object: 'list',
+            },
+            []
+        );
+        expect(json()).toEqual({
+            data: [],
+            deployments: [{ id: 'd' }],
+            has_more: true,
+            next_after: 'c2',
+            object: 'list',
+        });
     });
 });

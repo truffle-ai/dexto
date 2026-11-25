@@ -28,6 +28,16 @@ const project = {
     updatedAt: '2026-11-10T00:00:00.000Z',
 };
 
+/** The same Project as the CLI prints it, with snake_case keys. */
+const printedProject = {
+    id: PROJECT_ID,
+    name: 'Roadmap',
+    description: null,
+    coordinator: { conversation_session_id: null, daily_chat_cap: 10, start_policy: 'start' },
+    pinned_at: null,
+    updated_at: '2026-11-10T00:00:00.000Z',
+};
+
 describe('projects over the Dexto MCP', () => {
     let dir: string;
     let stdout: string;
@@ -130,7 +140,7 @@ describe('projects over the Dexto MCP', () => {
         expect(calls).toEqual([
             { name: 'dexto_projects_list', arguments: { query: 'road', importedFrom: 'codex' } },
         ]);
-        expect(output()).toEqual({ data: [project] });
+        expect(output()).toEqual({ data: [printedProject], has_more: false, next_after: null });
     });
 
     it('checks filters and the sign-in permission before calling the server', async () => {
@@ -163,7 +173,7 @@ describe('projects over the Dexto MCP', () => {
                 arguments: { name: 'Roadmap', description: 'Plans' },
             },
         ]);
-        expect(output()).toEqual({ project });
+        expect(output()).toEqual({ project: printedProject });
     });
 
     it('updates only the fields named, and refuses an empty or out-of-range update', async () => {
@@ -252,7 +262,11 @@ describe('projects over the Dexto MCP', () => {
         const proposal = { status: 'proposed', proposal: { message: 'Fix' }, nextAction: 'say so' };
         replies = [proposal];
         expect(await cli('projects', 'start', PROJECT_ID, 'Fix')).toBe(6);
-        expect(output()).toEqual(proposal);
+        expect(output()).toEqual({
+            status: 'proposed',
+            proposal: { message: 'Fix' },
+            next_action: 'say so',
+        });
         expect(stderr + stdout).toContain('proposes chats first');
     });
 
@@ -287,7 +301,7 @@ describe('projects over the Dexto MCP', () => {
         replies = [{ recipes: [recipe] }];
         expect(await cli('projects', 'recipes'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_automation_recipes_list', arguments: {} }]);
-        expect(output()).toEqual({ data: [recipe] });
+        expect(output()).toEqual({ data: [recipe], has_more: false, next_after: null });
     });
 
     it('shows each recipe with its schedule as text', async () => {
@@ -340,7 +354,16 @@ describe('projects over the Dexto MCP', () => {
                 },
             },
         ]);
-        expect(output()).toEqual({ automation });
+        expect(output()).toEqual({
+            automation: {
+                id: 'loop-1',
+                name: 'Dreams',
+                enabled: true,
+                next_run_at: '2026-11-24T03:00:00.000Z',
+                recipe_id: 'dreams',
+                chat_project_id: PROJECT_ID,
+            },
+        });
     });
 
     it("defaults to this computer's time zone and reports a Loop the server left paused", async () => {
@@ -362,6 +385,13 @@ describe('projects over the Dexto MCP', () => {
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         });
         expect(stdout).toContain('paused');
+    });
+
+    it('refuses a malformed Project id as invalid input, before calling Dexto', async () => {
+        await signIn(['projects:read']);
+        expect(await cli('projects', 'get', 'nope', '--json')).toBe(2);
+        expect(JSON.parse(stderr).error).toMatchObject({ code: 'invalid_input' });
+        expect(calls).toEqual([]);
     });
 
     it("takes the Project by its link and sends the recipe tool the Project's id", async () => {

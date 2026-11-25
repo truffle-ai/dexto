@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CommandContext } from '../command.js';
 import { chatOutputsCommand } from './chat-outputs.js';
 
+const CHAT_ID = '6f1c2a4e-8b3d-4c5a-9e7f-1a2b3c4d5e6f';
 const query = vi.hoisted(() => vi.fn());
 vi.mock('./workspace.js', () => ({ queryWorkspaceTool: query }));
 vi.mock('./deploys.js', () => ({ requireLoginScopes: vi.fn() }));
@@ -26,11 +27,11 @@ describe('chat outputs', () => {
             untrustedContent: true,
         });
         await chatOutputsCommand.run(context, {
-            positionals: ['s'],
+            positionals: [CHAT_ID],
             values: { limit: '2', after: 'cursor' },
         });
         expect(query).toHaveBeenCalledWith(context, 'dexto_chat_outputs_list', {
-            sessionId: 's',
+            sessionId: CHAT_ID,
             limit: 2,
             cursor: 'cursor',
         });
@@ -43,13 +44,13 @@ describe('chat outputs', () => {
         const list = vi.fn();
         const context = { output: { list } } as unknown as CommandContext;
         query.mockResolvedValueOnce({ outputs: [], nextCursor: null });
-        await chatOutputsCommand.run(context, { positionals: ['s'], values: {} });
+        await chatOutputsCommand.run(context, { positionals: [CHAT_ID], values: {} });
         expect(list).toHaveBeenCalledWith(
             { data: [], has_more: false, next_after: null },
             expect.any(Array)
         );
         await expect(
-            chatOutputsCommand.run(context, { positionals: ['s'], values: { limit: '101' } })
+            chatOutputsCommand.run(context, { positionals: [CHAT_ID], values: { limit: '101' } })
         ).rejects.toThrow('--limit must be between 1 and 100');
     });
 });

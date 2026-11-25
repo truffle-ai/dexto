@@ -23,6 +23,7 @@ import {
     type WorkingTree,
 } from '../../chat-sync/working-tree.js';
 import { requireConsent } from '../../interaction.js';
+import { jsonLine } from '../output.js';
 import { formatBytes } from './files.js';
 import {
     applyReturnedTree,
@@ -526,8 +527,7 @@ async function watchChat(context: CommandContext, cloudId: string): Promise<void
                             ? message.text.slice(before.length)
                             : message.text;
                     const record = { event: 'message', chatId: cloudId, message, delta };
-                    if (context.output.json)
-                        context.runtime.writeOutput(JSON.stringify(record) + '\n');
+                    if (context.output.json) context.runtime.writeOutput(jsonLine(record));
                     else context.output.result(record, `  ${message.role} · ${delta}`);
                 }
                 previous = new Map(page.messages.map((message) => [message.id, message.text]));

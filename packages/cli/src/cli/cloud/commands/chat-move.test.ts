@@ -133,7 +133,7 @@ async function run(values: Record<string, string | boolean>): Promise<unknown> {
 
 it('plans a local return without syncing, opening the agent or mutating the server', async () => {
     expect(await run({ to: 'local', 'dry-run': true })).toMatchObject({
-        dryRun: true,
+        dry_run: true,
         to: 'local',
         folder: '/fake/working/tree',
     });
@@ -150,7 +150,7 @@ it('treats a repeated JSON move to cloud as already complete without uploading a
     expect(await run({ to: 'cloud' })).toEqual({
         id: 'local-chat',
         location: 'cloud',
-        alreadyThere: true,
+        already_there: true,
     });
 });
 
@@ -501,11 +501,11 @@ it('moves in JSON mode with --yes and reports the hand-off in the result', async
         id: 'local-chat',
         location: 'cloud',
         attached: false,
-        handOff: {
+        hand_off: {
             repository: '/fake/working/tree',
             branch: 'main',
-            changedFiles: 3,
-            totalBytes: 2560,
+            changed_files: 3,
+            total_bytes: 2560,
         },
     });
     expect(writeChat.mock.calls.map((call) => call[2].reason)).toEqual([
@@ -517,11 +517,11 @@ it('moves in JSON mode with --yes and reports the hand-off in the result', async
 it('reports the hand-off plan on a dry run without asking', async () => {
     syncingChat();
     expect(await run({ to: 'cloud', 'dry-run': true })).toMatchObject({
-        dryRun: true,
+        dry_run: true,
         repository: '/fake/working/tree',
         branch: 'main',
-        changedFiles: 3,
-        totalBytes: 2560,
+        changed_files: 3,
+        total_bytes: 2560,
     });
     expect(moveToCloud).not.toHaveBeenCalled();
 });

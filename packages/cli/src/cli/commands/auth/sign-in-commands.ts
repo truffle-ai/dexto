@@ -416,7 +416,7 @@ export async function listAccounts(
         safeText(account.organization?.name ?? ''),
     ]);
     context.result(
-        { data: accounts },
+        { data: accounts, has_more: false, next_after: null },
         rows.length === 0 ? 'No saved sign-ins. Run dexto login.' : table(rows)
     );
 }

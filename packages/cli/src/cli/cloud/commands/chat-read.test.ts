@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandContext, CommandInput } from '../command.js';
 import { chatReadCommands } from './chat-read.js';
 
+const CHAT_ID = '6f1c2a4e-8b3d-4c5a-9e7f-1a2b3c4d5e6f';
+
 const query = vi.hoisted(() => vi.fn());
 const scopes = vi.hoisted(() => vi.fn());
 vi.mock('./workspace.js', () => ({ queryWorkspaceTool: query }));
@@ -26,12 +28,12 @@ function input(positionals: string[], values: CommandInput['values'] = {}): Comm
 
 const lastRun = { id: 'run-1', status: 'failed' };
 const chat = {
-    id: 'chat-1',
+    id: CHAT_ID,
     title: 'Fix the bug',
     status: 'idle',
     updatedAt: '2026-11-18T10:00:00.000Z',
     lastRun,
-    url: 'https://app.dexto.ai/chat/chat-1',
+    url: `https://app.dexto.ai/chat/${CHAT_ID}`,
 };
 
 beforeEach(() => {
@@ -101,7 +103,7 @@ describe('chat list', () => {
             'updated',
         ]);
         expect(columns.map((column) => column.value(chat))).toEqual([
-            'chat-1',
+            CHAT_ID,
             'Fix the bug',
             'idle',
             'failed',
@@ -109,7 +111,7 @@ describe('chat list', () => {
         ]);
         expect(
             columns.map((column) => column.value({ ...chat, title: null, lastRun: null } as never))
-        ).toEqual(['chat-1', '', 'idle', '', '2026-11-18T10:00:00.000Z']);
+        ).toEqual([CHAT_ID, '', 'idle', '', '2026-11-18T10:00:00.000Z']);
     });
 
     it.each([
@@ -123,6 +125,24 @@ describe('chat list', () => {
             message
         );
         expect(query).not.toHaveBeenCalled();
+    });
+});
+
+describe('chat get', () => {
+    it('refuses a malformed chat id as invalid input, before calling Dexto', async () => {
+        await expect(command('get').run(harness().context, input(['nope']))).rejects.toMatchObject({
+            kind: 'invalid_input',
+        });
+        expect(query).not.toHaveBeenCalled();
+    });
+
+    it("passes a chat's link to Dexto as given, which reads it", async () => {
+        const link = `https://app.dexto.ai/desktop/apps/chat?session=${CHAT_ID}`;
+        query.mockRejectedValueOnce(new Error('stop'));
+        await expect(command('get').run(harness().context, input([link]))).rejects.toThrow('stop');
+        expect(query).toHaveBeenCalledWith(expect.anything(), 'dexto_chat_get', {
+            sessionId: link,
+        });
     });
 });
 
@@ -259,10 +279,10 @@ describe('chat get', () => {
     it('maps the id and paging to dexto_chat_get and returns its page unchanged', async () => {
         const { context, result } = harness();
         query.mockResolvedValueOnce(page);
-        await command('get').run(context, input(['chat-1'], { limit: '2', after: '7' }));
+        await command('get').run(context, input([CHAT_ID], { limit: '2', after: '7' }));
         expect(scopes).toHaveBeenCalledWith(context, ['sessions:read']);
         expect(query).toHaveBeenCalledWith(context, 'dexto_chat_get', {
-            sessionId: 'chat-1',
+            sessionId: CHAT_ID,
             limit: 2,
             cursor: '7',
         });
@@ -272,12 +292,12 @@ describe('chat get', () => {
     it('prints the chat, its last run, each message and how to read older ones', async () => {
         const { context, result } = harness();
         query.mockResolvedValueOnce(page);
-        await command('get').run(context, input(['chat-1']));
-        expect(query).toHaveBeenCalledWith(context, 'dexto_chat_get', { sessionId: 'chat-1' });
+        await command('get').run(context, input([CHAT_ID]));
+        expect(query).toHaveBeenCalledWith(context, 'dexto_chat_get', { sessionId: CHAT_ID });
         expect(result.mock.calls[0]?.[1]).toBe(
             [
                 'Fix the bug',
-                'https://app.dexto.ai/chat/chat-1',
+                `https://app.dexto.ai/chat/${CHAT_ID}`,
                 'Status: idle; last run failed',
                 '',
                 'user, 2026-11-18T09:00:00.000Z',
@@ -286,7 +306,7 @@ describe('chat get', () => {
                 'assistant, 2026-11-18T09:01:00.000Z',
                 'Fixed.',
                 '',
-                'Older messages: dexto chat get chat-1 --after 3',
+                `Older messages: dexto chat get ${CHAT_ID} --after 3`,
             ].join('\n')
         );
     });
@@ -296,7 +316,7 @@ describe('chat get', () => {
             'Missing chat_id'
         );
         await expect(
-            command('get').run(harness().context, input(['chat-1'], { limit: '51' }))
+            command('get').run(harness().context, input([CHAT_ID], { limit: '51' }))
         ).rejects.toThrow('--limit must be between 1 and 50');
         expect(query).not.toHaveBeenCalled();
     });

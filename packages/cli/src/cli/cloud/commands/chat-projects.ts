@@ -16,6 +16,7 @@ import {
     type Command,
     type CommandContext,
     type CommandInput,
+    UUID,
 } from '../command.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
@@ -84,7 +85,6 @@ async function projectLink(context: CommandContext, project: string): Promise<st
     ).toString();
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PROJECT_PATH = /\/desktop\/apps\/chat\/projects\/([^/?#]+)\/?(?:[?#].*)?$/u;
 
 /** The Project's id, from its id or its page's link, for tools that take only the id. */
@@ -92,8 +92,15 @@ function projectId(project: string): string {
     const trimmed = project.trim();
     const id = UUID.test(trimmed) ? trimmed : PROJECT_PATH.exec(trimmed)?.[1];
     if (id === undefined || !UUID.test(id))
-        throw new UsageError(`${project} isn't a Project's id or link.`);
+        throw new CommandFailure('invalid_input', `${project} isn't a Project's id or link.`, null);
     return id.toLowerCase();
+}
+
+/** The `<project>` argument as given, id or link, once it is checked to be one. */
+function projectArgument(input: CommandInput): string {
+    const project = argument(input, 0, 'project');
+    projectId(project);
+    return project;
 }
 
 function projectLine(project: z.output<typeof ProjectSchema>): string {
@@ -142,7 +149,7 @@ const get: Command = {
     arguments: PROJECT_ARGUMENT,
     summary: 'Show a Project, by id or link: its settings, coordinator and folder.',
     async run(context, input) {
-        const project = argument(input, 0, 'project');
+        const project = projectArgument(input);
         await requireLoginScopes(context, ['projects:read']);
         context.output.record(
             parsed(
@@ -252,7 +259,7 @@ const update: Command = {
         ...YES_OPTION,
     },
     async run(context, input) {
-        const project = argument(input, 0, 'project');
+        const project = projectArgument(input);
         const fields = updateFields(input);
         await requireLoginScopes(context, ['projects:write']);
         await requireConsent(context, flag(input, 'yes'), `Change the Project ${project}?`);
@@ -279,7 +286,7 @@ const remove: Command = {
         ...YES_OPTION,
     },
     async run(context, input) {
-        const project = argument(input, 0, 'project');
+        const project = projectArgument(input);
         const chatDisposition = choiceOption(input, 'chats', CHAT_DISPOSITIONS);
         if (chatDisposition === undefined)
             throw new UsageError('--chats is required: keep or delete.');
@@ -383,7 +390,7 @@ const start: Command = {
         },
     },
     async run(context, input) {
-        const project = argument(input, 0, 'project');
+        const project = projectArgument(input);
         const message = argument(input, 1, 'brief');
         const args: Record<string, string> = { project, message };
         for (const [option, field] of Object.entries({
@@ -435,7 +442,7 @@ const run: Command = {
         ...YES_OPTION,
     },
     async run(context, input) {
-        const project = argument(input, 0, 'project');
+        const project = projectArgument(input);
         const message = argument(input, 1, 'message');
         const model = stringOption(input, 'model');
         await requireLoginScopes(context, ['sessions:write']);

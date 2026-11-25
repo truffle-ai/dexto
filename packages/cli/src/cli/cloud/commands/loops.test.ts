@@ -29,6 +29,22 @@ const RUN = {
     status: 'succeeded',
     triggeredAt: '2026-11-23T09:00:00.000Z',
 };
+const PRINTED_LOOP = {
+    enabled: true,
+    id: LOOP_ID,
+    instruction: 'Summarize new issues.',
+    name: 'Morning triage',
+    next_run_at: '2026-11-24T09:00:00.000Z',
+    schedule: { type: 'cron', expression: '0 9 * * *', timezone: 'UTC' },
+    schedule_type: 'cron',
+    trigger: { kind: 'schedule' },
+};
+const PRINTED_RUN = {
+    automation_id: LOOP_ID,
+    id: RUN_ID,
+    status: 'succeeded',
+    triggered_at: '2026-11-23T09:00:00.000Z',
+};
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('No sign-ins in tests');
 };
@@ -122,12 +138,16 @@ describe('dexto loops', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
-    it('lists with the tool and prints its own response, nextCursor included, as JSON', async () => {
+    it('lists with the tool and prints the page as data with next_after, as JSON', async () => {
         const page = { automations: [LOOP], nextCursor: 'cursor-2' };
         replies = [page];
         expect(await runCloud(host, ['loops', 'list', '--json'])).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_automations_list', arguments: {} }]);
-        expect(JSON.parse(stdout)).toEqual(page);
+        expect(JSON.parse(stdout)).toEqual({
+            data: [PRINTED_LOOP],
+            has_more: true,
+            next_after: 'cursor-2',
+        });
     });
 
     it.each([
@@ -189,12 +209,15 @@ describe('dexto loops', () => {
     it('gets one Loop by id, and its recent runs with --history', async () => {
         replies = [{ automation: LOOP }, { automation: LOOP, executions: [RUN] }];
         expect(await runCloud(host, ['loops', 'get', LOOP_ID, '--json'])).toBe(0);
-        expect(JSON.parse(stdout)).toEqual({ automation: LOOP });
+        expect(JSON.parse(stdout)).toEqual({ automation: PRINTED_LOOP });
         stdout = '';
         expect(
             await runCloud(host, ['loops', 'get', LOOP_ID, '--history-limit', '50', '--json'])
         ).toBe(0);
-        expect(JSON.parse(stdout)).toEqual({ automation: LOOP, executions: [RUN] });
+        expect(JSON.parse(stdout)).toEqual({
+            automation: PRINTED_LOOP,
+            executions: [PRINTED_RUN],
+        });
         expect(calls).toEqual([
             { name: 'dexto_automation_get', arguments: { automationId: LOOP_ID } },
             {

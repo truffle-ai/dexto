@@ -194,7 +194,22 @@ describe('subscription connections over MCP', () => {
             { outcome: 'disconnected', name: 'github', nextAction: 'dexto_connection_start' },
         ];
         expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
-        expect(lastResult().connections).toEqual([row]);
+        // A list prints as one multi-line `{data, has_more, next_after}` document.
+        expect(JSON.parse(stdout)).toEqual({
+            data: [
+                {
+                    kind: 'connector',
+                    name: 'github',
+                    id: 'conn-1',
+                    provider: 'github',
+                    status: 'connected',
+                    next_action: null,
+                },
+            ],
+            has_more: false,
+            next_after: null,
+        });
+        stdout = '';
         expect(
             await runCloud(host, ['connections', 'disconnect', 'github', '--yes', '--json'])
         ).toBe(0);
@@ -243,7 +258,7 @@ describe('subscription connections over MCP', () => {
             { ok: true, result: { posts: [{ id: 'fixture-post', text: 'Synthetic X result' }] } },
         ];
         expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
-        expect(lastResult().connections[0].status).toBe('connected');
+        expect(JSON.parse(stdout).data[0].status).toBe('connected');
         stdout = '';
         expect(
             await runCloud(host, [
@@ -328,7 +343,7 @@ describe('subscription connections over MCP', () => {
         ).toBe(0);
         expect(lastResult()).toMatchObject({
             outcome: 'started',
-            attemptId: '00000000-0000-4000-8000-000000000002',
+            attempt_id: '00000000-0000-4000-8000-000000000002',
             url: 'https://example.test/approve',
         });
         expect(calls).toHaveLength(1);
@@ -374,7 +389,7 @@ describe('subscription connections over MCP', () => {
         expect(await runCloud(host, ['connect', 'github', '--no-browser', '--json'])).toBe(1);
         expect(lastResult()).toMatchObject({
             outcome,
-            attemptId: '00000000-0000-4000-8000-000000000004',
+            attempt_id: '00000000-0000-4000-8000-000000000004',
         });
     });
     it('starts Console sign-in on the requested chat and preserves the method during retries', async () => {
@@ -445,7 +460,7 @@ describe('subscription connections over MCP', () => {
         expect(lastResult()).toEqual({
             outcome: 'connected',
             name: 'claude',
-            nextAction: null,
+            next_action: null,
         });
         expect(stderr).toBe('');
     });
@@ -495,7 +510,7 @@ describe('subscription connections over MCP', () => {
         ]);
         expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '').outcome).toBe('connected');
     });
-    it('lists typed connection rows and refuses an API-key disconnect verbatim', async () => {
+    it('lists typed connection rows and refuses an API-key disconnect', async () => {
         replies = [
             {
                 connections: [
@@ -594,7 +609,7 @@ describe('subscription connections over MCP', () => {
         expect(await runCloud(host, ['connect', 'codex', '--attempt', 'expired', '--json'])).toBe(
             1
         );
-        expect(lastResult().nextCommand).toBe('dexto connect codex');
+        expect(lastResult().next_command).toBe('dexto connect codex');
     });
     it('returns the Codex URL and user code without waiting', async () => {
         replies = [
@@ -674,11 +689,11 @@ describe('subscription connections over MCP', () => {
         ).toBe(6);
         expect(lastResult()).toMatchObject({
             outcome: 'code_rejected',
-            attemptId: 'replacement',
+            attempt_id: 'replacement',
             retryable: false,
             resume: null,
         });
-        expect(lastResult().nextCommand).toContain('--attempt replacement');
+        expect(lastResult().next_command).toContain('--attempt replacement');
         expect(calls).toHaveLength(1);
     });
     it('bounds Claude warming retries and keeps the session in its next command', async () => {
@@ -699,7 +714,7 @@ describe('subscription connections over MCP', () => {
                         JSON.stringify({ provider: 'claude', sessionId: 'same-chat' })
                 )
         ).toBe(true);
-        expect(lastResult().nextCommand).toBe('dexto connect claude --chat same-chat');
+        expect(lastResult().next_command).toBe('dexto connect claude --chat same-chat');
     });
     it('keeps authorization codes out of permission-refusal suggestions', async () => {
         stdin = 'secret-code';
@@ -747,7 +762,7 @@ describe('subscription connections over MCP', () => {
             { outcome: 'disconnected', name: 'claude', nextAction: 'dexto_connection_start' },
         ];
         expect(await runCloud(host, ['connections', 'status', 'claude', '--json'])).toBe(6);
-        expect(lastResult().nextCommand).toBe('dexto connect claude');
+        expect(lastResult().next_command).toBe('dexto connect claude');
         stdout = '';
         expect(
             await runCloud(host, ['connections', 'disconnect', 'claude', '--yes', '--json'])
@@ -776,11 +791,21 @@ describe('subscription connections over MCP', () => {
             pollAfterSeconds: 0,
             nextAction: 'dexto_connection_wait',
         };
+        const printedStarted = {
+            outcome: 'started',
+            provider: 'codex',
+            attempt_id: 'visible-device',
+            url: started.url,
+            code: started.code,
+            expires_at: started.expiresAt,
+            poll_after_seconds: 0,
+            next_action: 'dexto_connection_wait',
+        };
         replies = [started, { outcome: 'connected', name: 'codex', nextAction: null }];
         beforeWait = () => {
             if (json) {
                 expect(stdout.split('\n').filter(Boolean)).toHaveLength(1);
-                expect(lastResult()).toEqual(started);
+                expect(lastResult()).toEqual(printedStarted);
                 expect(stderr).toBe('');
             } else {
                 expect(stderr).toContain(started.url);
@@ -796,8 +821,8 @@ describe('subscription connections over MCP', () => {
                 .split('\n')
                 .map((line) => JSON.parse(line));
             expect(lines).toEqual([
-                started,
-                { outcome: 'connected', name: 'codex', nextAction: null },
+                printedStarted,
+                { outcome: 'connected', name: 'codex', next_action: null },
             ]);
         } else expect(stdout).toBe('Codex connected.\n');
     });
@@ -834,7 +859,7 @@ describe('subscription connections over MCP', () => {
         expect(await runCloud(host, ['connect', 'claude', '--json'])).toBe(6);
         expect(readStdin).not.toHaveBeenCalled();
         expect(calls).toHaveLength(1);
-        expect(lastResult().nextCommand).toContain('--code -');
+        expect(lastResult().next_command).toContain('--code -');
     }, 1000);
 
     it.each([{ flags: ['--json'] }, { flags: [] }])(
@@ -858,13 +883,21 @@ describe('subscription connections over MCP', () => {
                 .trim()
                 .split('\n')
                 .map((line) => JSON.parse(line));
-            expect(lines[0]).toEqual(started);
+            expect(lines[0]).toEqual({
+                outcome: 'started',
+                provider: 'claude',
+                attempt_id: 'open-pipe',
+                session_id: 'chat',
+                url: 'https://example.test/claude',
+                expires_at: null,
+                next_action: 'dexto_connection_finish',
+            });
             expect(lines[1]).toMatchObject({
                 outcome: 'code_required',
-                attemptId: 'open-pipe',
-                sessionId: 'chat',
+                attempt_id: 'open-pipe',
+                session_id: 'chat',
                 url: started.url,
-                nextCommand: 'dexto connect claude --attempt open-pipe --code -',
+                next_command: 'dexto connect claude --attempt open-pipe --code -',
             });
         },
         1000
@@ -1012,7 +1045,7 @@ describe('subscription connections over MCP', () => {
         });
         expect(lastResult()).toMatchObject({
             outcome: 'expired',
-            nextCommand: 'dexto connect codex',
+            next_command: 'dexto connect codex',
         });
         vi.restoreAllMocks();
     });
@@ -1028,7 +1061,7 @@ describe('subscription connections over MCP', () => {
             },
         ];
         expect(await runCloud(host, ['connections', 'status', 'claude', '--json'])).toBe(1);
-        expect(lastResult().nextCommand).toBe('dexto connect claude');
+        expect(lastResult().next_command).toBe('dexto connect claude');
         replies = [
             {
                 kind: 'claude_home',
@@ -1040,7 +1073,7 @@ describe('subscription connections over MCP', () => {
             },
         ];
         expect(await runCloud(host, ['connections', 'status', 'claude', '--json'])).toBe(1);
-        expect(lastResult().nextCommand).toBe('dexto connect claude');
+        expect(lastResult().next_command).toBe('dexto connect claude');
     });
     it('refuses API-key disconnects before asking for consent', async () => {
         replies = [
@@ -1083,16 +1116,11 @@ describe('subscription connections over MCP', () => {
         expect(
             await runCloud(host, ['connect', 'claude', '--json', '--attempt', 'safe', '--no-wait'])
         ).toBe(0);
-        expect(lastResult().nextCommand).toBe('dexto connect claude --attempt safe --code -');
+        expect(lastResult().next_command).toBe('dexto connect claude --attempt safe --code -');
         replies = [{ connections: [] }];
         stdout = '';
         expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
-        expect(
-            stdout
-                .trim()
-                .split('\n')
-                .map((line) => JSON.parse(line))
-        ).toEqual([{ connections: [] }]);
+        expect(JSON.parse(stdout)).toEqual({ data: [], has_more: false, next_after: null });
     });
 
     it('documents explicit stdin in compact JSON help', async () => {
@@ -1162,7 +1190,7 @@ describe('subscription connections over MCP', () => {
             ];
             expect(await runCloud(host, ['connections', 'status', 'saved-key', '--json'])).toBe(1);
             expect(lastResult()).toMatchObject({
-                nextCommand: null,
+                next_command: null,
                 fix: 'Update it in dashboard Settings > Models',
             });
             expect(stdout).not.toContain(`dexto connect ${provider}`);

@@ -27,6 +27,20 @@ const key = {
     revokedAt: null,
 };
 
+/** The same key as the CLI prints it, with snake_case keys. */
+const printedKey = {
+    id: KEY_ID,
+    name: 'ci',
+    services: ['computer'],
+    enrolled_computers: 0,
+    max_computers: 3,
+    expires_at: '2026-11-11T00:00:00.000Z',
+    status: 'active',
+    created_at: '2026-11-10T00:00:00.000Z',
+    last_used_at: null,
+    revoked_at: null,
+};
+
 describe('computer enrollment keys over the Dexto MCP', () => {
     let dir: string;
     let stdout: string;
@@ -122,7 +136,7 @@ describe('computer enrollment keys over the Dexto MCP', () => {
         replies = [{ keys: [key] }];
         expect(await cli('workspace', 'computers', 'keys', 'list'), stderr).toBe(0);
         expect(calls).toEqual([{ name: 'dexto_computer_enrollment_keys_list', arguments: {} }]);
-        expect(output()).toEqual({ data: [key] });
+        expect(output()).toEqual({ data: [printedKey], has_more: false, next_after: null });
     });
 
     it('asks before creating a key, then returns its one-time secret', async () => {
@@ -161,7 +175,12 @@ describe('computer enrollment keys over the Dexto MCP', () => {
                 expiresInMinutes: 1440,
             },
         });
-        expect(output()).toEqual(created);
+        expect(output()).toEqual({
+            status: 'created',
+            enrollment_key: 'dek_secret',
+            connect_command: 'dexto-daemon connect --key dek_secret',
+            key: printedKey,
+        });
     });
 
     it('checks services, limits and the sign-in permission before calling', async () => {

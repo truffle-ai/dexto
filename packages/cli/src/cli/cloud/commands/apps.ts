@@ -63,9 +63,10 @@ const list: Command = {
     examples: ['dexto apps list --json'],
     async run(context) {
         await requireLoginScopes(context, SCOPES);
-        const result = ListSchema.parse(await queryWorkspaceTool(context, 'dexto_apps_list', {}));
-        if (context.output.json) return context.output.record(result);
-        context.output.list({ data: result.apps }, APP_COLUMNS);
+        const { apps, ...facts } = ListSchema.parse(
+            await queryWorkspaceTool(context, 'dexto_apps_list', {})
+        );
+        context.output.list({ ...facts, data: apps }, APP_COLUMNS);
     },
 };
 
@@ -95,11 +96,10 @@ const uninstalled: Command = {
     examples: ['dexto apps uninstalled --json'],
     async run(context) {
         await requireLoginScopes(context, SCOPES);
-        const result = UninstalledSchema.parse(
+        const { apps, ...facts } = UninstalledSchema.parse(
             await queryWorkspaceTool(context, 'dexto_apps_uninstalled_list', {})
         );
-        if (context.output.json) return context.output.record(result);
-        context.output.list({ data: result.apps }, RETAINED_COLUMNS);
+        context.output.list({ ...facts, data: apps }, RETAINED_COLUMNS);
     },
 };
 
