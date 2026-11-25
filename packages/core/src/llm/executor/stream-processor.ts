@@ -783,26 +783,24 @@ export class StreamProcessor {
                 reason: 'failed',
             });
 
+            // The caller retries or fails the turn, and logs a terminal failure itself.
+            this.logger.debug('Stream processing failed', { error: mappedError });
             if (!this.emitFatalErrors) {
-                this.logger.error('Stream processing failed', { error: mappedError });
                 // A provider Error goes up as-is for the caller's retry and mapping; anything
                 // else (a string, or an SSE `{ code, message }` object) as the mapped Error.
                 throw error instanceof Error ? error : mappedError;
             }
 
-            if (this.emitFatalErrors) {
-                this.eventBus.emit('llm:error', {
-                    error: mappedError,
-                    context: 'StreamProcessor',
-                    recoverable: false,
-                    details: extractProviderErrorDetails({
-                        error,
-                        provider: this.config.provider,
-                        model: this.config.model,
-                    }),
-                });
-            }
-            this.logger.error('Stream processing failed', { error: mappedError });
+            this.eventBus.emit('llm:error', {
+                error: mappedError,
+                context: 'StreamProcessor',
+                recoverable: false,
+                details: extractProviderErrorDetails({
+                    error,
+                    provider: this.config.provider,
+                    model: this.config.model,
+                }),
+            });
             throw mappedError;
         }
 

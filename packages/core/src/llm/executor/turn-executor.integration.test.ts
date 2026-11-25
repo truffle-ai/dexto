@@ -22,6 +22,7 @@ import { MCPManager } from '../../mcp/manager.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { ApprovalDeferredError } from '../../approval/errors.js';
 import { createLogger } from '../../logger/factory.js';
+import { DextoLogger } from '../../logger/v2/dexto-logger.js';
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import type { LanguageModel, ModelMessage } from 'ai';
@@ -4952,6 +4953,32 @@ describe('TurnExecutor Integration Tests', () => {
                     recoverable: false,
                 })
             );
+        });
+
+        it('logs a failed model call once, at warn, and never at error', async () => {
+            const creditsError = apiCallError({
+                message: 'Insufficient credits',
+                statusCode: 402,
+                isRetryable: false,
+            });
+            vi.mocked(streamText).mockImplementation((options) => {
+                options.onError?.({ error: creditsError });
+                return {
+                    fullStream: (async function* () {
+                        yield { type: 'error', error: creditsError };
+                    })(),
+                } as unknown as ReturnType<typeof streamText>;
+            });
+            const errorSpy = vi.spyOn(DextoLogger.prototype, 'error');
+            const warnSpy = vi.spyOn(DextoLogger.prototype, 'warn');
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(errorSpy).not.toHaveBeenCalled();
+            expect(
+                warnSpy.mock.calls.filter(([message]) => message === 'TurnExecutor failed')
+            ).toHaveLength(1);
         });
 
         it('does not retry once a failed stream has changed conversation history', async () => {
