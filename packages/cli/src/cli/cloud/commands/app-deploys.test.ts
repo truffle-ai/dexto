@@ -115,6 +115,27 @@ describe('dexto apps deploy', () => {
         expect(send).not.toHaveBeenCalled();
     });
 
+    it("sends confirm: true once agreed, where the deploy tool's schema takes it", async () => {
+        listTools.mockResolvedValue([
+            {
+                ...deployTool,
+                inputSchema: {
+                    properties: { appId: {}, confirm: {}, uploadPath: {} },
+                    type: 'object',
+                },
+            },
+        ]);
+        const file = await packageFile();
+        const { context } = contextWith(['apps:write']);
+        query.mockResolvedValueOnce(prepared).mockResolvedValueOnce(deployed);
+        await deploy?.run(context, { positionals: ['notes', file], values: { yes: true } });
+        expect(query).toHaveBeenNthCalledWith(2, context, 'dexto_app_deploy', {
+            appId: 'notes',
+            confirm: true,
+            uploadPath: prepared.path,
+        });
+    });
+
     it('asks for apps:write before reading or uploading', async () => {
         const { context } = contextWith(['apps:read']);
         await expect(
