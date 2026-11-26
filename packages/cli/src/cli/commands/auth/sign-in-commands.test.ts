@@ -141,6 +141,66 @@ describe('sign-in commands', () => {
         apiKey: null,
     };
 
+    /**
+     * Every scope a login would ask for, as the approval page would list them: the real browser
+     * sign-in adds its base scopes to the command's, and stops before authorizing.
+     */
+    async function requestedScopes(options: typeof noOptions): Promise<readonly string[]> {
+        const stopped = new Error('stopped before authorizing');
+        let requested: readonly string[] = [];
+        const server = (url: string): unknown => {
+            if (url.endsWith('/oauth-protected-resource/mcp'))
+                return {
+                    resource: `${APP}/mcp`,
+                    authorization_servers: [APP],
+                    // The server offers write scopes too: only :read ones are asked for by default.
+                    scopes_supported: [
+                        'drive:read',
+                        'applications:write',
+                        'sites:write',
+                        'functions:write',
+                        'cloud:write',
+                    ],
+                };
+            return {
+                authorization_endpoint: `${APP}/oauth/authorize`,
+                device_authorization_endpoint: `${APP}/api/oauth/device_authorization`,
+                registration_endpoint: `${APP}/api/oauth/register`,
+                revocation_endpoint: `${APP}/api/oauth/revoke`,
+                token_endpoint: `${APP}/api/oauth/token`,
+            };
+        };
+        context = {
+            ...context,
+            dexto: {
+                ...context.dexto,
+                signInWithBrowser: (input) =>
+                    dextoSignIn.signInWithBrowser(
+                        {
+                            fetch: async (url) => Response.json(server(String(url))),
+                            signal: new AbortController().signal,
+                            prompt: () => undefined,
+                            openBrowser: async () => undefined,
+                            listenForRedirect: async () => {
+                                throw new Error('no redirect listener in this test');
+                            },
+                            sleep: async () => undefined,
+                        },
+                        {
+                            ...input,
+                            beforeAuthorize: async (scopes) => {
+                                requested = scopes;
+                                throw stopped;
+                            },
+                        }
+                    ),
+            },
+        };
+
+        await expect(login(context, options)).rejects.toBe(stopped);
+        return requested;
+    }
+
     describe('login', () => {
         it('signs in with the browser into the default profile', async () => {
             await login(context, noOptions);
@@ -265,10 +325,14 @@ describe('sign-in commands', () => {
         });
 
         it('a plain sign-in asks for no deploy permission, so consent shows no sensitive scope', async () => {
-            await login(context, noOptions);
-
-            expect(browserInputs[0]?.extraScopes).toEqual([]);
-            expect(browserInputs[0]?.extraScopes).not.toContain('applications:write');
+            expect(await requestedScopes(noOptions)).toEqual([
+                'drive:read',
+                'cloud:read',
+                'runs:read',
+                'artifacts:read',
+                'sessions:write',
+                'projects:write',
+            ]);
         });
 
         it('--scope deploy asks for every permission deploying Sites, Functions and Applications takes', async () => {
@@ -287,6 +351,28 @@ describe('sign-in commands', () => {
             await login(context, { ...noOptions, scopes: ['drive:write'] });
 
             expect(notes).toContain('Permissions granted: cloud:read drive:write');
+        });
+
+        it('lists only the permissions the server granted, not all it was asked for', async () => {
+            // The fake device sign-in grants cloud:read alone, whatever is requested.
+            await login(context, { ...noOptions, device: true, scopes: ['deploy'] });
+
+            expect(deviceInputs[0]?.extraScopes).toContain('applications:write');
+            expect(notes).toContain('Permissions granted: cloud:read');
+        });
+
+        it('says none when the server granted no permission', async () => {
+            context = {
+                ...context,
+                dexto: {
+                    ...context.dexto,
+                    signInWithBrowser: async () => signedIn(organization, { scopes: [] }),
+                },
+            };
+
+            await login(context, noOptions);
+
+            expect(notes).toContain('Permissions granted: none');
         });
 
         it('asks for chats:sync only while chat sync is on', async () => {
