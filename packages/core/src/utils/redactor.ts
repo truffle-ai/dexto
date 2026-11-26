@@ -261,6 +261,9 @@ const MAX_LOG_DEPTH = 20;
 const MAX_LOG_NODES = 5000;
 const TRUNCATED = '[Truncated]';
 const SHARED = '[Shared]';
+// A string longer than the characters left is read only this far past them, so a secret that
+// runs past the cut is still recognised and redacted before the text is cut.
+const STRING_CONTEXT = 1024;
 
 /** The text a logger writes when it could not redact an entry, never the entry itself. */
 export const UNREDACTABLE_LOG_DATA = '[unredactable log data]';
@@ -275,6 +278,27 @@ interface Walk {
     shared: WeakSet<object> | undefined;
     /** Objects this call may still read (logs). */
     remaining: number;
+    /** About how many characters of JSON this call may still produce (safeStringify). */
+    budget: number;
+}
+
+/**
+ * About how many characters of JSON a value just read adds, besides a container's contents. It
+ * never counts more than JSON writes, so a walk that stopped early is always cut by its caller.
+ */
+function jsonLength(value: unknown): number {
+    if (typeof value === 'string') return value.length + 2;
+    if (typeof value === 'object') return value === null ? 4 : 2;
+    if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+        return String(value).length;
+    }
+    return 0;
+}
+
+/** Counts a value read inside a container against the walk's budget. */
+function spend(walk: Walk, value: unknown, extra = 0): unknown {
+    walk.budget -= jsonLength(value) + extra;
+    return value;
 }
 
 /** Values that hold no keys to look at: how many bytes, not the bytes. */
@@ -292,7 +316,9 @@ function redactValue(
 ): unknown {
     if (typeof input === 'string') {
         if (insideSecret) return REDACTED;
-        return mode === 'log' ? redactLogString(input) : redactString(input);
+        const read = Math.max(0, walk.budget) + STRING_CONTEXT;
+        const text = input.length > read ? input.slice(0, read) : input;
+        return mode === 'log' ? redactLogString(text) : redactString(text);
     }
     if (typeof input !== 'object' || input === null) return input;
 
@@ -350,14 +376,31 @@ function redactContainer(
     insideSecret: boolean,
     depth: number
 ): unknown {
+    // Each loop stops once the walk's budget is spent, leaving a TRUNCATED mark.
     if (Array.isArray(input) || input instanceof Set) {
-        return [...input].map((item) => redactValue(item, walk, mode, insideSecret, depth));
+        const items: unknown[] = [];
+        for (const item of input) {
+            if (walk.budget <= 0) {
+                items.push(TRUNCATED);
+                break;
+            }
+            items.push(spend(walk, redactValue(item, walk, mode, insideSecret, depth)));
+        }
+        return items;
     }
     if (input instanceof Map) {
-        return [...input].map(([key, value]) => [
-            redactValue(key, walk, mode, insideSecret, depth),
-            redactEntry(String(key), value, walk, mode, insideSecret, depth),
-        ]);
+        const entries: unknown[] = [];
+        for (const [key, value] of input) {
+            if (walk.budget <= 0) {
+                entries.push(TRUNCATED);
+                break;
+            }
+            entries.push([
+                spend(walk, redactValue(key, walk, mode, insideSecret, depth), 2),
+                spend(walk, redactEntry(String(key), value, walk, mode, insideSecret, depth)),
+            ]);
+        }
+        return entries;
     }
     const fields =
         mode === 'log' && input instanceof Error
@@ -365,13 +408,21 @@ function redactContainer(
             : Object.fromEntries(Object.entries(input));
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(fields)) {
+        if (walk.budget <= 0) {
+            result[TRUNCATED] = TRUNCATED;
+            break;
+        }
+        walk.budget -= key.length + 3;
         if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
             result[key] = REDACTED;
             continue;
         }
         // First truncate file data (with parent context), then recursively redact
         const truncatedValue = truncateFileData(value, key, fields);
-        result[key] = redactEntry(key, truncatedValue, walk, mode, insideSecret, depth);
+        result[key] = spend(
+            walk,
+            redactEntry(key, truncatedValue, walk, mode, insideSecret, depth)
+        );
     }
     return result;
 }
@@ -414,7 +465,33 @@ function isPlainObject(value: unknown): boolean {
 export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()): unknown {
     return redactValue(
         input,
-        { ancestors: seen, memo: new WeakMap(), shared: undefined, remaining: Infinity },
+        {
+            ancestors: seen,
+            memo: new WeakMap(),
+            shared: undefined,
+            remaining: Infinity,
+            budget: Infinity,
+        },
+        'response',
+        false
+    );
+}
+
+/**
+ * Redacts a value for safeStringify. An object reached again is written once and then marked
+ * [Shared], and reading stops after about `maxChars` characters of JSON, so a large or densely
+ * linked value costs about the cap, not its full size.
+ */
+export function redactForStringify(input: unknown, maxChars: number): unknown {
+    return redactValue(
+        input,
+        {
+            ancestors: new WeakSet(),
+            memo: undefined,
+            shared: new WeakSet(),
+            remaining: Infinity,
+            budget: maxChars,
+        },
         'response',
         false
     );
@@ -593,6 +670,7 @@ export function redactLogRecord(
                 memo: undefined,
                 shared: new WeakSet(),
                 remaining: MAX_LOG_NODES,
+                budget: Infinity,
             },
             'log',
             false

@@ -122,4 +122,50 @@ describe('InstrumentClass', () => {
             exporter.getFinishedSpans().find((span) => span.name === 'private.fail')?.status
         ).toEqual({ code: SpanStatusCode.ERROR });
     });
+    it('records a class instance result by its class name, without reading it', async () => {
+        let touched = false;
+        class ChatSession {
+            constructor() {
+                Object.defineProperty(this, 'services', {
+                    enumerable: true,
+                    get() {
+                        touched = true;
+                        return { client: 'drizzle' };
+                    },
+                });
+            }
+        }
+
+        @InstrumentClass({ prefix: 'agent' })
+        class Agent {
+            getSession(): ChatSession {
+                return new ChatSession();
+            }
+
+            async createSession(): Promise<ChatSession> {
+                return new ChatSession();
+            }
+
+            async listSessions(): Promise<{ ids: string[] }> {
+                return { ids: ['s1'] };
+            }
+        }
+
+        const agent = new Agent();
+        agent.getSession();
+        await agent.createSession();
+        await agent.listSessions();
+
+        const attributes = Object.fromEntries(
+            exporter.getFinishedSpans().map((span) => [span.name, span.attributes])
+        );
+        expect(touched).toBe(false);
+        expect(attributes['agent.getSession']?.['agent.getSession.result']).toBe('[ChatSession]');
+        expect(attributes['agent.createSession']?.['agent.createSession.result']).toBe(
+            '[ChatSession]'
+        );
+        expect(attributes['agent.listSessions']?.['agent.listSessions.result']).toBe(
+            '{"ids":["s1"]}'
+        );
+    });
 });
