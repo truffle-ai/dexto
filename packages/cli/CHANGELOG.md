@@ -1,5 +1,44 @@
 # dexto
 
+## 2.5.3
+
+### Patch Changes
+
+- 97ca497: Show the server-provided Site address and create or update action before publishing, and support a dry run.
+- 8792614: Cloud commands now refuse an argument past their last one instead of dropping it. `dexto workspace call <tool> '<json>'` used to call the tool with `{}`; it now exits 2 and says to pass the body with `--data '<json>'`.
+- Updated dependencies [db49ce8]
+- Updated dependencies [97ca497]
+    - @dexto/core@1.19.10
+    - @dexto/cloud-client@1.19.10
+    - @dexto/agent-config@1.19.10
+    - @dexto/agent-management@1.19.10
+    - @dexto/analytics@1.19.10
+    - @dexto/client-sdk@1.19.10
+    - @dexto/image-local@1.19.10
+    - @dexto/image-logger-agent@1.19.10
+    - @dexto/storage@1.19.10
+    - @dexto/tui@1.19.10
+    - @dexto/llm@1.19.10
+    - @dexto/registry@1.19.10
+
+## 2.5.2
+
+### Patch Changes
+
+- Updated dependencies [d688240]
+    - @dexto/core@1.19.9
+    - @dexto/agent-config@1.19.9
+    - @dexto/agent-management@1.19.9
+    - @dexto/analytics@1.19.9
+    - @dexto/client-sdk@1.19.9
+    - @dexto/image-local@1.19.9
+    - @dexto/image-logger-agent@1.19.9
+    - @dexto/storage@1.19.9
+    - @dexto/tui@1.19.9
+    - @dexto/llm@1.19.9
+    - @dexto/cloud-client@1.19.9
+    - @dexto/registry@1.19.9
+
 ## 2.5.1
 
 ### Patch Changes

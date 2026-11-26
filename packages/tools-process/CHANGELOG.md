@@ -1,5 +1,21 @@
 # @dexto/tools-process
 
+## 1.19.10
+
+### Patch Changes
+
+- Updated dependencies [db49ce8]
+    - @dexto/core@1.19.10
+    - @dexto/agent-config@1.19.10
+
+## 1.19.9
+
+### Patch Changes
+
+- Updated dependencies [d688240]
+    - @dexto/core@1.19.9
+    - @dexto/agent-config@1.19.9
+
 ## 1.19.8
 
 ### Patch Changes

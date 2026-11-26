@@ -37,8 +37,7 @@ async function nodeSignIn(): Promise<SyncSignIn> {
         // A sign-in that can't be read or refreshed doesn't sync.
         return { kind: 'signed_out' };
     }
-    if (connection === null || connection.kind !== 'oauth' || connection.source !== 'login')
-        return { kind: 'signed_out' };
+    if (connection === null || connection.kind !== 'oauth') return { kind: 'signed_out' };
     if (!connection.login.scopes.includes(CHAT_SYNC_SCOPE)) return { kind: 'needs_login' };
     const who = connection.login.signedInAs;
     const account =

@@ -1,6 +1,6 @@
-// `applications`: inspect your managed Dockerfile Applications, their releases, lifecycle, insights
-// and usage, read-only, over Dexto's typed Applications tools. Create, deploy and lifecycle changes
-// stay with those tools.
+// `applications`: inspect your managed Dockerfile Applications, their releases, runtime variable
+// names, portable plugin files, lifecycle, insights and usage, read-only, over Dexto's typed
+// Applications tools. Create, deploy and lifecycle changes stay with those tools.
 
 import { z } from 'zod';
 import { argument, choiceOption, type Command } from '../command.js';
@@ -26,6 +26,16 @@ const ListSchema = z
     .object({ applications: z.array(ApplicationSchema), deployments: z.array(ReleaseSchema) })
     .passthrough();
 const LogsSchema = z.object({ logs: z.string() }).passthrough();
+// Not passthrough: the CLI keeps variable names only, whatever else a response carries.
+const VariablesSchema = z.object({
+    configuration: z.object({ appliesOn: z.string(), names: z.array(z.string()) }),
+});
+const PluginExportSchema = z
+    .object({
+        files: z.array(z.object({ content: z.string(), path: z.string() })),
+        publication: z.string(),
+    })
+    .passthrough();
 const OperationSchema = z
     .object({
         action: z.string(),
@@ -161,6 +171,58 @@ const logs: Command = {
     },
 };
 
+const variables: Command = {
+    arguments: '<application_id>',
+    path: ['applications', 'variables'],
+    summary:
+        "List the names of an Application's runtime variables, never their values. Set values in Cloud, in the Application's Settings.",
+    examples: ['dexto applications variables "$APPLICATION_ID" --json'],
+    async run(context, input) {
+        const applicationId = argument(input, 0, 'application_id');
+        await requireLoginScopes(context, SCOPES);
+        const result = VariablesSchema.parse(
+            await queryWorkspaceTool(context, 'dexto_application_variables_list', {
+                applicationId,
+            })
+        );
+        const { names } = result.configuration;
+        context.output.result(
+            result,
+            names.length === 0
+                ? 'No runtime variables.'
+                : [...names, 'Changes apply on the next deployment.'].join('\n')
+        );
+    },
+};
+
+const exportPlugin: Command = {
+    arguments: '<application_id>',
+    path: ['applications', 'export-plugin'],
+    summary:
+        "Print a healthy Application's portable plugin files (plugin.json, mcp.json and its skills), without credentials. Publishes and installs nothing.",
+    examples: ['dexto applications export-plugin "$APPLICATION_ID" --json'],
+    async run(context, input) {
+        const applicationId = argument(input, 0, 'application_id');
+        await requireLoginScopes(context, SCOPES);
+        const result = PluginExportSchema.parse(
+            await queryWorkspaceTool(context, 'dexto_application_plugin_export', {
+                applicationId,
+            })
+        );
+        context.output.result(
+            result,
+            [
+                // Each file's own final newline would leave a blank line before the next header.
+                ...result.files.flatMap((file) => [
+                    `==> ${file.path} <==`,
+                    file.content.replace(/\n$/, ''),
+                ]),
+                result.publication,
+            ].join('\n')
+        );
+    },
+};
+
 const operations: Command = {
     arguments: '<application_id>',
     path: ['applications', 'operations'],
@@ -252,6 +314,8 @@ export const applicationCommands: readonly Command[] = [
     get,
     release,
     logs,
+    variables,
+    exportPlugin,
     operations,
     history,
     insights,

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextManager } from './manager.js';
 import { buildPrunedToolResultPlaceholder } from './utils.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import type { ContentPart, InternalMessage, SanitizedToolResult } from './types.js';
+import type { ContentPart, InternalMessage, SanitizedToolResult, ToolMessage } from './types.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -140,6 +140,110 @@ describe('ContextManager', () => {
 
             expect(await manager.countModelMessages()).toBe(2);
             expect(conversationStore.loadModelHistory).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('targeted reads', () => {
+        const toolResult = (id: string, toolCallId: string): ToolMessage => ({
+            id,
+            role: 'tool',
+            toolCallId,
+            name: 'test',
+            content: [{ type: 'text', text: `output of ${toolCallId}` }],
+            success: true,
+        });
+        const history: InternalMessage[] = [
+            { id: 'u1', role: 'user', content: [{ type: 'text', text: 'hi' }] },
+            toolResult('t1', 'call-1'),
+            toolResult('t2', 'call-2'),
+        ];
+
+        function storeWith(overrides: Partial<ConversationStore>): ConversationStore {
+            return {
+                listMessages: vi.fn(async () => structuredClone(history)),
+                loadModelHistory: vi.fn(async () => {
+                    throw new Error('not expected');
+                }),
+                saveMessage: vi.fn(async () => {}),
+                updateMessage: vi.fn(async () => {}),
+                clearMessages: vi.fn(async () => {}),
+                flush: vi.fn(async () => {}),
+                ...overrides,
+            };
+        }
+
+        it('marks compactions after reading only the named messages', async () => {
+            const getMessagesById = vi.fn(async () => [toolResult('t2', 'call-2')]);
+            const conversationStore = storeWith({ getMessagesById });
+            const manager = createContextManager({ conversationStore });
+
+            expect(await manager.markMessagesAsCompacted(['t2'])).toBe(1);
+
+            expect(getMessagesById).toHaveBeenCalledWith({
+                sessionId: 'test-session-id',
+                messageIds: ['t2'],
+            });
+            expect(conversationStore.listMessages).not.toHaveBeenCalled();
+            expect(conversationStore.updateMessage).toHaveBeenCalledWith({
+                sessionId: 'test-session-id',
+                message: expect.objectContaining({ id: 't2', compactedAt: expect.any(Number) }),
+            });
+        });
+
+        it('marks compactions from the full history when the store has no by-id read', async () => {
+            const conversationStore = storeWith({});
+            const manager = createContextManager({ conversationStore });
+
+            expect(await manager.markMessagesAsCompacted(['t2', 'u1', 'missing'])).toBe(1);
+
+            expect(conversationStore.updateMessage).toHaveBeenCalledTimes(1);
+            expect(conversationStore.updateMessage).toHaveBeenCalledWith({
+                sessionId: 'test-session-id',
+                message: expect.objectContaining({ id: 't2', compactedAt: expect.any(Number) }),
+            });
+        });
+
+        it('reads tool results by call id without the full history', async () => {
+            const getToolResultsByCallId = vi.fn(async () => [toolResult('t1', 'call-1')]);
+            const conversationStore = storeWith({ getToolResultsByCallId });
+            const manager = createContextManager({ conversationStore });
+
+            expect(await manager.getToolResults(['call-1'])).toEqual([
+                expect.objectContaining({ id: 't1', toolCallId: 'call-1' }),
+            ]);
+            expect(getToolResultsByCallId).toHaveBeenCalledWith({
+                sessionId: 'test-session-id',
+                toolCallIds: ['call-1'],
+            });
+            expect(conversationStore.listMessages).not.toHaveBeenCalled();
+        });
+
+        it('picks tool results from the full history when the store has no call-id read', async () => {
+            const manager = createContextManager({ conversationStore: storeWith({}) });
+
+            expect(await manager.getToolResults(['call-2', 'call-9'])).toEqual([
+                expect.objectContaining({ id: 't2', toolCallId: 'call-2' }),
+            ]);
+        });
+
+        it('answers both reads the same from the in-memory store as from its full history', async () => {
+            const conversationStore = new InMemoryDextoStores().getStore('conversation');
+            for (const message of history) {
+                await conversationStore.saveMessage({ sessionId: 's', message });
+            }
+
+            expect(
+                await conversationStore.getMessagesById?.({
+                    sessionId: 's',
+                    messageIds: ['t2', 'u1', 'missing'],
+                })
+            ).toEqual([history[0], history[2]]);
+            expect(
+                await conversationStore.getToolResultsByCallId?.({
+                    sessionId: 's',
+                    toolCallIds: ['call-1'],
+                })
+            ).toEqual([history[1]]);
         });
     });
 
@@ -668,8 +772,9 @@ describe('ContextManager', () => {
         function countingStore() {
             const store = new InMemoryDextoStores().getStore('conversation');
             const listMessages = vi.spyOn(store, 'listMessages');
+            const getMessagesById = vi.spyOn(store, 'getMessagesById');
             const updateMessage = vi.spyOn(store, 'updateMessage');
-            return { store, listMessages, updateMessage };
+            return { store, listMessages, getMessagesById, updateMessage };
         }
 
         const toolCall = (n: number) => ({
@@ -728,8 +833,9 @@ describe('ContextManager', () => {
 
             await streamReply(other, messageId);
 
-            // One read finds the message, then it is held in memory.
-            expect(first.listMessages).toHaveBeenCalledTimes(1);
+            // One read by id finds the message, then it is held in memory.
+            expect(first.getMessagesById).toHaveBeenCalledTimes(1);
+            expect(first.listMessages).not.toHaveBeenCalled();
 
             const second = countingStore();
             const manager = createContextManager({ conversationStore: second.store });

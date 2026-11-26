@@ -56,7 +56,7 @@ export function projectsUse(accountsDir: string): Command {
         summary: 'Act in this Cloud project, by id or name, from now on. Dexto models bill it too.',
         async run(context, input) {
             const connection = await context.connection();
-            if (connection.kind !== 'oauth' || connection.source !== 'login')
+            if (connection.kind !== 'oauth')
                 throw new UsageError(
                     'A key acts only in its own project. Sign in with dexto login to choose projects.'
                 );

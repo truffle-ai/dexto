@@ -1,5 +1,39 @@
 # @dexto/image-local
 
+## 1.19.10
+
+### Patch Changes
+
+- Updated dependencies [db49ce8]
+    - @dexto/core@1.19.10
+    - @dexto/agent-config@1.19.10
+    - @dexto/agent-management@1.19.10
+    - @dexto/storage@1.19.10
+    - @dexto/tools-builtins@1.19.10
+    - @dexto/tools-filesystem@1.19.10
+    - @dexto/tools-lifecycle@1.19.10
+    - @dexto/tools-plan@1.19.10
+    - @dexto/tools-process@1.19.10
+    - @dexto/tools-scheduler@1.19.10
+    - @dexto/tools-todo@1.19.10
+
+## 1.19.9
+
+### Patch Changes
+
+- Updated dependencies [d688240]
+    - @dexto/core@1.19.9
+    - @dexto/agent-config@1.19.9
+    - @dexto/agent-management@1.19.9
+    - @dexto/storage@1.19.9
+    - @dexto/tools-builtins@1.19.9
+    - @dexto/tools-filesystem@1.19.9
+    - @dexto/tools-lifecycle@1.19.9
+    - @dexto/tools-plan@1.19.9
+    - @dexto/tools-process@1.19.9
+    - @dexto/tools-scheduler@1.19.9
+    - @dexto/tools-todo@1.19.9
+
 ## 1.19.8
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @dexto/core
 
+## 1.19.10
+
+### Patch Changes
+
+- db49ce8: Emit a cancelled run completion when turn driver setup is aborted before the turn starts.
+    - @dexto/llm@1.19.10
+
+## 1.19.9
+
+### Patch Changes
+
+- d688240: Context stats, the turn-ending tool check, compaction marks and streaming into a reply the manager did not start no longer load the whole chat. `getContextStats` takes `hasSummary` from the model history load its estimate already does. The other paths read only the messages they need through two new optional `ConversationStore` methods, `getMessagesById` and `getToolResultsByCallId`; a store without them falls back to `listMessages` as before.
+    - @dexto/llm@1.19.9
+
 ## 1.19.8
 
 ### Patch Changes

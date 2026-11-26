@@ -51,26 +51,18 @@ cloud-sites-deploy`.split('\n')
 
 // Tools with only generic passthrough reachability are debt, not coverage.
 const approvedPassthroughOnly = `dexto_app_data_remove
-dexto_app_deploy
-dexto_app_deployment_verify
 dexto_app_open
 dexto_app_request_access
 dexto_app_runtime
 dexto_application_create
 dexto_application_deploy
 dexto_application_install
-dexto_application_plugin_export
 dexto_application_purge
 dexto_application_release_delete
 dexto_application_resume
 dexto_application_retire
 dexto_application_rollback
 dexto_application_suspend
-dexto_application_variables_list
-dexto_automation_create
-dexto_automation_delete
-dexto_automation_trigger
-dexto_automation_update
 dexto_capabilities_search
 dexto_chat_computer
 dexto_chat_continue

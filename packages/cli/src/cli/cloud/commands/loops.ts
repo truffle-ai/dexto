@@ -1,20 +1,27 @@
-// `loops`: read your account's, an agent's or a Project's Loops and their runs, over Dexto's typed
-// Loop tools. Creating, changing, running and deleting Loops stay with those tools.
+// `loops`: read your account's, an agent's or a Project's Loops and their runs, create and change
+// them, run one now or delete it, over Dexto's typed Loop tools.
 
 import { z } from 'zod';
+import { CommandFailure } from '../../failure.js';
 import {
     argument,
+    BODY_OPTIONS,
     flag,
     integerOption,
+    isJsonObject,
     PAGE_OPTIONS,
     pageQuery,
+    readJsonBody,
     stringOption,
     UsageError,
+    YES_OPTION,
     type Command,
+    type CommandContext,
     type CommandInput,
 } from '../command.js';
 import type { Column } from '../output.js';
-import { queryWorkspaceTool } from './workspace.js';
+import { requireLoginScopes } from './deploys.js';
+import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
 
 const LoopSchema = z
     .object({
@@ -181,4 +188,143 @@ const get: Command = {
     },
 };
 
-export const loopCommands: readonly Command[] = [list, get];
+const SavedSchema = z.object({ automation: LoopSchema }).passthrough();
+const TriggeredSchema = z.object({ execution: RunSchema }).passthrough();
+const DeletedSchema = z.object({ ok: z.literal(true) }).passthrough();
+
+/**
+ * Calls a Loop tool that changes a Loop, once the person agreed as the tool's own level asks:
+ * creating, changing and running are `work` and go ahead, deleting is `act` and asks first (or
+ * needs --yes). The call goes as given; the server keeps its own refusals.
+ */
+async function changeLoop(
+    context: CommandContext,
+    name:
+        | 'dexto_automation_create'
+        | 'dexto_automation_delete'
+        | 'dexto_automation_trigger'
+        | 'dexto_automation_update',
+    call: Record<string, unknown>,
+    title: string,
+    yes: boolean
+): Promise<unknown> {
+    await requireLoginScopes(context, ['automations:write']);
+    const tool = (await listWorkspaceTools(context)).find((each) => each.name === name);
+    if (tool === undefined)
+        throw new CommandFailure('failed', "This Dexto can't change Loops this way yet.", null);
+    const agreed = await agreeToCall(
+        context,
+        { level: toolCallLevel(tool, call), schema: tool.inputSchema, title },
+        yes
+    );
+    return await queryWorkspaceTool(context, name, { ...call, ...agreed });
+}
+
+const run: Command = {
+    arguments: '<loop_id>',
+    options: { ...YES_OPTION },
+    path: ['loops', 'run'],
+    summary: 'Run a Loop now, outside its schedule. Prints the run it started.',
+    examples: ['dexto loops run "$LOOP_ID" --json'],
+    async run(context, input) {
+        const automationId = argument(input, 0, 'loop_id');
+        const value = await changeLoop(
+            context,
+            'dexto_automation_trigger',
+            { automationId },
+            `Run Loop ${automationId} now`,
+            flag(input, 'yes')
+        );
+        const { execution } = TriggeredSchema.parse(value);
+        context.output.result(
+            value,
+            `Loop ${automationId} started run ${execution.id} (${execution.status}).`
+        );
+    },
+};
+
+const remove: Command = {
+    arguments: '<loop_id>',
+    options: { ...YES_OPTION },
+    path: ['loops', 'delete'],
+    summary: "Delete a Loop and stop its future runs. Can't be undone; asks first.",
+    examples: ['dexto loops delete "$LOOP_ID" --yes --json'],
+    async run(context, input) {
+        const automationId = argument(input, 0, 'loop_id');
+        const value = DeletedSchema.parse(
+            await changeLoop(
+                context,
+                'dexto_automation_delete',
+                { automationId },
+                `Delete Loop ${automationId}`,
+                flag(input, 'yes')
+            )
+        );
+        context.output.result(value, `Deleted Loop ${automationId}.`);
+    },
+};
+
+/** The Loop as the tool takes it, from --data or --file: a JSON object, passed on whole. */
+async function readLoopBody(
+    context: CommandContext,
+    input: CommandInput
+): Promise<Record<string, unknown>> {
+    const body = await readJsonBody(context, input);
+    if (!isJsonObject(body))
+        throw new UsageError(
+            'Pass the Loop as a JSON object with --data or --file, as dexto workspace describe shows its input.'
+        );
+    return body;
+}
+
+const create: Command = {
+    options: { ...BODY_OPTIONS, ...YES_OPTION },
+    path: ['loops', 'create'],
+    summary:
+        'Create a Loop from its input as JSON: name, instruction, schedule or trigger, scope, execution, reporting.',
+    examples: [
+        'dexto loops create --data \'{"name":"Morning triage","instruction":"Summarize new issues.","schedule":{"type":"cron","expression":"0 9 * * *","timezone":"UTC"}}\' --json',
+        'dexto loops create --file loop.json --json',
+    ],
+    async run(context, input) {
+        const call = await readLoopBody(context, input);
+        const value = await changeLoop(
+            context,
+            'dexto_automation_create',
+            call,
+            'Create a Loop',
+            flag(input, 'yes')
+        );
+        const { automation } = SavedSchema.parse(value);
+        context.output.result(value, `Created Loop ${automation.id} (${automation.name}).`);
+    },
+};
+
+const update: Command = {
+    arguments: '<loop_id>',
+    options: { ...BODY_OPTIONS, ...YES_OPTION },
+    path: ['loops', 'update'],
+    summary:
+        'Change a Loop by id with the fields to change as JSON. A new trigger replaces what starts it.',
+    examples: [
+        'dexto loops update "$LOOP_ID" --data \'{"enabled":false}\' --json',
+        'dexto loops update "$LOOP_ID" --file changes.json --json',
+    ],
+    async run(context, input) {
+        const automationId = argument(input, 0, 'loop_id');
+        const changes = await readLoopBody(context, input);
+        if (changes.automationId !== undefined && changes.automationId !== automationId)
+            throw new UsageError('The JSON names another Loop than <loop_id>; pass one Loop.');
+        const value = await changeLoop(
+            context,
+            'dexto_automation_update',
+            { ...changes, automationId },
+            `Update Loop ${automationId}`,
+            flag(input, 'yes')
+        );
+        const { automation } = SavedSchema.parse(value);
+        context.output.result(value, `Updated Loop ${automation.id} (${automation.name}).`);
+    },
+};
+
+export const loopCommands: readonly Command[] = [list, get, create, update, run, remove];

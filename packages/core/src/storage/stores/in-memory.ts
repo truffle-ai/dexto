@@ -1,8 +1,12 @@
 import { createHash, randomUUID } from 'crypto';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
-import { cloneInternalMessage, cloneInternalMessages } from '../../context/content-clone.js';
-import type { InternalMessage } from '../../context/types.js';
-import { filterCompacted } from '../../context/utils.js';
+import {
+    cloneInternalMessage,
+    cloneInternalMessages,
+    cloneToolMessage,
+} from '../../context/content-clone.js';
+import type { InternalMessage, ToolMessage } from '../../context/types.js';
+import { filterCompacted, pickMessagesById, pickToolResults } from '../../context/utils.js';
 import type { Memory } from '../../memory/types.js';
 import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
 import { cloneQueuedMessage, cloneQueuedMessages } from '../../session/queue-clone.js';
@@ -83,6 +87,22 @@ class InMemoryConversationStore implements ConversationStore {
 
     async countModelMessages(input: { sessionId: string }): Promise<number> {
         return filterCompacted(this.messages.get(input.sessionId) ?? []).length;
+    }
+
+    async getMessagesById(input: {
+        sessionId: string;
+        messageIds: readonly string[];
+    }): Promise<InternalMessage[]> {
+        const messages = this.messages.get(input.sessionId) ?? [];
+        return pickMessagesById(messages, input.messageIds).map(cloneInternalMessage);
+    }
+
+    async getToolResultsByCallId(input: {
+        sessionId: string;
+        toolCallIds: readonly string[];
+    }): Promise<ToolMessage[]> {
+        const messages = this.messages.get(input.sessionId) ?? [];
+        return pickToolResults(messages, input.toolCallIds).map(cloneToolMessage);
     }
 
     async saveMessage(input: { sessionId: string; message: InternalMessage }): Promise<void> {

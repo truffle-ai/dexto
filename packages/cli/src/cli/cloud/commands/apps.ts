@@ -1,14 +1,33 @@
 // `apps`: inspect the Dexto Apps your sign-in reaches and the retained data of Apps you
-// uninstalled, read-only, over Dexto's typed App tools. Running, opening, installing and removing
-// data stay with those tools (`workspace <app> <operation>` runs App actions).
+// uninstalled, and deploy a packaged App or check it against the installed one, over Dexto's typed
+// App tools. Running, opening, installing and removing data stay with those tools
+// (`workspace <app> <operation>` runs App actions).
+
+import { CommandFailure } from '../../failure.js';
+
+import { createHash } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
 
 import { z } from 'zod';
-import { argument, type Command } from '../command.js';
+import {
+    argument,
+    flag,
+    UsageError,
+    YES_OPTION,
+    type Command,
+    type CommandContext,
+    type CommandInput,
+} from '../command.js';
 import type { Column } from '../output.js';
+import { sendBytes } from '../transfer.js';
 import { requireLoginScopes } from './deploys.js';
-import { queryWorkspaceTool } from './workspace.js';
+import { formatBytes } from './files.js';
+import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
 
 const SCOPES = ['apps:read'] as const;
+/** The most a Dexto App package upload can be. */
+const MAX_PACKAGE_BYTES = 40 * 1024 * 1024;
 
 const AppSchema = z
     .object({
@@ -103,4 +122,111 @@ const uninstalled: Command = {
     },
 };
 
-export const appCommands: readonly Command[] = [list, get, uninstalled];
+const PreparedSchema = z.object({
+    headers: z.record(z.string(), z.string()),
+    method: z.string(),
+    path: z.string(),
+    url: z.string(),
+});
+const DeployedSchema = z.object({ status: z.string() }).passthrough();
+const VerifiedSchema = z.object({ matchesPackage: z.boolean(), status: z.string() }).passthrough();
+
+const PACKAGE_ARGUMENTS = '<app_id> <package>';
+const PACKAGE_HELP =
+    '<package> is the deploy-request.json the dexto-apps packer writes (by default <app>/.dexto/deploy-request.json); <app_id> is the appId it names.';
+
+const deploy: Command = {
+    arguments: PACKAGE_ARGUMENTS,
+    options: YES_OPTION,
+    path: ['apps', 'deploy'],
+    summary: `Deploy a packaged Dexto App into your Apps, installed and active. ${PACKAGE_HELP} Requires apps:write.`,
+    examples: ['dexto apps deploy notes ./notes/.dexto/deploy-request.json --yes --json'],
+    async run(context, input) {
+        await requireLoginScopes(context, ['apps:write']);
+        const appId = argument(input, 0, 'app_id');
+        const bytes = await readPackage(input);
+        const tool = (await listWorkspaceTools(context)).find(
+            (each) => each.name === 'dexto_app_deploy'
+        );
+        if (tool === undefined)
+            throw new CommandFailure('failed', "This Dexto can't deploy Dexto Apps yet.", null);
+        // Agreeing comes before the upload, so a refusal leaves nothing behind.
+        const agreed = await agreeToCall(
+            context,
+            {
+                level: toolCallLevel(tool, { appId }),
+                schema: tool.inputSchema,
+                title: `Deploy Dexto App ${appId}`,
+            },
+            flag(input, 'yes')
+        );
+        const uploadPath = await uploadPackage(context, bytes);
+        // Dexto checks the package, then takes the upload: one upload makes one deploy.
+        const value = await queryWorkspaceTool(context, 'dexto_app_deploy', {
+            appId,
+            uploadPath,
+            ...agreed,
+        });
+        context.output.result(value, `Deployed ${appId}: ${DeployedSchema.parse(value).status}.`);
+    },
+};
+
+const verify: Command = {
+    arguments: PACKAGE_ARGUMENTS,
+    path: ['apps', 'verify'],
+    summary: `Check the installed Dexto App against a package without deploying it. ${PACKAGE_HELP} Requires apps:read.`,
+    examples: ['dexto apps verify notes ./notes/.dexto/deploy-request.json --json'],
+    async run(context, input) {
+        await requireLoginScopes(context, SCOPES);
+        const appId = argument(input, 0, 'app_id');
+        const uploadPath = await uploadPackage(context, await readPackage(input));
+        // Verifying reads the upload and takes nothing; it never deploys.
+        const value = await queryWorkspaceTool(context, 'dexto_app_deployment_verify', {
+            appId,
+            uploadPath,
+        });
+        const { matchesPackage, status } = VerifiedSchema.parse(value);
+        context.output.result(
+            value,
+            matchesPackage
+                ? `The installed ${appId} matches the package (${status}).`
+                : `The installed ${appId} does not match the package (${status}).`
+        );
+    },
+};
+
+/** The package file's bytes, checked against what a Dexto App package upload can be. */
+async function readPackage(input: CommandInput): Promise<Uint8Array<ArrayBuffer>> {
+    const file = path.resolve(argument(input, 1, 'package'));
+    const found = await stat(file).catch(() => null);
+    if (found === null || !found.isFile())
+        throw new UsageError(`${file} isn't a file. Pass the package's deploy-request.json.`);
+    if (found.size > MAX_PACKAGE_BYTES)
+        throw new UsageError(
+            `${file} is ${formatBytes(found.size)}; a Dexto App package can be up to ${formatBytes(MAX_PACKAGE_BYTES)}.`
+        );
+    return new Uint8Array(await readFile(file));
+}
+
+/** Uploads a package for purpose app-package and returns the path the App tools take. */
+async function uploadPackage(
+    context: CommandContext,
+    bytes: Uint8Array<ArrayBuffer>
+): Promise<string> {
+    const prepared = PreparedSchema.safeParse(
+        await queryWorkspaceTool(context, 'dexto_upload_prepare', {
+            filename: 'deploy-request.json',
+            mimeType: 'application/json',
+            purpose: 'app-package',
+            sha256: createHash('sha256').update(bytes).digest('hex'),
+            sizeBytes: bytes.byteLength,
+        })
+    );
+    if (!prepared.success)
+        throw new CommandFailure('failed', "Dexto didn't say where to upload the package.", null);
+    const { headers, method, url } = prepared.data;
+    await sendBytes(context, { headers, method, url }, new globalThis.Blob([bytes]));
+    return prepared.data.path;
+}
+
+export const appCommands: readonly Command[] = [list, get, uninstalled, deploy, verify];
