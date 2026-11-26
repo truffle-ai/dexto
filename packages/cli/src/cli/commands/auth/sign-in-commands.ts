@@ -33,6 +33,17 @@ const {
     writeLogin,
 } = dextoAccounts;
 
+/**
+ * What `--scope deploy` asks for: deploying Sites, Functions and Applications, with their uploads.
+ * A plain sign-in leaves these out, as applications:write shows as sensitive at consent.
+ */
+const DEPLOY_SCOPES: readonly dextoSignIn.CliLoginScope[] = [
+    'sites:write',
+    'functions:write',
+    'cloud:write',
+    'applications:write',
+];
+
 /** Dexto's side of signing in, injected so commands can be tested without a server. */
 export interface DextoSignIn {
     readonly signInWithBrowser: (input: BrowserSignInInput) => Promise<OAuthLogin>;
@@ -149,7 +160,11 @@ export async function login(
         extraScopes: [
             ...new Set([
                 ...(previous?.scopes ?? []).filter((scope) => scope !== CHAT_SYNC_SCOPE),
-                ...options.scopes.flatMap(splitList),
+                ...options.scopes
+                    .flatMap(splitList)
+                    .flatMap((scope): readonly string[] =>
+                        scope === 'deploy' ? DEPLOY_SCOPES : [scope]
+                    ),
                 ...((await context.chatSyncOn()) ? [CHAT_SYNC_SCOPE] : []),
             ]),
         ],
@@ -170,6 +185,7 @@ export async function login(
         throw context.screen.look === 'signal' ? signInEndedFailure(error, device) : error;
     }
     context.screen.settle(true);
+    context.note(`Permissions granted: ${signedIn.scopes.map(safeText).join(' ')}`);
 
     // A name made from --org can match another organization's profile: keep that sign-in.
     const savedOrganization = previous?.signedInAs?.organization ?? null;
