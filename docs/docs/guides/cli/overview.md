@@ -410,7 +410,7 @@ dexto docs read cli/output
 
 ## Your managed Applications
 
-Inspect the Dockerfile Applications you own in the signed-in organization, one release and its logs, an Application's runtime variable names, and its portable plugin files:
+Inspect the Dockerfile Applications you own in the signed-in organization, one release and its logs, an Application's runtime variable names, its portable plugin files, and its lifecycle, measurements and costs:
 
 ```bash
 dexto applications list --json
@@ -419,9 +419,14 @@ dexto applications release "$DEPLOYMENT_ID" --json
 dexto applications logs "$DEPLOYMENT_ID" --json
 dexto applications variables "$APPLICATION_ID" --json
 dexto applications export-plugin "$APPLICATION_ID" --json
+dexto applications operations "$APPLICATION_ID" --json
+dexto applications history "$APPLICATION_ID" --json
+dexto applications history "$DEPLOYMENT_ID" --kind release --json
+dexto applications insights "$APPLICATION_ID" --json
+dexto applications usage "$APPLICATION_ID" --json
 ```
 
-These read only and need `applications:read`. List returns `{applications, deployments}`: your Applications and their recent releases. A ready Application names its backend provider and the runtime variables Dexto injects, never their values. Get returns one Application, checking its provisioning while it is not ready. Release returns one release's status, URL and progress, reconciling an uncertain outcome without resubmitting it. Logs returns `{logs}`, the release's recent logs, bounded and redacted; before the release has started it returns `{logs, status}` with a note to inspect the release instead. Variables returns `{configuration: {names, appliesOn}}`: the names of the runtime variables set in Cloud, never their values; a change applies on the next deployment. Export-plugin returns `{authentication, files, publication}`: a healthy Application's `plugin.json`, `mcp.json` and skill files, without credentials; it publishes, installs and changes nothing. Create, deploy, rollback and lifecycle changes are not CLI commands.
+These read only and need `applications:read`. List returns `{applications, deployments}`: your Applications and their recent releases. A ready Application names its backend provider and the runtime variables Dexto injects, never their values. Get returns one Application, checking its provisioning while it is not ready. Release returns one release's status, URL and progress, reconciling an uncertain outcome without resubmitting it. Logs returns `{logs}`, the release's recent logs, bounded and redacted; before the release has started it returns `{logs, status}` with a note to inspect the release instead. Variables returns `{configuration: {names, appliesOn}}`: the names of the runtime variables set in Cloud, never their values; a change applies on the next deployment. Export-plugin returns `{authentication, files, publication}`: a healthy Application's `plugin.json`, `mcp.json` and skill files, without credentials; it publishes, installs and changes nothing. Operations returns `{operations}`, the Application's suspend, resume, retire and purge requests and their progress. History returns `{events}`, the safe lifecycle history of an Application, or with `--kind release` of one release, without contacting the provider. Insights returns `{insights}`, timestamped task, database and storage measurements; a metric the provider has not reported is `null`, never `0`, and none of them is a billing fact. Usage returns daily AWS cost estimates in `periods` and the settled hosting charges, separately, in `totalChargeUsd`; an estimate is never a settled debit, and a day with no reported cost has `null` costs. Create, deploy, rollback and lifecycle changes are not CLI commands.
 
 ## Your notifications
 

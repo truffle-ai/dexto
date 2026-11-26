@@ -49,6 +49,20 @@
     "examples": true
   },
   {
+    "command": "applications history",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications insights",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "applications list",
     "json": true,
     "dryRun": false,
@@ -63,7 +77,21 @@
     "examples": true
   },
   {
+    "command": "applications operations",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "applications release",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications usage",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
