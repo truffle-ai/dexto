@@ -60,7 +60,6 @@ dexto_application_history
 dexto_application_insights
 dexto_application_install
 dexto_application_operations_list
-dexto_application_plugin_export
 dexto_application_purge
 dexto_application_release_delete
 dexto_application_resume
@@ -68,7 +67,6 @@ dexto_application_retire
 dexto_application_rollback
 dexto_application_suspend
 dexto_application_usage
-dexto_application_variables_list
 dexto_capabilities_search
 dexto_chat_computer
 dexto_chat_continue

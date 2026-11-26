@@ -35,6 +35,13 @@
     "examples": false
   },
   {
+    "command": "applications export-plugin",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "applications get",
     "json": true,
     "dryRun": false,
@@ -57,6 +64,13 @@
   },
   {
     "command": "applications release",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications variables",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
