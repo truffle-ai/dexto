@@ -63,7 +63,28 @@
     "examples": true
   },
   {
+    "command": "applications export-plugin",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "applications get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications history",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications insights",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
@@ -84,10 +105,38 @@
     "examples": true
   },
   {
+    "command": "applications operations",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "applications release",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications usage",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications variables",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps deploy",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
     "examples": true
   },
   {
@@ -106,6 +155,13 @@
   },
   {
     "command": "apps uninstalled",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps verify",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
@@ -924,6 +980,20 @@
     "examples": false
   },
   {
+    "command": "loops create",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "loops delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "loops get",
     "json": true,
     "dryRun": false,
@@ -935,6 +1005,20 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "loops run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "loops update",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
     "examples": true
   },
   {

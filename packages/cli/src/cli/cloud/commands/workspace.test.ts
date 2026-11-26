@@ -299,7 +299,11 @@ describe('dexto workspace', () => {
             signInForScopes: grant,
         };
         expect(await runCloud(host, ['workspace', 'describe', 'dexto_project_chat_move'])).toBe(3);
-        expect(grant).toHaveBeenCalledWith(expect.anything(), ['projects:write', 'sessions:write']);
+        expect(grant).toHaveBeenCalledWith(
+            expect.anything(),
+            ['projects:write', 'sessions:write'],
+            expect.any(Function)
+        );
     });
 
     it('shows a concise workspace app help list and leaves schemas to operation help', async () => {
@@ -1634,6 +1638,8 @@ describe('dexto workspace', () => {
     });
 
     it('acts as a person only: an API key is told to sign in', async () => {
+        // A saved sign-in comes before DEXTO_API_KEY, so only the key is left here.
+        await dextoAccounts.forgetLogin(dir, 'default');
         environment.DEXTO_API_KEY = 'dxt_key';
 
         expect(await runCloud(host, ['workspace', 'tools'])).toBe(3);

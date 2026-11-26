@@ -52,11 +52,13 @@ function contextWith(scopes: readonly string[], json = true) {
 beforeEach(() => query.mockReset());
 
 describe('dexto apps', () => {
-    it('registers list, get and uninstalled', () => {
+    it('registers list, get, uninstalled, deploy and verify', () => {
         expect(appCommands.map((command) => command.path.join(' '))).toEqual([
             'apps list',
             'apps get',
             'apps uninstalled',
+            'apps deploy',
+            'apps verify',
         ]);
     });
 

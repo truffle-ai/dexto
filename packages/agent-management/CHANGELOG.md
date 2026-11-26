@@ -1,5 +1,32 @@
 # @dexto/agent-management
 
+## 1.20.0
+
+### Minor Changes
+
+- c34d726: A saved `dexto login` sign-in now comes before `DEXTO_API_KEY`. Every command, Dexto models and the Dexto MCP pick a credential in one order: `--api-key`, then the profile's sign-in, then `DEXTO_API_KEY`, then a saved API key. A key left in the environment (for example in dexto 1.x's `~/.dexto/.env`) no longer overrides the sign-in.
+    - A sign-in that can no longer refresh (revoked or expired) now fails the command instead of falling back to `DEXTO_API_KEY`, and the error names the profile: "Your Dexto sign-in (profile <name>) has expired. Run dexto login, or pass --api-key." Dexto models and the Dexto MCP take no `--api-key`, so there it says only "Run dexto login." To go back to the key for good, run `dexto logout`.
+    - With only `DEXTO_API_KEY` set, Dexto models go through the same gateway path as a sign-in, to `DEXTO_PUBLIC_API_URL` (default `https://api.dexto.ai/v1`). `DEXTO_API_URL` and the agent config's `llm.baseURL` and `llm.apiKey` are ignored for `dexto-nova`.
+    - `dexto whoami` names the source. In `--json`, `source` is `flag`, `sign_in`, `environment` or `saved_key`; a saved API key was `login` before, and the signed-in result now has `source` too. In text, a saved key reads `(saved key, profile <name>)`, and a sign-in starts with a `source  sign-in` row.
+    - `CredentialSource` in `@dexto/agent-management` drops `login` for `sign_in` and `saved_key`; `chooseCredential` is new.
+
+### Patch Changes
+
+- @dexto/core@1.20.0
+- @dexto/llm@1.20.0
+- @dexto/agent-config@1.20.0
+- @dexto/tools-builtins@1.20.0
+
+## 1.19.10
+
+### Patch Changes
+
+- Updated dependencies [db49ce8]
+    - @dexto/core@1.19.10
+    - @dexto/agent-config@1.19.10
+    - @dexto/tools-builtins@1.19.10
+    - @dexto/llm@1.19.10
+
 ## 1.19.9
 
 ### Patch Changes

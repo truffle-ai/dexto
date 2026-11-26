@@ -1,5 +1,25 @@
 # @dexto/tui
 
+## 1.20.0
+
+### Patch Changes
+
+- Updated dependencies [c34d726]
+    - @dexto/agent-management@1.20.0
+    - @dexto/core@1.20.0
+    - @dexto/llm@1.20.0
+    - @dexto/registry@1.20.0
+
+## 1.19.10
+
+### Patch Changes
+
+- Updated dependencies [db49ce8]
+    - @dexto/core@1.19.10
+    - @dexto/agent-management@1.19.10
+    - @dexto/llm@1.19.10
+    - @dexto/registry@1.19.10
+
 ## 1.19.9
 
 ### Patch Changes

@@ -105,7 +105,7 @@ dexto accounts remove acme  # log out and forget (asks first, or --yes)
 dexto logout                # end the sign-in on the server and forget it here
 ```
 
-Sign-ins are saved per profile in `~/.dexto/accounts/`, readable only by you. `--profile <name>` or `DEXTO_PROFILE` picks one for a single run, and `DEXTO_API_KEY` takes precedence over any saved sign-in. A first sign-in only reads; `--scope <permission>` asks for more and keeps what was granted before. Sign-ins from the `dexto-cloud` preview CLI are carried over once.
+Sign-ins are saved per profile in `~/.dexto/accounts/`, readable only by you. `--profile <name>` or `DEXTO_PROFILE` picks one for a single run, and a command uses the first of `--api-key`, the saved sign-in, `DEXTO_API_KEY`, then a saved API key, so a `DEXTO_API_KEY` in the environment never overrides a sign-in. A first sign-in reads, and can also change Projects and start chats, which can spend credits; direct computer writes and Loops need `--scope <permission>` or a step-up, which keeps what was granted before. Sign-ins from the `dexto-cloud` preview CLI are carried over once.
 
 Signed in, every local session also gets the Dexto MCP as a server named `dexto`: your connectors, Drive, Sites and Apps, Loops and memory, beside your own MCP servers. Its tools ask first through the normal approval prompt. If Dexto is unreachable, the session still runs and those tools show as unavailable. A server you name `dexto` yourself takes its place.
 
@@ -410,16 +410,23 @@ dexto docs read cli/output
 
 ## Your managed Applications
 
-Inspect the Dockerfile Applications you own in the signed-in organization, one release, and its logs:
+Inspect the Dockerfile Applications you own in the signed-in organization, one release and its logs, an Application's runtime variable names, its portable plugin files, and its lifecycle, measurements and costs:
 
 ```bash
 dexto applications list --json
 dexto applications get "$APPLICATION_ID" --json
 dexto applications release "$DEPLOYMENT_ID" --json
 dexto applications logs "$DEPLOYMENT_ID" --json
+dexto applications variables "$APPLICATION_ID" --json
+dexto applications export-plugin "$APPLICATION_ID" --json
+dexto applications operations "$APPLICATION_ID" --json
+dexto applications history "$APPLICATION_ID" --json
+dexto applications history "$DEPLOYMENT_ID" --kind release --json
+dexto applications insights "$APPLICATION_ID" --json
+dexto applications usage "$APPLICATION_ID" --json
 ```
 
-These read only and need `applications:read`. List returns `{applications, deployments}`: your Applications and their recent releases. A ready Application names its backend provider and the runtime variables Dexto injects, never their values. Get returns one Application, checking its provisioning while it is not ready. Release returns one release's status, URL and progress, reconciling an uncertain outcome without resubmitting it. Logs returns `{logs}`, the release's recent logs, bounded and redacted; before the release has started it returns `{logs, status}` with a note to inspect the release instead. Create, deploy, rollback and lifecycle changes are not CLI commands.
+These read only and need `applications:read`. List returns `{applications, deployments}`: your Applications and their recent releases. A ready Application names its backend provider and the runtime variables Dexto injects, never their values. Get returns one Application, checking its provisioning while it is not ready. Release returns one release's status, URL and progress, reconciling an uncertain outcome without resubmitting it. Logs returns `{logs}`, the release's recent logs, bounded and redacted; before the release has started it returns `{logs, status}` with a note to inspect the release instead. Variables returns `{configuration: {names, appliesOn}}`: the names of the runtime variables set in Cloud, never their values; a change applies on the next deployment. Export-plugin returns `{authentication, files, publication}`: a healthy Application's `plugin.json`, `mcp.json` and skill files, without credentials; it publishes, installs and changes nothing. Operations returns `{operations}`, the Application's suspend, resume, retire and purge requests and their progress. History returns `{events}`, the safe lifecycle history of an Application, or with `--kind release` of one release, without contacting the provider. Insights returns `{insights}`, timestamped task, database and storage measurements; a metric the provider has not reported is `null`, never `0`, and none of them is a billing fact. Usage returns daily AWS cost estimates in `periods` and the settled hosting charges, separately, in `totalChargeUsd`; an estimate is never a settled debit, and a day with no reported cost has `null` costs. Create, deploy, rollback and lifecycle changes are not CLI commands.
 
 ## Your notifications
 
@@ -448,7 +455,7 @@ Reading needs a sign-in with `messages:read`, sending `messages:write`; an API k
 
 ## Your Loops
 
-List and inspect the Loops on your account, an agent or a Dexto Project, and their runs:
+List and inspect the Loops on your account, an agent or a Dexto Project, and their runs; create or change one, run it now or delete it:
 
 ```bash
 dexto loops list --json
@@ -456,9 +463,13 @@ dexto loops list --agent "$AGENT_ID" --json
 dexto loops list --in-project "$PROJECT_ID" --paused --json
 dexto loops get "$LOOP_ID" --history --json
 dexto loops get "$LOOP_ID" --execution "$RUN_ID" --json
+dexto loops create --file loop.json --json
+dexto loops update "$LOOP_ID" --data '{"enabled":false}' --json
+dexto loops run "$LOOP_ID" --json
+dexto loops delete "$LOOP_ID" --yes --json
 ```
 
-These read only and need `automations:read`; a sign-in without it is asked to sign in again. With no flag, list returns your account's Loops; `--agent` names an agent's, `--account` or `--in-project` the account's or a Project's (with `--agent`, only that agent's there), and `--enabled` or `--paused` filters by state. List returns `{automations, nextCursor}` and accepts `--limit` and `--after` with the previous `nextCursor`. Get returns `{automation}`; `--history` (or `--history-limit`) adds its recent runs as `executions`, and `--execution` reads one run in full, continued with `--text-offset` and `--payload-offset`. Creating, changing, running and deleting Loops are not CLI commands. These are your Dexto Loops, not the Cloud project automations under `dexto cloud automations`.
+List and get read only and need `automations:read`; create, update, run and delete need `automations:write`. A sign-in without the permission is asked to sign in again. With no flag, list returns your account's Loops; `--agent` names an agent's, `--account` or `--in-project` the account's or a Project's (with `--agent`, only that agent's there), and `--enabled` or `--paused` filters by state. List returns `{automations, nextCursor}` and accepts `--limit` and `--after` with the previous `nextCursor`. Get returns `{automation}`; `--history` (or `--history-limit`) adds its recent runs as `executions`, and `--execution` reads one run in full, continued with `--text-offset` and `--payload-offset`. Run starts the Loop now, outside its schedule, without asking, and returns `{execution, turn}` for the run it started. Delete can't be undone and asks first: pass `--yes` once you agree; without a terminal it exits with `needs_confirmation` and deletes nothing. It returns `{ok: true}`. Both act only on a Loop you may change, and say `not_found` or `needs_permission` otherwise. Create takes the Loop as the `dexto_automation_create` tool does, as a JSON object from `--data` or `--file` (`-` for stdin): its name and instruction, a `schedule` or an event `trigger`, and optionally `scope`, `agentId`, `execution`, `reporting` and `runNow`. Update takes the Loop id and a JSON object of only the fields to change, as `dexto_automation_update` does; a new `trigger` or `triggers` replaces what starts the Loop. Both pass every field on as given, ask nothing at the `work` level, and return `{automation}`; the server's own refusals, such as invalid input or a scope or Loop you may not change, come back as the command's error. `dexto workspace describe dexto_automation_create` shows every field. These are your Dexto Loops, not the Cloud project automations under `dexto cloud automations`.
 
 ## Work with your AutoBots
 
@@ -502,7 +513,16 @@ dexto apps get "$APP_ID" --json
 dexto apps uninstalled --json
 ```
 
-These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps and removing kept data are not `apps` commands.
+These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps from the store and removing kept data are not `apps` commands.
+
+Deploy an App you packaged, or check the installed App against its package:
+
+```bash
+dexto apps deploy "$APP_ID" ./"$APP_ID"/.dexto/deploy-request.json --yes --json
+dexto apps verify "$APP_ID" ./"$APP_ID"/.dexto/deploy-request.json --json
+```
+
+The package is the `deploy-request.json` the dexto-apps packer writes, up to 40 MiB, and the App id is the `appId` it names. Both upload the package and then call `dexto_app_deploy` or `dexto_app_deployment_verify` with it, printing the tool's result. Deploy needs `apps:write` and your agreement: it asks at a terminal, and without one it fails with `needs_confirmation` until you pass `--yes`, before uploading anything. Dexto checks the package, then takes the upload, so each deploy uploads afresh. Verify needs `apps:read`, never deploys and takes nothing; `matchesPackage` says whether the installed build is the package's.
 
 ## Your Dexto Workspace
 
