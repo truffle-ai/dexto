@@ -54,15 +54,6 @@ const approvedPassthroughOnly = `dexto_app_data_remove
 dexto_app_open
 dexto_app_request_access
 dexto_app_runtime
-dexto_application_create
-dexto_application_deploy
-dexto_application_install
-dexto_application_purge
-dexto_application_release_delete
-dexto_application_resume
-dexto_application_retire
-dexto_application_rollback
-dexto_application_suspend
 dexto_capabilities_search
 dexto_chat_computer
 dexto_chat_continue
