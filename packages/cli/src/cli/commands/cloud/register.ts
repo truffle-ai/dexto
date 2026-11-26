@@ -8,7 +8,7 @@ export const ENGINE_WORDS = {
     artifacts: 'Publish, list and open organization Artifacts',
     autobots: 'List your AutoBots, see their status, and save, publish and talk to them',
     import: 'Import local Claude Code and Codex chats',
-    connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
+    connect: 'Sign in to a model subscription or connect a service in Dexto Cloud',
     channels: 'List and read your Dexto channels, and send messages to them',
     connections: 'List, inspect and disconnect model subscriptions',
     login: 'Sign in to Dexto with your browser or a device code, or save an API key for CI',

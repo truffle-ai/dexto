@@ -231,10 +231,7 @@ describe('dexto cloud', () => {
         expect(JSON.parse(stdout)).toEqual(PROJECTS);
     });
 
-    it.each([
-        [['chat', 'move', 'local-chat', '--to', 'cloud', '--json']],
-        [['connect', 'linear', '--json']],
-    ])('holds %j out of 2.0: usage exit 2, no request, no local agent', async (argv) => {
+    it('holds chat move out of 2.0: usage exit 2, no request, no local agent', async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
         host = {
             ...host,
@@ -243,19 +240,26 @@ describe('dexto cloud', () => {
             },
         };
 
-        expect(await runCloud(host, argv)).toBe(2);
+        expect(
+            await runCloud(host, ['chat', 'move', 'local-chat', '--to', 'cloud', '--json'])
+        ).toBe(2);
         expect(stdout).toBe('');
         expect(requests).toHaveLength(0);
     });
 
-    it('registers neither held command, and keeps their released neighbours', () => {
+    it('holds chat move while registering connector sign-in', () => {
         const registered = host.commands.map((command) => command.path.join(' '));
 
         expect(registered).not.toContain('chat move');
-        expect(registered).not.toContain('connect');
         expect(registered).toEqual(
-            expect.arrayContaining(['chat watch', 'connect claude', 'connect codex'])
+            expect.arrayContaining(['chat watch', 'connect', 'connect claude', 'connect codex'])
         );
+    });
+
+    it('requires sign-in when starting a catalog connector while signed out', async () => {
+        expect(await runCloud(host, ['connect', 'linear', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.code).toBe('needs_sign_in');
+        expect(requests).toHaveLength(0);
     });
 
     it('needs a sign-in: exit 3 with the command that fixes it', async () => {

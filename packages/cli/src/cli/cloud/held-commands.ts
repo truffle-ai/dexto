@@ -8,9 +8,6 @@ export const HELD_COMMANDS: ReadonlySet<string> = new Set([
     // Uploads the working tree to a cloud computer: ships in 2.1 with chat sync on by default
     // (DEXTO-2043). /cloud and /local in the interactive CLI are held with it.
     'chat move',
-    // Any catalog connector: needs the cloud connector route deployed first (DEXTO-2755).
-    // `connect claude` and `connect codex` already work and stay.
-    'connect',
 ]);
 
 export function isHeld(command: Command): boolean {
