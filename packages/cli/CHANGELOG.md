@@ -1,5 +1,32 @@
 # dexto
 
+## 2.7.0
+
+### Minor Changes
+
+- e729ddd: Add `dexto applications create`, `deploy`, `rollback`, `release delete`, `suspend`, `resume`, `retire`, `purge` and `install` to manage a Dockerfile Application from the CLI. Each one asks first (or takes `--yes`), offers `--dry-run`, and needs the new `applications:write` sign-in scope; `purge` also takes `--confirm-application-id`.
+
+### Patch Changes
+
+- c6d90c3: `dexto login --scope deploy` asks for every permission deploying Sites, Functions and Applications takes, and a sign-in now prints the permissions it was granted. A plain `dexto login` still asks for no deploy permission.
+- 7735cb3: `dexto login` now says `Permissions granted: none` when the server grants no permission, instead of printing the label with nothing after it.
+- 5f773dc: Record a reason for every passthrough-only MCP tool in the CLI-to-MCP parity file, move tools that should get a CLI command to the pending list with their issue, and fail the parity test when an entry has no reason or issue.
+- Updated dependencies [e729ddd]
+- Updated dependencies [92d3f66]
+- Updated dependencies [e9283f4]
+    - @dexto/agent-management@1.21.0
+    - @dexto/core@1.21.0
+    - @dexto/analytics@1.21.0
+    - @dexto/image-local@1.21.0
+    - @dexto/image-logger-agent@1.21.0
+    - @dexto/tui@1.21.0
+    - @dexto/agent-config@1.21.0
+    - @dexto/client-sdk@1.21.0
+    - @dexto/storage@1.21.0
+    - @dexto/llm@1.21.0
+    - @dexto/cloud-client@1.21.0
+    - @dexto/registry@1.21.0
+
 ## 2.6.0
 
 ### Minor Changes
