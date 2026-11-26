@@ -1,5 +1,37 @@
 # dexto
 
+## 2.6.0
+
+### Minor Changes
+
+- aa393f4: Add `dexto applications variables` to list an Application's runtime variable names (never values) and `dexto applications export-plugin` to print its credential-free portable plugin files.
+- b27db15: Add `dexto applications operations`, `history`, `insights` and `usage` to read a managed Application's lifecycle operations, safe history, measurements, and cost estimates apart from settled charges.
+- c34d726: A saved `dexto login` sign-in now comes before `DEXTO_API_KEY`. Every command, Dexto models and the Dexto MCP pick a credential in one order: `--api-key`, then the profile's sign-in, then `DEXTO_API_KEY`, then a saved API key. A key left in the environment (for example in dexto 1.x's `~/.dexto/.env`) no longer overrides the sign-in.
+    - A sign-in that can no longer refresh (revoked or expired) now fails the command instead of falling back to `DEXTO_API_KEY`, and the error names the profile: "Your Dexto sign-in (profile <name>) has expired. Run dexto login, or pass --api-key." Dexto models and the Dexto MCP take no `--api-key`, so there it says only "Run dexto login." To go back to the key for good, run `dexto logout`.
+    - With only `DEXTO_API_KEY` set, Dexto models go through the same gateway path as a sign-in, to `DEXTO_PUBLIC_API_URL` (default `https://api.dexto.ai/v1`). `DEXTO_API_URL` and the agent config's `llm.baseURL` and `llm.apiKey` are ignored for `dexto-nova`.
+    - `dexto whoami` names the source. In `--json`, `source` is `flag`, `sign_in`, `environment` or `saved_key`; a saved API key was `login` before, and the signed-in result now has `source` too. In text, a saved key reads `(saved key, profile <name>)`, and a sign-in starts with a `source  sign-in` row.
+    - `CredentialSource` in `@dexto/agent-management` drops `login` for `sign_in` and `saved_key`; `chooseCredential` is new.
+
+### Patch Changes
+
+- d988aee: Add `dexto apps deploy` and `dexto apps verify`: upload a packaged Dexto App and deploy it into your Apps, or check the installed App against the package without deploying it.
+- 3ff866a: Sign-in requests the Project and chat permissions agent tasks need, keeps computer and Loop access as explicit step-ups, and lists a sign-in request's permissions on the approval page.
+- b826d10: `dexto loops create` creates a Loop and `dexto loops update <loop_id>` changes one, each from the tool's own input as JSON (`--data`, or `--file` with `-` for stdin): schedule or event trigger, scope, execution and reporting pass on as given. Both need `automations:write`, return `{automation}`, and report the server's refusals as their error.
+- 72627a4: `dexto loops run <loop_id>` runs one of your Loops now and prints the run it started; `dexto loops delete <loop_id>` deletes one and asks first (`--yes` agrees). Both need `automations:write` and act only on a Loop you may change.
+- Updated dependencies [c34d726]
+    - @dexto/agent-management@1.20.0
+    - @dexto/analytics@1.20.0
+    - @dexto/image-local@1.20.0
+    - @dexto/image-logger-agent@1.20.0
+    - @dexto/tui@1.20.0
+    - @dexto/client-sdk@1.20.0
+    - @dexto/core@1.20.0
+    - @dexto/storage@1.20.0
+    - @dexto/llm@1.20.0
+    - @dexto/agent-config@1.20.0
+    - @dexto/cloud-client@1.20.0
+    - @dexto/registry@1.20.0
+
 ## 2.5.3
 
 ### Patch Changes
