@@ -501,18 +501,17 @@ describe('dexto loops', () => {
             expect(calls).toEqual([{ name: 'dexto_automation_create', arguments: EVENT }]);
         });
 
-        it("returns the server's own refusal: confirmation, invalid input", async () => {
+        it("returns the server's own refusals: a scope it forbids, invalid input", async () => {
             const data = JSON.stringify(SCHEDULED);
             rpcError = {
                 code: -32003,
-                message: 'Approve posting to #bugs first.',
-                data: { kind: 'needs_confirmation', retryable: false },
+                message: 'You cannot create Loops in that Project.',
+                data: { kind: 'forbidden', retryable: false },
             };
-            expect(await runCloud(host, ['loops', 'create', '--data', data, '--json'])).not.toBe(0);
+            expect(await runCloud(host, ['loops', 'create', '--data', data, '--json'])).toBe(3);
             expect(JSON.parse(stderr).error).toMatchObject({
-                code: 'needs_confirmation',
-                message: 'Approve posting to #bugs first.',
-                fix: `dexto loops create --data '${data}' --json --yes`,
+                code: 'needs_permission',
+                message: 'You cannot create Loops in that Project.',
             });
 
             stderr = '';

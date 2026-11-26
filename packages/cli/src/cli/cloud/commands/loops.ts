@@ -195,7 +195,7 @@ const DeletedSchema = z.object({ ok: z.literal(true) }).passthrough();
 /**
  * Calls a Loop tool that changes a Loop, once the person agreed as the tool's own level asks:
  * creating, changing and running are `work` and go ahead, deleting is `act` and asks first (or
- * needs --yes). The call goes as given; the server keeps its own approvals and refusals.
+ * needs --yes). The call goes as given; the server keeps its own refusals.
  */
 async function changeLoop(
     context: CommandContext,
