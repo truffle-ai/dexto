@@ -521,11 +521,11 @@
         },
         {
             "tool": "dexto_gigs_finding",
-            "reason": "DEXTO-3398 gives the read actions commands (actionCommands); the tool stays here until its write actions have commands too."
+            "reason": "DEXTO-3398 (in progress) adds commands for the read actions; the write actions have none yet, so the tool stays here until every action has one."
         },
         {
             "tool": "dexto_gigs_posting",
-            "reason": "DEXTO-3398 gives the read actions commands (actionCommands); the tool stays here until its write actions have commands too."
+            "reason": "DEXTO-3398 (in progress) adds commands for the read actions; the write actions have none yet, so the tool stays here until every action has one."
         },
         {
             "tool": "dexto_open",
