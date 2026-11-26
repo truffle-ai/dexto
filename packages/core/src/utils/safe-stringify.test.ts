@@ -42,14 +42,40 @@ describe('safeStringify', () => {
     });
 
     it('reads a 10 MB string only up to about the cap', () => {
-        let text = '';
+        let words = '';
+        let run = '';
 
         const produced = longestJson(() => {
-            text = safeStringify({ body: 'a'.repeat(10_000_000) }, CAP);
+            words = safeStringify({ body: 'abc '.repeat(2_500_000) }, CAP);
+            run = safeStringify({ body: 'a'.repeat(10_000_000) }, CAP);
         });
 
-        expect(text).toHaveLength(CAP);
+        expect(words).toHaveLength(CAP);
+        // One run of token characters too long to read whole is left out from its start.
+        expect(run).toBe('{"body":"…"}');
         expect(produced).toBeLessThanOrEqual(CAP + 2048);
+    });
+
+    it('reads a wide object only up to about the cap', () => {
+        const wide: Record<string, string> = {};
+        for (let index = 0; index < 200_000; index += 1) {
+            wide[`key${index}`] = 'value';
+        }
+        let reads = 0;
+        const counted = new Proxy(wide, {
+            get(target, key, receiver) {
+                reads += 1;
+                return Reflect.get(target, key, receiver);
+            },
+        });
+
+        const started = Date.now();
+        const text = safeStringify(counted, CAP);
+        const elapsed = Date.now() - started;
+
+        expect(text).toHaveLength(CAP);
+        expect(reads).toBeLessThan(2000);
+        expect(elapsed).toBeLessThan(1000);
     });
 
     it('writes an object reached more than once only once', () => {
@@ -60,12 +86,17 @@ describe('safeStringify', () => {
         }
 
         const capped = safeStringify(node, CAP);
-        const uncapped = safeStringify(node);
 
         expect(capped).toContain('[Shared]');
         expect(capped.length).toBeLessThanOrEqual(CAP);
-        expect(uncapped).toContain('[Shared]');
-        expect(uncapped.length).toBeLessThan(2000);
+    });
+
+    it('writes a shared object out in full at every reference without a cap', () => {
+        const leaf = { leaf: true };
+
+        expect(safeStringify({ left: leaf, right: leaf })).toBe(
+            '{"left":{"leaf":true},"right":{"leaf":true}}'
+        );
     });
 
     it('marks a cycle', () => {
@@ -102,6 +133,42 @@ describe('safeStringify', () => {
 
         expect(text).not.toContain('ZZZZ');
         expect(text).not.toContain('AAAA');
+    });
+
+    it('never keeps part of a JWT longer than the read-ahead that runs across the cut', () => {
+        const encode = (value: string) => Buffer.from(value).toString('base64url');
+        const header = encode('{"alg":"HS256","typ":"JWT"}');
+        const payload = encode(
+            JSON.stringify({ email: 'person@example.com', padding: 'p'.repeat(2200) })
+        );
+        const jwt = `${header}.${payload}.${'s'.repeat(43)}`;
+        expect(jwt.length).toBeGreaterThan(3000);
+
+        const text = safeStringify(`${'x'.repeat(8000)} ${jwt} tail`, CAP);
+
+        expect(text).not.toContain(header.slice(0, 12));
+        expect(text).not.toContain(payload.slice(0, 12));
+        expect(text).not.toContain(payload.slice(-12));
+    });
+
+    it('never keeps part of a long key that runs across the cut', () => {
+        const key = `sk-proj-${'a1'.repeat(1500)}`;
+
+        const text = safeStringify({ note: `${'x'.repeat(8000)} ${key} tail` }, CAP);
+
+        expect(text).not.toContain('a1a1');
+        expect(text).toContain('[REDACTED]');
+    });
+
+    it('leaves out a token-character run too long to read whole when it crosses the cut', () => {
+        const encode = (value: string) => Buffer.from(value).toString('base64url');
+        const header = encode('{"alg":"HS256","typ":"JWT"}');
+        const jwt = `${header}.${encode('p'.repeat(80_000))}.${'s'.repeat(43)}`;
+
+        const text = safeStringify(`${'x'.repeat(8000)} ${jwt}`, CAP);
+
+        expect(text).not.toContain(header.slice(0, 12));
+        expect(text.startsWith(`"${'x'.repeat(8000)}`)).toBe(true);
     });
 
     it('keeps small values whole', () => {

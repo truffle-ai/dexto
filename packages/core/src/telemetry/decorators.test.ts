@@ -168,4 +168,54 @@ describe('InstrumentClass', () => {
             '{"ids":["s1"]}'
         );
     });
+
+    it('records an argument it cannot read without failing the call', () => {
+        const revoked = Proxy.revocable({}, {});
+        revoked.revoke();
+        const throwing = new Proxy(
+            {},
+            {
+                getPrototypeOf() {
+                    throw new Error('trap');
+                },
+            }
+        );
+
+        @InstrumentClass({ prefix: 'odd', captureArguments: true })
+        class Odd {
+            take(_first: unknown, _second: unknown): string {
+                return 'done';
+            }
+        }
+
+        expect(new Odd().take(revoked.proxy, throwing)).toBe('done');
+
+        const [span] = exporter.getFinishedSpans();
+        expect(span?.attributes['odd.take.argument.0']).toBe('[Unserializable value]');
+        expect(span?.attributes['odd.take.argument.1']).toBe('[Unserializable value]');
+    });
+
+    it('records a Date as its time and an Error as its name and message', () => {
+        @InstrumentClass({ prefix: 'values' })
+        class Values {
+            date(): Date {
+                return new Date('2026-11-26T00:00:00.000Z');
+            }
+
+            error(): Error {
+                return new TypeError('bad input');
+            }
+        }
+
+        new Values().date();
+        new Values().error();
+
+        const attributes = Object.fromEntries(
+            exporter.getFinishedSpans().map((span) => [span.name, span.attributes])
+        );
+        expect(attributes['values.date']?.['values.date.result']).toBe(
+            '"2026-11-26T00:00:00.000Z"'
+        );
+        expect(attributes['values.error']?.['values.error.result']).toBe('"TypeError: bad input"');
+    });
 });

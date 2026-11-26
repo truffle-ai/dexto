@@ -139,7 +139,7 @@ function isLargeBase64Data(value: string): boolean {
  * @param parent - The parent object for context checking
  * @returns Truncated value with metadata or original value
  */
-function truncateFileData(value: unknown, key: string, parent?: Record<string, unknown>): unknown {
+function truncateFileData(value: unknown, key: string, parent?: object): unknown {
     if (typeof value !== 'string') return value;
     const lowerKey = key.toLowerCase();
     // Gate "data" by presence of file-ish sibling metadata to avoid false positives
@@ -264,6 +264,27 @@ const SHARED = '[Shared]';
 // A string longer than the characters left is read only this far past them, so a secret that
 // runs past the limit is still recognised and redacted; that context is then dropped.
 const STRING_CONTEXT = 1024;
+// A token (JWT, API key, ...) that runs across where a string is cut is read to its end, up to
+// this far, so it is redacted whole. A longer run of token characters is dropped from its start.
+const MAX_TOKEN_RUN = 64 * 1024;
+const TOKEN_CHAR = /[A-Za-z0-9._~+/=@%-]/;
+
+/**
+ * Where to stop reading a string that is cut at `read`: never inside a run of token characters,
+ * which could be a credential whose pattern only matches once it is whole. The run is read to its
+ * end, or, when that is more than MAX_TOKEN_RUN away, left out from its start.
+ */
+function tokenSafeEnd(input: string, read: number): number {
+    const isTokenChar = (index: number) => TOKEN_CHAR.test(input.charAt(index));
+    if (!isTokenChar(read - 1) || !isTokenChar(read)) return read;
+    const limit = Math.min(input.length, read + MAX_TOKEN_RUN);
+    let end = read;
+    while (end < limit && isTokenChar(end)) end += 1;
+    if (end === input.length || !isTokenChar(end)) return end;
+    let start = read - 1;
+    while (start > 0 && isTokenChar(start - 1)) start -= 1;
+    return start;
+}
 
 /** The text a logger writes when it could not redact an entry, never the entry itself. */
 export const UNREDACTABLE_LOG_DATA = '[unredactable log data]';
@@ -317,11 +338,12 @@ function redactValue(
     if (typeof input === 'string') {
         if (insideSecret) return REDACTED;
         const redact = mode === 'log' ? redactLogString : redactString;
-        const read = Math.max(0, walk.budget) + STRING_CONTEXT;
+        const keep = Math.max(0, walk.budget);
+        const read = keep + STRING_CONTEXT;
         if (input.length <= read) return redact(input);
-        // A secret cut at the end of what was read is left unredacted, and redacting earlier
-        // text can shrink it back inside the limit, so the read-ahead context is dropped again.
-        return `${redact(input.slice(0, read)).slice(0, -STRING_CONTEXT)}…`;
+        // The read never ends inside a token, so every secret in it is whole and redacted, and
+        // keeping only the first `keep` characters of the result cannot keep part of one.
+        return `${redact(input.slice(0, tokenSafeEnd(input, read))).slice(0, keep)}…`;
     }
     if (typeof input !== 'object' || input === null) return input;
 
@@ -405,12 +427,12 @@ function redactContainer(
         }
         return entries;
     }
-    const fields =
-        mode === 'log' && input instanceof Error
-            ? errorFields(input)
-            : Object.fromEntries(Object.entries(input));
+    // Keys are read one at a time (no copy of the object), so a wide object costs the budget,
+    // not its width: only enumerating its keys is proportional to how many there are.
+    const fields: object = mode === 'log' && input instanceof Error ? errorFields(input) : input;
     const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(fields)) {
+    for (const key in fields) {
+        if (!Object.hasOwn(fields, key)) continue;
         if (walk.budget <= 0) {
             result[TRUNCATED] = TRUNCATED;
             break;
@@ -420,6 +442,7 @@ function redactContainer(
             result[key] = REDACTED;
             continue;
         }
+        const value: unknown = Reflect.get(fields, key);
         // First truncate file data (with parent context), then recursively redact
         const truncatedValue = truncateFileData(value, key, fields);
         result[key] = spend(
@@ -481,17 +504,21 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()
 }
 
 /**
- * Redacts a value for safeStringify. An object reached again is written once and then marked
- * [Shared], and reading stops after about `maxChars` characters of JSON, so a large or densely
- * linked value costs about the cap, not its full size.
+ * Redacts a value for safeStringify. With a finite `maxChars`, reading stops after about that
+ * many characters of JSON and an object reached again is written once and then marked [Shared],
+ * so a large or densely linked value costs about the cap: each array item, Map entry and object
+ * key is read only while budget is left, and a string only up to the budget plus its read-ahead.
+ * Enumerating a plain object's keys still takes time proportional to how many it has. Without a
+ * cap the whole value is read, and a shared object is written out in full at every reference.
  */
 export function redactForStringify(input: unknown, maxChars: number): unknown {
+    const capped = Number.isFinite(maxChars);
     return redactValue(
         input,
         {
             ancestors: new WeakSet(),
-            memo: undefined,
-            shared: new WeakSet(),
+            memo: capped ? undefined : new WeakMap(),
+            shared: capped ? new WeakSet() : undefined,
             remaining: Infinity,
             budget: maxChars,
         },
