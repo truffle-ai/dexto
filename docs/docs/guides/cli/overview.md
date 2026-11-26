@@ -408,6 +408,19 @@ dexto docs read cli/output
 
 `search` takes `--limit` (1 to 20, default 5) and returns `{results}`, each with `title`, `path`, `url`, `description` and a `snippet`. `read` prints the page as Markdown, or with `--json` its `{title, path, url, description, markdown}`; with no path it reads the docs home. A path with no page exits with a `not_found` failure. Both need a signed-in user, as other workspace commands do.
 
+## Report a Dexto bug
+
+Send Dexto a structured bug report as you, from a JSON file, stdin or `--data`:
+
+```bash
+dexto feedback submit --file report.json --yes --json
+dexto feedback submit --file - --request-id "$REQUEST_ID" --yes --json < report.json
+```
+
+The report takes `summary`, `actualBehavior`, `expectedBehavior`, `impact` and `reproduction` (`{"kind": "steps", "steps": [...]}`, or `{"kind": "unavailable", "reason": "..."}`), and optionally up to 12 `diagnostics` and 12 `relatedIdentifiers`, each `{kind, value}`. Diagnostic kinds are `page_url`, `build_version`, `client`, `environment`, `error_message`, `error_code` and `log_excerpt`; related id kinds are `session`, `run`, `trace`, `request`, `sentry_event`, `desktop`, `project`, `agent`, `computer` and `artifact`. Dexto checks the report and refuses one it can't take with an `invalid_input` failure. Include only what helps fix the bug: no secrets, credentials, cookies, authorization headers, unneeded personal data, raw transcripts, long logs or base64.
+
+It needs `feedback:write` and asks before it sends: pass `--yes` once your person has agreed, or `--dry-run` to see the call without making it. With `--json` it prints the receipt, `{reportId, createdAt, recorded, status, requestId}`. `--request-id` names the request (1 to 128 letters, digits, `.`, `_` or `-`; one is made and printed when you leave it out), and the report records it, so a retry sent with the same id can be matched to the first.
+
 ## Your managed Applications
 
 Inspect the Dockerfile Applications you own in the signed-in organization, one release and its logs, an Application's runtime variable names, its portable plugin files, and its lifecycle, measurements and costs:

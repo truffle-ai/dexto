@@ -70,7 +70,6 @@ dexto_cos_report
 dexto_direct_conversation_get
 dexto_direct_conversations_list
 dexto_direct_message_send
-dexto_feedback_submit
 dexto_function_credential_configure
 dexto_function_deploy
 dexto_function_get

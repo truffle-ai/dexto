@@ -20,6 +20,7 @@ import {
     YES_OPTION,
     type Command,
     type CommandContext,
+    type CommandInput,
 } from '../command.js';
 
 const ToolSchema = z.object({
@@ -243,6 +244,17 @@ function toolFailure(
     if (status === 'consent_required' && scopes.length > 0)
         return new MissingScopeFailure(context, scopes.map(String), message);
     return new CommandFailure('failed', message, null);
+}
+
+/** The request ids the server keeps as sent; any other is replaced, losing the retry's id. */
+const REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/u;
+
+/** A request id the person gave in `--<name>`, checked against what the server keeps. */
+export function requestIdOption(input: CommandInput, name: string): string | undefined {
+    const value = stringOption(input, name);
+    if (value !== undefined && !REQUEST_ID.test(value))
+        throw new UsageError(`--${name} takes 1 to 128 letters, digits, ".", "_" or "-".`);
+    return value;
 }
 
 /**

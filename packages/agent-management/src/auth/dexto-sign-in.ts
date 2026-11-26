@@ -35,6 +35,7 @@ export const CLI_LOGIN_SCOPES = [
     'contacts:write',
     'drive:read',
     'drive:write',
+    'feedback:write',
     'functions:read',
     'functions:write',
     'marketplace:read',

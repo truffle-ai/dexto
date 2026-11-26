@@ -27,6 +27,8 @@ export const ENGINE_WORDS = {
     workspace: 'Use your Dexto workspace as yourself: its apps and tools, over the Dexto MCP',
     find: 'Find the command for something you want to do in Dexto',
     docs: "Search Dexto's public documentation and read a page as Markdown",
+    feedback:
+        'Report a Dexto bug as you, with what happened, what you expected and how to reproduce it',
     loops: "List and inspect your account's, agents' and Projects' Loops and their runs",
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',
     profile: 'Show and change your Dexto profile: handle, name, bio and who can see it',
