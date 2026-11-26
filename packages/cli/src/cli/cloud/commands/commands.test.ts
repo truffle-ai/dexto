@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { dextoAccounts, dextoSignIn } from '@dexto/agent-management';
+import { dextoAccounts } from '@dexto/agent-management';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConnection } from '../connection.js';
 import { cloudCommands, CLOUD_GROUPS } from '../host.js';
@@ -261,7 +261,7 @@ describe('cloud secrets, web and data-deletions', () => {
             dexto: {
                 ...auth.dexto,
                 refreshSignIn: async () => {
-                    throw new dextoSignIn.SignInEnded('expired', 'Expired');
+                    throw new dextoAccounts.SignInExpired(null);
                 },
             },
         });

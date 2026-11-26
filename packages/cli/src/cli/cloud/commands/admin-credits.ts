@@ -1,7 +1,7 @@
 // Operator credits have a separate OAuth grant, stored away from ordinary workspace profiles.
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { dextoAccounts, dextoSignIn } from '@dexto/agent-management';
+import { dextoAccounts } from '@dexto/agent-management';
 import { CloudApiError, createCloudClient, unwrap } from '@dexto/cloud-client';
 import { z } from 'zod';
 import { CommandFailure } from '../../failure.js';
@@ -49,7 +49,7 @@ async function operatorClient(dir: string, signIn: SignInFor, context: CommandCo
             try {
                 return await (await signIn(signInIo(context))).dexto.refreshSignIn(login, signal);
             } catch (error) {
-                if (error instanceof dextoSignIn.SignInEnded && error.reason === 'expired')
+                if (error instanceof dextoAccounts.SignInExpired)
                     throw new CommandFailure(
                         'needs_sign_in',
                         'Operator sign-in expired.',
