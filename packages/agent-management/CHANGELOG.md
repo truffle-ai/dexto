@@ -1,5 +1,20 @@
 # @dexto/agent-management
 
+## 1.21.0
+
+### Minor Changes
+
+- e729ddd: Add `dexto applications create`, `deploy`, `rollback`, `release delete`, `suspend`, `resume`, `retire`, `purge` and `install` to manage a Dockerfile Application from the CLI. Each one asks first (or takes `--yes`), offers `--dry-run`, and needs the new `applications:write` sign-in scope; `purge` also takes `--confirm-application-id`.
+
+### Patch Changes
+
+- Updated dependencies [92d3f66]
+- Updated dependencies [e9283f4]
+    - @dexto/core@1.21.0
+    - @dexto/agent-config@1.21.0
+    - @dexto/tools-builtins@1.21.0
+    - @dexto/llm@1.21.0
+
 ## 1.20.0
 
 ### Minor Changes

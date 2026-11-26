@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tools-todo",
-    "version": "1.20.0",
+    "version": "1.21.0",
     "description": "Todo/task tracking tools factory for Dexto agents",
     "type": "module",
     "main": "./dist/index.js",
