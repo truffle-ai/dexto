@@ -262,7 +262,7 @@ const MAX_LOG_NODES = 5000;
 const TRUNCATED = '[Truncated]';
 const SHARED = '[Shared]';
 // A string longer than the characters left is read only this far past them, so a secret that
-// runs past the cut is still recognised and redacted before the text is cut.
+// runs past the limit is still recognised and redacted; that context is then dropped.
 const STRING_CONTEXT = 1024;
 
 /** The text a logger writes when it could not redact an entry, never the entry itself. */
@@ -316,9 +316,12 @@ function redactValue(
 ): unknown {
     if (typeof input === 'string') {
         if (insideSecret) return REDACTED;
+        const redact = mode === 'log' ? redactLogString : redactString;
         const read = Math.max(0, walk.budget) + STRING_CONTEXT;
-        const text = input.length > read ? input.slice(0, read) : input;
-        return mode === 'log' ? redactLogString(text) : redactString(text);
+        if (input.length <= read) return redact(input);
+        // A secret cut at the end of what was read is left unredacted, and redacting earlier
+        // text can shrink it back inside the limit, so the read-ahead context is dropped again.
+        return `${redact(input.slice(0, read)).slice(0, -STRING_CONTEXT)}…`;
     }
     if (typeof input !== 'object' || input === null) return input;
 

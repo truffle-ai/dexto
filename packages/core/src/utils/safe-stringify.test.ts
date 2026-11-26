@@ -87,6 +87,23 @@ describe('safeStringify', () => {
         expect(text).toContain('[REDACTED]');
     });
 
+    it('never keeps part of a secret cut at the limit, even after earlier text shrank', () => {
+        // The PEM block shrinks to [REDACTED], which would pull the cut-off token inside the cap.
+        const pem = `-----BEGIN PRIVATE KEY-----\n${'A'.repeat(1700)}\n-----END PRIVATE KEY-----`;
+        const token = `ghp_${'Z'.repeat(36)}`;
+        // Where the walk cuts this string: its budget plus the context read past it.
+        const cut = CAP - '{"note":"'.length + 1024;
+        const prefix = `${pem} ${'x'.repeat(cut - 20 - pem.length - 2)} `;
+        const note = `${prefix}${token}${'y'.repeat(2000)}`;
+        expect(cut).toBeGreaterThan(prefix.length);
+        expect(cut).toBeLessThan(prefix.length + token.length);
+
+        const text = safeStringify({ note }, CAP);
+
+        expect(text).not.toContain('ZZZZ');
+        expect(text).not.toContain('AAAA');
+    });
+
     it('keeps small values whole', () => {
         expect(safeStringify({ a: 1, b: [true, null, 'x'], c: 10n }, CAP)).toBe(
             '{"a":1,"b":[true,null,"x"],"c":"10"}'
