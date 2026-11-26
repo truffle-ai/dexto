@@ -2,7 +2,7 @@
     "version": 1,
     "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
-    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
+    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. actionCommands cover some actions of a passthroughOnly tool; the tool leaves passthroughOnly only once its other actions have commands too. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings. Each passthroughOnly entry says why it has no command; a tool waiting for one goes in pendingCli with its issue.",
     "commands": {
         "apps list": ["dexto_apps_list"],
         "apps get": ["dexto_app_get"],
@@ -512,45 +512,38 @@
     ],
     "localOnlyNotes": "Only cloud-host registrations are pinned here. Separately registered local run/upgrade/uninstall/chat helpers, local config/preferences and automatic chat synchronization need no MCP coverage and are outside this registration guard.",
     "passthroughOnly": [
-        "dexto_app_data_remove",
-        "dexto_app_open",
-        "dexto_app_request_access",
-        "dexto_app_runtime",
-        "dexto_capabilities_search",
-        "dexto_chat_computer",
-        "dexto_chat_continue",
-        "dexto_cos_report",
-        "dexto_direct_conversation_get",
-        "dexto_direct_conversations_list",
-        "dexto_direct_message_send",
-        "dexto_feedback_submit",
-        "dexto_function_credential_configure",
-        "dexto_function_deploy",
-        "dexto_function_get",
-        "dexto_function_invoke",
-        "dexto_function_plan",
-        "dexto_function_promote",
-        "dexto_function_secret_delete",
-        "dexto_functions_list",
-        "dexto_gigs_finding",
-        "dexto_gigs_posting",
-        "dexto_gpu_process_get",
-        "dexto_gpu_process_logs",
-        "dexto_gpu_process_start",
-        "dexto_gpu_process_stop",
-        "dexto_gpu_profiles_list",
-        "dexto_gpu_sandbox_delete",
-        "dexto_gpu_sandbox_get",
-        "dexto_gpu_sandbox_provision",
-        "dexto_gpu_sandbox_start",
-        "dexto_gpu_sandbox_stop",
-        "dexto_gpu_sandboxes_list",
-        "dexto_mcp_server_import",
-        "dexto_open",
-        "dexto_share",
-        "dexto_site_collections_list",
-        "dexto_site_get",
-        "dexto_site_promote"
+        {
+            "tool": "dexto_app_open",
+            "reason": "Presents an App inside an MCP host that renders UI; a terminal has none, and the apps commands read and manage the same Apps."
+        },
+        {
+            "tool": "dexto_app_request_access",
+            "reason": "Returns an OAuth scope challenge for an MCP host's consent prompt and runs nothing; the CLI asks to sign in again with the missing scopes instead."
+        },
+        {
+            "tool": "dexto_app_runtime",
+            "reason": "Called by an embedded App's own runtime for its install-scoped storage, never by a person or an outside agent."
+        },
+        {
+            "tool": "dexto_cos_report",
+            "reason": "Offered only to an agent reporting from one of the person's chats; the CLI acts as the person, not as a chat's agent."
+        },
+        {
+            "tool": "dexto_gigs_finding",
+            "reason": "DEXTO-3398 (in progress) adds commands for the read actions; the write actions have none yet, so the tool stays here until every action has one."
+        },
+        {
+            "tool": "dexto_gigs_posting",
+            "reason": "DEXTO-3398 (in progress) adds commands for the read actions; the write actions have none yet, so the tool stays here until every action has one."
+        },
+        {
+            "tool": "dexto_open",
+            "reason": "Opens the Saved context browser inside an MCP host that renders UI; a terminal has none, and the resources it browses have their own commands."
+        },
+        {
+            "tool": "dexto_share",
+            "reason": "workspace share public and unshare-public cover two actions (actionCommands); the organization and people actions have no command yet."
+        }
     ],
     "pendingCli": [
         {
@@ -632,6 +625,161 @@
             "tool": "dexto_subscriptions_list",
             "issue": "DEXTO-2615",
             "reason": "Cloud slice lands first; the subscriptions CLI command group follows (slice 1c)."
+        },
+        {
+            "tool": "dexto_app_data_remove",
+            "issue": "DEXTO-3779",
+            "reason": "The apps remove-data command follows upstream."
+        },
+        {
+            "tool": "dexto_capabilities_search",
+            "issue": "DEXTO-3790",
+            "reason": "The capabilities search command follows upstream."
+        },
+        {
+            "tool": "dexto_chat_computer",
+            "issue": "DEXTO-3102",
+            "reason": "The computer command group (start, exec, stop) follows upstream."
+        },
+        {
+            "tool": "dexto_chat_continue",
+            "issue": "DEXTO-4079",
+            "reason": "The chat continue command follows upstream."
+        },
+        {
+            "tool": "dexto_direct_conversation_get",
+            "issue": "DEXTO-3777",
+            "reason": "The direct conversation list and read commands follow upstream."
+        },
+        {
+            "tool": "dexto_direct_conversations_list",
+            "issue": "DEXTO-3777",
+            "reason": "The direct conversation list and read commands follow upstream."
+        },
+        {
+            "tool": "dexto_direct_message_send",
+            "issue": "DEXTO-4080",
+            "reason": "The direct message send command follows upstream."
+        },
+        {
+            "tool": "dexto_feedback_submit",
+            "issue": "DEXTO-3785",
+            "reason": "The feedback submit command follows upstream."
+        },
+        {
+            "tool": "dexto_function_credential_configure",
+            "issue": "DEXTO-4078",
+            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
+        },
+        {
+            "tool": "dexto_function_deploy",
+            "issue": "DEXTO-4078",
+            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
+        },
+        {
+            "tool": "dexto_function_get",
+            "issue": "DEXTO-3487",
+            "reason": "The Functions list, get and invoke commands follow upstream."
+        },
+        {
+            "tool": "dexto_function_invoke",
+            "issue": "DEXTO-3487",
+            "reason": "The Functions list, get and invoke commands follow upstream."
+        },
+        {
+            "tool": "dexto_function_plan",
+            "issue": "DEXTO-4078",
+            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
+        },
+        {
+            "tool": "dexto_function_promote",
+            "issue": "DEXTO-4078",
+            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
+        },
+        {
+            "tool": "dexto_function_secret_delete",
+            "issue": "DEXTO-4078",
+            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
+        },
+        {
+            "tool": "dexto_functions_list",
+            "issue": "DEXTO-3487",
+            "reason": "The Functions list, get and invoke commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_process_get",
+            "issue": "DEXTO-3940",
+            "reason": "The managed GPU read commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_process_logs",
+            "issue": "DEXTO-3940",
+            "reason": "The managed GPU read commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_process_start",
+            "issue": "DEXTO-4070",
+            "reason": "The managed GPU sandbox and process lifecycle commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_process_stop",
+            "issue": "DEXTO-4070",
+            "reason": "The managed GPU sandbox and process lifecycle commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_profiles_list",
+            "issue": "DEXTO-3940",
+            "reason": "The managed GPU read commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_sandbox_delete",
+            "issue": "DEXTO-4070",
+            "reason": "The managed GPU sandbox and process lifecycle commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_sandbox_get",
+            "issue": "DEXTO-3940",
+            "reason": "The managed GPU read commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_sandbox_provision",
+            "issue": "DEXTO-4070",
+            "reason": "The managed GPU sandbox and process lifecycle commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_sandbox_start",
+            "issue": "DEXTO-4070",
+            "reason": "The managed GPU sandbox and process lifecycle commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_sandbox_stop",
+            "issue": "DEXTO-4070",
+            "reason": "The managed GPU sandbox and process lifecycle commands follow upstream."
+        },
+        {
+            "tool": "dexto_gpu_sandboxes_list",
+            "issue": "DEXTO-3940",
+            "reason": "The managed GPU read commands follow upstream."
+        },
+        {
+            "tool": "dexto_mcp_server_import",
+            "issue": "DEXTO-3488",
+            "reason": "The MCP server import command follows upstream."
+        },
+        {
+            "tool": "dexto_site_collections_list",
+            "issue": "DEXTO-3778",
+            "reason": "The Site collections list command follows upstream."
+        },
+        {
+            "tool": "dexto_site_get",
+            "issue": "DEXTO-3485",
+            "reason": "The Site get and promote commands follow upstream."
+        },
+        {
+            "tool": "dexto_site_promote",
+            "issue": "DEXTO-3485",
+            "reason": "The Site get and promote commands follow upstream."
         }
     ]
 }
