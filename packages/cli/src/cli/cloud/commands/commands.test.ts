@@ -186,7 +186,7 @@ describe('cloud secrets, web and data-deletions', () => {
                 { status: 401 }
             );
         expect(await runCloud(host, command)).toBe(3);
-        expect(JSON.parse(stderr).error.fix).toBe('dexto admin login --device');
+        expect(JSON.parse(stderr).error.fix).toBe('dexto admin login');
     });
 
     it('signs in for operator credits without replacing the workspace profile', async () => {
@@ -234,9 +234,17 @@ describe('cloud secrets, web and data-deletions', () => {
                 acceptsApiKey: async () => false,
             },
         };
-        const signIn = async () => auth;
+        // Dexto grants credit access only through a device code, even when a browser could open.
+        const signInWithBrowser = vi.fn(async () => operator);
+        const signIn = async () => ({
+            ...auth,
+            canOpenBrowser: true,
+            interactive: true,
+            dexto: { ...auth.dexto, signInWithBrowser },
+        });
         host = { ...host, commands: cloudCommands(dir, signIn), signIn };
         expect(await runCloud(host, ['admin', 'login', '--json'])).toBe(0);
+        expect(signInWithBrowser).not.toHaveBeenCalled();
         expect(signInWithDevice).toHaveBeenCalledWith(
             expect.objectContaining({ purpose: 'operator-credits' })
         );
@@ -260,7 +268,7 @@ describe('cloud secrets, web and data-deletions', () => {
         host = { ...host, commands: cloudCommands(dir, expiredSignIn), signIn: expiredSignIn };
         stderr = '';
         expect(await runCloud(host, ['admin', 'credits', 'list', '--json'])).toBe(3);
-        expect(JSON.parse(stderr).error.fix).toBe('dexto admin login --device');
+        expect(JSON.parse(stderr).error.fix).toBe('dexto admin login');
         const transientSignIn = async () => ({
             ...auth,
             dexto: {

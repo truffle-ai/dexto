@@ -34,7 +34,7 @@ function refuseOverrides(context: CommandContext): void {
 
 function throwOperatorFailure(error: unknown): never {
     if (error instanceof CloudApiError && error.status === 401)
-        throw new CommandFailure('needs_sign_in', error.message, 'dexto admin login --device');
+        throw new CommandFailure('needs_sign_in', error.message, 'dexto admin login');
     throw error;
 }
 
@@ -53,7 +53,7 @@ async function operatorClient(dir: string, signIn: SignInFor, context: CommandCo
                     throw new CommandFailure(
                         'needs_sign_in',
                         'Operator sign-in expired.',
-                        'dexto admin login --device'
+                        'dexto admin login'
                     );
                 throw error;
             }
@@ -68,7 +68,7 @@ async function operatorClient(dir: string, signIn: SignInFor, context: CommandCo
         throw new CommandFailure(
             'needs_sign_in',
             'Operator credit sign-in required.',
-            'dexto admin login --device'
+            'dexto admin login'
         );
     if (
         context.overrides.apiBaseUrl !== null &&
@@ -87,12 +87,8 @@ async function operatorClient(dir: string, signIn: SignInFor, context: CommandCo
 export function adminCreditCommands(dir: string, signIn: SignInFor): readonly Command[] {
     const login: Command = {
         path: ['admin', 'login'],
-        summary: 'Sign in separately as an operator for credit grants.',
-        options: {
-            device: { type: 'boolean', description: 'Approve a code on another device.' },
-            'no-browser': { type: 'boolean', description: 'Print the authorization link.' },
-        },
-        examples: ['dexto admin login --device', 'dexto admin login --json'],
+        summary: 'Sign in separately as an operator for credit grants, by device code.',
+        examples: ['dexto admin login', 'dexto admin login --json'],
         jsonOutput: {
             description: 'The operator account that signed in.',
             schema: z.toJSONSchema(
@@ -104,7 +100,7 @@ export function adminCreditCommands(dir: string, signIn: SignInFor): readonly Co
                 })
             ),
         },
-        async run(context, input) {
+        async run(context) {
             refuseOverrides(context);
             const auth = await signIn(signInIo(context));
             const request = {
@@ -113,15 +109,11 @@ export function adminCreditCommands(dir: string, signIn: SignInFor): readonly Co
                 organization: null,
                 purpose: 'operator-credits' as const,
             };
-            const device = flag(input, 'device') || !auth.interactive || !auth.canOpenBrowser;
+            // Dexto grants credit access only by device code: a browser sign-in has no code to
+            // match, so anything on this machine could start one as the CLI.
             let saved: dextoAccounts.OAuthLogin;
             try {
-                saved = device
-                    ? await auth.dexto.signInWithDevice(request)
-                    : await auth.dexto.signInWithBrowser({
-                          ...request,
-                          openBrowser: !flag(input, 'no-browser'),
-                      });
+                saved = await auth.dexto.signInWithDevice(request);
             } catch (error) {
                 auth.screen.settle(false);
                 throw error;
@@ -134,7 +126,7 @@ export function adminCreditCommands(dir: string, signIn: SignInFor): readonly Co
                 throw new CommandFailure(
                     'needs_permission',
                     'The sign-in did not grant operator credit access.',
-                    'dexto admin login --device'
+                    'dexto admin login'
                 );
             await dextoAccounts.writeLogin(operatorDir(dir), PROFILE, saved);
             context.output.result(
