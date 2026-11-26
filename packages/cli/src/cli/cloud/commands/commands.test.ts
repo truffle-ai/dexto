@@ -3,11 +3,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConnection } from '../connection.js';
 import { cloudCommands, CLOUD_GROUPS } from '../host.js';
 import { runCloud, type CloudHost } from '../run.js';
 import type { CloudRuntime } from '../runtime.js';
+import type { SignInContext } from '../../commands/auth/sign-in-commands.js';
 
 const unusedSignIn = async (): Promise<never> => {
     throw new Error('These tests sign in with a key or a saved login.');
@@ -82,6 +83,211 @@ describe('cloud secrets, web and data-deletions', () => {
 
     afterEach(async () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
+    });
+
+    it('uses a separate operator login for dry runs, grants, retries and history', async () => {
+        await dextoAccounts.writeLogin(path.join(dir, 'operator-credits'), 'default', {
+            kind: 'oauth',
+            accessToken: 'operator-access',
+            refreshToken: 'operator-refresh',
+            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+            clientId: 'dexto-cli',
+            appUrl: 'https://app.dexto.ai',
+            apiBaseUrl: 'https://api.dexto.ai',
+            resource: 'https://app.dexto.ai/api/internal/admin/mcp',
+            tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
+            scopes: ['admin:credits'],
+            savedAt: '2026-11-01T00:00:00.000Z',
+            signedInAs: null,
+            cloudProject: null,
+        });
+        reply = () =>
+            Response.json(
+                {
+                    balance_usd: 25,
+                    credits_usd: 25,
+                    dry_run: false,
+                    grant_id: '123e4567-e89b-42d3-a456-426614174000',
+                    organization_id: '123e4567-e89b-42d3-a456-426614174001',
+                    recipient_id: '123e4567-e89b-42d3-a456-426614174002',
+                },
+                { status: 201 }
+            );
+        const command = [
+            'admin',
+            'credits',
+            'grant',
+            'test@example.com',
+            '25',
+            '--reason',
+            'test support',
+            '--idempotency-key',
+            'request-1',
+            '--json',
+        ];
+        expect(await runCloud(host, command)).toBe(0);
+        expect(requests[0]).toMatchObject({
+            method: 'POST',
+            url: 'https://api.dexto.ai/v1/admin/credit_grants',
+            body: {
+                email: 'test@example.com',
+                credits_usd: 25,
+                reason: 'test support',
+                idempotency_key: 'request-1',
+            },
+        });
+        expect(requests[0]?.headers.get('authorization')).toBe('Bearer operator-access');
+        expect(await runCloud(host, command)).toBe(0);
+        expect(requests[1]?.body).toEqual(requests[0]?.body);
+        expect(await runCloud(host, [...command, '--dry-run'])).toBe(0);
+        expect(requests[2]?.body).toMatchObject({ dry_run: true });
+        reply = () =>
+            Response.json({ data: [], has_more: false, next_after: null, object: 'list' });
+        expect(await runCloud(host, ['admin', 'credits', 'list', '--json'])).toBe(0);
+        expect(requests[3]?.method).toBe('GET');
+        expect(await runCloud(host, [...command, '--api-key', 'wrong-key'])).not.toBe(0);
+        expect(requests).toHaveLength(4);
+        stderr = '';
+        expect(
+            await runCloud(host, [
+                'admin',
+                'credits',
+                'grant',
+                'test@example.com',
+                '25',
+                '--reason',
+                'test support',
+                '--json',
+            ])
+        ).toBe(2);
+        expect(JSON.parse(stderr).error.message).toContain('--idempotency-key');
+        expect(requests).toHaveLength(4);
+        stderr = '';
+        reply = () => {
+            throw new TypeError('connection dropped');
+        };
+        expect(await runCloud(host, command)).toBe(1);
+        const attempted = requests[4]?.body as { idempotency_key: string };
+        expect(attempted.idempotency_key).toBe('request-1');
+        expect(JSON.parse(stderr).error.fix).toContain(
+            `--idempotency-key ${attempted.idempotency_key}`
+        );
+        stderr = '';
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: 'unauthorized',
+                        message: 'Expired',
+                        retryable: false,
+                        requestId: 'test',
+                    },
+                },
+                { status: 401 }
+            );
+        expect(await runCloud(host, command)).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toBe('dexto admin login');
+    });
+
+    it('signs in for operator credits without replacing the workspace profile', async () => {
+        const workspace: dextoAccounts.OAuthLogin = {
+            kind: 'oauth',
+            accessToken: 'workspace-access',
+            refreshToken: 'workspace-refresh',
+            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+            clientId: 'dexto-cli',
+            appUrl: 'https://app.dexto.ai',
+            apiBaseUrl: 'https://api.dexto.ai',
+            resource: 'https://app.dexto.ai/mcp',
+            tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
+            scopes: ['cloud:read'],
+            savedAt: '2026-11-01T00:00:00.000Z',
+            signedInAs: null,
+            cloudProject: null,
+        };
+        await dextoAccounts.writeLogin(dir, 'default', workspace);
+        const operator = {
+            ...workspace,
+            accessToken: 'operator-access',
+            resource: 'https://app.dexto.ai/api/internal/admin/mcp',
+            scopes: ['admin:credits'],
+        };
+        const signInWithDevice = vi.fn(async () => operator);
+        const auth: SignInContext = {
+            dir,
+            environment: {},
+            appUrl: workspace.appUrl,
+            apiBaseUrl: workspace.apiBaseUrl,
+            result: () => {},
+            note: () => {},
+            confirm: async () => false,
+            canOpenBrowser: false,
+            interactive: false,
+            chatSyncOn: async () => false,
+            screen: { look: 'plain', show: () => {}, settle: () => {}, signedInText: () => '' },
+            dexto: {
+                signInWithDevice,
+                signInWithBrowser: async () => operator,
+                endSignIn: async () => ({ status: 'ended' }),
+                refreshSignIn: async (login) => login,
+                listProjects: async () => [],
+                acceptsApiKey: async () => false,
+            },
+        };
+        // Dexto grants credit access only through a device code, even when a browser could open.
+        const signInWithBrowser = vi.fn(async () => operator);
+        const signIn = async () => ({
+            ...auth,
+            canOpenBrowser: true,
+            interactive: true,
+            dexto: { ...auth.dexto, signInWithBrowser },
+        });
+        host = { ...host, commands: cloudCommands(dir, signIn), signIn };
+        expect(await runCloud(host, ['admin', 'login', '--json'])).toBe(0);
+        expect(signInWithBrowser).not.toHaveBeenCalled();
+        expect(signInWithDevice).toHaveBeenCalledWith(
+            expect.objectContaining({ purpose: 'operator-credits' })
+        );
+        expect(await dextoAccounts.readLogin(dir, 'default')).toEqual(workspace);
+        expect(
+            await dextoAccounts.readLogin(path.join(dir, 'operator-credits'), 'default')
+        ).toEqual(operator);
+        await dextoAccounts.writeLogin(path.join(dir, 'operator-credits'), 'default', {
+            ...operator,
+            expiresAt: '2000-01-01T00:00:00.000Z',
+        });
+        const expiredSignIn = async () => ({
+            ...auth,
+            dexto: {
+                ...auth.dexto,
+                refreshSignIn: async () => {
+                    throw new dextoAccounts.SignInExpired(null);
+                },
+            },
+        });
+        host = { ...host, commands: cloudCommands(dir, expiredSignIn), signIn: expiredSignIn };
+        stderr = '';
+        expect(await runCloud(host, ['admin', 'credits', 'list', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toBe('dexto admin login');
+        const transientSignIn = async () => ({
+            ...auth,
+            dexto: {
+                ...auth.dexto,
+                refreshSignIn: async () => {
+                    throw new TypeError('network unavailable');
+                },
+            },
+        });
+        host = { ...host, commands: cloudCommands(dir, transientSignIn), signIn: transientSignIn };
+        stderr = '';
+        expect(await runCloud(host, ['admin', 'credits', 'list', '--json'])).toBe(1);
+        expect(JSON.parse(stderr).error.fix).toBeUndefined();
+        host = { ...host, commands: cloudCommands(dir, signIn), signIn };
+        expect(await runCloud(host, ['admin', 'logout', '--json'])).toBe(0);
+        expect(
+            await dextoAccounts.readLogin(path.join(dir, 'operator-credits'), 'default')
+        ).toBeNull();
+        expect(await dextoAccounts.readLogin(dir, 'default')).toEqual(workspace);
     });
 
     it('publishes an HTML file as an organization Artifact', async () => {

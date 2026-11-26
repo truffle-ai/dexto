@@ -35,6 +35,34 @@
     "examples": false
   },
   {
+    "command": "admin credits grant",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "admin credits list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "admin login",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "admin logout",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
     "command": "applications export-plugin",
     "json": true,
     "dryRun": false,

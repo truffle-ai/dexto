@@ -56,6 +56,15 @@ function fakeServer(route: Route) {
 }
 
 function metadata(url: string): { status: number; body: unknown } | undefined {
+    if (url === `${APP}/.well-known/oauth-protected-resource/api/internal/admin/mcp`)
+        return {
+            status: 200,
+            body: {
+                resource: `${APP}/api/internal/admin/mcp`,
+                authorization_servers: [APP],
+                scopes_supported: ['admin:analytics', 'admin:credits'],
+            },
+        };
     if (url === `${APP}/.well-known/oauth-protected-resource/mcp`)
         return {
             status: 200,
@@ -317,7 +326,7 @@ describe('signInPromptText', () => {
                 `  Code          ABCD-EFGH`,
                 `  From          this computer (sams-laptop)`,
                 `  Access        2 permissions, listed under Details on the approval page`,
-                `Only approve this if you just ran dexto login.`,
+                `Only approve this if you just started this sign-in.`,
             ].join('\n')
         );
     });
@@ -360,6 +369,34 @@ describe('signInRequestRows', () => {
 });
 
 describe('signInWithDevice', () => {
+    it('requests only explicit credit authority for a separate operator login', async () => {
+        const server = fakeServer((call) => {
+            if (call.url.endsWith('/device_authorization'))
+                return {
+                    status: 200,
+                    body: {
+                        device_code: 'device',
+                        user_code: 'ABCD-EFGH',
+                        expires_in: 600,
+                        verification_uri: `${APP}/device`,
+                    },
+                };
+            if (call.url.endsWith('/token'))
+                return { status: 200, body: { ...tokenReply, scope: 'admin:credits' } };
+            return undefined;
+        });
+        const login = await signInWithDevice(runtime(server.fetch), {
+            appUrl: APP,
+            apiBaseUrl: API,
+            organization: null,
+            purpose: 'operator-credits',
+        });
+        const start = server.calls.find((call) => call.url.endsWith('/device_authorization'));
+        expect(start?.body?.get('resource')).toBe(`${APP}/api/internal/admin/mcp`);
+        expect(start?.body?.get('scope')).toBe('admin:credits');
+        expect(login.resource).toBe(`${APP}/api/internal/admin/mcp`);
+        expect(login.scopes).toEqual(['admin:credits']);
+    });
     it('polls as dexto-cli until approved, slowing down when asked', async () => {
         const replies = [
             { status: 400, body: { error: 'authorization_pending' } },
@@ -413,7 +450,9 @@ describe('signInWithDevice', () => {
         );
         expect(slept).toEqual([5000, 5000, 10000]);
         expect(fake.notes.join('\n')).toContain('ABCD-EFGH');
-        expect(fake.notes.join('\n')).toContain('Only approve this if you just ran dexto login');
+        expect(fake.notes.join('\n')).toContain(
+            'Only approve this if you just started this sign-in'
+        );
         expect(fake.prompts).toEqual([
             expect.objectContaining({ kind: 'device', userCode: 'ABCD-EFGH' }),
         ]);
