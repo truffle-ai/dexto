@@ -868,6 +868,13 @@
     "examples": false
   },
   {
+    "command": "gpus delete",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "gpus get",
     "json": true,
     "dryRun": false,
@@ -896,10 +903,45 @@
     "examples": true
   },
   {
+    "command": "gpus process start",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "gpus process stop",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "gpus profiles",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "gpus provision",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "gpus start",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "gpus stop",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
     "examples": true
   },
   {

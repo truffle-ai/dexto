@@ -445,7 +445,20 @@ dexto gpus process "$SANDBOX_ID" "$PROCESS_ID" --json
 dexto gpus logs "$SANDBOX_ID" "$PROCESS_ID" --stream stderr --json
 ```
 
-These act as you, so they need your own sign-in, not an API key, with the `gpu:read` permission; they work only where your account has managed GPUs. Profiles returns `{data}`: each profile's GPU, limits and estimated hourly rate. List returns `{data, has_more, next_after}` and accepts `--limit` (1 to 100) and `--after`. Get returns `{sandbox}`; process returns `{process}`, its state and exit code, from a running sandbox. Logs reads one page of stdout (default) or stderr and accepts `--after` (a byte cursor) and `--limit-bytes` (up to 65536); with `--json` it returns `{text, cursor, nextCursor, eof, stream, processId}`, and without it prints the text and the next `--after` while more remains. Provisioning, starting, stopping and running processes are not CLI commands.
+These act as you, so they need your own sign-in, not an API key, with the `gpu:read` permission; they work only where your account has managed GPUs. Profiles returns `{data}`: each profile's GPU, limits and estimated hourly rate. List returns `{data, has_more, next_after}` and accepts `--limit` (1 to 100) and `--after`. Get returns `{sandbox}`; process returns `{process}`, its state and exit code, from a running sandbox. Logs reads one page of stdout (default) or stderr and accepts `--after` (a byte cursor) and `--limit-bytes` (up to 65536); with `--json` it returns `{text, cursor, nextCursor, eof, stream, processId}`, and without it prints the text and the next `--after` while more remains.
+
+Provision, start, stop and delete a sandbox, and start or stop a process in a running one:
+
+```bash
+dexto gpus provision train --profile "$PROFILE_ID" --image "$IMAGE_ID" --max-minutes 60 --yes --json
+dexto gpus process start "$SANDBOX_ID" "python train.py --epochs 3" --yes --json
+dexto gpus process stop "$SANDBOX_ID" "$PROCESS_ID" --yes --json
+dexto gpus stop "$SANDBOX_ID" --yes --json
+dexto gpus start "$SANDBOX_ID" --max-minutes 30 --yes --json
+dexto gpus delete "$SANDBOX_ID" --yes --json
+```
+
+These need the `gpu:write` permission. Each one asks before it acts, and without a terminal it needs `--yes`: provisioning and starting bill compute to your account until the sandbox stops or reaches `--max-minutes` (at most the profile's limit), and deleting removes the sandbox's workspace files for good. `--dry-run` prints the tool call without making it. Sandbox commands return `{action, sandbox}`; process commands return `{action, process}`. `provision` and `process start` take `--idempotency-key` (a UUID): send the same key again to retry a request without provisioning or starting twice; without one, each run is a new request. `process start` runs its command in `/workspace` unless you pass `--cwd`, and the process keeps running after the command returns; follow it with `gpus process` and `gpus logs`. When your account lacks credits or managed GPUs, the command fails with the server's reason.
 
 ## Your Channels
 

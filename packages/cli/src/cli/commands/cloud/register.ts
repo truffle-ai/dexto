@@ -17,7 +17,7 @@ export const ENGINE_WORDS = {
     accounts: 'List, switch and remove saved sign-ins, one per account and organization',
     models: 'Models Dexto serves on your sign-in',
     notifications: 'List and read your Dexto notifications, and mark them read',
-    gpus: "Inspect your managed GPU profiles, sandboxes and their processes' logs",
+    gpus: 'Inspect, provision, start, stop and delete your managed GPU sandboxes, and run processes in them',
     marketplace:
         'Find, install and publish Dexto Marketplace listings: AutoBot templates, Dexto Apps and Skills',
     billing: "Show the organization's credit balance and recent spending",

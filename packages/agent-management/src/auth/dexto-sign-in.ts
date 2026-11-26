@@ -37,6 +37,7 @@ export const CLI_LOGIN_SCOPES = [
     'functions:read',
     'functions:write',
     'gpu:read',
+    'gpu:write',
     'marketplace:read',
     'marketplace:write',
     'messages:read',
