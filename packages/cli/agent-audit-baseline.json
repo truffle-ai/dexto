@@ -77,6 +77,13 @@
     "examples": true
   },
   {
+    "command": "apps deploy",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "apps get",
     "json": true,
     "dryRun": false,
@@ -92,6 +99,13 @@
   },
   {
     "command": "apps uninstalled",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "apps verify",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
