@@ -308,7 +308,7 @@ const provision: Command = {
     arguments: '<name>',
     options: {
         image: { description: 'The image to run, one the profile supports.', type: 'string' },
-        profile: {
+        'gpu-profile': {
             description: 'The GPU profile, from `dexto gpus profiles`.',
             type: 'string',
             valueName: 'ID',
@@ -321,12 +321,12 @@ const provision: Command = {
     path: ['gpus', 'provision'],
     summary: 'Provision and start a GPU sandbox, billed to your account while it runs.',
     examples: [
-        'dexto gpus provision train --profile "$PROFILE_ID" --image pytorch --max-minutes 60 --yes --json',
-        'dexto gpus provision train --profile "$PROFILE_ID" --image pytorch --max-minutes 60 --idempotency-key "$KEY" --dry-run',
+        'dexto gpus provision train --gpu-profile "$PROFILE_ID" --image pytorch --max-minutes 60 --yes --json',
+        'dexto gpus provision train --gpu-profile "$PROFILE_ID" --image pytorch --max-minutes 60 --idempotency-key "$KEY" --dry-run',
     ],
     async run(context, input) {
         const name = argument(input, 0, 'name');
-        const profileId = requiredOption(input, 'profile');
+        const profileId = requiredOption(input, 'gpu-profile');
         const imageId = requiredOption(input, 'image');
         const minutes = maximumRuntimeMinutes(input);
         await changeGpu(context, input, {

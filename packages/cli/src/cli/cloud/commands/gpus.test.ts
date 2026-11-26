@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MissingScopeFailure, type CommandContext } from '../command.js';
 import { CommandFailure } from '../../failure.js';
+import { GLOBAL_OPTIONS } from '../run.js';
 import { gpuCommands } from './gpus.js';
 
 const query = vi.hoisted(() => vi.fn());
@@ -242,10 +243,18 @@ describe('dexto gpus lifecycle and processes', () => {
         'idempotency-key': idempotencyKey,
         image: 'pytorch',
         'max-minutes': '60',
-        profile: 'a100-1x',
+        'gpu-profile': 'a100-1x',
         yes: true,
     };
     const runningProcess = { exitCode: null, id: processId, state: 'running' };
+
+    it('names no option the way a global one is named, which the CLI takes first', () => {
+        const globals = Object.keys(GLOBAL_OPTIONS);
+        for (const command of gpuCommands)
+            expect(
+                Object.keys(command.options ?? {}).filter((name) => globals.includes(name))
+            ).toEqual([]);
+    });
 
     it('provisions with the given profile, image, name, runtime and idempotency key', async () => {
         const { context, output } = contextWith(['gpu:write']);
@@ -306,7 +315,9 @@ describe('dexto gpus lifecycle and processes', () => {
                 positionals: ['train'],
                 values: { ...provisionValues, ...values },
             });
-        await expect(run({ profile: undefined })).rejects.toThrow('--profile is required');
+        await expect(run({ 'gpu-profile': undefined })).rejects.toThrow(
+            '--gpu-profile is required'
+        );
         await expect(run({ image: undefined })).rejects.toThrow('--image is required');
         await expect(run({ 'max-minutes': undefined })).rejects.toThrow(
             '--max-minutes is required'

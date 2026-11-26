@@ -450,7 +450,7 @@ These act as you, so they need your own sign-in, not an API key, with the `gpu:r
 Provision, start, stop and delete a sandbox, and start or stop a process in a running one:
 
 ```bash
-dexto gpus provision train --profile "$PROFILE_ID" --image "$IMAGE_ID" --max-minutes 60 --yes --json
+dexto gpus provision train --gpu-profile "$PROFILE_ID" --image "$IMAGE_ID" --max-minutes 60 --yes --json
 dexto gpus process start "$SANDBOX_ID" "python train.py --epochs 3" --yes --json
 dexto gpus process stop "$SANDBOX_ID" "$PROCESS_ID" --yes --json
 dexto gpus stop "$SANDBOX_ID" --yes --json
