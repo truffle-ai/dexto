@@ -24,6 +24,45 @@ export type Connection = {
     | { readonly kind: 'oauth'; readonly token: string; readonly login: dextoAccounts.OAuthLogin }
 );
 
+/** The target of a consented operation, without its rotating credentials. */
+export function pinConnection(connection: Extract<Connection, { kind: 'oauth' }>) {
+    const { login } = connection;
+    return {
+        profile: connection.profile,
+        apiBaseUrl: connection.apiBaseUrl,
+        cloudProject: connection.cloudProject,
+        accountId: login.signedInAs?.account.id ?? null,
+        organizationId: login.signedInAs?.organization.id ?? null,
+        savedAt: login.savedAt,
+        appUrl: login.appUrl,
+        resource: login.resource,
+        tokenEndpoint: login.tokenEndpoint,
+        clientId: login.clientId,
+    };
+}
+
+export type PinnedConnection = ReturnType<typeof pinConnection>;
+
+/** A fresh credential must still belong to the target that was previewed. */
+export function matchesPinnedConnection(pinned: PinnedConnection, connection: Connection): boolean {
+    if (connection.kind !== 'oauth') return false;
+    const current = pinConnection(connection);
+    return (
+        current.profile === pinned.profile &&
+        current.apiBaseUrl === pinned.apiBaseUrl &&
+        current.cloudProject === pinned.cloudProject &&
+        current.appUrl === pinned.appUrl &&
+        current.resource === pinned.resource &&
+        current.tokenEndpoint === pinned.tokenEndpoint &&
+        current.clientId === pinned.clientId &&
+        // Without a reported account, the same saved grant may gain identity details on refresh.
+        (pinned.accountId === null
+            ? current.savedAt === pinned.savedAt
+            : current.accountId === pinned.accountId &&
+              current.organizationId === pinned.organizationId)
+    );
+}
+
 export interface ResolveConnectionInput {
     /** ~/.dexto/accounts */
     readonly dir: string;
@@ -35,7 +74,7 @@ export interface ResolveConnectionInput {
     ) => Promise<dextoAccounts.OAuthLogin>;
 }
 
-/** --api-key, then DEXTO_API_KEY, then the profile's sign-in, refreshed when due; null when none. */
+/** The credential resolveCredential picks, with its API origin and Cloud project; null when none. */
 export async function resolveConnection(input: ResolveConnectionInput): Promise<Connection | null> {
     const credential = await dextoAccounts.resolveCredential({
         dir: input.dir,
@@ -48,7 +87,7 @@ export async function resolveConnection(input: ResolveConnectionInput): Promise<
     const saved =
         credential.kind === 'oauth'
             ? credential.login
-            : credential.source === 'login'
+            : credential.source === 'saved_key'
               ? await dextoAccounts.readLogin(input.dir, credential.profile)
               : null;
     const apiBaseUrl = (

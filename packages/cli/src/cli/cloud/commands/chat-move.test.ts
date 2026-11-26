@@ -98,7 +98,7 @@ function harness(withAgent: boolean) {
         },
         connection: async () => ({
             kind: 'oauth',
-            source: 'login',
+            source: 'sign_in',
             profile: 'default',
             apiBaseUrl: 'https://api.invalid',
             token: 'fake',

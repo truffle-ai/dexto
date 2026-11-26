@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.19.10
+
+### Patch Changes
+
+- db49ce8: Emit a cancelled run completion when turn driver setup is aborted before the turn starts.
+    - @dexto/llm@1.19.10
+
 ## 1.19.9
 
 ### Patch Changes

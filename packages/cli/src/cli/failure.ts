@@ -36,12 +36,14 @@ export const EXIT_CODE_MEANINGS = {
 export class CommandFailure extends Error {
     readonly fix: string | null;
     readonly kind: FailureKind;
+    readonly details: unknown;
 
-    constructor(kind: FailureKind, message: string, fix: string | null) {
+    constructor(kind: FailureKind, message: string, fix: string | null, details: unknown = null) {
         super(message);
         this.name = 'CommandFailure';
         this.fix = fix;
         this.kind = kind;
+        this.details = details;
     }
 }
 
