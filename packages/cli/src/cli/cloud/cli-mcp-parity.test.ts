@@ -50,54 +50,31 @@ cloud-sites-deploy`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.
-const approvedPassthroughOnly = `dexto_app_data_remove
-dexto_app_open
+const approvedPassthroughOnly = `dexto_app_open
 dexto_app_request_access
 dexto_app_runtime
-dexto_application_create
-dexto_application_deploy
-dexto_application_install
-dexto_application_purge
-dexto_application_release_delete
-dexto_application_resume
-dexto_application_retire
-dexto_application_rollback
-dexto_application_suspend
-dexto_capabilities_search
-dexto_chat_computer
-dexto_chat_continue
 dexto_cos_report
-dexto_direct_conversation_get
-dexto_direct_conversations_list
-dexto_direct_message_send
-dexto_feedback_submit
-dexto_function_credential_configure
-dexto_function_deploy
-dexto_function_get
-dexto_function_invoke
-dexto_function_plan
-dexto_function_promote
-dexto_function_secret_delete
-dexto_functions_list
 dexto_gigs_finding
 dexto_gigs_posting
-dexto_gpu_process_get
-dexto_gpu_process_logs
-dexto_gpu_process_start
-dexto_gpu_process_stop
-dexto_gpu_profiles_list
-dexto_gpu_sandbox_delete
-dexto_gpu_sandbox_get
-dexto_gpu_sandbox_provision
-dexto_gpu_sandbox_start
-dexto_gpu_sandbox_stop
-dexto_gpu_sandboxes_list
-dexto_mcp_server_import
 dexto_open
-dexto_share
-dexto_site_collections_list
-dexto_site_get
-dexto_site_promote`.split('\n');
+dexto_share`.split('\n');
+
+/** A passthrough-only tool says why it has no command; one waiting for a command is pendingCli. */
+const passthroughOnlySchema = z.array(
+    z.object({ tool: z.string(), reason: z.string().trim().min(1) }).strict()
+);
+const pendingCliSchema = z.array(
+    z
+        .object({
+            tool: z.string(),
+            issue: z.string().regex(/^DEXTO-\d+$/),
+            reason: z.string().trim().min(1),
+        })
+        .strict()
+);
+const passthroughOnly = passthroughOnlySchema
+    .parse(inventory.passthroughOnly)
+    .map(({ tool }) => tool);
 
 const approvedLocalOnly = [
     'accounts list',
@@ -138,12 +115,12 @@ describe('CLI and MCP capability parity', () => {
     });
 
     it('partitions vendored tools into real coverage and passthrough-only debt', () => {
-        expect([...inventory.passthroughOnly].sort()).toEqual([...approvedPassthroughOnly].sort());
-        expect(new Set(inventory.passthroughOnly).size).toBe(inventory.passthroughOnly.length);
+        expect([...passthroughOnly].sort()).toEqual([...approvedPassthroughOnly].sort());
+        expect(new Set(passthroughOnly).size).toBe(passthroughOnly.length);
         const direct = Object.entries(inventory.commands)
             .filter(([command]) => command !== 'workspace call')
             .flatMap(([, tools]) => tools);
-        expect(inventory.passthroughOnly.filter((tool) => direct.includes(tool))).toEqual([]);
+        expect(passthroughOnly.filter((tool) => direct.includes(tool))).toEqual([]);
         // Discovery inspects tools/list; generic workspace call is not coverage.
         expect(
             Object.entries(inventory.commands)
@@ -152,18 +129,29 @@ describe('CLI and MCP capability parity', () => {
                 .sort()
         ).toEqual(['workspace call', 'workspace describe', 'workspace tools']);
         expect(inventory.commands['chat outputs']).toEqual(['dexto_chat_outputs_list']);
-        const pending = z
-            .array(z.object({ tool: z.string() }))
-            .parse(inventory.pendingCli)
-            .map((entry) => entry.tool);
+        const pending = pendingCliSchema.parse(inventory.pendingCli).map((entry) => entry.tool);
+        expect(new Set(pending).size).toBe(pending.length);
         expect(
-            pending.filter(
-                (tool) => direct.includes(tool) || inventory.passthroughOnly.includes(tool)
-            )
+            pending.filter((tool) => direct.includes(tool) || passthroughOnly.includes(tool))
         ).toEqual([]);
-        expect([...new Set(direct.concat(inventory.passthroughOnly, pending))].sort()).toEqual(
+        expect([...new Set(direct.concat(passthroughOnly, pending))].sort()).toEqual(
             catalog.tools.map((tool) => tool.name).sort()
         );
+    });
+
+    it('refuses a passthrough-only or pending tool without a reason', () => {
+        expect(passthroughOnlySchema.safeParse(['dexto_open']).success).toBe(false);
+        expect(passthroughOnlySchema.safeParse([{ tool: 'dexto_open' }]).success).toBe(false);
+        expect(passthroughOnlySchema.safeParse([{ tool: 'dexto_open', reason: ' ' }]).success).toBe(
+            false
+        );
+        expect(pendingCliSchema.safeParse([{ tool: 'dexto_open', issue: 'DEXTO-1' }]).success).toBe(
+            false
+        );
+        expect(
+            pendingCliSchema.safeParse([{ tool: 'dexto_open', reason: 'Follows upstream.' }])
+                .success
+        ).toBe(false);
     });
 
     it('rejects stale or untracked exceptions', () => {
