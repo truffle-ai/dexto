@@ -1,5 +1,7 @@
 # @dexto/cloud-client
 
+## 1.20.0
+
 ## 1.19.10
 
 ### Patch Changes
