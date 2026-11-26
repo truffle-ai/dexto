@@ -896,6 +896,13 @@
     "examples": false
   },
   {
+    "command": "loops delete",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "loops get",
     "json": true,
     "dryRun": false,
@@ -907,6 +914,13 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "loops run",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
     "examples": true
   },
   {
