@@ -29,21 +29,24 @@ const RUN = {
     status: 'succeeded',
     triggeredAt: '2026-11-23T09:00:00.000Z',
 };
-/** The two Loop tools as the Dexto MCP lists them, each at its own level. */
-const TOOLS = [
-    ['dexto_automation_trigger', 'Trigger Dexto automation', 'work'],
-    ['dexto_automation_delete', 'Delete Dexto automation', 'act'],
-].map(([name, title, level]) => ({
-    _meta: { 'dexto/app': 'automations', 'dexto/level': level },
-    inputSchema: {
-        type: 'object',
-        properties: { automationId: { type: 'string' } },
-        required: ['automationId'],
-        additionalProperties: false,
-    },
-    name,
-    title,
-}));
+/** The Loop tools that change a Loop, as the Dexto MCP lists them, each at its own level. */
+const listedTools = (createLevel = 'work') =>
+    [
+        ['dexto_automation_create', 'Create Dexto automation', createLevel],
+        ['dexto_automation_update', 'Update Dexto automation', 'work'],
+        ['dexto_automation_trigger', 'Trigger Dexto automation', 'work'],
+        ['dexto_automation_delete', 'Delete Dexto automation', 'act'],
+    ].map(([name, title, level]) => ({
+        _meta: { 'dexto/app': 'automations', 'dexto/level': level },
+        inputSchema: {
+            type: 'object',
+            properties: { automationId: { type: 'string' } },
+            required: ['automationId'],
+            additionalProperties: false,
+        },
+        name,
+        title,
+    }));
 async function signInWith(dir: string, scopes: string[]): Promise<void> {
     await dextoAccounts.writeLogin(dir, 'default', {
         kind: 'oauth',
@@ -76,6 +79,8 @@ describe('dexto loops', () => {
     let stdoutIsTerminal: boolean;
     let answer: string | null;
     let prompts: string[];
+    let tools: ReturnType<typeof listedTools>;
+    let stdin: string;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-loops-')), 'accounts');
@@ -87,6 +92,8 @@ describe('dexto loops', () => {
         stdoutIsTerminal = false;
         answer = null;
         prompts = [];
+        tools = listedTools();
+        stdin = '';
         await signInWith(dir, ['cloud:read', 'automations:read', 'automations:write']);
         const runtime: CloudRuntime = {
             color: false,
@@ -101,7 +108,7 @@ describe('dexto loops', () => {
                     return Response.json({
                         jsonrpc: '2.0',
                         id: message.id,
-                        result: { tools: TOOLS },
+                        result: { tools },
                     });
                 calls.push(message.params);
                 if (rpcError !== null)
@@ -122,7 +129,7 @@ describe('dexto loops', () => {
                           return answer ?? '';
                       };
             },
-            readStdin: async () => '',
+            readStdin: async () => stdin,
             runProcess: async () => ({ exitCode: 0, output: '' }),
             signal: new AbortController().signal,
             sleep: async () => undefined,
@@ -411,6 +418,217 @@ describe('dexto loops', () => {
             expect(JSON.parse(stderr).error).toMatchObject({ code: 'needs_permission' });
         });
     });
+
+    describe('create', () => {
+        const SCHEDULED = {
+            name: 'Morning triage',
+            instruction: 'Summarize new issues.',
+            schedule: { type: 'cron', expression: '0 9 * * 1-5', timezone: 'Europe/Berlin' },
+            scope: { type: 'project', chatProjectId: PROJECT },
+            agentId: AGENT,
+            execution: { kind: 'worker', continuity: 'fresh' },
+            reporting: { kind: 'slack', installationId: 'inst-1', channelId: 'C0123' },
+            enabled: true,
+            runNow: false,
+        };
+        const EVENT = {
+            name: 'Triage new issues',
+            instruction: 'Label the new issue.',
+            scope: { type: 'account' },
+            trigger: {
+                kind: 'github',
+                event: 'github.issue.opened',
+                repository: 'acme/api',
+            },
+            reporting: { kind: 'assistant' },
+        };
+
+        it('creates a scheduled Loop from --data, forwarding every field, and prints the tool result', async () => {
+            replies = [{ automation: LOOP }];
+            expect(
+                await runCloud(host, [
+                    'loops',
+                    'create',
+                    '--data',
+                    JSON.stringify(SCHEDULED),
+                    '--json',
+                ])
+            ).toBe(0);
+            expect(calls).toEqual([{ name: 'dexto_automation_create', arguments: SCHEDULED }]);
+            expect(JSON.parse(stdout)).toEqual({ automation: LOOP });
+        });
+
+        it('creates an event-triggered Loop from a file on stdin', async () => {
+            stdin = JSON.stringify(EVENT);
+            const created = { automation: { ...LOOP, scheduleType: 'event', nextRunAt: null } };
+            replies = [created];
+            expect(await runCloud(host, ['loops', 'create', '--file', '-', '--json'])).toBe(0);
+            expect(calls).toEqual([{ name: 'dexto_automation_create', arguments: EVENT }]);
+            expect(JSON.parse(stdout)).toEqual(created);
+        });
+
+        it('tells people which Loop it created', async () => {
+            stdoutIsTerminal = true;
+            replies = [{ automation: LOOP }];
+            expect(
+                await runCloud(host, ['loops', 'create', '--data', JSON.stringify(SCHEDULED)])
+            ).toBe(0);
+            expect(stdout).toContain(`Created Loop ${LOOP_ID} (Morning triage).`);
+        });
+
+        it.each([[[]], [['--data', '[1]']], [['--data', '{nope']]])(
+            'needs a JSON object for the Loop, before any call: %j',
+            async (flags) => {
+                expect(await runCloud(host, ['loops', 'create', ...flags, '--json'])).toBe(2);
+                expect(calls).toEqual([]);
+            }
+        );
+
+        it('refuses without --yes when the tool asks first and nobody can be asked', async () => {
+            tools = listedTools('approve');
+            const data = JSON.stringify(EVENT);
+            expect(await runCloud(host, ['loops', 'create', '--data', data, '--json'])).not.toBe(0);
+            const { error } = JSON.parse(stderr);
+            expect(error.code).toBe('needs_confirmation');
+            expect(error.fix).toBe(`dexto loops create --data '${data}' --json --yes`);
+            expect(calls).toEqual([]);
+
+            stderr = '';
+            replies = [{ automation: LOOP }];
+            expect(
+                await runCloud(host, ['loops', 'create', '--data', data, '--yes', '--json'])
+            ).toBe(0);
+            expect(calls).toEqual([{ name: 'dexto_automation_create', arguments: EVENT }]);
+        });
+
+        it("returns the server's own refusals: a scope it forbids, invalid input", async () => {
+            const data = JSON.stringify(SCHEDULED);
+            rpcError = {
+                code: -32003,
+                message: 'You cannot create Loops in that Project.',
+                data: { kind: 'forbidden', retryable: false },
+            };
+            expect(await runCloud(host, ['loops', 'create', '--data', data, '--json'])).toBe(3);
+            expect(JSON.parse(stderr).error).toMatchObject({
+                code: 'needs_permission',
+                message: 'You cannot create Loops in that Project.',
+            });
+
+            stderr = '';
+            rpcError = {
+                code: -32602,
+                message: 'Invalid Dexto automation create input. schedule: Required',
+                data: { kind: 'invalid_arguments', retryable: false },
+            };
+            expect(await runCloud(host, ['loops', 'create', '--data', data, '--json'])).toBe(2);
+            expect(JSON.parse(stderr).error).toMatchObject({
+                code: 'invalid_input',
+                message: 'Invalid Dexto automation create input. schedule: Required',
+            });
+        });
+    });
+
+    describe('update', () => {
+        it('replaces what starts a Loop with an event trigger, forwarding every field', async () => {
+            const change = {
+                trigger: {
+                    kind: 'slack',
+                    event: 'slack.message.created',
+                    teamId: 'T0123',
+                    channelId: 'C0123',
+                },
+                instruction: 'Answer the question.',
+                reporting: { kind: 'slack', installationId: 'inst-1', channelId: 'C0123' },
+                execution: { kind: 'worker', continuity: 'reuse' },
+            };
+            replies = [{ automation: LOOP }];
+            expect(
+                await runCloud(host, [
+                    'loops',
+                    'update',
+                    LOOP_ID,
+                    '--data',
+                    JSON.stringify(change),
+                    '--json',
+                ])
+            ).toBe(0);
+            expect(calls).toEqual([
+                {
+                    name: 'dexto_automation_update',
+                    arguments: { automationId: LOOP_ID, ...change },
+                },
+            ]);
+            expect(JSON.parse(stdout)).toEqual({ automation: LOOP });
+        });
+
+        it('puts a Loop back on a schedule and pauses it, and tells people', async () => {
+            stdoutIsTerminal = true;
+            const change = {
+                trigger: { kind: 'schedule' },
+                schedule: { type: 'cron', expression: '0 9 * * *', timezone: 'UTC' },
+                enabled: false,
+                scope: { type: 'account' },
+            };
+            replies = [{ automation: { ...LOOP, enabled: false } }];
+            expect(
+                await runCloud(host, ['loops', 'update', LOOP_ID, '--data', JSON.stringify(change)])
+            ).toBe(0);
+            expect(calls).toEqual([
+                {
+                    name: 'dexto_automation_update',
+                    arguments: { automationId: LOOP_ID, ...change },
+                },
+            ]);
+            expect(stdout).toContain(`Updated Loop ${LOOP_ID} (Morning triage).`);
+        });
+
+        it.each([
+            [[LOOP_ID]],
+            [['--data', '{"enabled":false}']],
+            [[LOOP_ID, '--data', '"paused"']],
+            [[LOOP_ID, '--data', JSON.stringify({ automationId: RUN_ID, enabled: false })]],
+        ])(
+            'needs a Loop id and a JSON object of changes for it, before any call: %j',
+            async (args) => {
+                expect(await runCloud(host, ['loops', 'update', ...args, '--json'])).toBe(2);
+                expect(calls).toEqual([]);
+            }
+        );
+
+        it('reports a Loop the server does not find as not_found', async () => {
+            rpcError = {
+                code: -32004,
+                message: 'Automation not found.',
+                data: { kind: 'not_found', retryable: false },
+            };
+            expect(
+                await runCloud(host, [
+                    'loops',
+                    'update',
+                    LOOP_ID,
+                    '--data',
+                    '{"enabled":false}',
+                    '--json',
+                ])
+            ).toBe(5);
+            expect(JSON.parse(stderr).error).toMatchObject({ code: 'not_found' });
+        });
+    });
+
+    it.each([
+        [['create', '--data', '{"name":"n","instruction":"i"}']],
+        [['update', LOOP_ID, '--data', '{"enabled":false}']],
+    ])(
+        'asks a sign-in without automations:write to sign in again before it changes a Loop: %j',
+        async (args) => {
+            await signInWith(dir, ['cloud:read', 'automations:read']);
+            expect(await runCloud(host, ['loops', ...args, '--yes', '--json'])).toBe(3);
+            const { error } = JSON.parse(stderr);
+            expect(error.code).toBe('needs_permission');
+            expect(error.fix).toMatch(/^dexto login .*--scope automations:write$/);
+            expect(calls).toEqual([]);
+        }
+    );
 
     it.each([['run'], ['delete']])(
         'asks a sign-in without automations:write to sign in again before %s calls anything',
