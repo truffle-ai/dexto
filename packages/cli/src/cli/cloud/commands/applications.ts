@@ -159,7 +159,11 @@ const exportPlugin: Command = {
         context.output.result(
             result,
             [
-                ...result.files.flatMap((file) => [`==> ${file.path} <==`, file.content]),
+                // Each file's own final newline would leave a blank line before the next header.
+                ...result.files.flatMap((file) => [
+                    `==> ${file.path} <==`,
+                    file.content.replace(/\n$/, ''),
+                ]),
                 result.publication,
             ].join('\n')
         );

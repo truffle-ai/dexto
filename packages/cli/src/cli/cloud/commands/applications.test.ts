@@ -83,7 +83,7 @@ describe('dexto applications', () => {
 
     it('prints the credential-free plugin files the server exports, whole as JSON', async () => {
         const value = {
-            authentication: { kind: 'oauth' },
+            authentication: 'oauth2',
             files: [
                 { path: 'plugin.json', content: '{\n  "name": "orders"\n}\n' },
                 { path: 'mcp.json', content: '{\n  "mcpServers": {}\n}\n' },
@@ -107,11 +107,11 @@ describe('dexto applications', () => {
             value,
             [
                 '==> plugin.json <==',
-                '{\n  "name": "orders"\n}\n',
+                '{\n  "name": "orders"\n}',
                 '==> mcp.json <==',
-                '{\n  "mcpServers": {}\n}\n',
+                '{\n  "mcpServers": {}\n}',
                 '==> skills/orders/SKILL.md <==',
-                '# Orders\n',
+                '# Orders',
                 'Export only; complete external submission and review separately.',
             ].join('\n')
         );
