@@ -250,6 +250,26 @@
             "command": "whoami",
             "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
             "registry": "cloud"
+        },
+        {
+            "command": "admin login",
+            "reason": "Operator-only, staff operator API; workspace MCP must never grant credits (DEXTO-3888).",
+            "registry": "cloud"
+        },
+        {
+            "command": "admin logout",
+            "reason": "Operator-only, staff operator API; workspace MCP must never grant credits (DEXTO-3888).",
+            "registry": "cloud"
+        },
+        {
+            "command": "admin credits grant",
+            "reason": "Operator-only, staff operator API; workspace MCP must never grant credits (DEXTO-3888).",
+            "registry": "cloud"
+        },
+        {
+            "command": "admin credits list",
+            "reason": "Operator-only, staff operator API; workspace MCP must never grant credits (DEXTO-3888).",
+            "registry": "cloud"
         }
     ],
     "exceptions": [
