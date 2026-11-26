@@ -70,8 +70,6 @@ dexto_application_rollback
 dexto_application_suspend
 dexto_application_usage
 dexto_automation_create
-dexto_automation_delete
-dexto_automation_trigger
 dexto_automation_update
 dexto_capabilities_search
 dexto_chat_computer
