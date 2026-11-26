@@ -95,7 +95,6 @@ dexto_gpu_sandboxes_list
 dexto_mcp_server_import
 dexto_open
 dexto_share
-dexto_site_collections_list
 dexto_site_get
 dexto_site_promote`.split('\n');
 

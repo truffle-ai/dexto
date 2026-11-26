@@ -1,4 +1,5 @@
-// `workspace sites records`: the records in a Site's data collections, over Dexto's Site record tools.
+// `workspace sites collections` and `workspace sites records`: a Site's data collections and their
+// records, over Dexto's Site data tools.
 
 import { CommandFailure } from '../../failure.js';
 
@@ -35,6 +36,27 @@ const RecordSchema = z
     .passthrough();
 const ListSchema = z.object({ records: z.array(RecordSchema) }).passthrough();
 const OneSchema = z.object({ record: RecordSchema }).passthrough();
+
+const CollectionSchema = z
+    .object({
+        access: z.object({
+            create: z.string(),
+            delete: z.string(),
+            read: z.string(),
+            update: z.string(),
+        }),
+        name: z.string(),
+    })
+    .passthrough();
+const CollectionsSchema = z.object({ collections: z.array(CollectionSchema) }).passthrough();
+
+const COLLECTION_COLUMNS: readonly Column<z.output<typeof CollectionSchema>>[] = [
+    { header: 'name', value: (collection) => collection.name },
+    { header: 'read', value: (collection) => collection.access.read },
+    { header: 'create', value: (collection) => collection.access.create },
+    { header: 'update', value: (collection) => collection.access.update },
+    { header: 'delete', value: (collection) => collection.access.delete },
+];
 
 const COLUMNS: readonly Column<z.output<typeof RecordSchema>>[] = [
     { header: 'id', value: (record) => record.id },
@@ -83,6 +105,24 @@ async function readRecordValue(context: CommandContext, input: CommandInput): Pr
         throw new UsageError("Pass the record's value as JSON with --data or --file.");
     return await readJsonBody(context, input);
 }
+
+const collections: Command = {
+    arguments: '<site_id>',
+    examples: ['dexto workspace sites collections list "$SITE_ID" --json'],
+    path: ['workspace', 'sites', 'collections', 'list'],
+    summary:
+        "List the managed data collections of a Site you own, with each one's schema and access policy.",
+    async run(context, input) {
+        const siteId = idArgument(input, 0, 'site_id');
+        await requireLoginScopes(context, ['sites:read']);
+        const value = await queryWorkspaceTool(context, 'dexto_site_collections_list', { siteId });
+        if (context.output.json) return context.output.record(value);
+        context.output.list(
+            { data: CollectionsSchema.parse(value).collections },
+            COLLECTION_COLUMNS
+        );
+    },
+};
 
 const list: Command = {
     arguments: '<site_id> <collection>',
@@ -221,4 +261,11 @@ async function write(
     return { id: OneSchema.parse(value).record.id, value };
 }
 
-export const siteRecordCommands: readonly Command[] = [list, get, create, update, remove];
+export const siteRecordCommands: readonly Command[] = [
+    collections,
+    list,
+    get,
+    create,
+    update,
+    remove,
+];

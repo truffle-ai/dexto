@@ -542,6 +542,7 @@ dexto workspace network list --json
 dexto workspace network read <thread_id> --before <cursor>
 dexto workspace network mark-read <thread_id> --through <sequence>
 dexto workspace network send <contact_id> "See you at 3." --idempotency-key reply-1 --yes
+dexto workspace sites collections list <site_id> --json
 dexto workspace sites records list <site_id> signups --limit 20 --json
 dexto workspace email send --to a@b.c --yes
 dexto workspace tools --search calendar    # every tool, by MCP name
@@ -556,6 +557,8 @@ An operation that acts, approves or spends asks first; pass `--yes` only once yo
 `dexto workspace contacts` manages your Dexto Contacts in the organization you are signed in to: `list` (`--query`, `--blocked`), `search`, `requests` and `invite-link` read them; `connect`, `accept`, `decline`, `remove`, `block` and `unblock` change them and ask first. Reading needs `contacts:read`; `search` and every change need `contacts:write`, because finding people reaches beyond your saved Contacts. `search` gives the `--user` and `--organization` that `connect` takes, and `list` and `requests` give the contact id the other changes take.
 
 `dexto workspace network` reads and answers your Network conversations (`list`, `read`, `mark-read`, `send`). `read` takes a thread id or `--contact <contact_id>`, pages back with the page's `previousCursor` as `--before`, and reads the rest of a long message with `--message <sequence> --offset <nextTextOffset>`; reading never marks anything read. `mark-read --through <sequence>` marks a conversation read up to the newest message you were told. `send` sends the exact text (or `-` for stdin) to an accepted connection's contact id once your person has agreed, and `--idempotency-key` makes a retry return the first send instead of sending twice. Reading needs `network:read`; marking read and sending need `network:write`.
+
+`dexto workspace sites collections list <site_id>` lists the managed data collections of a Site you own, so you know which names the record commands take. It needs `sites:read`; with `--json` it prints `{collections, siteId, slug}`, where each collection has its `name`, its JSON `schema` and its `access` policy (`read`, `create`, `update`, `delete`); `--table` shows each name with its access.
 
 `dexto workspace sites records` reads and changes the records in a Site's data collections, as the Site's owner (`list`, `get`, `create`, `update`, `delete`). Each takes the Site's id and the collection's name; `get`, `update` and `delete` also take the record's id. `list` returns up to `--limit` records (1 to 100, default 50), private ones included. `create` and `update` take the value as JSON with `--data`, or `--file` (`-` for stdin), and the collection's schema checks it. Reading needs `sites:read`; writing needs `sites:write`, asks first and takes `--dry-run`. With `--json` each command prints the tool's result as it comes: `{collection, records, siteId, slug}` for `list`, `{collection, record, siteId, slug}` for the rest.
 
