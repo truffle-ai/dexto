@@ -201,7 +201,7 @@ describe('sign-in commands', () => {
             expect(browserInputs).toHaveLength(1);
             expect(browserInputs[0]?.openBrowser).toBe(true);
             expect(deviceInputs).toHaveLength(0);
-            expect(notes).toEqual([]);
+            expect(notes).toEqual(['Permissions granted: cloud:read']);
         });
 
         it('signs in with a device code with --device', async () => {
@@ -218,7 +218,10 @@ describe('sign-in commands', () => {
 
             expect(deviceInputs).toHaveLength(1);
             expect(browserInputs).toHaveLength(0);
-            expect(notes).toEqual(['No browser here, so sign in with a code on any device.']);
+            expect(notes).toEqual([
+                'No browser here, so sign in with a code on any device.',
+                'Permissions granted: cloud:read',
+            ]);
         });
 
         it('only prints the link with --no-browser', async () => {
@@ -259,6 +262,31 @@ describe('sign-in commands', () => {
                 organization: 'org_acme',
                 extraScopes: ['cloud:read', 'drive:write', 'memories:write'],
             });
+        });
+
+        it('a plain sign-in asks for no deploy permission, so consent shows no sensitive scope', async () => {
+            await login(context, noOptions);
+
+            expect(browserInputs[0]?.extraScopes).toEqual([]);
+            expect(browserInputs[0]?.extraScopes).not.toContain('applications:write');
+        });
+
+        it('--scope deploy asks for every permission deploying Sites, Functions and Applications takes', async () => {
+            await login(context, { ...noOptions, scopes: ['deploy', 'drive:write'] });
+
+            expect(browserInputs[0]?.extraScopes).toEqual([
+                'sites:write',
+                'functions:write',
+                'cloud:write',
+                'applications:write',
+                'drive:write',
+            ]);
+        });
+
+        it('says which permissions the sign-in was granted', async () => {
+            await login(context, { ...noOptions, scopes: ['drive:write'] });
+
+            expect(notes).toContain('Permissions granted: cloud:read drive:write');
         });
 
         it('asks for chats:sync only while chat sync is on', async () => {
