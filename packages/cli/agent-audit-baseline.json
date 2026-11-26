@@ -1456,6 +1456,13 @@
     "examples": false
   },
   {
+    "command": "workspace mcp-servers import",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "workspace network list",
     "json": true,
     "dryRun": false,

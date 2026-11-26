@@ -40,6 +40,7 @@ import { skillCommands } from './commands/skills.js';
 import { traceCommands } from './commands/traces.js';
 import { fileCommands } from './commands/files.js';
 import { modelCommands } from './commands/models.js';
+import { mcpServerCommands } from './commands/mcp-servers.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
 import { sandboxCommands } from './commands/sandboxes.js';
 import { secretCommands } from './commands/secrets.js';
@@ -95,6 +96,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...dataDeletionCommands,
         ...apiCommands,
         ...workspaceCommands,
+        ...mcpServerCommands,
         ...computerKeyCommands,
         ...shareCommands,
         ...driveCommands,

@@ -92,7 +92,6 @@ dexto_gpu_sandbox_provision
 dexto_gpu_sandbox_start
 dexto_gpu_sandbox_stop
 dexto_gpu_sandboxes_list
-dexto_mcp_server_import
 dexto_open
 dexto_share
 dexto_site_collections_list

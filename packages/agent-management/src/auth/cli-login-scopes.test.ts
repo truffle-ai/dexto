@@ -20,6 +20,7 @@ describe('CLI_LOGIN_SCOPES', () => {
             'computers:read',
             'computers:write',
             'connections:read',
+            'connectors:import',
             'contacts:read',
             'contacts:write',
             'drive:read',
