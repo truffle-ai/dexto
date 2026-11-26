@@ -185,7 +185,9 @@ export async function login(
         throw context.screen.look === 'signal' ? signInEndedFailure(error, device) : error;
     }
     context.screen.settle(true);
-    context.note(`Permissions granted: ${signedIn.scopes.map(safeText).join(' ')}`);
+    context.note(
+        `Permissions granted: ${signedIn.scopes.length === 0 ? 'none' : signedIn.scopes.map(safeText).join(' ')}`
+    );
 
     // A name made from --org can match another organization's profile: keep that sign-in.
     const savedOrganization = previous?.signedInAs?.organization ?? null;
