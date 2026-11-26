@@ -125,6 +125,7 @@ describe('CLI and MCP capability parity', () => {
         }).map((command) => command.path.join(' '));
         const inventoried = [
             ...Object.keys(inventory.commands),
+            ...Object.keys(inventory.actionCommands),
             ...inventory.localOnly
                 .filter((entry) => entry.registry === 'cloud')
                 .map((entry) => entry.command),
@@ -133,8 +134,16 @@ describe('CLI and MCP capability parity', () => {
         expect(new Set(inventoried).size).toBe(inventoried.length);
         expect(
             inventoried.sort(),
-            'add the verb to commands/localOnly/exceptions in cli-mcp-parity.json and vendor it to dexto-cloudflare'
+            'add the verb to commands/actionCommands/localOnly/exceptions in cli-mcp-parity.json and vendor it to dexto-cloudflare'
         ).toEqual(registered.sort());
+    });
+
+    it('keeps a tool only some of whose actions have verbs in passthrough-only debt', () => {
+        const mapped = z
+            .record(z.string(), z.object({ tool: z.string(), actions: z.array(z.string()).min(1) }))
+            .parse(inventory.actionCommands);
+        for (const [command, { tool }] of Object.entries(mapped))
+            expect(inventory.passthroughOnly, command).toContain(tool);
     });
 
     it('partitions vendored tools into real coverage and passthrough-only debt', () => {

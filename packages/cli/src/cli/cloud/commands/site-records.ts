@@ -7,9 +7,11 @@ import { z } from 'zod';
 import {
     argument,
     BODY_OPTIONS,
+    DRY_RUN_OPTION,
     flag,
     integerOption,
     readJsonBody,
+    showDryRun,
     stringOption,
     UsageError,
     YES_OPTION,
@@ -51,13 +53,6 @@ const VALUE_OPTIONS = {
     file: {
         ...BODY_OPTIONS.file,
         description: "Read the record's value from a JSON file, or - for stdin.",
-    },
-} as const satisfies Record<string, OptionSpec>;
-
-const DRY_RUN_OPTION = {
-    'dry-run': {
-        description: 'Check the input and show the call, without making it.',
-        type: 'boolean',
     },
 } as const satisfies Record<string, OptionSpec>;
 
@@ -202,10 +197,7 @@ async function write(
     title: string
 ): Promise<{ id: string; value: unknown } | null> {
     if (flag(input, 'dry-run')) {
-        context.output.result(
-            { dryRun: true, tool: name, arguments: call },
-            `Would call ${name} with ${JSON.stringify(call)}.`
-        );
+        showDryRun(context, name, call);
         return null;
     }
     await requireLoginScopes(context, ['sites:write']);

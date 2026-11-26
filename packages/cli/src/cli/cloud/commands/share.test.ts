@@ -57,7 +57,7 @@ const received = {
 /** One MCP answer: the tool's structured result, or a JSON-RPC refusal. */
 type Reply = { result: unknown } | { error: { code: number; message: string; data?: unknown } };
 
-describe('sharing reads over the Dexto MCP', () => {
+describe('sharing over the Dexto MCP', () => {
     let dir: string;
     let stdout: string;
     let stderr: string;
@@ -72,14 +72,8 @@ describe('sharing reads over the Dexto MCP', () => {
 
     const output = () => JSON.parse(stdout);
 
-    beforeEach(async () => {
-        dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-share-')), 'accounts');
-        stdout = '';
-        stderr = '';
-        calls = [];
-        replies = [];
-        terminal = false;
-        await dextoAccounts.writeLogin(dir, 'default', {
+    const signIn = (scopes: string[]) =>
+        dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
             accessToken: 'access-1',
             refreshToken: 'refresh-1',
@@ -89,11 +83,20 @@ describe('sharing reads over the Dexto MCP', () => {
             apiBaseUrl: 'https://api.dexto.ai',
             resource: MCP,
             tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
-            scopes: ['drive:read'],
+            scopes,
             savedAt: '2026-11-01T00:00:00.000Z',
             signedInAs: null,
             cloudProject: null,
         });
+
+    beforeEach(async () => {
+        dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-share-')), 'accounts');
+        stdout = '';
+        stderr = '';
+        calls = [];
+        replies = [];
+        terminal = false;
+        await signIn(['drive:read']);
         const runtime: CloudRuntime = {
             color: false,
             environment: {},
@@ -353,6 +356,141 @@ describe('sharing reads over the Dexto MCP', () => {
             replies = [{ result: { invitations: [], shared: [] } }];
             expect(await cli('workspace', 'share', 'received'), stderr).toBe(0);
             expect(stdout).toContain('Nothing is shared with you.');
+        });
+    });
+
+    const notFound: Reply = {
+        error: { code: -32004, message: 'Drive item not found.', data: { kind: 'not_found' } },
+    };
+
+    describe('workspace share public', () => {
+        const link = {
+            created: true,
+            title: 'Roadmap.md',
+            url: 'https://app.dexto.ai/p/abc',
+            downloadUrl: 'https://api.dexto.ai/p/abc/download',
+            downloadCommand: "curl -fsSL 'https://api.dexto.ai/p/abc/download' -o 'Roadmap.md'",
+        };
+
+        it('turns on the link once agreed with --yes, passing confirm, and prints it as JSON', async () => {
+            await signIn(['drive:read', 'drive:write']);
+            replies = [{ result: link }];
+            expect(
+                await cli('workspace', 'share', 'public', 'file-1', '--yes', '--json'),
+                stderr
+            ).toBe(0);
+            expect(calls).toEqual([
+                {
+                    name: 'dexto_share',
+                    arguments: { action: 'public', kind: 'drive', id: 'file-1', confirm: true },
+                },
+            ]);
+            expect(output()).toEqual(link);
+        });
+
+        it('prints the link and the download command in text', async () => {
+            await signIn(['drive:read', 'drive:write']);
+            terminal = true;
+            replies = [{ result: { ...link, created: false } }];
+            expect(await cli('workspace', 'share', 'public', 'file-1', '--yes'), stderr).toBe(0);
+            expect(stdout).toContain('Public link for Roadmap.md: https://app.dexto.ai/p/abc');
+            expect(stdout).toContain(`Download: ${link.downloadCommand}`);
+        });
+
+        it('makes no call without --yes when nobody can be asked', async () => {
+            await signIn(['drive:read', 'drive:write']);
+            expect(await cli('workspace', 'share', 'public', 'file-1', '--json')).toBe(4);
+            const { error } = JSON.parse(stderr);
+            expect(error.code).toBe('needs_confirmation');
+            expect(error.message).toContain('without signing in');
+            expect(error.fix).toContain('--yes');
+            expect(calls).toEqual([]);
+        });
+
+        it('makes no call when the sign-in lacks drive:write', async () => {
+            expect(await cli('workspace', 'share', 'public', 'file-1', '--yes', '--json')).toBe(3);
+            expect(stderr).toContain('drive:write');
+            expect(calls).toEqual([]);
+        });
+
+        it('shows the call with --dry-run without asking or making it', async () => {
+            expect(await cli('workspace', 'share', 'public', 'file-1', '--dry-run', '--json')).toBe(
+                0
+            );
+            expect(output()).toEqual({
+                dryRun: true,
+                tool: 'dexto_share',
+                arguments: { action: 'public', kind: 'drive', id: 'file-1' },
+            });
+            expect(calls).toEqual([]);
+        });
+
+        it("reports the server's refusal of a file the person does not own", async () => {
+            await signIn(['drive:read', 'drive:write']);
+            replies = [notFound];
+            expect(
+                await cli('workspace', 'share', 'public', 'someone-elses', '--yes', '--json')
+            ).toBe(5);
+            expect(JSON.parse(stderr).error.message).toContain('Drive item not found.');
+            expect(stdout).toBe('');
+        });
+
+        it('refuses a missing file id before calling', async () => {
+            expect(await cli('workspace', 'share', 'public', '--yes', '--json')).toBe(2);
+            expect(calls).toEqual([]);
+        });
+    });
+
+    describe('workspace share unshare-public', () => {
+        it('turns the link off without asking, as the server allows', async () => {
+            await signIn(['drive:read', 'drive:write']);
+            replies = [{ result: { unshared: { title: 'Roadmap.md' } } }];
+            expect(
+                await cli('workspace', 'share', 'unshare-public', 'file-1', '--json'),
+                stderr
+            ).toBe(0);
+            expect(calls).toEqual([
+                {
+                    name: 'dexto_share',
+                    arguments: { action: 'unshare_public', kind: 'drive', id: 'file-1' },
+                },
+            ]);
+            expect(output()).toEqual({ unshared: { title: 'Roadmap.md' } });
+        });
+
+        it('says the link is off in text', async () => {
+            await signIn(['drive:read', 'drive:write']);
+            terminal = true;
+            replies = [{ result: { unshared: { title: 'Roadmap.md' } } }];
+            expect(await cli('workspace', 'share', 'unshare-public', 'file-1'), stderr).toBe(0);
+            expect(stdout).toContain('The public link for Roadmap.md is off.');
+        });
+
+        it('makes no call when the sign-in lacks drive:write', async () => {
+            expect(await cli('workspace', 'share', 'unshare-public', 'file-1', '--json')).toBe(3);
+            expect(stderr).toContain('drive:write');
+            expect(calls).toEqual([]);
+        });
+
+        it('shows the call with --dry-run without making it', async () => {
+            expect(
+                await cli('workspace', 'share', 'unshare-public', 'file-1', '--dry-run', '--json')
+            ).toBe(0);
+            expect(output().arguments).toEqual({
+                action: 'unshare_public',
+                kind: 'drive',
+                id: 'file-1',
+            });
+            expect(calls).toEqual([]);
+        });
+
+        it("reports the server's refusal of a file the person does not own", async () => {
+            await signIn(['drive:read', 'drive:write']);
+            replies = [notFound];
+            expect(
+                await cli('workspace', 'share', 'unshare-public', 'someone-elses', '--json')
+            ).toBe(5);
+            expect(JSON.parse(stderr).error.message).toContain('Drive item not found.');
         });
     });
 });

@@ -1,9 +1,21 @@
-// `workspace share`: read who can open something you own, and what others shared with you.
+// `workspace share`: read who can open something you own and what others shared with you, and
+// turn a Drive file's public link on or off.
 
 import { z } from 'zod';
 
 import { CommandFailure } from '../../failure.js';
-import { argument, stringOption, UsageError, type Command } from '../command.js';
+import { requireConsent } from '../../interaction.js';
+import {
+    argument,
+    DRY_RUN_OPTION,
+    flag,
+    showDryRun,
+    stringOption,
+    UsageError,
+    YES_OPTION,
+    type Command,
+} from '../command.js';
+import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
 
 /** The kinds of thing Sharing names, as the Dexto MCP takes them. */
@@ -158,4 +170,81 @@ function describeReceived(result: z.output<typeof ReceivedSchema>): string {
     ].join('\n');
 }
 
-export const shareCommands: readonly Command[] = [access, received];
+const PublicLinkSchema = z
+    .object({
+        created: z.boolean(),
+        title: z.string(),
+        url: z.string(),
+        downloadUrl: z.string().optional(),
+        downloadCommand: z.string().optional(),
+    })
+    .passthrough();
+
+const UnsharedSchema = z.object({ unshared: z.object({ title: z.string() }).passthrough() });
+
+const makePublic: Command = {
+    path: ['workspace', 'share', 'public'],
+    arguments: '<file_id>',
+    summary:
+        'Turn on a public link for a Drive file you own: anyone with it can open the file signed out, and download it with the returned curl command. Turning it on again gives the same link. Always asks first. Requires drive:write.',
+    examples: [
+        'dexto workspace share public FILE_ID --yes --json',
+        'dexto workspace share public FILE_ID --dry-run',
+    ],
+    jsonOutput: {
+        description:
+            'The link: created (false when it was already on), title, url, and for a file downloadUrl and downloadCommand.',
+        schema: z.toJSONSchema(PublicLinkSchema),
+    },
+    options: { ...DRY_RUN_OPTION, ...YES_OPTION },
+    async run(context, input) {
+        const call = { action: 'public', kind: 'drive', id: argument(input, 0, 'file_id') };
+        if (flag(input, 'dry-run')) return showDryRun(context, 'dexto_share', call);
+        await requireLoginScopes(context, ['drive:write']);
+        await requireConsent(
+            context,
+            flag(input, 'yes'),
+            `Turn on a public link for Drive file ${call.id}? Anyone with the link can open and download it without signing in, and everyone in your organization can open it.`
+        );
+        const link = parsed(
+            PublicLinkSchema,
+            await queryWorkspaceTool(context, 'dexto_share', { ...call, confirm: true }),
+            'public link'
+        );
+        context.output.result(
+            link,
+            [
+                `Public link for ${link.title}: ${link.url}`,
+                ...(link.downloadCommand === undefined
+                    ? []
+                    : [`Download: ${link.downloadCommand}`]),
+            ].join('\n')
+        );
+    },
+};
+
+const unsharePublic: Command = {
+    path: ['workspace', 'share', 'unshare-public'],
+    arguments: '<file_id>',
+    summary:
+        "Turn off a Drive file's public link and its download, so the link stops working. Everyone in your organization keeps access. Requires drive:write.",
+    examples: ['dexto workspace share unshare-public FILE_ID --json'],
+    jsonOutput: {
+        description: 'The file whose link was turned off.',
+        schema: z.toJSONSchema(UnsharedSchema),
+    },
+    options: DRY_RUN_OPTION,
+    async run(context, input) {
+        const call = { action: 'unshare_public', kind: 'drive', id: argument(input, 0, 'file_id') };
+        if (flag(input, 'dry-run')) return showDryRun(context, 'dexto_share', call);
+        await requireLoginScopes(context, ['drive:write']);
+        const result = parsed(
+            UnsharedSchema,
+            await queryWorkspaceTool(context, 'dexto_share', call),
+            'answer'
+        );
+        context.output.result(result, `The public link for ${result.unshared.title} is off.`);
+    },
+};
+
+export const shareCommands: readonly Command[] = [access, received, makePublic, unsharePublic];

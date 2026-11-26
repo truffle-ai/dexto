@@ -205,6 +205,25 @@ export async function readValue(
     return value;
 }
 
+export const DRY_RUN_OPTION = {
+    'dry-run': {
+        description: 'Check the input and show the call, without making it.',
+        type: 'boolean',
+    },
+} as const satisfies Record<string, OptionSpec>;
+
+/** What a write would call, said instead of calling it. */
+export function showDryRun(
+    context: CommandContext,
+    tool: string,
+    call: Record<string, unknown>
+): void {
+    context.output.result(
+        { dryRun: true, tool, arguments: call },
+        `Would call ${tool} with ${JSON.stringify(call)}.`
+    );
+}
+
 export const YES_OPTION = {
     yes: {
         description: 'Go ahead without being asked. Pass it only once your person has agreed.',
