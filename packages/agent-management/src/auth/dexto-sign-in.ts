@@ -16,6 +16,7 @@ export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
  */
 export const CLI_LOGIN_SCOPES = [
     'applications:read',
+    'applications:write',
     'apps:execute',
     'apps:read',
     'apps:write',

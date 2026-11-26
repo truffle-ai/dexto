@@ -2,7 +2,7 @@
     "version": 1,
     "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
-    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings. Each passthroughOnly entry says why it has no command; a tool waiting for one goes in pendingCli with its issue.",
+    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. actionCommands cover some actions of a passthroughOnly tool; the tool leaves passthroughOnly only once its other actions have commands too. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings. Each passthroughOnly entry says why it has no command; a tool waiting for one goes in pendingCli with its issue.",
     "commands": {
         "apps list": ["dexto_apps_list"],
         "apps get": ["dexto_app_get"],
@@ -19,6 +19,15 @@
         "applications history": ["dexto_application_history"],
         "applications insights": ["dexto_application_insights"],
         "applications usage": ["dexto_application_usage"],
+        "applications create": ["dexto_application_create"],
+        "applications deploy": ["dexto_upload_prepare", "dexto_application_deploy"],
+        "applications rollback": ["dexto_application_rollback"],
+        "applications release delete": ["dexto_application_release_delete"],
+        "applications suspend": ["dexto_application_suspend"],
+        "applications resume": ["dexto_application_resume"],
+        "applications retire": ["dexto_application_retire"],
+        "applications purge": ["dexto_application_purge"],
+        "applications install": ["dexto_application_install"],
         "autobots list": ["dexto_autobots_list"],
         "autobots get": ["dexto_autobot_get"],
         "autobots status": ["dexto_autobot_status"],
@@ -621,51 +630,6 @@
             "tool": "dexto_app_data_remove",
             "issue": "DEXTO-3779",
             "reason": "The apps remove-data command follows upstream."
-        },
-        {
-            "tool": "dexto_application_create",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_deploy",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_install",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_purge",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_release_delete",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_resume",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_retire",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_rollback",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
-        },
-        {
-            "tool": "dexto_application_suspend",
-            "issue": "DEXTO-4069",
-            "reason": "The managed Application lifecycle commands follow upstream."
         },
         {
             "tool": "dexto_capabilities_search",

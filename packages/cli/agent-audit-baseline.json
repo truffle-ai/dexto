@@ -35,6 +35,20 @@
     "examples": false
   },
   {
+    "command": "applications create",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "applications deploy",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "applications export-plugin",
     "json": true,
     "dryRun": false,
@@ -63,6 +77,13 @@
     "examples": true
   },
   {
+    "command": "applications install",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "applications list",
     "json": true,
     "dryRun": false,
@@ -84,10 +105,52 @@
     "examples": true
   },
   {
+    "command": "applications purge",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "applications release",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "applications release delete",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "applications resume",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "applications retire",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "applications rollback",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "applications suspend",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
     "examples": true
   },
   {

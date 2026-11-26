@@ -41,7 +41,7 @@ function contextWith(scopes: readonly string[], json = true) {
 beforeEach(() => query.mockReset());
 
 describe('dexto applications', () => {
-    it('registers list, get, release, logs, variables, export-plugin, operations, history, insights and usage', () => {
+    it('registers the reads, then the writes', () => {
         expect(applicationCommands.map((command) => command.path.join(' '))).toEqual([
             'applications list',
             'applications get',
@@ -53,6 +53,15 @@ describe('dexto applications', () => {
             'applications history',
             'applications insights',
             'applications usage',
+            'applications create',
+            'applications deploy',
+            'applications rollback',
+            'applications release delete',
+            'applications suspend',
+            'applications resume',
+            'applications retire',
+            'applications purge',
+            'applications install',
         ]);
     });
 

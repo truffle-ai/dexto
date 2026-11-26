@@ -17,7 +17,6 @@ import {
     YES_OPTION,
     type Command,
     type CommandContext,
-    type CommandInput,
 } from '../command.js';
 import type { Column } from '../output.js';
 import { sendBytes } from '../transfer.js';
@@ -26,8 +25,18 @@ import { formatBytes } from './files.js';
 import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
 
 const SCOPES = ['apps:read'] as const;
-/** The most a Dexto App package upload can be. */
-const MAX_PACKAGE_BYTES = 40 * 1024 * 1024;
+
+/** A package file the CLI uploads: its upload purpose, how large it can be, and its name. */
+export interface PackageKind {
+    readonly label: string;
+    readonly maxBytes: number;
+    readonly purpose: 'app-package' | 'application-package';
+}
+const APP_PACKAGE: PackageKind = {
+    label: 'a Dexto App package',
+    maxBytes: 40 * 1024 * 1024,
+    purpose: 'app-package',
+};
 
 const AppSchema = z
     .object({
@@ -144,7 +153,7 @@ const deploy: Command = {
     async run(context, input) {
         await requireLoginScopes(context, ['apps:write']);
         const appId = argument(input, 0, 'app_id');
-        const bytes = await readPackage(input);
+        const bytes = await readPackage(argument(input, 1, 'package'), APP_PACKAGE);
         const tool = (await listWorkspaceTools(context)).find(
             (each) => each.name === 'dexto_app_deploy'
         );
@@ -160,7 +169,7 @@ const deploy: Command = {
             },
             flag(input, 'yes')
         );
-        const uploadPath = await uploadPackage(context, bytes);
+        const uploadPath = await uploadPackage(context, bytes, APP_PACKAGE);
         // Dexto checks the package, then takes the upload: one upload makes one deploy.
         const value = await queryWorkspaceTool(context, 'dexto_app_deploy', {
             appId,
@@ -179,7 +188,11 @@ const verify: Command = {
     async run(context, input) {
         await requireLoginScopes(context, SCOPES);
         const appId = argument(input, 0, 'app_id');
-        const uploadPath = await uploadPackage(context, await readPackage(input));
+        const uploadPath = await uploadPackage(
+            context,
+            await readPackage(argument(input, 1, 'package'), APP_PACKAGE),
+            APP_PACKAGE
+        );
         // Verifying reads the upload and takes nothing; it never deploys.
         const value = await queryWorkspaceTool(context, 'dexto_app_deployment_verify', {
             appId,
@@ -195,29 +208,33 @@ const verify: Command = {
     },
 };
 
-/** The package file's bytes, checked against what a Dexto App package upload can be. */
-async function readPackage(input: CommandInput): Promise<Uint8Array<ArrayBuffer>> {
-    const file = path.resolve(argument(input, 1, 'package'));
+/** A package file's bytes, checked against what its upload can be. */
+export async function readPackage(
+    given: string,
+    kind: PackageKind
+): Promise<Uint8Array<ArrayBuffer>> {
+    const file = path.resolve(given);
     const found = await stat(file).catch(() => null);
     if (found === null || !found.isFile())
         throw new UsageError(`${file} isn't a file. Pass the package's deploy-request.json.`);
-    if (found.size > MAX_PACKAGE_BYTES)
+    if (found.size > kind.maxBytes)
         throw new UsageError(
-            `${file} is ${formatBytes(found.size)}; a Dexto App package can be up to ${formatBytes(MAX_PACKAGE_BYTES)}.`
+            `${file} is ${formatBytes(found.size)}; ${kind.label} can be up to ${formatBytes(kind.maxBytes)}.`
         );
     return new Uint8Array(await readFile(file));
 }
 
-/** Uploads a package for purpose app-package and returns the path the App tools take. */
-async function uploadPackage(
+/** Uploads a package for its purpose and returns the path the deploy tools take. */
+export async function uploadPackage(
     context: CommandContext,
-    bytes: Uint8Array<ArrayBuffer>
+    bytes: Uint8Array<ArrayBuffer>,
+    kind: PackageKind
 ): Promise<string> {
     const prepared = PreparedSchema.safeParse(
         await queryWorkspaceTool(context, 'dexto_upload_prepare', {
             filename: 'deploy-request.json',
             mimeType: 'application/json',
-            purpose: 'app-package',
+            purpose: kind.purpose,
             sha256: createHash('sha256').update(bytes).digest('hex'),
             sizeBytes: bytes.byteLength,
         })

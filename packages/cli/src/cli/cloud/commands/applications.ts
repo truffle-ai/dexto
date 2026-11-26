@@ -1,14 +1,37 @@
-// `applications`: inspect your managed Dockerfile Applications, their releases, runtime variable
-// names, portable plugin files, lifecycle, insights and usage, read-only, over Dexto's typed
-// Applications tools. Create, deploy and lifecycle changes stay with those tools.
+// `applications`: your managed Dockerfile Applications over Dexto's typed Applications tools.
+// Read their releases, runtime variable names, portable plugin files, lifecycle, insights and
+// usage; create, deploy, roll back, suspend, resume, retire, purge and install them, each write
+// only once the person agrees.
+
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 
 import { z } from 'zod';
-import { argument, choiceOption, type Command } from '../command.js';
+import { requireConsent } from '../../interaction.js';
+import {
+    argument,
+    choiceOption,
+    flag,
+    requiredOption,
+    stringOption,
+    YES_OPTION,
+    type Command,
+    type CommandContext,
+    type CommandInput,
+    type OptionSpec,
+} from '../command.js';
 import type { Column } from '../output.js';
+import { readPackage, uploadPackage, type PackageKind } from './apps.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
 
 const SCOPES = ['applications:read'] as const;
+const WRITE_SCOPES = ['applications:write'] as const;
+const APPLICATION_PACKAGE: PackageKind = {
+    label: 'an Application package',
+    maxBytes: 5 * 1024 * 1024,
+    purpose: 'application-package',
+};
 
 const ApplicationSchema = z
     .object({ id: z.string(), slug: z.string(), status: z.string(), title: z.string() })
@@ -309,6 +332,274 @@ const usage: Command = {
     },
 };
 
+const WRITE_OPTIONS = {
+    'dry-run': { description: 'Show the call without making it.', type: 'boolean' },
+    ...YES_OPTION,
+} as const satisfies Record<string, OptionSpec>;
+
+/** The kinds of new UUID a write takes, each by its own `--<kind>-id` option. */
+type IdKind = 'application' | 'deployment' | 'operation';
+
+function idOption(kind: IdKind): Record<string, OptionSpec> {
+    return {
+        [`${kind}-id`]: {
+            description: `A new ${kind} id (UUID) for this call; reuse it only to retry it. One is made when you leave it out, and printed.`,
+            type: 'string',
+            valueName: 'UUID',
+        },
+    };
+}
+
+/** The write's new id: its `--<kind>-id`, or a fresh one. */
+function newId(input: CommandInput, kind: IdKind): string {
+    return stringOption(input, `${kind}-id`) ?? randomUUID();
+}
+
+/** With --dry-run, shows the call and returns true: nothing is sent. */
+function showedDryRun(
+    context: CommandContext,
+    input: CommandInput,
+    tool: string,
+    args: Record<string, unknown>
+): boolean {
+    if (!flag(input, 'dry-run')) return false;
+    context.output.result({ arguments: args, dryRun: true, tool }, `Would call ${tool}.`);
+    return true;
+}
+
+/** Checks the sign-in can write, then that the person agreed, by --yes or at the terminal. */
+async function agreeToWrite(
+    context: CommandContext,
+    input: CommandInput,
+    consent: string
+): Promise<void> {
+    await requireLoginScopes(context, WRITE_SCOPES);
+    await requireConsent(context, flag(input, 'yes'), consent);
+}
+
+/**
+ * Makes one approval-level Application call once the person agrees, sending `confirm: true` as
+ * the server's sign that they did. Its new id, if any, is printed first, so a lost response can be
+ * retried without acting twice.
+ */
+async function writeApplication(
+    context: CommandContext,
+    input: CommandInput,
+    write: {
+        readonly args: Record<string, unknown>;
+        readonly consent: string;
+        readonly id: { readonly kind: IdKind; readonly value: string } | null;
+        readonly tool: string;
+    }
+): Promise<void> {
+    if (showedDryRun(context, input, write.tool, write.args)) return;
+    await agreeToWrite(context, input, write.consent);
+    if (write.id !== null)
+        context.output.note(
+            `New ${write.id.kind} id: ${write.id.value}. To retry: --${write.id.kind}-id ${write.id.value}`
+        );
+    context.output.record(
+        await queryWorkspaceTool(context, write.tool, { ...write.args, confirm: true })
+    );
+}
+
+const create: Command = {
+    arguments: '<slug> <title>',
+    options: {
+        project: {
+            description:
+                'An unarchived Cloud project to place it in; the Default project when left out.',
+            type: 'string',
+            valueName: 'CLOUD_PROJECT_ID',
+        },
+        ...idOption('application'),
+        ...WRITE_OPTIONS,
+    },
+    path: ['applications', 'create'],
+    summary:
+        'Create a Dockerfile Application with its own database, auth and object storage. Dexto provisions every credential. Poll applications get until it is ready. Requires applications:write.',
+    examples: ['dexto applications create orders "Orders" --yes --json'],
+    async run(context, input) {
+        const slug = argument(input, 0, 'slug');
+        const title = argument(input, 1, 'title');
+        const applicationId = newId(input, 'application');
+        const cloudProjectId = stringOption(input, 'project');
+        await writeApplication(context, input, {
+            args: {
+                applicationId,
+                slug,
+                title,
+                ...(cloudProjectId === undefined ? {} : { cloudProjectId }),
+            },
+            consent: `Create Application ${slug}?`,
+            id: { kind: 'application', value: applicationId },
+            tool: 'dexto_application_create',
+        });
+    },
+};
+
+const deploy: Command = {
+    arguments: '<connection_id> <package>',
+    options: { ...idOption('deployment'), ...WRITE_OPTIONS },
+    path: ['applications', 'deploy'],
+    summary:
+        'Deploy an Application package (its deploy-request.json, up to 5 MiB, with a Dockerfile) to the Application whose connectionId applications get shows. A healthy release takes over the same URL; follow it with applications release. Requires applications:write.',
+    examples: [
+        'dexto applications deploy "$CONNECTION_ID" ./orders/deploy-request.json --yes --json',
+    ],
+    async run(context, input) {
+        const connectionId = argument(input, 0, 'connection_id');
+        const file = argument(input, 1, 'package');
+        const bytes = await readPackage(file, APPLICATION_PACKAGE);
+        const deploymentId = newId(input, 'deployment');
+        const args = { connectionId, deploymentId };
+        if (showedDryRun(context, input, 'dexto_application_deploy', args)) return;
+        await agreeToWrite(context, input, `Deploy ${path.basename(file)} to ${connectionId}?`);
+        // Dexto checks the package, then takes the upload: one upload makes one release, so a
+        // lost response is followed with release, never deployed again.
+        context.output.note(
+            `New deployment id: ${deploymentId}. Follow it: dexto applications release ${deploymentId}`
+        );
+        const uploadPath = await uploadPackage(context, bytes, APPLICATION_PACKAGE);
+        context.output.record(
+            await queryWorkspaceTool(context, 'dexto_application_deploy', {
+                ...args,
+                confirm: true,
+                uploadPath,
+            })
+        );
+    },
+};
+
+const rollback: Command = {
+    arguments: '<application_id> <release_id>',
+    options: { ...idOption('deployment'), ...WRITE_OPTIONS },
+    path: ['applications', 'rollback'],
+    summary:
+        "Roll an Application back to a retained healthy release, by that release's deploymentId: its image is redeployed without a rebuild, on the same URL, with the current runtime variables. Database changes stay. Requires applications:write.",
+    examples: ['dexto applications rollback "$APPLICATION_ID" "$DEPLOYMENT_ID" --yes --json'],
+    async run(context, input) {
+        const applicationId = argument(input, 0, 'application_id');
+        const rollbackFromId = argument(input, 1, 'release_id');
+        const deploymentId = newId(input, 'deployment');
+        await writeApplication(context, input, {
+            args: { applicationId, deploymentId, rollbackFromId },
+            consent: `Roll Application ${applicationId} back to release ${rollbackFromId}?`,
+            id: { kind: 'deployment', value: deploymentId },
+            tool: 'dexto_application_rollback',
+        });
+    },
+};
+
+const releaseDelete: Command = {
+    arguments: '<deployment_id>',
+    options: WRITE_OPTIONS,
+    path: ['applications', 'release', 'delete'],
+    summary:
+        "Retire one release's compute. The Application's data stays. Inspect a release that is still deploying first. Requires applications:write.",
+    examples: ['dexto applications release delete "$DEPLOYMENT_ID" --yes --json'],
+    async run(context, input) {
+        const deploymentId = argument(input, 0, 'deployment_id');
+        await writeApplication(context, input, {
+            args: { deploymentId },
+            consent: `Retire release ${deploymentId}'s compute? This can't be undone.`,
+            id: null,
+            tool: 'dexto_application_release_delete',
+        });
+    },
+};
+
+/** A lifecycle change: one call by applicationId under an operation id, followed with operations. */
+function lifecycleCommand(
+    action: 'resume' | 'retire' | 'suspend',
+    summary: string,
+    consent: (applicationId: string) => string
+): Command {
+    return {
+        arguments: '<application_id>',
+        options: { ...idOption('operation'), ...WRITE_OPTIONS },
+        path: ['applications', action],
+        summary: `${summary} Follow it with applications operations. Requires applications:write.`,
+        examples: [`dexto applications ${action} "$APPLICATION_ID" --yes --json`],
+        async run(context, input) {
+            const applicationId = argument(input, 0, 'application_id');
+            const operationId = newId(input, 'operation');
+            await writeApplication(context, input, {
+                args: { applicationId, operationId },
+                consent: consent(applicationId),
+                id: { kind: 'operation', value: operationId },
+                tool: `dexto_application_${action}`,
+            });
+        },
+    };
+}
+
+const suspend = lifecycleCommand(
+    'suspend',
+    'Suspend an Application: stop its tasks. Its database, objects and HTTPS ingress stay, and keep costing money.',
+    (applicationId) => `Suspend Application ${applicationId}?`
+);
+const resume = lifecycleCommand(
+    'resume',
+    'Resume a suspended Application: restart the same service.',
+    (applicationId) => `Resume Application ${applicationId}?`
+);
+const retire = lifecycleCommand(
+    'retire',
+    "Retire an Application: permanently remove its compute, keeping its database, auth users and objects. It purges no data and doesn't stop every cost.",
+    (applicationId) =>
+        `Permanently remove Application ${applicationId}'s compute? This can't be undone.`
+);
+
+const purge: Command = {
+    arguments: '<application_id>',
+    options: {
+        'confirm-application-id': {
+            description:
+                "The application id again, confirming which Application's data is destroyed.",
+            type: 'string',
+            valueName: 'APPLICATION_ID',
+        },
+        ...idOption('operation'),
+        ...WRITE_OPTIONS,
+    },
+    path: ['applications', 'purge'],
+    summary:
+        "Irreversibly purge a fully retired Application's backend: its database and backups, auth users, objects, images and runtime variable values. Billing and audit records stay. Requires applications:write.",
+    examples: [
+        'dexto applications purge "$APPLICATION_ID" --confirm-application-id "$APPLICATION_ID" --yes --json',
+    ],
+    async run(context, input) {
+        const applicationId = argument(input, 0, 'application_id');
+        const confirmApplicationId = requiredOption(input, 'confirm-application-id');
+        const operationId = newId(input, 'operation');
+        await writeApplication(context, input, {
+            args: { applicationId, confirmApplicationId, operationId },
+            consent: `Destroy Application ${applicationId}'s data for good? This can't be undone.`,
+            id: { kind: 'operation', value: operationId },
+            tool: 'dexto_application_purge',
+        });
+    },
+};
+
+const install: Command = {
+    arguments: '<application_id>',
+    options: WRITE_OPTIONS,
+    path: ['applications', 'install'],
+    summary:
+        'Install a healthy Application that has a Dexto app manifest into your app drawer. It copies no backend, data or credentials. Requires applications:write.',
+    examples: ['dexto applications install "$APPLICATION_ID" --yes --json'],
+    async run(context, input) {
+        const applicationId = argument(input, 0, 'application_id');
+        await writeApplication(context, input, {
+            args: { applicationId },
+            consent: `Install Application ${applicationId} into your app drawer?`,
+            id: null,
+            tool: 'dexto_application_install',
+        });
+    },
+};
+
 export const applicationCommands: readonly Command[] = [
     list,
     get,
@@ -320,4 +611,13 @@ export const applicationCommands: readonly Command[] = [
     history,
     insights,
     usage,
+    create,
+    deploy,
+    rollback,
+    releaseDelete,
+    suspend,
+    resume,
+    retire,
+    purge,
+    install,
 ];
