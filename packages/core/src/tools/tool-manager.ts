@@ -1757,7 +1757,7 @@ export class ToolManager {
         if (record.status === 'failed') {
             throw ToolError.executionFailed(
                 call.toolName,
-                `Tool execution already failed: ${executionId}`
+                `Tool execution already failed: ${executionId}: ${record.error}`
             );
         }
         if (this.resumesRunningExecution(call, record.status)) {
@@ -1948,7 +1948,7 @@ export class ToolManager {
                     if (options?.throwOnError === true) {
                         throw ToolError.executionFailed(
                             call.toolName,
-                            `Tool execution already failed: ${executionId}`
+                            `Tool execution already failed: ${executionId}: ${started.record.error}`
                         );
                     }
                     return this.createFailedPreparedToolResult(call, started.record.error);
