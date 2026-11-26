@@ -7,6 +7,8 @@
         "apps list": ["dexto_apps_list"],
         "apps get": ["dexto_app_get"],
         "apps uninstalled": ["dexto_apps_uninstalled_list"],
+        "apps deploy": ["dexto_upload_prepare", "dexto_app_deploy"],
+        "apps verify": ["dexto_upload_prepare", "dexto_app_deployment_verify"],
         "applications list": ["dexto_applications_list"],
         "applications get": ["dexto_application_get"],
         "applications release": ["dexto_application_release_get"],
@@ -492,8 +494,6 @@
     "localOnlyNotes": "Only cloud-host registrations are pinned here. Separately registered local run/upgrade/uninstall/chat helpers, local config/preferences and automatic chat synchronization need no MCP coverage and are outside this registration guard.",
     "passthroughOnly": [
         "dexto_app_data_remove",
-        "dexto_app_deploy",
-        "dexto_app_deployment_verify",
         "dexto_app_open",
         "dexto_app_request_access",
         "dexto_app_runtime",

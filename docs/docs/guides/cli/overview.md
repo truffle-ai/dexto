@@ -502,7 +502,16 @@ dexto apps get "$APP_ID" --json
 dexto apps uninstalled --json
 ```
 
-These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps and removing kept data are not `apps` commands.
+These read only and need `apps:read`. List returns `{activeAppId, apps}`: each App's id, title, delivery and action names. Get returns one App with each action's exact input schema, whether it runs headless or needs the App's UI, its level, and the App's launch URL when it has one; an App you cannot reach fails with the server's not-found message. Uninstalled returns `{apps}`: each uninstalled App whose data is kept, with the date that data is deleted. Run a headless App action with `dexto workspace <app> <operation>`; an action that needs the App's UI runs only in the App itself, in Dexto. Installing Apps from the store and removing kept data are not `apps` commands.
+
+Deploy an App you packaged, or check the installed App against its package:
+
+```bash
+dexto apps deploy "$APP_ID" ./"$APP_ID"/.dexto/deploy-request.json --yes --json
+dexto apps verify "$APP_ID" ./"$APP_ID"/.dexto/deploy-request.json --json
+```
+
+The package is the `deploy-request.json` the dexto-apps packer writes, up to 40 MiB, and the App id is the `appId` it names. Both upload the package and then call `dexto_app_deploy` or `dexto_app_deployment_verify` with it, printing the tool's result. Deploy needs `apps:write` and your agreement: it asks at a terminal, and without one it fails with `needs_confirmation` until you pass `--yes`, before uploading anything. Dexto checks the package, then takes the upload, so each deploy uploads afresh. Verify needs `apps:read`, never deploys and takes nothing; `matchesPackage` says whether the installed build is the package's.
 
 ## Your Dexto Workspace
 
