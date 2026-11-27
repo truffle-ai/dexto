@@ -733,6 +733,20 @@ describe('redactLogRecord values', () => {
         });
     });
 
+    test('redacts the text of a Date or RegExp whose own conversion was replaced', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        const date = Object.assign(new Date('2026-01-02T03:04:05.000Z'), {
+            toISOString: () => secret,
+        });
+        const pattern = Object.assign(/ab/g, { toString: () => secret });
+
+        expect(redactLogData({ date, pattern })).toEqual({
+            date: '[REDACTED]',
+            pattern: '[REDACTED]',
+        });
+        expect(redact({ date, pattern })).toEqual({ date: '[REDACTED]', pattern: '[REDACTED]' });
+    });
+
     test('keeps map and set entries and masks secrets inside them', () => {
         expect(
             redactLogData({

@@ -37,7 +37,9 @@ export function safeStringify(value: unknown, maxLen?: number): string {
             }
             return str;
         }
-        return String(redacted);
+        // JSON has no text for a top-level symbol or undefined. A symbol's description can hold
+        // anything, so its text is redacted like any other string.
+        return String(redactForStringify(String(redacted), limit));
     } catch {
         return '[Unserializable value]';
     }
