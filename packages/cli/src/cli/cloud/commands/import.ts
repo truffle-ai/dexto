@@ -308,12 +308,14 @@ async function runImport(
 
 const discover: Command = {
     path: ['import'],
+    examples: ['dexto import --select "$IMPORT_ID" --dry-run --json'],
     options,
     summary: 'Discover or import local Claude Code and Codex chats.',
     run: (context, input) => runImport(context, input, false),
 };
 const list: Command = {
     path: ['import', 'list'],
+    examples: ['dexto import list --json'],
     summary: 'List local chats for import.',
     run: (context, input) => runImport(context, input, true),
 };
