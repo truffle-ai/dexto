@@ -253,10 +253,10 @@ function redactString(input: string): string {
  * also masks by broader key names and by "name=value" text, which would corrupt API payloads
  * (for example a `nextPageToken` or a public `posthogKey`).
  */
-type Mode = 'response' | 'stringify' | 'log';
+type Mode = 'response' | 'stringify' | 'stringify-error' | 'log';
 
 const MAX_LOG_DEPTH = 20;
-const MAX_RESPONSE_DEPTH = 100;
+const MAX_STRINGIFY_DEPTH = 512;
 // A log entry is read for at most this many objects, so a densely linked graph (every node
 // pointing at every other) cannot be walked once per path.
 const MAX_LOG_NODES = 5000;
@@ -303,6 +303,8 @@ interface Walk {
     remaining: number;
     /** About how many characters of JSON this call may still produce (safeStringify). */
     budget: number;
+    /** A stringify value exceeded the safe depth. */
+    tooDeep: boolean;
 }
 
 /**
@@ -341,7 +343,8 @@ function redactValue(
     if (typeof input === 'function') return undefined;
     if (typeof input === 'string') {
         if (insideSecret) return REDACTED;
-        const redact = mode === 'log' ? redactLogString : redactString;
+        const redact =
+            mode === 'log' || mode === 'stringify-error' ? redactLogString : redactString;
         const keep = Math.max(0, walk.budget);
         const read = keep + STRING_CONTEXT;
         if (input.length <= read) return redact(input);
@@ -366,8 +369,12 @@ function redactValue(
     if (walk.ancestors.has(input)) return REDACTED_CIRCULAR;
     if (walk.shared?.has(input)) return insideSecret ? REDACTED : SHARED;
     if (mode === 'log' && depth >= MAX_LOG_DEPTH) return TRUNCATED;
-    if (mode !== 'log' && depth >= MAX_RESPONSE_DEPTH) return TOO_DEEP;
-    const memoized = walk.memo?.get(input)?.get(depth);
+    if ((mode === 'stringify' || mode === 'stringify-error') && depth >= MAX_STRINGIFY_DEPTH) {
+        walk.tooDeep = true;
+        return TOO_DEEP;
+    }
+    const memoDepth = mode === 'response' ? 0 : depth;
+    const memoized = walk.memo?.get(input)?.get(memoDepth);
     if (memoized !== undefined) return memoized;
     if (walk.remaining <= 0) return TRUNCATED;
     walk.remaining -= 1;
@@ -381,7 +388,7 @@ function redactValue(
                 results = new Map();
                 walk.memo.set(input, results);
             }
-            results.set(depth, result);
+            results.set(memoDepth, result);
         }
         walk.shared?.add(input);
         return result;
@@ -442,7 +449,7 @@ function redactContainer(
     // Keys are read one at a time (no copy of the object), so a wide object costs the budget,
     // not its width: only enumerating its keys is proportional to how many there are.
     const details =
-        mode === 'stringify' && input instanceof Error
+        (mode === 'stringify' || mode === 'stringify-error') && input instanceof Error
             ? {
                   name: input.name,
                   message: input.message,
@@ -475,7 +482,14 @@ function redactContainer(
             const truncatedValue = truncateFileData(value, key, fields);
             const redacted = spend(
                 walk,
-                redactEntry(key, truncatedValue, walk, mode, insideSecret, depth)
+                redactEntry(
+                    key,
+                    truncatedValue,
+                    walk,
+                    details ? 'stringify-error' : mode,
+                    insideSecret,
+                    depth
+                )
             );
             if (key === '__proto__') {
                 Object.defineProperty(result, key, {
@@ -505,7 +519,7 @@ function redactEntry(
     insideSecret: boolean,
     depth: number
 ): unknown {
-    if (mode === 'log' && !insideSecret) {
+    if ((mode === 'log' || mode === 'stringify-error') && !insideSecret) {
         if (isSecretMapKey(key) && isPlainObject(value)) {
             return redactValue(value, walk, mode, true, depth);
         }
@@ -536,6 +550,7 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()
             shared: undefined,
             remaining: Infinity,
             budget: Infinity,
+            tooDeep: false,
         },
         'response',
         false
@@ -552,18 +567,16 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()
  */
 export function redactForStringify(input: unknown, maxChars: number): unknown {
     const capped = Number.isFinite(maxChars);
-    return redactValue(
-        input,
-        {
-            ancestors: new WeakSet(),
-            memo: capped ? undefined : new WeakMap(),
-            shared: capped ? new WeakSet() : undefined,
-            remaining: Infinity,
-            budget: maxChars,
-        },
-        'stringify',
-        false
-    );
+    const walk: Walk = {
+        ancestors: new WeakSet(),
+        memo: capped ? undefined : new WeakMap(),
+        shared: capped ? new WeakSet() : undefined,
+        remaining: Infinity,
+        budget: maxChars,
+        tooDeep: false,
+    };
+    const result = redactValue(input, walk, 'stringify', false);
+    return walk.tooDeep ? TOO_DEEP : result;
 }
 
 // ---- Logs ----
@@ -740,6 +753,7 @@ export function redactLogRecord(
                 shared: new WeakSet(),
                 remaining: MAX_LOG_NODES,
                 budget: Infinity,
+                tooDeep: false,
             },
             'log',
             false

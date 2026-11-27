@@ -67,6 +67,15 @@ describe('safeStringify', () => {
         expect(result).not.toContain(secret);
     });
 
+    it('masks log-style secrets in nested error details', () => {
+        const error = new Error('password=hunter2', { cause: { clientSecret: 'hunter2' } });
+
+        const result = safeStringify({ error });
+
+        expect(result.includes('hunter2')).toBe(false);
+        expect(result).toContain('[REDACTED]');
+    });
+
     it('does not read a wide error past the length budget', () => {
         const error = new Error('failure');
         let reads = 0;
@@ -90,15 +99,21 @@ describe('safeStringify', () => {
         for (let level = 0; level < 5000; level += 1) value = { nested: value };
 
         const uncapped = safeStringify(value);
-        expect(uncapped).toContain('[Too deep]');
-        expect(uncapped.length).toBeLessThan(5000);
-        expect(safeStringify(value, CAP)).toContain('[Too deep]');
+        expect(uncapped).toBe('"[Too deep]"');
+        expect(safeStringify(value, CAP)).toBe('"[Too deep]"');
+    });
+
+    it('preserves a valid 150-level tool result', () => {
+        let value: Record<string, unknown> = { leaf: true };
+        for (let level = 0; level < 150; level += 1) value = { nested: value };
+
+        expect(safeStringify(value)).toBe(JSON.stringify(value));
     });
 
     it('bounds depth when earlier shared objects are reused at deeper levels', () => {
         const nodes: Record<string, unknown>[] = [];
         let node: Record<string, unknown> = { leaf: true };
-        for (let level = 0; level < 5000; level += 1) {
+        for (let level = 0; level < 600; level += 1) {
             node = { previous: node };
             nodes.push(node);
         }

@@ -21,6 +21,13 @@ describe('redact', () => {
         expect(redact({ error: new Error('private detail') })).toEqual({ error: {} });
     });
 
+    test('preserves deeply nested API response data', () => {
+        let value: Record<string, unknown> = { leaf: true };
+        for (let level = 0; level < 600; level += 1) value = { nested: value };
+
+        expect(JSON.stringify(redact(value))).toBe(JSON.stringify(value));
+    });
+
     // Basic field redaction
     test('should redact a single sensitive field', () => {
         expect(redact({ apiKey: 'secret' })).toEqual({ apiKey: '[REDACTED]' });
