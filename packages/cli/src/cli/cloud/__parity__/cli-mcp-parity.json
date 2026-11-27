@@ -144,6 +144,7 @@
         "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
         "chat follow": ["dexto_chat_follow"],
         "chat send": ["dexto_chat_send", "dexto_chat_follow"],
+        "chat continue": ["dexto_chat_continue"],
         "chat cancel": ["dexto_chat_cancel"],
         "chat fork": ["dexto_chat_fork"],
         "chat list": ["dexto_chat_list"],
@@ -640,11 +641,6 @@
             "tool": "dexto_chat_computer",
             "issue": "DEXTO-3102",
             "reason": "The computer command group (start, exec, stop) follows upstream."
-        },
-        {
-            "tool": "dexto_chat_continue",
-            "issue": "DEXTO-4079",
-            "reason": "The chat continue command follows upstream."
         },
         {
             "tool": "dexto_direct_conversation_get",

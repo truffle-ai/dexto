@@ -1,6 +1,7 @@
 // Discover local chats, import them, and start cloud chats with owned computer and browser choices.
 
-import { requireConsent } from '../../interaction.js';
+import { randomUUID } from 'node:crypto';
+import { requireConsent, rerunWith, shellWord } from '../../interaction.js';
 import { CommandFailure, EXIT_CODES, type FailureKind } from '../../failure.js';
 import { chatMoveCommands } from './chat-move.js';
 
@@ -749,6 +750,116 @@ const send: Command = {
     },
 };
 
+// dexto_chat_continue starts the next turn of an inactive chat: `accepted` (`replayed` when this
+// key already started it), or `active` with what to do instead while another turn runs.
+const ChatContinueResultSchema = z.discriminatedUnion('status', [
+    z
+        .object({
+            status: z.literal('accepted'),
+            replayed: z.boolean(),
+            run: z.object({ id: z.string() }).passthrough(),
+            session: ChatSessionSchema,
+        })
+        .passthrough(),
+    z
+        .object({ status: z.literal('active'), session: ChatSessionSchema, nextAction: z.string() })
+        .passthrough(),
+]);
+
+const continueChat: Command = {
+    path: ['chat', 'continue'],
+    arguments: '<chat_id> <message>',
+    summary:
+        'Continue an inactive cloud chat with its context and artifacts, optionally on another model. Requires sessions:write.',
+    options: {
+        model: {
+            type: 'string',
+            valueName: 'ID',
+            description: 'Switch the chat to this model from dexto chat models first.',
+        },
+        'idempotency-key': {
+            type: 'string',
+            valueName: 'KEY',
+            description:
+                'Up to 128 characters: running again with the same key and message never starts a second turn. Omitted, one is picked and printed.',
+        },
+        ...YES_OPTION,
+    },
+    examples: [
+        'dexto chat continue "$CHAT_ID" "Pick up where you left off" --yes',
+        'dexto chat continue "$CHAT_ID" "Try it on this model" --model "$MODEL_ID" --json --yes',
+        'dexto chat continue "$CHAT_ID" "Next step" --idempotency-key next-1 --json --yes',
+    ],
+    jsonOutput: {
+        description:
+            'The accepted run and chat, or the running chat with its next action, plus the idempotencyKey used.',
+        schema: z.toJSONSchema(ChatContinueResultSchema),
+    },
+    async run(context, input) {
+        const sessionId = argument(input, 0, 'chat_id');
+        const message = argument(input, 1, 'message');
+        const model = stringOption(input, 'model');
+        const given = stringOption(input, 'idempotency-key');
+        const idempotencyKey = given ?? `cli-${randomUUID()}`;
+        await requireLoginScopes(context, ['sessions:write']);
+        await requireConsent(
+            consentContext(context),
+            flag(input, 'yes'),
+            `Continue the chat ${sessionId} with this message?`
+        );
+        let parsed: z.output<typeof ChatContinueResultSchema>;
+        try {
+            parsed = ChatContinueResultSchema.parse(
+                await queryWorkspaceTool(context, 'dexto_chat_continue', {
+                    sessionId,
+                    message,
+                    idempotencyKey,
+                    ...(model === undefined ? {} : { model }),
+                })
+            );
+        } catch (error) {
+            if (error instanceof WorkspaceToolFailure && error.data.kind === 'conflict')
+                throw new CommandFailure('conflict', error.message, null);
+            // A refusal is certain. Anything else, an unreadable answer included, may have started
+            // the turn: the same key and message, sent again, return that turn instead of another.
+            if (
+                error instanceof WorkspaceToolFailure ||
+                (error instanceof CommandFailure && error.kind !== 'failed')
+            )
+                throw error;
+            const lead =
+                error instanceof z.ZodError
+                    ? "Dexto didn't return a valid chat continue result."
+                    : error instanceof Error
+                      ? error.message
+                      : String(error);
+            throw new CommandFailure(
+                'failed',
+                `${lead} The chat may have continued: run it again with the same key to find out.`,
+                given === undefined
+                    ? rerunWith(context, '--idempotency-key', idempotencyKey)
+                    : rerunWith(context)
+            );
+        }
+        const result = { ...parsed, idempotencyKey };
+        const name = result.session.title ?? result.session.id;
+        if (result.status === 'active') {
+            if (context.output.json) context.output.result(result, '');
+            throw new CommandFailure(
+                'conflict',
+                `Not continued: ${name} is running. ${result.nextAction} From here: dexto chat send ${shellWord(result.session.id)} <message>.`,
+                null
+            );
+        }
+        const what = result.replayed ? 'Already continued with this key' : 'Continued';
+        context.output.result(
+            result,
+            `${what} ${name}: run ${result.run.id}. Follow it: dexto chat follow ${shellWord(result.session.id)}\n${result.session.url}`
+        );
+        return 0;
+    },
+};
+
 const cancel: Command = {
     path: ['chat', 'cancel'],
     arguments: '<chat_id>',
@@ -1082,6 +1193,7 @@ export const chatCommands: readonly Command[] = [
     start,
     follow,
     send,
+    continueChat,
     cancel,
     fork,
     computers,
