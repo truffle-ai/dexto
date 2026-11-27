@@ -46,7 +46,7 @@ describe('safeStringify', () => {
         const date = Object.assign(new Date('2026-01-02T03:04:05.000Z'), {
             toISOString: () => secret,
         });
-        const pattern = Object.assign(/a+b/g, { toString: () => secret });
+        const pattern = Object.assign(/ab/g, { toString: () => secret });
 
         expect(safeStringify({ date, pattern })).toBe(
             '{"date":"[REDACTED]","pattern":"[REDACTED]"}'
