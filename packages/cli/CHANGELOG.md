@@ -1,5 +1,11 @@
 # dexto
 
+## 2.7.3
+
+### Patch Changes
+
+- 5ef34d6: Add `dexto chat continue`: continue an inactive cloud chat with its context and artifacts, optionally on another model, with an idempotency key that makes a retry safe.
+
 ## 2.7.2
 
 ### Patch Changes
