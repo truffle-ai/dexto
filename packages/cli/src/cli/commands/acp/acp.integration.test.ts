@@ -1473,6 +1473,23 @@ setup:
         }
     }, 60000);
 
+    it('gives older clients the terminal-auth command that runs this dexto login', async () => {
+        const [method] = await withAgent(
+            allow,
+            async (_cx, recorded) => recorded.authMethods,
+            undefined,
+            { capabilities: { _meta: { 'terminal-auth': true } } }
+        );
+        // The method keeps `type: 'terminal'` for current clients.
+        expect(method).toEqual(expect.objectContaining(DEXTO_LOGIN_METHOD));
+        // The exact node, flags and script this test spawned dexto with, then the login args.
+        expect(method?._meta?.['terminal-auth']).toEqual({
+            label: 'Sign in to Dexto',
+            command: process.execPath,
+            args: ['--import', tsx, entrypoint, ...DEXTO_LOGIN_METHOD.args],
+        });
+    }, 60000);
+
     it('runs dexto login for dexto acp login, whichever way the client adds the args', async () => {
         const run = (args: string[]) =>
             new Promise<{ code: number | null; output: string }>((done) => {
