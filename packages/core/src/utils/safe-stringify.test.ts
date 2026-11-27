@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { safeStringify } from './safe-stringify.js';
+import { safeStringify, safeStringifyWithStacks } from './safe-stringify.js';
 
 const CAP = 8192;
 
@@ -322,5 +322,42 @@ describe('safeStringify', () => {
         );
         expect(safeStringify(5n)).toBe('5');
         expect(safeStringify(undefined)).toBe('undefined');
+    });
+});
+
+describe('safeStringify errors', () => {
+    function failure(): Error {
+        const cause = new Error('root cause');
+        cause.stack = 'Error: root cause\n    at readFile (/srv/app/fs.ts:1:1)';
+        const error = Object.assign(new Error('boom', { cause }), { code: 'E_TOOL' });
+        error.stack = 'Error: boom\n    at runTool (/srv/app/tools/run.ts:12:3) token=abc123';
+        return error;
+    }
+
+    it('writes an error as its name, message, cause and fields, without any stack', () => {
+        expect(JSON.parse(safeStringify({ error: failure() }))).toEqual({
+            error: {
+                name: 'Error',
+                message: 'boom',
+                cause: { name: 'Error', message: 'root cause' },
+                code: 'E_TOOL',
+            },
+        });
+    });
+
+    it('drops a stack an error defines as an enumerable field', () => {
+        const error = new Error('boom');
+        Object.defineProperty(error, 'stack', {
+            value: 'Error: boom\n    at runTool (/srv/app/tools/run.ts:12:3)',
+            enumerable: true,
+        });
+        expect(safeStringify(error)).toBe('{"name":"Error","message":"boom"}');
+    });
+
+    it('keeps each masked stack for traces', () => {
+        const text = safeStringifyWithStacks({ error: failure() });
+        expect(text).toContain('at runTool (/srv/app/tools/run.ts:12:3) token=[REDACTED]');
+        expect(text).toContain('at readFile (/srv/app/fs.ts:1:1)');
+        expect(text).not.toContain('abc123');
     });
 });

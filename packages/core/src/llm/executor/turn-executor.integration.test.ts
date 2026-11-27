@@ -1073,6 +1073,17 @@ describe('TurnExecutor Integration Tests', () => {
                 success: false,
                 errorText: '{"code":"bad"}',
             },
+            {
+                label: 'Error without a message',
+                result: {
+                    error: Object.assign(new Error(''), {
+                        code: 'bad',
+                        stack: 'Error: boom\n    at runTool (/srv/app/tools/run.ts:12:3)',
+                    }),
+                },
+                success: false,
+                errorText: '{"name":"Error","message":"","code":"bad"}',
+            },
         ])('reports $label with success=$success', async ({ result, success, errorText }) => {
             toolManager.addTools([
                 defineTool({

@@ -10,7 +10,7 @@ import {
 } from '@opentelemetry/api';
 import type { Logger } from '../logger/v2/types.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
-import { safeStringify } from '../utils/safe-stringify.js';
+import { safeStringify, safeStringifyWithStacks } from '../utils/safe-stringify.js';
 import { getHostRuntimeAttributes, getHostRuntimeBaggageEntries } from '../runtime/index.js';
 
 /**
@@ -35,7 +35,7 @@ function spanAttributeValue(value: unknown): string {
                 return `[${name || 'Object'}]`;
             }
         }
-        return safeStringify(value, 8192);
+        return safeStringifyWithStacks(value, 8192);
     } catch {
         return '[Unserializable value]';
     }

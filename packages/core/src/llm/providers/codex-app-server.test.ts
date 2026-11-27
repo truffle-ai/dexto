@@ -180,6 +180,40 @@ describe('createCodexLanguageModel', () => {
         );
     });
 
+    it('writes a tool result error without its stack in the transcript', async () => {
+        const mock = createMockClient();
+        vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
+            mock.client as unknown as CodexAppServerClient
+        );
+        const error = new Error('boom');
+        error.stack = 'Error: boom\n    at runTool (/srv/app/tools/run.ts:12:3)';
+        const prompt: LanguageModelV2CallOptions['prompt'] = [
+            {
+                role: 'tool',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolName: 'run_tool',
+                        toolCallId: 'call-error',
+                        // @ts-expect-error a tool can still return an Error, which is not JSON
+                        output: { type: 'json', value: { error } },
+                    },
+                ],
+            },
+        ];
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+        const execution = await model.doStream(createCallOptions({ prompt }));
+        await execution.stream.cancel();
+
+        const transcript: unknown = mock.client.startTurn.mock.calls[0]?.[0]?.transcript;
+        expect(transcript).toContain('"error":{"name":"Error","message":"boom"}');
+        expect(transcript).not.toContain('/srv/app/tools/run.ts');
+    });
+
     it('bridges Codex dynamic tool requests into AI SDK tool-call stream parts', async () => {
         const mock = createMockClient();
         vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
