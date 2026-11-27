@@ -6,7 +6,9 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
+import { CloudApiError } from '@dexto/cloud-client';
 import { z } from 'zod';
+import { CommandFailure } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
 import {
     argument,
@@ -23,7 +25,7 @@ import {
 import type { Column } from '../output.js';
 import { readPackage, uploadPackage, type PackageKind } from './apps.js';
 import { requireLoginScopes } from './deploys.js';
-import { queryWorkspaceTool } from './workspace.js';
+import { queryWorkspaceTool, WorkspaceToolFailure } from './workspace.js';
 
 const SCOPES = ['applications:read'] as const;
 const WRITE_SCOPES = ['applications:write'] as const;
@@ -153,7 +155,7 @@ const get: Command = {
     summary: 'Show one Application, checking its provisioning while it is not ready.',
     examples: ['dexto applications get "$APPLICATION_ID" --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
+        const applicationId = idArgument(input, 0, 'application_id');
         await requireLoginScopes(context, SCOPES);
         context.output.record(
             ApplicationSchema.parse(
@@ -169,7 +171,7 @@ const release: Command = {
     summary: "Show one release: its status, URL and progress, from a deploy's deploymentId.",
     examples: ['dexto applications release "$DEPLOYMENT_ID" --json'],
     async run(context, input) {
-        const deploymentId = argument(input, 0, 'deployment_id');
+        const deploymentId = idArgument(input, 0, 'deployment_id');
         await requireLoginScopes(context, SCOPES);
         context.output.record(
             ReleaseSchema.parse(
@@ -185,7 +187,7 @@ const logs: Command = {
     summary: "Read one release's recent logs, bounded and redacted.",
     examples: ['dexto applications logs "$DEPLOYMENT_ID" --json'],
     async run(context, input) {
-        const deploymentId = argument(input, 0, 'deployment_id');
+        const deploymentId = idArgument(input, 0, 'deployment_id');
         await requireLoginScopes(context, SCOPES);
         const result = LogsSchema.parse(
             await queryWorkspaceTool(context, 'dexto_application_logs', { deploymentId })
@@ -201,7 +203,7 @@ const variables: Command = {
         "List the names of an Application's runtime variables, never their values. Set values in Cloud, in the Application's Settings.",
     examples: ['dexto applications variables "$APPLICATION_ID" --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
+        const applicationId = idArgument(input, 0, 'application_id');
         await requireLoginScopes(context, SCOPES);
         const result = VariablesSchema.parse(
             await queryWorkspaceTool(context, 'dexto_application_variables_list', {
@@ -225,7 +227,7 @@ const exportPlugin: Command = {
         "Print a healthy Application's portable plugin files (plugin.json, mcp.json and its skills), without credentials. Publishes and installs nothing.",
     examples: ['dexto applications export-plugin "$APPLICATION_ID" --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
+        const applicationId = idArgument(input, 0, 'application_id');
         await requireLoginScopes(context, SCOPES);
         const result = PluginExportSchema.parse(
             await queryWorkspaceTool(context, 'dexto_application_plugin_export', {
@@ -253,7 +255,7 @@ const operations: Command = {
         "List an Application's suspend, resume, retire and purge operations and their progress.",
     examples: ['dexto applications operations "$APPLICATION_ID" --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
+        const applicationId = idArgument(input, 0, 'application_id');
         await requireLoginScopes(context, SCOPES);
         const result = OperationsSchema.parse(
             await queryWorkspaceTool(context, 'dexto_application_operations_list', {
@@ -284,7 +286,7 @@ const history: Command = {
     ],
     async run(context, input) {
         const resourceKind = choiceOption(input, 'kind', HISTORY_KINDS) ?? 'project';
-        const resourceId = argument(input, 0, 'resource_id');
+        const resourceId = idArgument(input, 0, 'resource_id');
         await requireLoginScopes(context, SCOPES);
         const result = HistorySchema.parse(
             await queryWorkspaceTool(context, 'dexto_application_history', {
@@ -304,7 +306,7 @@ const insights: Command = {
         "Read an Application's timestamped measurements; an unavailable metric stays null, never zero.",
     examples: ['dexto applications insights "$APPLICATION_ID" --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
+        const applicationId = idArgument(input, 0, 'application_id');
         await requireLoginScopes(context, SCOPES);
         const result = InsightsSchema.parse(
             await queryWorkspaceTool(context, 'dexto_application_insights', { applicationId })
@@ -320,7 +322,7 @@ const usage: Command = {
         "Read an Application's daily AWS cost estimates and, separately, its settled hosting charges.",
     examples: ['dexto applications usage "$APPLICATION_ID" --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
+        const applicationId = idArgument(input, 0, 'application_id');
         await requireLoginScopes(context, SCOPES);
         const result = UsageSchema.parse(
             await queryWorkspaceTool(context, 'dexto_application_usage', { applicationId })
@@ -333,9 +335,42 @@ const usage: Command = {
 };
 
 const WRITE_OPTIONS = {
-    'dry-run': { description: 'Show the call without making it.', type: 'boolean' },
+    'dry-run': {
+        description:
+            "Check the arguments here and show the call without sending it. Dexto checks nothing: not your access, the Application's owner or whether its ids exist.",
+        type: 'boolean',
+    },
     ...YES_OPTION,
 } as const satisfies Record<string, OptionSpec>;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/** An id the tools take as a UUID, checked here so a wrong one says what it should be. */
+function checkedUuid(value: string, name: string): string {
+    if (UUID.test(value)) return value;
+    throw new CommandFailure(
+        'invalid_input',
+        `${name} must be a UUID (8-4-4-4-12 hex digits); got ${JSON.stringify(value)}.`,
+        null
+    );
+}
+
+function idArgument(input: CommandInput, index: number, name: string): string {
+    return checkedUuid(argument(input, index, name), name);
+}
+
+/** A deploy's target: `app-<application id>`, the connectionId applications get shows. */
+function connectionIdArgument(input: CommandInput): string {
+    const value = argument(input, 0, 'connection_id');
+    if (value.startsWith('app-') && UUID.test(value.slice('app-'.length))) return value;
+    throw new CommandFailure(
+        'invalid_input',
+        UUID.test(value)
+            ? `connection_id is app-<application id>, not a bare id. If ${value} is the Application's id, pass app-${value}.`
+            : `connection_id must be app-<application id>, the connectionId applications get shows; got ${JSON.stringify(value)}.`,
+        null
+    );
+}
 
 /** The kinds of new UUID a write takes, each by its own `--<kind>-id` option. */
 type IdKind = 'application' | 'deployment' | 'operation';
@@ -352,10 +387,14 @@ function idOption(kind: IdKind): Record<string, OptionSpec> {
 
 /** The write's new id: its `--<kind>-id`, or a fresh one. */
 function newId(input: CommandInput, kind: IdKind): string {
-    return stringOption(input, `${kind}-id`) ?? randomUUID();
+    const given = stringOption(input, `${kind}-id`);
+    return given === undefined ? randomUUID() : checkedUuid(given, `--${kind}-id`);
 }
 
-/** With --dry-run, shows the call and returns true: nothing is sent. */
+/**
+ * With --dry-run, shows the call and returns true: nothing is sent, so only what the CLI checks
+ * itself (the ids' shape, a deploy's package) was checked.
+ */
 function showedDryRun(
     context: CommandContext,
     input: CommandInput,
@@ -363,8 +402,21 @@ function showedDryRun(
     args: Record<string, unknown>
 ): boolean {
     if (!flag(input, 'dry-run')) return false;
-    context.output.result({ arguments: args, dryRun: true, tool }, `Would call ${tool}.`);
+    context.output.result(
+        { arguments: args, checkedByDexto: false, dryRun: true, tool },
+        `Would call ${tool}. Nothing was sent, so Dexto checked nothing: not your access, the Application's owner or whether its ids exist.`
+    );
     return true;
+}
+
+/**
+ * Whether a failed write is worth sending again with the same id: it may have acted (the response
+ * was lost) or the server said a retry can succeed. A refusal fails the same way again.
+ */
+function mayRetry(error: unknown): boolean {
+    if (error instanceof WorkspaceToolFailure) return error.data.retryable;
+    if (error instanceof CloudApiError) return error.retryable;
+    return !(error instanceof CommandFailure);
 }
 
 /** Checks the sign-in can write, then that the person agreed, by --yes or at the terminal. */
@@ -379,8 +431,8 @@ async function agreeToWrite(
 
 /**
  * Makes one approval-level Application call once the person agrees, sending `confirm: true` as
- * the server's sign that they did. Its new id, if any, is printed first, so a lost response can be
- * retried without acting twice.
+ * the server's sign that they did. Its new id, if any, is printed first, and how to retry with it
+ * only after a failure a retry can get past, so a lost response is retried without acting twice.
  */
 async function writeApplication(
     context: CommandContext,
@@ -394,13 +446,17 @@ async function writeApplication(
 ): Promise<void> {
     if (showedDryRun(context, input, write.tool, write.args)) return;
     await agreeToWrite(context, input, write.consent);
-    if (write.id !== null)
-        context.output.note(
-            `New ${write.id.kind} id: ${write.id.value}. To retry: --${write.id.kind}-id ${write.id.value}`
+    const { id } = write;
+    if (id !== null) context.output.note(`New ${id.kind} id: ${id.value}.`);
+    try {
+        context.output.record(
+            await queryWorkspaceTool(context, write.tool, { ...write.args, confirm: true })
         );
-    context.output.record(
-        await queryWorkspaceTool(context, write.tool, { ...write.args, confirm: true })
-    );
+    } catch (error) {
+        if (id !== null && mayRetry(error))
+            context.output.note(`To retry: --${id.kind}-id ${id.value}`);
+        throw error;
+    }
 }
 
 const create: Command = {
@@ -423,7 +479,9 @@ const create: Command = {
         const slug = argument(input, 0, 'slug');
         const title = argument(input, 1, 'title');
         const applicationId = newId(input, 'application');
-        const cloudProjectId = stringOption(input, 'project');
+        const project = stringOption(input, 'project');
+        const cloudProjectId =
+            project === undefined ? undefined : checkedUuid(project, '--project');
         await writeApplication(context, input, {
             args: {
                 applicationId,
@@ -448,7 +506,7 @@ const deploy: Command = {
         'dexto applications deploy "$CONNECTION_ID" ./orders/deploy-request.json --yes --json',
     ],
     async run(context, input) {
-        const connectionId = argument(input, 0, 'connection_id');
+        const connectionId = connectionIdArgument(input);
         const file = argument(input, 1, 'package');
         const bytes = await readPackage(file, APPLICATION_PACKAGE);
         const deploymentId = newId(input, 'deployment');
@@ -479,8 +537,8 @@ const rollback: Command = {
         "Roll an Application back to a retained healthy release, by that release's deploymentId: its image is redeployed without a rebuild, on the same URL, with the current runtime variables. Database changes stay. Requires applications:write.",
     examples: ['dexto applications rollback "$APPLICATION_ID" "$DEPLOYMENT_ID" --yes --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
-        const rollbackFromId = argument(input, 1, 'release_id');
+        const applicationId = idArgument(input, 0, 'application_id');
+        const rollbackFromId = idArgument(input, 1, 'release_id');
         const deploymentId = newId(input, 'deployment');
         await writeApplication(context, input, {
             args: { applicationId, deploymentId, rollbackFromId },
@@ -499,7 +557,7 @@ const releaseDelete: Command = {
         "Retire one release's compute. The Application's data stays. Inspect a release that is still deploying first. Requires applications:write.",
     examples: ['dexto applications release delete "$DEPLOYMENT_ID" --yes --json'],
     async run(context, input) {
-        const deploymentId = argument(input, 0, 'deployment_id');
+        const deploymentId = idArgument(input, 0, 'deployment_id');
         await writeApplication(context, input, {
             args: { deploymentId },
             consent: `Retire release ${deploymentId}'s compute? This can't be undone.`,
@@ -522,7 +580,7 @@ function lifecycleCommand(
         summary: `${summary} Follow it with applications operations. Requires applications:write.`,
         examples: [`dexto applications ${action} "$APPLICATION_ID" --yes --json`],
         async run(context, input) {
-            const applicationId = argument(input, 0, 'application_id');
+            const applicationId = idArgument(input, 0, 'application_id');
             const operationId = newId(input, 'operation');
             await writeApplication(context, input, {
                 args: { applicationId, operationId },
@@ -570,8 +628,11 @@ const purge: Command = {
         'dexto applications purge "$APPLICATION_ID" --confirm-application-id "$APPLICATION_ID" --yes --json',
     ],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
-        const confirmApplicationId = requiredOption(input, 'confirm-application-id');
+        const applicationId = idArgument(input, 0, 'application_id');
+        const confirmApplicationId = checkedUuid(
+            requiredOption(input, 'confirm-application-id'),
+            '--confirm-application-id'
+        );
         const operationId = newId(input, 'operation');
         await writeApplication(context, input, {
             args: { applicationId, confirmApplicationId, operationId },
@@ -590,7 +651,7 @@ const install: Command = {
         'Install a healthy Application that has a Dexto app manifest into your app drawer. It copies no backend, data or credentials. Requires applications:write.',
     examples: ['dexto applications install "$APPLICATION_ID" --yes --json'],
     async run(context, input) {
-        const applicationId = argument(input, 0, 'application_id');
+        const applicationId = idArgument(input, 0, 'application_id');
         await writeApplication(context, input, {
             args: { applicationId },
             consent: `Install Application ${applicationId} into your app drawer?`,

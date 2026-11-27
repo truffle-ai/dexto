@@ -371,6 +371,8 @@ function refusalFailure(
         (data.kind === undefined && /\bnot found\b/iu.test(error.message))
     )
         return new CommandFailure('not_found', error.message, null);
+    if (data.kind === 'not_available')
+        return new CommandFailure('not_available', error.message, null);
     if (data.kind === 'forbidden' || (data.kind === undefined && error.code === -32003))
         return new CommandFailure('needs_permission', error.message, null);
     if (

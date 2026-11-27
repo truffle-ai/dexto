@@ -1512,6 +1512,47 @@ describe('dexto workspace', () => {
         expect(error.fix).toContain('--scope agents:read');
     });
 
+    it('reports a feature the account does not have as not_available, without a retry hint', async () => {
+        const login = await dextoAccounts.readLogin(dir, 'default');
+        if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
+        await dextoAccounts.writeLogin(dir, 'default', {
+            ...login,
+            scopes: ['applications:write'],
+        });
+        const message =
+            'Applications are in early access. Ask Dexto at support@dexto.ai to turn them on.';
+        const refusingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async () =>
+                    Response.json({
+                        jsonrpc: '2.0',
+                        id: 1,
+                        error: {
+                            code: -32003,
+                            message,
+                            data: { kind: 'not_available', retryable: false, resume: null },
+                        },
+                    }),
+            },
+        };
+        expect(
+            await runCloud(refusingHost, [
+                'applications',
+                'create',
+                'orders',
+                'Orders',
+                '--yes',
+                '--json',
+            ])
+        ).toBe(3);
+        expect(stderr).toMatch(/New application id: [0-9a-f-]{36}\./);
+        expect(stderr).not.toContain('To retry');
+        const error = JSON.parse(stderr.slice(stderr.indexOf('{'))).error;
+        expect(error).toEqual({ code: 'not_available', message });
+    });
+
     it("lists the workspace's apps, from the tools the Dexto MCP lists", async () => {
         expect(await runCloud(host, ['workspace'])).toBe(0);
 

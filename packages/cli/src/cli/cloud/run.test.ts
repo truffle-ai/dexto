@@ -301,6 +301,31 @@ describe('dexto cloud', () => {
         }
     );
 
+    it('reports a feature the account does not have as not_available, with no sign-in fix', async () => {
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: 'feature_flag_denied',
+                        message: 'This feature is not available for the current account.',
+                        requestId: 'req_1',
+                        retryable: false,
+                        details: { flagKey: 'managed_gpu', reason: 'not_granted' },
+                    },
+                },
+                { status: 403 }
+            );
+
+        const code = await runCloud(host, ['cloud', 'projects', 'create', 'New']);
+
+        expect(code).toBe(3);
+        const error = JSON.parse(stderr).error;
+        expect(error).toMatchObject({ code: 'not_available', api_code: 'feature_flag_denied' });
+        expect(error.fix).toBeUndefined();
+        expect(granted).toEqual([]);
+    });
+
     it.each([
         [['cloud', 'secrets', 'delete', 'sec_1', '--yes', '--table']],
         [['workspace', 'drive', 'list', '--yes', '--table']],

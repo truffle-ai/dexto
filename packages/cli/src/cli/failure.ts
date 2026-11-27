@@ -6,6 +6,9 @@ export type FailureKind =
     | 'needs_confirmation'
     | 'needs_permission'
     | 'needs_sign_in'
+    // The account doesn't have the feature yet, such as an early-access one: no sign-in or
+    // permission the person can grant lets the call through.
+    | 'not_available'
     | 'not_found'
     | 'waiting_on_person';
 
@@ -16,6 +19,7 @@ export const EXIT_CODES = {
     needs_confirmation: 4,
     needs_permission: 3,
     needs_sign_in: 3,
+    not_available: 3,
     not_found: 5,
     waiting_on_person: 6,
     usage: 2,

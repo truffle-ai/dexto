@@ -493,7 +493,10 @@ function describeFailure(context: SignInContext, error: unknown): FailureReport 
             );
         return report(
             error.status === 403
-                ? 'needs_permission'
+                ? // The account doesn't have the feature yet; a new sign-in won't help.
+                  error.code === 'feature_flag_denied'
+                    ? 'not_available'
+                    : 'needs_permission'
                 : error.status === 404
                   ? 'not_found'
                   : error.status === 400 || error.status === 413 || error.status === 422
