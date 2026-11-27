@@ -72,6 +72,23 @@ describe('InstrumentClass', () => {
         expect(JSON.stringify(optedInSpan?.attributes)).toContain('secret-token');
     });
 
+    it('records the masked stack of an error inside a recorded argument', () => {
+        const error = new Error('boom');
+        error.stack = 'Error: boom\n    at runTool (/srv/app/tools/run.ts:12:3) token=abc123';
+
+        @InstrumentClass({ prefix: 'traced', captureArguments: true })
+        class TracedService {
+            report(_failure: unknown): void {}
+        }
+
+        new TracedService().report({ error });
+
+        const span = exporter.getFinishedSpans().find((item) => item.name === 'traced.report');
+        const argument = span?.attributes['traced.report.argument.0'];
+        expect(argument).toContain('at runTool (/srv/app/tools/run.ts:12:3) token=[REDACTED]');
+        expect(argument).not.toContain('abc123');
+    });
+
     it('can trace method timing without copying private values into telemetry', async () => {
         const argument = 'private-argument';
         const result = 'private-result';

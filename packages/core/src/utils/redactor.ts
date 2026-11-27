@@ -305,6 +305,8 @@ interface Walk {
     budget: number;
     /** A stringify value exceeded the safe depth. */
     tooDeep: boolean;
+    /** Stringify writes an Error's stack (logs and traces), not only its name and message. */
+    errorStacks: boolean;
 }
 
 /**
@@ -465,7 +467,7 @@ function redactContainer(
             ? {
                   name: input.name,
                   message: input.message,
-                  stack: input.stack,
+                  ...(walk.errorStacks && { stack: input.stack }),
                   ...(input.cause !== undefined && { cause: input.cause }),
               }
             : undefined;
@@ -476,7 +478,9 @@ function redactContainer(
     for (const fields of sources) {
         for (const key in fields) {
             if (!Object.hasOwn(fields, key)) continue;
-            if (fields === input && details && Object.hasOwn(details, key)) continue;
+            if (fields === input && details && (Object.hasOwn(details, key) || key === 'stack')) {
+                continue;
+            }
             if (walk.budget <= 0) {
                 result[TRUNCATED] = TRUNCATED;
                 return result;
@@ -575,6 +579,7 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()
             remaining: Infinity,
             budget: Infinity,
             tooDeep: false,
+            errorStacks: false,
         },
         'response',
         false
@@ -588,8 +593,14 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet<object>()
  * key is read only while budget is left, and a string only up to the budget plus its read-ahead.
  * Enumerating a plain object's keys still takes time proportional to how many it has. Without a
  * cap the whole value is read, and a shared object is written out in full at every reference.
+ * An Error is written as its name, message, cause and own fields; its stack only with
+ * `errorStacks`, so model- and user-facing text never shows stack frames or file paths.
  */
-export function redactForStringify(input: unknown, maxChars: number): unknown {
+export function redactForStringify(
+    input: unknown,
+    maxChars: number,
+    errorStacks: boolean
+): unknown {
     const capped = Number.isFinite(maxChars);
     const walk: Walk = {
         ancestors: new WeakSet(),
@@ -598,6 +609,7 @@ export function redactForStringify(input: unknown, maxChars: number): unknown {
         remaining: Infinity,
         budget: maxChars,
         tooDeep: false,
+        errorStacks,
     };
     const result = redactValue(input, walk, 'stringify', false);
     return walk.tooDeep ? TOO_DEEP : result;
@@ -778,6 +790,7 @@ export function redactLogRecord(
                 remaining: MAX_LOG_NODES,
                 budget: Infinity,
                 tooDeep: false,
+                errorStacks: false,
             },
             'log',
             false

@@ -704,6 +704,16 @@ describe('redactLogData', () => {
         expect(JSON.stringify(redacted)).not.toContain('abc123');
     });
 
+    test('keeps an error stack in log data, masked', () => {
+        const error = new Error('boom');
+        error.stack = 'Error: boom\n    at runTool (/srv/app/tools/run.ts:12:3) token=abc123';
+        expect(redactLogData({ error })).toMatchObject({
+            error: {
+                stack: 'Error: boom\n    at runTool (/srv/app/tools/run.ts:12:3) token=[REDACTED]',
+            },
+        });
+    });
+
     test('survives a cyclic error cause', () => {
         const error = new Error('loop');
         error.cause = error;
