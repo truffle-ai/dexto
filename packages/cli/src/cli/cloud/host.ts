@@ -26,6 +26,7 @@ import { chatShareCommand } from './commands/chat-share.js';
 import { chatProjectCommands } from './commands/chat-projects.js';
 import { computerKeyCommands } from './commands/computer-keys.js';
 import { automationCommands } from './commands/automations.js';
+import { backendLogCommands } from './commands/backend-logs.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
 import { docsCommands } from './commands/docs.js';
@@ -90,6 +91,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...sandboxCommands,
         ...secretCommands,
         ...deployCommands,
+        ...backendLogCommands,
         ...modelCommands,
         ...webCommands,
         ...dataDeletionCommands,
