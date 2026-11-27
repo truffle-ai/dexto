@@ -211,7 +211,10 @@
         "projects recipes": ["dexto_automation_recipes_list"],
         "projects install-recipe": ["dexto_automation_recipe_install"]
     },
-    "actionCommands": {},
+    "actionCommands": {
+        "workspace gigs propose": { "tool": "dexto_gigs_finding", "actions": ["submit_bid"] },
+        "workspace gigs withdraw": { "tool": "dexto_gigs_finding", "actions": ["withdraw_bid"] }
+    },
     "localOnly": [
         {
             "command": "import list",
@@ -538,7 +541,7 @@
         },
         {
             "tool": "dexto_gigs_finding",
-            "reason": "DEXTO-3398 (in progress) adds commands for the read actions; the write actions have none yet, so the tool stays here until every action has one."
+            "reason": "workspace gigs propose and withdraw cover submit_bid and withdraw_bid (actionCommands); DEXTO-3398 (in progress) adds the read actions, and the other write actions have none yet, so the tool stays here until every action has one."
         },
         {
             "tool": "dexto_gigs_posting",
