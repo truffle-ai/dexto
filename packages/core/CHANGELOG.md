@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.21.2
+
+### Patch Changes
+
+- 3b32b70: Prevent `toJSON` methods from bypassing redaction, preserve nested error details, and bound deeply nested safe serialization.
+    - @dexto/llm@1.21.2
+
 ## 1.21.1
 
 ### Patch Changes
