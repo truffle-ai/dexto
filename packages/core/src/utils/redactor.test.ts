@@ -733,6 +733,26 @@ describe('redactLogRecord values', () => {
         });
     });
 
+    test('redacts a boxed string like the string it wraps, and unboxes numbers and booleans', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        const boxed = {
+            text: new String(`key ${secret}`),
+            count: new Number(3),
+            flag: new Boolean(false),
+        };
+        const expected = { text: 'key [REDACTED]', count: 3, flag: false };
+
+        expect(redactLogData(boxed)).toEqual(expected);
+        expect(redact(boxed)).toEqual(expected);
+        expect(
+            redactLogData({ password: new String('hunter2'), apiKeys: [new String('abc123')] })
+        ).toEqual({ password: '[REDACTED]', apiKeys: ['[REDACTED]'] });
+        expect(redactLogData({ ratio: Number.NaN, boxed: new Number(Number.NaN) })).toEqual({
+            ratio: Number.NaN,
+            boxed: Number.NaN,
+        });
+    });
+
     test('keeps map and set entries and masks secrets inside them', () => {
         expect(
             redactLogData({
