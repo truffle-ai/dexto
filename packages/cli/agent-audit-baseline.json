@@ -329,6 +329,13 @@
     "examples": false
   },
   {
+    "command": "chat continue",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "chat delete",
     "json": false,
     "dryRun": false,

@@ -177,6 +177,16 @@ dexto chat send "$CHAT_ID" "Now run the tests" --wait --json --yes
 dexto chat send "$CHAT_ID" "Then open a PR" --follow-up --yes
 ```
 
+#### `chat continue`
+
+Continue an inactive chat you own with its context and artifacts, optionally on another model from `chat models`. It needs `sessions:write` and asks first; pass `--yes` when nobody can answer. `--idempotency-key` names the continuation, and the result prints the key used (one is picked when you give none): running again with the same key and message returns the turn it already started instead of a second one, so a failure that leaves the outcome unknown prints the command to rerun with it. A chat that is still running is not continued: it fails with its status and next action, and `chat send` messages it instead.
+
+```bash
+dexto chat continue "$CHAT_ID" "Pick up where you left off" --yes
+dexto chat continue "$CHAT_ID" "Try it on this model" --model "$MODEL_ID" --json --yes
+dexto chat continue "$CHAT_ID" "Next step" --idempotency-key next-1 --json --yes
+```
+
 #### `chat cancel`
 
 Stop a cloud chat's current run. The chat stays, and you can message it again. A chat with nothing running reports `cancelled: false`.

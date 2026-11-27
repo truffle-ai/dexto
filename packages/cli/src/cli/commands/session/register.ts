@@ -71,6 +71,7 @@ export function registerSessionCommand({
         list: "List your cloud chats, or this machine's with --local",
         follow: "Follow a cloud chat's events until it finishes",
         send: 'Message a cloud chat, steering its current turn or queued after it',
+        continue: 'Continue an inactive cloud chat, optionally on another model',
         cancel: "Stop a cloud chat's current run",
         fork: 'Fork a cloud chat from one of its messages',
         get: "Read a cloud chat's status and messages",
