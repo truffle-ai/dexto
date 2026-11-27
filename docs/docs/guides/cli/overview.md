@@ -220,6 +220,7 @@ Bring Claude Code and Codex chats from this machine into Dexto, signed in:
 ```bash
 dexto chat local                 # chats Dexto can import
 dexto chat import --all          # import every chat that local lists
+dexto chat import --from codex   # at a terminal: choose all, this folder, since a date, or pick by number
 ```
 
 Imports keep which model answered each turn, and continuing an imported chat uses that model (connect ChatGPT with `dexto connect codex` to continue Codex chats on your ChatGPT plan).

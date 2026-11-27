@@ -110,3 +110,123 @@ describe('chat import commands', () => {
         expect(dry.stdout()).toContain('first 6 left out');
     });
 });
+
+describe('chat import with no sessions named', () => {
+    const importing = chatCommands.find((command) => command.path[1] === 'import');
+    if (!importing) throw new Error('Missing command');
+
+    /** Two Codex rollouts: one run elsewhere, one run in this process's folder. */
+    async function codexHome() {
+        const home = await mkdtemp(path.join(tmpdir(), 'chat-pick-'));
+        const day = path.join(home, '.codex', 'sessions', '2026', '11', '02');
+        await mkdir(day, { recursive: true });
+        const fixture = await readFile(
+            fileURLToPath(new URL('../../import/fixtures/codex-0.165.0.jsonl', import.meta.url)),
+            'utf8'
+        );
+        const elsewhere = '019a4f2e-7c3d-7e10-9b8a-2f6d4c1e0a77';
+        const here = '019a4f2e-7c3d-7e10-9b8a-2f6d4c1e0a78';
+        await writeFile(path.join(day, `rollout-a-${elsewhere}.jsonl`), fixture);
+        await writeFile(
+            path.join(day, `rollout-b-${here}.jsonl`),
+            fixture
+                .replaceAll(elsewhere, here)
+                .replaceAll('"/Users/dev/Projects/dexto"', JSON.stringify(process.cwd()))
+        );
+        return { elsewhere, here, home };
+    }
+
+    /** A terminal whose person gives these answers, in order. */
+    function atTerminal(home: string, answers: string[]) {
+        const h = harness(home, 'table');
+        const asked: string[] = [];
+        const context: CommandContext = {
+            ...h.context,
+            runtime: {
+                ...h.context.runtime,
+                stdoutIsTerminal: true,
+                prompt: async (question) => {
+                    asked.push(question);
+                    const answer = answers.shift();
+                    if (answer === undefined) throw new Error(`Unexpected question: ${question}`);
+                    return answer;
+                },
+            },
+        };
+        return { ...h, asked, context };
+    }
+
+    it('asks nothing without a terminal and names the flags that choose', async () => {
+        const { home } = await codexHome();
+        await expect(
+            importing.run(harness(home, 'table').context, {
+                positionals: [],
+                values: { from: 'codex' },
+            })
+        ).rejects.toThrow(/--all.*--folder \..*--since/u);
+    });
+
+    it('asks nothing with --json or --yes, even at a terminal', async () => {
+        const { home } = await codexHome();
+        for (const values of [{ yes: true }, {}]) {
+            const terminal = atTerminal(home, []);
+            const context =
+                'yes' in values
+                    ? terminal.context
+                    : {
+                          ...terminal.context,
+                          output: createOutput(terminal.context.runtime, 'json'),
+                      };
+            await expect(
+                importing.run(context, { positionals: [], values: { from: 'codex', ...values } })
+            ).rejects.toThrow(/--all/u);
+            expect(terminal.asked).toEqual([]);
+        }
+    });
+
+    it('lets a person pick by number and shows the dry run of only those', async () => {
+        const { elsewhere, here, home } = await codexHome();
+        const terminal = atTerminal(home, ['5', '4', '9', '2']);
+        expect(
+            await importing.run(terminal.context, {
+                positionals: [],
+                values: { from: 'codex', 'dry-run': true },
+            })
+        ).toBe(0);
+        expect(terminal.stdout()).toContain('2 Codex chats found');
+        expect(terminal.stdout()).toMatch(/ {3}1\. .+2026-11-02/u);
+        // A choice or a number that doesn't read is asked again.
+        expect(terminal.asked).toHaveLength(4);
+        // The numbered list shows titles; only the dry run names sessions, and only the one picked.
+        const named = [here, elsewhere].filter((id) => terminal.stdout().includes(id));
+        expect(named).toHaveLength(1);
+    });
+
+    it('narrows to this folder, shows the summary, then asks before sending', async () => {
+        const { elsewhere, here, home } = await codexHome();
+        const terminal = atTerminal(home, ['2', 'n']);
+        await expect(
+            importing.run(terminal.context, { positionals: [], values: { from: 'codex' } })
+        ).rejects.toMatchObject({ kind: 'needs_confirmation' });
+        expect(terminal.stdout()).toContain(here);
+        expect(terminal.stdout()).not.toContain(elsewhere);
+        expect(terminal.asked.at(-1)).toMatch(/^Upload 1 Codex chat .*Go ahead\? \[y\/N\] $/u);
+    });
+
+    it('narrows to a date and stops on an empty answer', async () => {
+        const { home } = await codexHome();
+        const later = atTerminal(home, ['3', '2026-12-01']);
+        expect(
+            await importing.run(later.context, {
+                positionals: [],
+                values: { from: 'codex', 'dry-run': true },
+            })
+        ).toBe(0);
+        expect(later.stderr()).toContain('No Codex chats match.');
+
+        const stopped = atTerminal(home, ['']);
+        await expect(
+            importing.run(stopped.context, { positionals: [], values: { from: 'codex' } })
+        ).rejects.toMatchObject({ kind: 'needs_confirmation' });
+    });
+});
