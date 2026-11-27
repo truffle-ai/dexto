@@ -81,10 +81,12 @@ describe('wrapToolParametersSchema', () => {
             },
         });
 
+        // `additionalProperties` defaults to true; spelled out, it cost every tool's schema
+        // about six tokens on every model call (DEXTO-4239).
+        expect(schema.properties?.__meta).not.toHaveProperty('additionalProperties');
         expect(schema.properties?.__meta).toEqual(
             expect.objectContaining({
                 type: 'object',
-                additionalProperties: true,
                 properties: expect.objectContaining({
                     callActivity: {
                         type: 'object',
