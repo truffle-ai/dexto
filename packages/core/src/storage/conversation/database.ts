@@ -1,6 +1,10 @@
-import { cloneInternalMessage, cloneInternalMessages } from '../../context/content-clone.js';
-import type { InternalMessage } from '../../context/types.js';
-import { filterCompacted } from '../../context/utils.js';
+import {
+    cloneInternalMessage,
+    cloneInternalMessages,
+    cloneToolMessage,
+} from '../../context/content-clone.js';
+import type { InternalMessage, ToolMessage } from '../../context/types.js';
+import { filterCompacted, pickMessagesById, pickToolResults } from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { Database } from '../database/types.js';
@@ -55,6 +59,22 @@ export class DatabaseConversationStore implements ConversationStore {
     async countModelMessages(input: { sessionId: string }): Promise<number> {
         const state = await this.loadState(input.sessionId);
         return filterCompacted(state.cache ?? []).length;
+    }
+
+    async getMessagesById(input: {
+        sessionId: string;
+        messageIds: readonly string[];
+    }): Promise<InternalMessage[]> {
+        const state = await this.loadState(input.sessionId);
+        return pickMessagesById(state.cache ?? [], input.messageIds).map(cloneInternalMessage);
+    }
+
+    async getToolResultsByCallId(input: {
+        sessionId: string;
+        toolCallIds: readonly string[];
+    }): Promise<ToolMessage[]> {
+        const state = await this.loadState(input.sessionId);
+        return pickToolResults(state.cache ?? [], input.toolCallIds).map(cloneToolMessage);
     }
 
     async saveMessage(input: { sessionId: string; message: InternalMessage }): Promise<void> {

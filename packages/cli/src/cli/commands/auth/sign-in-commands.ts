@@ -20,6 +20,7 @@ type SignInPrompt = dextoSignIn.SignInPrompt;
 
 const {
     DEFAULT_PROFILE,
+    chooseCredential,
     forgetLogin,
     listAccounts: readAccounts,
     profileNameFor,
@@ -31,6 +32,17 @@ const {
     writeCurrentProfile,
     writeLogin,
 } = dextoAccounts;
+
+/**
+ * What `--scope deploy` asks for: deploying Sites, Functions and Applications, with their uploads.
+ * A plain sign-in leaves these out, as applications:write shows as sensitive at consent.
+ */
+const DEPLOY_SCOPES: readonly dextoSignIn.CliLoginScope[] = [
+    'sites:write',
+    'functions:write',
+    'cloud:write',
+    'applications:write',
+];
 
 /** Dexto's side of signing in, injected so commands can be tested without a server. */
 export interface DextoSignIn {
@@ -117,7 +129,11 @@ export interface LoginOptions {
     readonly apiKey: string | null;
 }
 
-export async function login(context: SignInContext, options: LoginOptions): Promise<void> {
+export async function login(
+    context: SignInContext,
+    options: LoginOptions,
+    beforeAuthorize?: SignInInput['beforeAuthorize']
+): Promise<void> {
     const named = options.profile ?? nonEmpty(context.environment.DEXTO_PROFILE);
     // --org names the profile and switches to it, unless --profile or DEXTO_PROFILE chose one.
     const switches = options.org !== null && named === null;
@@ -144,10 +160,15 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
         extraScopes: [
             ...new Set([
                 ...(previous?.scopes ?? []).filter((scope) => scope !== CHAT_SYNC_SCOPE),
-                ...options.scopes.flatMap(splitList),
+                ...options.scopes
+                    .flatMap(splitList)
+                    .flatMap((scope): readonly string[] =>
+                        scope === 'deploy' ? DEPLOY_SCOPES : [scope]
+                    ),
                 ...((await context.chatSyncOn()) ? [CHAT_SYNC_SCOPE] : []),
             ]),
         ],
+        ...(beforeAuthorize === undefined ? {} : { beforeAuthorize }),
     };
     // A browser elsewhere can't reach this machine's loopback redirect, so use a code instead.
     const device = options.device || (options.browser && !context.canOpenBrowser);
@@ -164,6 +185,9 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
         throw context.screen.look === 'signal' ? signInEndedFailure(error, device) : error;
     }
     context.screen.settle(true);
+    context.note(
+        `Permissions granted: ${signedIn.scopes.length === 0 ? 'none' : signedIn.scopes.map(safeText).join(' ')}`
+    );
 
     // A name made from --org can match another organization's profile: keep that sign-in.
     const savedOrganization = previous?.signedInAs?.organization ?? null;
@@ -253,13 +277,18 @@ async function saveApiKey(context: SignInContext, profile: string, apiKey: strin
 
 /** Who the current profile acts as, in a few words, or null when signed out. */
 export async function describeSignIn(context: SignInContext): Promise<string | null> {
-    const environmentKey = nonEmpty(context.environment.DEXTO_API_KEY);
-    if (environmentKey !== null) return `API key ${maskApiKey(environmentKey)} from DEXTO_API_KEY`;
-    const profile = await resolveProfile(context.dir, null, context.environment);
-    const saved = await readLogin(context.dir, profile);
-    if (saved === null) return null;
-    const suffix = profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`;
-    if (saved.kind === 'api_key') return `API key ${maskApiKey(saved.apiKey)}${suffix}`;
+    const credential = await chooseCredential({
+        dir: context.dir,
+        apiKey: null,
+        profile: null,
+        environment: context.environment,
+    });
+    if (credential === null) return null;
+    if (credential.source === 'environment')
+        return `API key ${maskApiKey(credential.token)} from DEXTO_API_KEY`;
+    const suffix = credential.profile === DEFAULT_PROFILE ? '' : ` (profile ${credential.profile})`;
+    if (credential.kind === 'api_key') return `API key ${maskApiKey(credential.token)}${suffix}`;
+    const saved = credential.login;
     const who =
         saved.signedInAs === null
             ? safeText(saved.appUrl)
@@ -343,7 +372,7 @@ export async function whoami(
                 ? ' (from --api-key)'
                 : credential.source === 'environment'
                   ? ' (from DEXTO_API_KEY)'
-                  : `, profile ${credential.profile}`;
+                  : ` (saved key, profile ${credential.profile})`;
         context.result(
             { as: 'api_key', key: maskApiKey(credential.token), source: credential.source },
             field('api key', `${maskApiKey(credential.token)}${from}`)
@@ -351,9 +380,12 @@ export async function whoami(
         return;
     }
     const { login: saved } = credential;
+    if (nonEmpty(context.environment.DEXTO_API_KEY?.trim()) !== null)
+        context.note('DEXTO_API_KEY is set, but the saved sign-in comes first, so it is not used.');
     const text = signalOn()
         ? whoamiLines(credential.profile, saved).join('\n')
         : [
+              field('source', 'sign-in'),
               field('profile', credential.profile),
               field('account', safeText(saved.signedInAs?.account.email ?? 'unknown')),
               field(
@@ -368,6 +400,7 @@ export async function whoami(
     context.result(
         {
             as: 'person',
+            source: credential.source,
             profile: credential.profile,
             account: saved.signedInAs?.account ?? null,
             organization: saved.signedInAs?.organization ?? null,
@@ -486,6 +519,9 @@ export function safeSignInPrompt(prompt: SignInPrompt): SignInPrompt {
             prompt.verificationUriComplete === null
                 ? null
                 : safeText(prompt.verificationUriComplete),
+        organization: prompt.organization === null ? null : safeText(prompt.organization),
+        scopes: prompt.scopes.map(safeText),
+        computer: safeText(prompt.computer),
     };
 }
 

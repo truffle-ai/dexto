@@ -158,6 +158,7 @@ export class ChatSession {
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
     private currentRunController: AbortController | null = null;
+    private turnDriverActive = false;
 
     public readonly logger: Logger;
 
@@ -669,18 +670,28 @@ export class ChatSession {
     }
 
     public async createTurnDriver(input: ChatSessionTurnDriverInput): Promise<TurnDriver> {
-        if (this.isBusy()) {
+        if (this.currentRunController !== null) {
             throw SessionError.busy(this.id);
         }
 
         this.currentRunController = new AbortController();
-        const signal = input.signal
-            ? this.combineSignals(input.signal, this.currentRunController.signal)
-            : this.currentRunController.signal;
-        const detachForwarders = this.attachRunEventForwarders(input.runContext);
+        this.turnDriverActive = true;
+        const startedAt = input.kind === 'resume' ? input.state.startedAtMs : Date.now();
+        let runCompleted = false;
+        const markRunCompleted = () => {
+            runCompleted = true;
+        };
+        this.eventBus.on('run:complete', markRunCompleted);
+        let detachForwarders: (() => void) | undefined;
+        let driverCreated = false;
 
         try {
+            const signal = input.signal
+                ? this.combineSignals(input.signal, this.currentRunController.signal)
+                : this.currentRunController.signal;
+            detachForwarders = this.attachRunEventForwarders(input.runContext);
             if (input.kind === 'start') {
+                signal.throwIfAborted();
                 this.logger.info('ChatSession turn input received', {
                     sessionId: this.id,
                     turnKind: input.kind,
@@ -701,6 +712,7 @@ export class ChatSession {
                     () => this.prepareTurnInput(input.content, signal, input.runContext),
                     this.logger
                 );
+                signal.throwIfAborted();
                 await recordOperationSpan(
                     {
                         name: 'chat_session.add_user_message',
@@ -734,6 +746,7 @@ export class ChatSession {
                 });
             }
 
+            if (input.kind === 'start') signal.throwIfAborted();
             const streaming = input.streaming ?? true;
             const driver = await recordOperationSpan(
                 {
@@ -754,8 +767,32 @@ export class ChatSession {
                 this.logger
             );
 
-            return this.wrapTurnDriver(driver, signal, input.runContext, detachForwarders);
+            if (input.kind === 'start' && signal.aborted) {
+                driver.dispose();
+                signal.throwIfAborted();
+            }
+            const wrappedDriver = this.wrapTurnDriver(
+                driver,
+                signal,
+                input.runContext,
+                detachForwarders
+            );
+            driverCreated = true;
+            return wrappedDriver;
         } catch (error) {
+            const aborted =
+                (error instanceof Error && error.name === 'AbortError') ||
+                (typeof error === 'object' &&
+                    error !== null &&
+                    'aborted' in error &&
+                    error.aborted === true);
+            if (aborted && !runCompleted) {
+                this.eventBus.emit('run:complete', {
+                    finishReason: 'cancelled',
+                    stepCount: input.kind === 'resume' ? input.state.stepCount : 0,
+                    durationMs: Date.now() - startedAt,
+                });
+            }
             if (
                 input.kind === 'start' &&
                 error instanceof DextoRuntimeError &&
@@ -769,9 +806,14 @@ export class ChatSession {
                     .join('\n');
                 await this.saveBlockedInteraction(textContent, error.message);
             }
-            detachForwarders();
-            this.currentRunController = null;
             throw error;
+        } finally {
+            this.eventBus.off('run:complete', markRunCompleted);
+            if (!driverCreated) {
+                detachForwarders?.();
+                this.currentRunController = null;
+                this.turnDriverActive = false;
+            }
         }
     }
 
@@ -789,6 +831,7 @@ export class ChatSession {
             closed = true;
             detachForwarders();
             this.currentRunController = null;
+            this.turnDriverActive = false;
         };
 
         return {
@@ -1024,10 +1067,13 @@ export class ChatSession {
 
     /**
      * Check if this session is currently processing a message.
-     * Returns true if a run is in progress and has not been aborted.
+     * An aborted turn driver remains busy until it closes and releases its event forwarding.
      */
     public isBusy(): boolean {
-        return this.currentRunController !== null && !this.currentRunController.signal.aborted;
+        return (
+            this.turnDriverActive ||
+            (this.currentRunController !== null && !this.currentRunController.signal.aborted)
+        );
     }
 
     /**

@@ -63,7 +63,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
             },
             scope: {
                 description:
-                    'Also ask for a permission, such as drive:write; a first sign-in only reads.',
+                    'Also ask for a permission, such as computers:write, or deploy for deploying Sites, Functions and Applications; sign-in includes Project changes and chats, which can spend credits.',
                 multiple: true,
                 type: 'string',
                 valueName: 'SCOPE',

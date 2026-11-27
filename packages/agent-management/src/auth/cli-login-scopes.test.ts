@@ -5,6 +5,7 @@ describe('CLI_LOGIN_SCOPES', () => {
     it('is exported from the package root for Cloud to test its sign-in against', () => {
         expect(dextoSignIn.CLI_LOGIN_SCOPES).toEqual([
             'applications:read',
+            'applications:write',
             'apps:execute',
             'apps:read',
             'apps:write',
@@ -36,6 +37,7 @@ describe('CLI_LOGIN_SCOPES', () => {
             'notifications:write',
             'projects:read',
             'projects:write',
+            'runs:read',
             'sessions:read',
             'sessions:write',
             'sites:read',

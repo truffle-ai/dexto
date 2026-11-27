@@ -1,14 +1,14 @@
 // `publish`: puts a page, a document or a folder online as a Site.
 
 import { CommandFailure } from '../../failure.js';
-import { requireConsent } from '../../interaction.js';
+import { requireConsent, rerunWith } from '../../interaction.js';
 
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
-import { CloudApiError, unwrap, type V1Response } from '@dexto/cloud-client';
+import { CloudApiError, createCloudClient, unwrap, type V1Response } from '@dexto/cloud-client';
 
 import {
     argument,
@@ -34,6 +34,19 @@ const MAX_UPLOAD_BYTES = MAX_TOTAL_BYTES + 1024 * 1024;
 
 const VisibilitySchema = z.enum(['private', 'restricted', 'unlisted', 'public']);
 type Visibility = z.output<typeof VisibilitySchema>;
+const PreviewSchema = z
+    .object({
+        action: z.enum(['create', 'update']),
+        siteId: z.string().nullable(),
+        slug: z.string(),
+        title: z.string(),
+        url: z.string(),
+        visibility: VisibilitySchema,
+    })
+    .strict()
+    .refine(
+        (preview) => (preview.action === 'create') === (preview.siteId === null)
+    ) satisfies z.ZodType<V1Response<'/v1/sites/publish/preview', 'post'>>;
 /** Who can open a Site of each visibility, as the --yes note and the human result say it. */
 const WHO_CAN_OPEN: Record<Visibility, { note: string; result: string }> = {
     private: {
@@ -96,7 +109,14 @@ const publish: Command = {
             type: 'string',
             valueName: 'SITE_NAME',
         },
-        ...YES_OPTION,
+        'dry-run': {
+            description: 'Show where the Site would publish without uploading or publishing.',
+            type: 'boolean',
+        },
+        yes: {
+            ...YES_OPTION.yes,
+            description: 'Approve the preview from this invocation without asking again.',
+        },
     },
     path: ['publish'],
     summary:
@@ -111,8 +131,9 @@ const publish: Command = {
         const confirmPublicName = stringOption(input, 'confirm-public');
         if (confirmPublicName !== undefined && visibility !== 'public')
             throw new UsageError('--confirm-public requires --visibility public.');
-        await requireLoginScopes(context, ['sites:write', 'cloud:write']);
-        const connection = await context.connection();
+        const connection = await context.connection({ pin: true });
+        const publishContext = { ...context, connection: async () => connection };
+        await requireLoginScopes(publishContext, ['sites:write', 'cloud:write']);
         if (connection.kind !== 'oauth')
             throw new CommandFailure(
                 'needs_sign_in',
@@ -125,6 +146,12 @@ const publish: Command = {
                 'Choose a Cloud project with --project or dexto cloud projects use before publishing.',
                 null
             );
+        const client = createCloudClient({
+            apiBaseUrl: connection.apiBaseUrl,
+            cloudProject: connection.cloudProject,
+            token: async () => (await context.connection()).token,
+            fetch: context.runtime.fetch,
+        });
         const target = path.resolve(argument(input, 0, 'path'));
         const found = await stat(target).catch(() => null);
         if (found === null || !(found.isFile() || found.isDirectory()))
@@ -146,9 +173,10 @@ const publish: Command = {
                 : [{ bytes: await readFile(target), path: path.basename(target) }];
             checkSizes(files);
             archive = zipArchive(files);
-            context.output.note(
-                `Packed ${files.length} file${files.length === 1 ? '' : 's'} into a ${formatBytes(archive.byteLength)} .zip.`
-            );
+            if (!context.output.json)
+                context.output.note(
+                    `Packed ${files.length} file${files.length === 1 ? '' : 's'} into a ${formatBytes(archive.byteLength)} .zip.`
+                );
         }
         if (archive.byteLength > MAX_UPLOAD_BYTES)
             throw new UsageError(
@@ -162,13 +190,60 @@ const publish: Command = {
             ...(visibility === undefined ? {} : { visibility }),
             ...(confirmPublicName === undefined ? {} : { confirmPublicName }),
         };
+        let previewResponse: unknown;
+        try {
+            previewResponse = await unwrap(
+                await client.POST('/v1/sites/publish/preview', {
+                    params: { header: { 'Dexto-Cloud-Project': connection.cloudProject } },
+                    body: call,
+                })
+            );
+        } catch (error) {
+            if (error instanceof CloudApiError && error.code === 'needs_confirmation')
+                throw new CommandFailure(
+                    'needs_confirmation',
+                    `${error.message} Pass --confirm-public <site-name> with that exact name.`,
+                    rerunWith(context, '--confirm-public', '<site-name>'),
+                    error.details
+                );
+            if (
+                error instanceof CloudApiError &&
+                error.code === 'conflict' &&
+                visibility === 'public'
+            )
+                throw new CommandFailure(
+                    'conflict',
+                    `${error.message} If a Site name needs confirmation, pass --confirm-public <site-name>.`,
+                    null,
+                    error.details
+                );
+            throw error;
+        }
+        const parsedPreview = PreviewSchema.safeParse(previewResponse);
+        if (!parsedPreview.success)
+            throw new CommandFailure(
+                'failed',
+                'Dexto returned an invalid Site publish preview.',
+                null
+            );
+        const preview = parsedPreview.data;
+        const description = `${preview.action === 'create' ? 'Create' : 'Update'} ${preview.title} at ${preview.url} (${preview.visibility}: ${WHO_CAN_OPEN[preview.visibility].note}). Preview only; publishing decides again.`;
+        if (flag(input, 'dry-run')) {
+            context.output.result(
+                preview,
+                `${description} No Site was published; publishing will decide again.`
+            );
+            return;
+        }
         await requireConsent(
-            context,
+            {
+                invocation: context.invocation,
+                runtime: { prompt: context.output.json ? null : context.runtime.prompt },
+            },
             flag(input, 'yes'),
-            visibility === undefined
-                ? `Publish ${name} (a new Site is unlisted: anyone with the link can open it; an existing Site keeps its visibility).`
-                : `Publish ${name} with ${visibility} visibility.`
+            description
         );
+        if (flag(input, 'yes') && !context.output.json) context.output.note(description);
 
         const prepared = PreparedSchema.safeParse(
             await queryWorkspaceTool(context, 'dexto_upload_prepare', {
@@ -182,24 +257,81 @@ const publish: Command = {
         if (!prepared.success)
             throw new CommandFailure('failed', "Dexto didn't say where to upload the files.", null);
         const { headers, method, url } = prepared.data;
-        context.output.note(`Uploading ${formatBytes(archive.byteLength)}…`);
+        if (!context.output.json)
+            context.output.note(`Uploading ${formatBytes(archive.byteLength)}…`);
         await sendBytes(context, { headers, method, url }, new globalThis.Blob([archive]));
-        context.output.note(`Publishing ${name}…`);
+        if (!context.output.json) context.output.note(`Publishing ${name}…`);
         let response: unknown;
         try {
             response = await unwrap(
-                await (
-                    await context.client()
-                ).POST('/v1/sites/publish', {
-                    body: { ...call, uploadPath: prepared.data.path },
+                await client.POST('/v1/sites/publish', {
+                    body: {
+                        ...call,
+                        slug: preview.slug,
+                        expectedSiteId: preview.siteId,
+                        expectedVisibility: preview.visibility,
+                        uploadPath: prepared.data.path,
+                    },
                 })
             );
         } catch (error) {
-            if (error instanceof CloudApiError && error.code === 'needs_confirmation')
+            if (error instanceof CloudApiError && error.code === 'needs_confirmation') {
+                const changed = z
+                    .discriminatedUnion('reason', [
+                        z.object({
+                            reason: z.literal('visibility_changed'),
+                            currentVisibility: VisibilitySchema,
+                        }),
+                        z.object({
+                            reason: z.literal('site_changed'),
+                            currentVisibility: VisibilitySchema,
+                            currentSiteId: z.string().nullable(),
+                        }),
+                    ])
+                    .safeParse(error.details);
                 throw new CommandFailure(
                     'needs_confirmation',
-                    `${error.message} Pass --confirm-public <site-name> with that exact name.`,
-                    null
+                    changed.success
+                        ? changed.data.reason === 'visibility_changed'
+                            ? `The Site's visibility changed to ${changed.data.currentVisibility} since the preview.`
+                            : `The target changed since the preview: ${changed.data.currentSiteId === null ? 'a new Site' : `Site ${changed.data.currentSiteId}`} with ${changed.data.currentVisibility} visibility.`
+                        : `${error.message} Preview the Site again and confirm before publishing.${visibility === 'public' ? ' If the Site name needs confirmation, pass --confirm-public <site-name>.' : ''}`,
+                    rerunWith({
+                        invocation: context.invocation.filter(
+                            (arg) => arg !== '--yes' && arg !== '-y'
+                        ),
+                    }),
+                    error.details
+                );
+            }
+            if (
+                error instanceof CloudApiError &&
+                error.status === 409 &&
+                error.code === 'conflict' &&
+                preview.siteId === null &&
+                error.message ===
+                    `${preview.slug} is taken by another Site. Choose another slug, or delete that Site first if it is yours.`
+            )
+                throw new CommandFailure(
+                    'conflict',
+                    'A Site with that name was just created. Pick another name, or re-run to see a fresh preview.',
+                    rerunWith({
+                        invocation: context.invocation.filter(
+                            (arg) => arg !== '--yes' && arg !== '-y'
+                        ),
+                    }),
+                    error.details
+                );
+            if (
+                error instanceof CloudApiError &&
+                error.code === 'conflict' &&
+                visibility === 'public'
+            )
+                throw new CommandFailure(
+                    'conflict',
+                    `${error.message} If a Site name needs confirmation, pass --confirm-public <site-name>.`,
+                    null,
+                    error.details
                 );
             throw error;
         }
@@ -217,7 +349,7 @@ const publish: Command = {
                 `The Site was published with ${published.visibility} visibility, not the requested ${visibility}. Check its visibility in Dexto before sharing it.`,
                 null
             );
-        if (flag(input, 'yes'))
+        if (flag(input, 'yes') && !context.output.json)
             context.output.note(
                 `Site visibility: ${published.visibility}: ${WHO_CAN_OPEN[published.visibility].note}.`
             );

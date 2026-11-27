@@ -166,6 +166,13 @@ export type PrepareToolCallInput = {
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+/** Why a replayed call fails: its execution record already failed, with that record's error. */
+function alreadyFailedReason(executionId: string, error: string): string {
+    const prefix = `Tool execution already failed: ${executionId}`;
+    return error === '' ? prefix : `${prefix}: ${error}`;
+}
+
 /**
  * Unified Tool Manager - Single interface for all tool operations
  *
@@ -1757,7 +1764,7 @@ export class ToolManager {
         if (record.status === 'failed') {
             throw ToolError.executionFailed(
                 call.toolName,
-                `Tool execution already failed: ${executionId}`
+                alreadyFailedReason(executionId, record.error)
             );
         }
         if (this.resumesRunningExecution(call, record.status)) {
@@ -1948,7 +1955,7 @@ export class ToolManager {
                     if (options?.throwOnError === true) {
                         throw ToolError.executionFailed(
                             call.toolName,
-                            `Tool execution already failed: ${executionId}`
+                            alreadyFailedReason(executionId, started.record.error)
                         );
                     }
                     return this.createFailedPreparedToolResult(call, started.record.error);

@@ -1,5 +1,103 @@
 # dexto
 
+## 2.7.0
+
+### Minor Changes
+
+- e729ddd: Add `dexto applications create`, `deploy`, `rollback`, `release delete`, `suspend`, `resume`, `retire`, `purge` and `install` to manage a Dockerfile Application from the CLI. Each one asks first (or takes `--yes`), offers `--dry-run`, and needs the new `applications:write` sign-in scope; `purge` also takes `--confirm-application-id`.
+
+### Patch Changes
+
+- c6d90c3: `dexto login --scope deploy` asks for every permission deploying Sites, Functions and Applications takes, and a sign-in now prints the permissions it was granted. A plain `dexto login` still asks for no deploy permission.
+- 7735cb3: `dexto login` now says `Permissions granted: none` when the server grants no permission, instead of printing the label with nothing after it.
+- 5f773dc: Record a reason for every passthrough-only MCP tool in the CLI-to-MCP parity file, move tools that should get a CLI command to the pending list with their issue, and fail the parity test when an entry has no reason or issue.
+- Updated dependencies [e729ddd]
+- Updated dependencies [92d3f66]
+- Updated dependencies [e9283f4]
+    - @dexto/agent-management@1.21.0
+    - @dexto/core@1.21.0
+    - @dexto/analytics@1.21.0
+    - @dexto/image-local@1.21.0
+    - @dexto/image-logger-agent@1.21.0
+    - @dexto/tui@1.21.0
+    - @dexto/agent-config@1.21.0
+    - @dexto/client-sdk@1.21.0
+    - @dexto/storage@1.21.0
+    - @dexto/llm@1.21.0
+    - @dexto/cloud-client@1.21.0
+    - @dexto/registry@1.21.0
+
+## 2.6.0
+
+### Minor Changes
+
+- aa393f4: Add `dexto applications variables` to list an Application's runtime variable names (never values) and `dexto applications export-plugin` to print its credential-free portable plugin files.
+- b27db15: Add `dexto applications operations`, `history`, `insights` and `usage` to read a managed Application's lifecycle operations, safe history, measurements, and cost estimates apart from settled charges.
+- c34d726: A saved `dexto login` sign-in now comes before `DEXTO_API_KEY`. Every command, Dexto models and the Dexto MCP pick a credential in one order: `--api-key`, then the profile's sign-in, then `DEXTO_API_KEY`, then a saved API key. A key left in the environment (for example in dexto 1.x's `~/.dexto/.env`) no longer overrides the sign-in.
+    - A sign-in that can no longer refresh (revoked or expired) now fails the command instead of falling back to `DEXTO_API_KEY`, and the error names the profile: "Your Dexto sign-in (profile <name>) has expired. Run dexto login, or pass --api-key." Dexto models and the Dexto MCP take no `--api-key`, so there it says only "Run dexto login." To go back to the key for good, run `dexto logout`.
+    - With only `DEXTO_API_KEY` set, Dexto models go through the same gateway path as a sign-in, to `DEXTO_PUBLIC_API_URL` (default `https://api.dexto.ai/v1`). `DEXTO_API_URL` and the agent config's `llm.baseURL` and `llm.apiKey` are ignored for `dexto-nova`.
+    - `dexto whoami` names the source. In `--json`, `source` is `flag`, `sign_in`, `environment` or `saved_key`; a saved API key was `login` before, and the signed-in result now has `source` too. In text, a saved key reads `(saved key, profile <name>)`, and a sign-in starts with a `source  sign-in` row.
+    - `CredentialSource` in `@dexto/agent-management` drops `login` for `sign_in` and `saved_key`; `chooseCredential` is new.
+
+### Patch Changes
+
+- d988aee: Add `dexto apps deploy` and `dexto apps verify`: upload a packaged Dexto App and deploy it into your Apps, or check the installed App against the package without deploying it.
+- 3ff866a: Sign-in requests the Project and chat permissions agent tasks need, keeps computer and Loop access as explicit step-ups, and lists a sign-in request's permissions on the approval page.
+- b826d10: `dexto loops create` creates a Loop and `dexto loops update <loop_id>` changes one, each from the tool's own input as JSON (`--data`, or `--file` with `-` for stdin): schedule or event trigger, scope, execution and reporting pass on as given. Both need `automations:write`, return `{automation}`, and report the server's refusals as their error.
+- 72627a4: `dexto loops run <loop_id>` runs one of your Loops now and prints the run it started; `dexto loops delete <loop_id>` deletes one and asks first (`--yes` agrees). Both need `automations:write` and act only on a Loop you may change.
+- Updated dependencies [c34d726]
+    - @dexto/agent-management@1.20.0
+    - @dexto/analytics@1.20.0
+    - @dexto/image-local@1.20.0
+    - @dexto/image-logger-agent@1.20.0
+    - @dexto/tui@1.20.0
+    - @dexto/client-sdk@1.20.0
+    - @dexto/core@1.20.0
+    - @dexto/storage@1.20.0
+    - @dexto/llm@1.20.0
+    - @dexto/agent-config@1.20.0
+    - @dexto/cloud-client@1.20.0
+    - @dexto/registry@1.20.0
+
+## 2.5.3
+
+### Patch Changes
+
+- 97ca497: Show the server-provided Site address and create or update action before publishing, and support a dry run.
+- 8792614: Cloud commands now refuse an argument past their last one instead of dropping it. `dexto workspace call <tool> '<json>'` used to call the tool with `{}`; it now exits 2 and says to pass the body with `--data '<json>'`.
+- Updated dependencies [db49ce8]
+- Updated dependencies [97ca497]
+    - @dexto/core@1.19.10
+    - @dexto/cloud-client@1.19.10
+    - @dexto/agent-config@1.19.10
+    - @dexto/agent-management@1.19.10
+    - @dexto/analytics@1.19.10
+    - @dexto/client-sdk@1.19.10
+    - @dexto/image-local@1.19.10
+    - @dexto/image-logger-agent@1.19.10
+    - @dexto/storage@1.19.10
+    - @dexto/tui@1.19.10
+    - @dexto/llm@1.19.10
+    - @dexto/registry@1.19.10
+
+## 2.5.2
+
+### Patch Changes
+
+- Updated dependencies [d688240]
+    - @dexto/core@1.19.9
+    - @dexto/agent-config@1.19.9
+    - @dexto/agent-management@1.19.9
+    - @dexto/analytics@1.19.9
+    - @dexto/client-sdk@1.19.9
+    - @dexto/image-local@1.19.9
+    - @dexto/image-logger-agent@1.19.9
+    - @dexto/storage@1.19.9
+    - @dexto/tui@1.19.9
+    - @dexto/llm@1.19.9
+    - @dexto/cloud-client@1.19.9
+    - @dexto/registry@1.19.9
+
 ## 2.5.1
 
 ### Patch Changes

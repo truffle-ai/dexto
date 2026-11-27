@@ -13,6 +13,34 @@ import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 import { safeStringify } from '../utils/safe-stringify.js';
 import { getHostRuntimeAttributes, getHostRuntimeBaggageEntries } from '../runtime/index.js';
 
+/**
+ * A method's argument or result as a span attribute. Only plain data is written out: anything
+ * else (a session, a service, a client, a Map) is recorded as [ClassName] and never read, so a
+ * result that holds a whole object graph costs nothing to record.
+ */
+function spanAttributeValue(value: unknown): string {
+    // Reading a Proxy's prototype or constructor can throw; recording must never fail the call.
+    try {
+        if (value instanceof Date || value instanceof Error) {
+            return safeStringify(
+                value instanceof Date ? value : `${value.name}: ${value.message}`,
+                8192
+            );
+        }
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            const prototype: unknown = Object.getPrototypeOf(value);
+            if (prototype !== Object.prototype && prototype !== null) {
+                const constructor: unknown = Reflect.get(value, 'constructor');
+                const name = typeof constructor === 'function' ? constructor.name : '';
+                return `[${name || 'Object'}]`;
+            }
+        }
+        return safeStringify(value, 8192);
+    } catch {
+        return '[Unserializable value]';
+    }
+}
+
 // Decorator factory that takes optional spanName
 export function withSpan(options: {
     captureArguments?: boolean;
@@ -88,10 +116,7 @@ export function withSpan(options: {
             const applySpanAttributes = (span: Span) => {
                 if (captureArguments) {
                     args.forEach((arg, index) => {
-                        span.setAttribute(
-                            `${spanName}.argument.${index}`,
-                            safeStringify(arg, 8192)
-                        );
+                        span.setAttribute(`${spanName}.argument.${index}`, spanAttributeValue(arg));
                     });
                 }
 
@@ -212,7 +237,7 @@ export function withSpan(options: {
                                 if (captureResult) {
                                     span.setAttribute(
                                         `${spanName}.result`,
-                                        safeStringify(resolvedValue, 8192)
+                                        spanAttributeValue(resolvedValue)
                                     );
                                 }
                                 return resolvedValue;
@@ -235,7 +260,7 @@ export function withSpan(options: {
                     }
 
                     if (captureResult) {
-                        span.setAttribute(`${spanName}.result`, safeStringify(result, 8192));
+                        span.setAttribute(`${spanName}.result`, spanAttributeValue(result));
                     }
                     // Return regular results
                     return result;

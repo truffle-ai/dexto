@@ -141,6 +141,66 @@ describe('sign-in commands', () => {
         apiKey: null,
     };
 
+    /**
+     * Every scope a login would ask for, as the approval page would list them: the real browser
+     * sign-in adds its base scopes to the command's, and stops before authorizing.
+     */
+    async function requestedScopes(options: typeof noOptions): Promise<readonly string[]> {
+        const stopped = new Error('stopped before authorizing');
+        let requested: readonly string[] = [];
+        const server = (url: string): unknown => {
+            if (url.endsWith('/oauth-protected-resource/mcp'))
+                return {
+                    resource: `${APP}/mcp`,
+                    authorization_servers: [APP],
+                    // The server offers write scopes too: only :read ones are asked for by default.
+                    scopes_supported: [
+                        'drive:read',
+                        'applications:write',
+                        'sites:write',
+                        'functions:write',
+                        'cloud:write',
+                    ],
+                };
+            return {
+                authorization_endpoint: `${APP}/oauth/authorize`,
+                device_authorization_endpoint: `${APP}/api/oauth/device_authorization`,
+                registration_endpoint: `${APP}/api/oauth/register`,
+                revocation_endpoint: `${APP}/api/oauth/revoke`,
+                token_endpoint: `${APP}/api/oauth/token`,
+            };
+        };
+        context = {
+            ...context,
+            dexto: {
+                ...context.dexto,
+                signInWithBrowser: (input) =>
+                    dextoSignIn.signInWithBrowser(
+                        {
+                            fetch: async (url) => Response.json(server(String(url))),
+                            signal: new AbortController().signal,
+                            prompt: () => undefined,
+                            openBrowser: async () => undefined,
+                            listenForRedirect: async () => {
+                                throw new Error('no redirect listener in this test');
+                            },
+                            sleep: async () => undefined,
+                        },
+                        {
+                            ...input,
+                            beforeAuthorize: async (scopes) => {
+                                requested = scopes;
+                                throw stopped;
+                            },
+                        }
+                    ),
+            },
+        };
+
+        await expect(login(context, options)).rejects.toBe(stopped);
+        return requested;
+    }
+
     describe('login', () => {
         it('signs in with the browser into the default profile', async () => {
             await login(context, noOptions);
@@ -201,7 +261,7 @@ describe('sign-in commands', () => {
             expect(browserInputs).toHaveLength(1);
             expect(browserInputs[0]?.openBrowser).toBe(true);
             expect(deviceInputs).toHaveLength(0);
-            expect(notes).toEqual([]);
+            expect(notes).toEqual(['Permissions granted: cloud:read']);
         });
 
         it('signs in with a device code with --device', async () => {
@@ -218,7 +278,10 @@ describe('sign-in commands', () => {
 
             expect(deviceInputs).toHaveLength(1);
             expect(browserInputs).toHaveLength(0);
-            expect(notes).toEqual(['No browser here, so sign in with a code on any device.']);
+            expect(notes).toEqual([
+                'No browser here, so sign in with a code on any device.',
+                'Permissions granted: cloud:read',
+            ]);
         });
 
         it('only prints the link with --no-browser', async () => {
@@ -259,6 +322,57 @@ describe('sign-in commands', () => {
                 organization: 'org_acme',
                 extraScopes: ['cloud:read', 'drive:write', 'memories:write'],
             });
+        });
+
+        it('a plain sign-in asks for no deploy permission, so consent shows no sensitive scope', async () => {
+            expect(await requestedScopes(noOptions)).toEqual([
+                'drive:read',
+                'cloud:read',
+                'runs:read',
+                'artifacts:read',
+                'sessions:write',
+                'projects:write',
+            ]);
+        });
+
+        it('--scope deploy asks for every permission deploying Sites, Functions and Applications takes', async () => {
+            await login(context, { ...noOptions, scopes: ['deploy', 'drive:write'] });
+
+            expect(browserInputs[0]?.extraScopes).toEqual([
+                'sites:write',
+                'functions:write',
+                'cloud:write',
+                'applications:write',
+                'drive:write',
+            ]);
+        });
+
+        it('says which permissions the sign-in was granted', async () => {
+            await login(context, { ...noOptions, scopes: ['drive:write'] });
+
+            expect(notes).toContain('Permissions granted: cloud:read drive:write');
+        });
+
+        it('lists only the permissions the server granted, not all it was asked for', async () => {
+            // The fake device sign-in grants cloud:read alone, whatever is requested.
+            await login(context, { ...noOptions, device: true, scopes: ['deploy'] });
+
+            expect(deviceInputs[0]?.extraScopes).toContain('applications:write');
+            expect(notes).toContain('Permissions granted: cloud:read');
+        });
+
+        it('says none when the server granted no permission', async () => {
+            context = {
+                ...context,
+                dexto: {
+                    ...context.dexto,
+                    signInWithBrowser: async () => signedIn(organization, { scopes: [] }),
+                },
+            };
+
+            await login(context, noOptions);
+
+            expect(notes).toContain('Permissions granted: none');
         });
 
         it('asks for chats:sync only while chat sync is on', async () => {
@@ -323,6 +437,12 @@ describe('sign-in commands', () => {
         it('names a key by its mask, and where it came from', async () => {
             context = { ...context, environment: { DEXTO_API_KEY: 'dxt_1234567890abcd' } };
             expect(await describeSignIn(context)).toBe('API key dxt_123…abcd from DEXTO_API_KEY');
+        });
+
+        it('names the sign-in when DEXTO_API_KEY is set too', async () => {
+            await writeLogin(dir, 'default', signedIn(ACME));
+            context = { ...context, environment: { DEXTO_API_KEY: 'dxt_1234567890abcd' } };
+            expect(await describeSignIn(context)).toBe('ada@example.com in Acme');
         });
     });
 
@@ -426,6 +546,7 @@ describe('sign-in commands', () => {
 
             expect(printed).toEqual([
                 [
+                    'source        sign-in',
                     'profile       work',
                     'account       ada@example.com',
                     'organization  Acme (acme)',
@@ -451,6 +572,7 @@ describe('sign-in commands', () => {
 
             expect(printed).toEqual([
                 [
+                    'source        sign-in',
                     'profile       default',
                     'account       unknown',
                     'organization  unknown',
@@ -461,6 +583,7 @@ describe('sign-in commands', () => {
             expect(values).toEqual([
                 {
                     as: 'person',
+                    source: 'sign_in',
                     profile: 'default',
                     account: null,
                     organization: null,
@@ -481,8 +604,32 @@ describe('sign-in commands', () => {
 
             await whoami(context, { profile: null, apiKey: null });
 
-            expect(printed).toEqual(['api key       dxt_123…abcd, profile default']);
-            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'login' }]);
+            expect(printed).toEqual(['api key       dxt_123…abcd (saved key, profile default)']);
+            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'saved_key' }]);
+        });
+
+        it('shows a key from --api-key as the flag, even when signed in', async () => {
+            await writeLogin(dir, 'default', signedIn(ACME));
+
+            await whoami(context, { profile: null, apiKey: 'dxt_1234567890abcd' });
+
+            expect(printed).toEqual(['api key       dxt_123…abcd (from --api-key)']);
+            expect(values).toEqual([{ as: 'api_key', key: 'dxt_123…abcd', source: 'flag' }]);
+        });
+
+        it('shows the sign-in when DEXTO_API_KEY is set too, and says the key is not used', async () => {
+            await writeLogin(dir, 'default', signedIn(ACME));
+            context = { ...context, environment: { DEXTO_API_KEY: 'dxt_1234567890abcd' } };
+
+            await whoami(context, { profile: null, apiKey: null });
+
+            expect(values).toEqual([
+                expect.objectContaining({ as: 'person', source: 'sign_in', profile: 'default' }),
+            ]);
+            expect(notes).toEqual([
+                'DEXTO_API_KEY is set, but the saved sign-in comes first, so it is not used.',
+            ]);
+            expect(JSON.stringify([printed, values, notes])).not.toContain('dxt_1234567890abcd');
         });
     });
 
@@ -551,6 +698,7 @@ describe('sign-in commands', () => {
         expect(values).toEqual([
             {
                 as: 'person',
+                source: 'sign_in',
                 profile: 'work',
                 account: { email: 'ada@example.com', id: 'acc_1', name: 'Ada' },
                 organization: ACME,
@@ -624,6 +772,9 @@ describe('sign-in commands', () => {
                 verificationUri: `${APP}/device${HOSTILE}`,
                 verificationUriComplete: null,
                 expiresInSeconds: 600,
+                organization: `Acme${HOSTILE}`,
+                scopes: [`cloud:read${HOSTILE}`],
+                computer: `laptop${HOSTILE}`,
             });
             screen.show({
                 kind: 'device',
@@ -631,6 +782,9 @@ describe('sign-in commands', () => {
                 verificationUri: `${APP}/device`,
                 verificationUriComplete: `${APP}/device?code=${HOSTILE}`,
                 expiresInSeconds: 600,
+                organization: null,
+                scopes: [],
+                computer: 'laptop',
             });
 
             expect(shown).toHaveLength(3);
@@ -639,7 +793,7 @@ describe('sign-in commands', () => {
             expect(shown[1]).toContain(
                 'To sign in, open this link on any device and enter ABCDEvil[2J'
             );
-            expect(shown[1]?.split('\n')).toHaveLength(3);
+            expect(shown[1]?.split('\n')).toHaveLength(8);
         });
 
         it('strips them from describeSignIn', async () => {
@@ -661,8 +815,8 @@ describe('sign-in commands', () => {
 
             expectClean(printed[0]);
             const lines = printed[0]?.split('\n') ?? [];
-            expect(lines).toHaveLength(5);
-            expect(lines[2]).toBe(
+            expect(lines).toHaveLength(6);
+            expect(lines[3]).toBe(
                 'organization  Evil[2J Org]0;pwned 31mInc (evilEvil[2J Org]0;pwned 31mInc)'
             );
         });
@@ -756,11 +910,11 @@ describe('sign-in commands', () => {
             await withSignal(() => whoami(context, { profile: null, apiKey: null }));
 
             expect(printed).toEqual([
-                'api key       dxt_123…abcd, profile default',
+                'api key       dxt_123…abcd (saved key, profile default)',
                 'api key       dxt_abc…3456 (from DEXTO_API_KEY)',
             ]);
             expect(values).toEqual([
-                { as: 'api_key', key: 'dxt_123…abcd', source: 'login' },
+                { as: 'api_key', key: 'dxt_123…abcd', source: 'saved_key' },
                 { as: 'api_key', key: 'dxt_abc…3456', source: 'environment' },
             ]);
         });

@@ -1,6 +1,6 @@
 {
   "name": "@dexto/registry",
-  "version": "1.19.8",
+  "version": "1.21.0",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",

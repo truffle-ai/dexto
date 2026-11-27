@@ -2526,6 +2526,192 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(execute).not.toHaveBeenCalled();
         });
 
+        it("replays a failed durable execution record's error without running it", async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const identity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+            const executionId = createToolExecutionId(identity);
+            const startedAt = new Date('2026-05-11T00:00:00.000Z');
+            await toolExecutionStore.start({
+                record: {
+                    executionId,
+                    identity,
+                    input: { path: 'snake/index.html' },
+                    toolName: 'write_file',
+                    status: 'running',
+                    startedAt,
+                    updatedAt: startedAt,
+                },
+            });
+            // A host that finds the row left running by an interrupted try fails it with why.
+            await toolExecutionStore.fail({
+                executionId,
+                error: 'Interrupted before its result was persisted. Its effects are unknown.',
+                completedAt: startedAt,
+            });
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'full-access',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool('write_file', { path: 'snake/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity: identity,
+                })
+            ).rejects.toThrow(
+                `Tool execution already failed: ${executionId}: Interrupted before its result was persisted. Its effects are unknown.`
+            );
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('throws the error of a record failed between its lookup and its start', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const identity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+            const executionId = createToolExecutionId(identity);
+            const startedAt = new Date('2026-05-11T00:00:00.000Z');
+            const get = toolExecutionStore.get.bind(toolExecutionStore);
+            // Another try fails the record right after this one looked and found none, so the
+            // prepared path's start is the one that meets it.
+            vi.spyOn(toolExecutionStore, 'get').mockImplementationOnce(async (query) => {
+                const record = await get(query);
+                await toolExecutionStore.start({
+                    record: {
+                        executionId,
+                        identity,
+                        input: { path: 'snake/index.html' },
+                        toolName: 'write_file',
+                        status: 'running',
+                        startedAt,
+                        updatedAt: startedAt,
+                    },
+                });
+                await toolExecutionStore.fail({
+                    executionId,
+                    error: 'Interrupted before its result was persisted.',
+                    completedAt: startedAt,
+                });
+                return record;
+            });
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'full-access',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool('write_file', { path: 'snake/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity: identity,
+                })
+            ).rejects.toThrow(
+                `Tool execution already failed: ${executionId}: Interrupted before its result was persisted.`
+            );
+            expect(toolExecutionStore.get).toHaveBeenCalledTimes(1);
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('says only that a record failed when its error is empty', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const identity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+            const executionId = createToolExecutionId(identity);
+            const startedAt = new Date('2026-05-11T00:00:00.000Z');
+            await toolExecutionStore.start({
+                record: {
+                    executionId,
+                    identity,
+                    input: { path: 'snake/index.html' },
+                    toolName: 'write_file',
+                    status: 'running',
+                    startedAt,
+                    updatedAt: startedAt,
+                },
+            });
+            await toolExecutionStore.fail({ executionId, error: '', completedAt: startedAt });
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'full-access',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const error = await toolManager
+                .executeTool('write_file', { path: 'snake/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity: identity,
+                })
+                .catch((caught: unknown) => caught);
+
+            expect(error).toBeInstanceOf(Error);
+            expect(error instanceof Error ? error.message : '').toMatch(
+                new RegExp(`Tool execution already failed: ${executionId}$`)
+            );
+        });
+
         it("re-enters a resumable tool's own running execution with the same input", async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             const execute = vi.fn().mockResolvedValue('resumed');
