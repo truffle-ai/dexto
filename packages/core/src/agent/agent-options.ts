@@ -50,6 +50,12 @@ export interface DextoAgentOptions {
     /** Concrete tool implementations (DI-first). */
     tools?: Tool[] | undefined;
 
+    /**
+     * Exclude all tools from model turns and ToolManager execution, including core and MCP tools.
+     * Hosts still control MCP connections and must configure none when they need no connections.
+     */
+    toolsEnabled?: boolean | undefined;
+
     /** One host-provided skill implementation, when skills are enabled. */
     skills?: Skills | undefined;
 

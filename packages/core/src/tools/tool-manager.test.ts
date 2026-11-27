@@ -189,13 +189,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Core Tools', () => {
-        function createCoreToolManager() {
+        function createCoreToolManager(mode: 'asks-you' | 'full-access' = 'asks-you') {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
-                'asks-you',
+                mode,
                 mockAgentEventBus,
                 { alwaysAllow: [] },
                 [],
@@ -238,6 +238,19 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             expect(Object.keys(filtered)).toContain('tool_output_read');
+        });
+
+        it('does not execute a call prepared before tools were disabled', async () => {
+            const toolManager = createCoreToolManager('full-access');
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'tool_output_read',
+                input: {},
+                toolCallId: 'old-call',
+            });
+            if (prepared.kind !== 'ready') throw new Error('Expected a ready tool call');
+            toolManager.disableAllTools();
+
+            await expect(toolManager.executePreparedToolCall(prepared.call)).rejects.toThrow();
         });
     });
 

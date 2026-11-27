@@ -263,6 +263,7 @@ export class DextoAgent {
     private readonly loadingToolkits: Set<string> = new Set();
     // DI-provided local tools.
     private tools: Tool[];
+    private readonly toolsEnabled: boolean;
     private readonly compactionStrategy: CompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
@@ -319,6 +320,7 @@ export class DextoAgent {
             logger,
             stores,
             tools: toolsInput,
+            toolsEnabled,
             hooks: hooksInput,
             compaction,
             llmRegistry,
@@ -329,6 +331,10 @@ export class DextoAgent {
 
         const tools = toolsInput ?? [];
         const hooks = hooksInput ?? [];
+
+        if (toolsEnabled !== undefined && typeof toolsEnabled !== 'boolean') {
+            throw AgentError.apiValidationError('toolsEnabled must be a boolean');
+        }
 
         this.llmRegistry = llmRegistry ?? DEFAULT_MODEL_REGISTRY;
         this.config = DextoAgent.validateConfig(runtimeSettings, this.llmRegistry);
@@ -344,6 +350,7 @@ export class DextoAgent {
         }
 
         this.tools = tools;
+        this.toolsEnabled = toolsEnabled ?? true;
         this.compactionStrategy = compaction ?? null;
 
         const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
@@ -498,7 +505,11 @@ export class DextoAgent {
 
             // Add skills contributor to system prompt if skill_load is enabled.
             // This lists available skills so the LLM knows what it can invoke.
-            if (this.skills !== undefined && agentTools.some((t) => t.id === 'skill_load')) {
+            if (
+                this.toolsEnabled &&
+                this.skills !== undefined &&
+                agentTools.some((t) => t.id === 'skill_load')
+            ) {
                 const skillsContributor = new SkillsContributor(
                     'skills',
                     50, // Priority after memories (40) but before most other content
@@ -516,6 +527,7 @@ export class DextoAgent {
                 }),
             ]);
             services.toolManager.setTools(agentTools);
+            if (!this.toolsEnabled) services.toolManager.disableAllTools();
 
             // Initialize toolManager after tools and context have been wired.
             await services.toolManager.initialize();
