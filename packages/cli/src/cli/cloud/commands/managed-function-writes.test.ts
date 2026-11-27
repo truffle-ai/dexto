@@ -221,7 +221,7 @@ describe('workspace functions credential configure', () => {
                 inputSchema: { properties: { confirm: {} } },
             },
         ]);
-        const result = { status: 'needs_input', url: 'https://app.dexto.ai/secure' };
+        const result = { status: 'input_required', url: 'https://app.dexto.ai/secure' };
         query.mockResolvedValueOnce(result);
         const command = managedFunctionCommands.find(
             (c) => c.path.join(' ') === 'workspace functions credential configure'

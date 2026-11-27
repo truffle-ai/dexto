@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
@@ -56,6 +56,11 @@ beforeEach(async () => {
                     result: {
                         tools: [
                             {
+                                name: 'dexto_function_deploy',
+                                _meta: { 'dexto/level': 'approve' },
+                                inputSchema: { type: 'object', properties: { confirm: {} } },
+                            },
+                            {
                                 name: 'dexto_function_credential_configure',
                                 _meta: { 'dexto/level': 'approve' },
                                 inputSchema: { type: 'object', properties: { confirm: {} } },
@@ -79,7 +84,9 @@ beforeEach(async () => {
                     error: {
                         code: -32602,
                         message:
-                            "Reconnect Dexto MCP with the deployment's required scopes: sites:read, chats:write.",
+                            message.params.arguments.projectId === 'restricted'
+                                ? "Reconnect Dexto MCP with the deployment's required scopes: approvals:read, sites:read."
+                                : "Reconnect Dexto MCP with the deployment's required scopes: sites:read, chats:write.",
                         data: { kind: 'invalid_arguments' },
                     },
                 });
@@ -106,7 +113,7 @@ beforeEach(async () => {
             const value =
                 message.params.name === 'dexto_function_plan'
                     ? { default: 'local', providers: ['local'] }
-                    : { status: 'needs_input', url: 'https://app.dexto.ai/secure' };
+                    : { status: 'input_required', url: 'https://app.dexto.ai/secure' };
             return Response.json({
                 jsonrpc: '2.0',
                 id: message.id,
@@ -168,7 +175,7 @@ it('prints the secure credential URL as JSON', async () => {
             '--yes',
             '--json',
         ])
-    ).toBe(0);
+    ).toBe(6);
     expect(calls).toEqual([
         {
             name: 'dexto_function_credential_configure',
@@ -181,9 +188,87 @@ it('prints the secure credential URL as JSON', async () => {
         },
     ]);
     expect(JSON.parse(stdout)).toEqual({
-        status: 'needs_input',
+        status: 'input_required',
         url: 'https://app.dexto.ai/secure',
     });
+});
+
+it('does not offer sign-in for unavailable approval scopes', async () => {
+    expect(
+        await runCloud(host, [
+            'workspace',
+            'functions',
+            'credential',
+            'configure',
+            'restricted',
+            'deployment',
+            '--kind',
+            'dexto-api-key',
+            '--yes',
+            '--json',
+        ])
+    ).toBe(3);
+    const { error } = JSON.parse(stderr);
+    expect(error.message).toContain('approvals:read');
+    expect(error.fix).toBeUndefined();
+});
+
+it('refuses a write if the signed-in account changes while approval is open', async () => {
+    let switched = false;
+    const originalResolve = host.resolveConnection;
+    host = {
+        ...host,
+        runtime: {
+            ...host.runtime,
+            prompt: async () => {
+                switched = true;
+                return 'yes';
+            },
+        },
+        resolveConnection: async (overrides) => {
+            const resolved = await originalResolve(overrides);
+            if (switched && resolved?.kind === 'oauth')
+                return {
+                    ...resolved,
+                    login: { ...resolved.login, savedAt: '2026-11-02T00:00:00.000Z' },
+                };
+            return resolved;
+        },
+    };
+    expect(
+        await runCloud(host, ['workspace', 'functions', 'secret', 'delete', 'project', 'API_KEY'])
+    ).toBe(1);
+    expect(calls).toHaveLength(0);
+    expect(stderr).toContain('account');
+});
+
+it('does not upload a package if the account changes during deploy approval', async () => {
+    let switched = false;
+    const originalResolve = host.resolveConnection;
+    host = {
+        ...host,
+        runtime: {
+            ...host.runtime,
+            prompt: async () => {
+                switched = true;
+                return 'yes';
+            },
+        },
+        resolveConnection: async (overrides) => {
+            const resolved = await originalResolve(overrides);
+            if (switched && resolved?.kind === 'oauth')
+                return {
+                    ...resolved,
+                    login: { ...resolved.login, savedAt: '2026-11-02T00:00:00.000Z' },
+                };
+            return resolved;
+        },
+    };
+    const file = path.join(path.dirname(dir), 'deploy-request.json');
+    await writeFile(file, '{}');
+    expect(await runCloud(host, ['workspace', 'functions', 'deploy', file])).toBe(1);
+    expect(calls).toHaveLength(0);
+    expect(stderr).toContain('account');
 });
 
 it('returns a machine-readable error for a server refusal', async () => {

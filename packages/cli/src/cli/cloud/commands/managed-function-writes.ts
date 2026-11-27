@@ -4,6 +4,7 @@ import {
     argument,
     choiceOption,
     flag,
+    isJsonObject,
     MissingScopeFailure,
     stringOption,
     UsageError,
@@ -82,6 +83,7 @@ const deploy: Command = {
             });
             return;
         }
+        await context.connection({ pin: true });
         await requireLoginScopes(context, ['functions:write']);
         const bytes = await readPackage(file, PACKAGE);
         const tool = (await listWorkspaceTools(context)).find(
@@ -139,13 +141,14 @@ const credential: Command = {
             throw new UsageError('--name applies only to a declared secret.');
         const credential = kind === 'declared-secret' ? { kind, name } : { kind };
         try {
-            await write(
+            const result = await write(
                 context,
                 input,
                 'dexto_function_credential_configure',
                 { projectId, deploymentId, credential },
                 `Configure ${kind === 'dexto-api-key' ? 'a Dexto API key' : `declared secret ${name}`} for deployment ${deploymentId} of Function ${projectId}`
             );
+            if (isJsonObject(result) && result.status === 'input_required') return 6;
         } catch (error) {
             // This operation's existing refusal names the missing deployment-key scopes in text.
             const match =
@@ -156,6 +159,16 @@ const credential: Command = {
                     : null;
             if (match?.[1] !== undefined) {
                 const scopes = match[1].split(', ');
+                if (
+                    scopes.some(
+                        (scope) => scope === 'approvals:read' || scope === 'approvals:write'
+                    )
+                )
+                    throw new CommandFailure(
+                        'needs_permission',
+                        `This deployment requires unavailable MCP permissions: ${scopes.join(', ')}.`,
+                        null
+                    );
                 throw new MissingScopeFailure(
                     context,
                     scopes,
@@ -164,6 +177,7 @@ const credential: Command = {
             }
             throw error;
         }
+        return 0;
     },
 };
 
@@ -211,11 +225,12 @@ async function write(
     name: string,
     call: Record<string, unknown>,
     title: string
-): Promise<void> {
+): Promise<unknown> {
     if (flag(input, 'dry-run')) {
         context.output.record({ dryRun: true, tool: name, arguments: call });
-        return;
+        return null;
     }
+    await context.connection({ pin: true });
     await requireLoginScopes(context, ['functions:write']);
     const tool = (await listWorkspaceTools(context)).find((each) => each.name === name);
     if (tool === undefined)
@@ -225,7 +240,9 @@ async function write(
         { level: toolCallLevel(tool, call), schema: tool.inputSchema, title },
         flag(input, 'yes')
     );
-    context.output.record(await queryWorkspaceTool(context, name, { ...call, ...agreed }));
+    const result = await queryWorkspaceTool(context, name, { ...call, ...agreed });
+    context.output.record(result);
+    return result;
 }
 
 export const managedFunctionCommands: readonly Command[] = [
