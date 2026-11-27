@@ -1,5 +1,15 @@
 # @dexto/agent-management
 
+## 1.21.3
+
+### Patch Changes
+
+- 30dcdf5: Add `dexto workspace gigs publish` to publish a Dexto Gig as yourself, with its title, description, timeline, tags, optional budget and optional contract; it asks first, takes `--yes`, `--dry-run` and `--json`, and needs `gigs:write`.
+    - @dexto/core@1.21.3
+    - @dexto/llm@1.21.3
+    - @dexto/agent-config@1.21.3
+    - @dexto/tools-builtins@1.21.3
+
 ## 1.21.2
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # dexto
 
+## 2.10.0
+
+### Minor Changes
+
+- 30dcdf5: Add `dexto workspace gigs publish` to publish a Dexto Gig as yourself, with its title, description, timeline, tags, optional budget and optional contract; it asks first, takes `--yes`, `--dry-run` and `--json`, and needs `gigs:write`.
+
+### Patch Changes
+
+- Updated dependencies [30dcdf5]
+    - @dexto/agent-management@1.21.3
+    - @dexto/analytics@1.21.3
+    - @dexto/image-local@1.21.3
+    - @dexto/image-logger-agent@1.21.3
+    - @dexto/tui@1.21.3
+    - @dexto/client-sdk@1.21.3
+    - @dexto/core@1.21.3
+    - @dexto/storage@1.21.3
+    - @dexto/llm@1.21.3
+    - @dexto/agent-config@1.21.3
+    - @dexto/cloud-client@1.21.3
+    - @dexto/registry@1.21.3
+
 ## 2.9.1
 
 ### Patch Changes
