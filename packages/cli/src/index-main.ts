@@ -104,7 +104,9 @@ import { registerReviewCommand } from './cli/commands/review/register.js';
 import { gitIn, readBundledReviewSkill } from './cli/commands/review/review.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
-import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
+import { helpJson, jsonHelpCommand } from './cli/help-json.js';
+import { jsonError } from './cli/output.js';
+import { routeUsageErrors } from './cli/usage-errors.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
@@ -115,22 +117,8 @@ import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 const FIRST_RUN_DEXTO_MODEL = 'anthropic/claude-haiku-4.5';
 
 const program = new Command();
-// Commander's own usage errors, such as `dexto chat bogus` or an unknown option, exit 2 like a
-// mistyped command (the output contract), not commander's 1. Set first: commands defined later
-// inherit it. Help, version and every other exit keep their code.
-const USAGE_ERRORS: ReadonlySet<string> = new Set([
-    'commander.unknownCommand',
-    'commander.unknownOption',
-    'commander.excessArguments',
-    'commander.missingArgument',
-    'commander.optionMissingArgument',
-    'commander.missingMandatoryOptionValue',
-    'commander.invalidArgument',
-    'commander.conflictingOption',
-]);
-program.exitOverride((error) => {
-    if (USAGE_ERRORS.has(error.code)) process.exit(2);
-});
+/** Usage failures print the JSON error: asked for, or stdout isn't a terminal (the contract). */
+const jsonOutput = process.argv.includes('--json') || process.stdout.isTTY !== true;
 // Every command but the interactive CLI, which shows its own, and `upgrade` itself tells a person
 // at a terminal that this CLI is out of date (DEXTO-3134). Never in a JSON mode, whose stderr holds
 // only its failure. A fresh cache answers at once; a stale one is refreshed here, held to 1.5 s,
@@ -256,6 +244,8 @@ program
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session')
     .option('-r, --resume <sessionId>', 'Resume a session by ID')
+    // Only so `dexto bogus --json` reports `bogus`, not the option; the chat itself has no JSON.
+    .addOption(new Option('--json').hideHelp())
     .enablePositionalOptions();
 
 // 7) `upgrade` SUB-COMMAND
@@ -510,9 +500,15 @@ program
                 // The chat takes no words: a stray word is a mistyped command, not a prompt.
                 const [stray] = program.args;
                 if (stray !== undefined) {
-                    await printFailure(`Unknown command '${stray}'.`, 'dexto --help', [
-                        `Unknown command '${stray}'. Run: dexto --help`,
-                    ]);
+                    const message = `Unknown command '${stray}'.`;
+                    if (jsonOutput)
+                        process.stderr.write(
+                            jsonError({ code: 'usage', message, fix: 'dexto --help' })
+                        );
+                    else
+                        await printFailure(message, 'dexto --help', [
+                            `${message} Run: dexto --help`,
+                        ]);
                     safeExit('main', 2, 'unknown-command');
                 }
                 await ensureDextoSignInsCarriedOver();
@@ -1032,7 +1028,9 @@ program
     );
 
 // 14) PARSE & EXECUTE
-// `dexto --help --json`: the commands and exit codes as JSON, for agents.
+routeUsageErrors(program, jsonOutput);
+// `dexto [command…] --help --json`: a command's help as JSON, for agents.
+const jsonHelpFor = jsonHelpCommand(program, process.argv.slice(2));
 // Internal inventory entry point for the repository build check.
 if (process.argv[2] === 'site') {
     void withAnalytics('site', async () => {
@@ -1050,6 +1048,6 @@ if (process.argv[2] === 'site') {
         throw new Error('Audit cannot sign in');
     });
     process.stdout.write(`${JSON.stringify(auditProgram(program, commands), null, 2)}\n`);
-} else if (isRootJsonHelp(process.argv.slice(2)))
-    process.stdout.write(`${JSON.stringify(rootHelpJson(program), null, 2)}\n`);
+} else if (jsonHelpFor !== null)
+    process.stdout.write(`${JSON.stringify(helpJson(jsonHelpFor), null, 2)}\n`);
 else program.parseAsync(process.argv);
