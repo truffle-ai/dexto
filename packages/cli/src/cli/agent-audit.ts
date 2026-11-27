@@ -5,6 +5,7 @@ export interface AuditRow {
     json: boolean;
     dryRun: boolean;
     nonInteractiveFlag: boolean;
+    /** ACP is exempt from a --json example: stdout carries protocol messages. */
     examples: boolean;
 }
 
