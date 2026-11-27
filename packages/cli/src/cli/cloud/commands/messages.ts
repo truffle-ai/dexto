@@ -1,9 +1,14 @@
-// `messages`: the person's Dexto direct conversations, read as them over the Dexto MCP.
+// `messages`: the person's Dexto direct conversations, read and sent as them over the Dexto MCP.
 
 import { z } from 'zod';
 
 import { argument, type Command } from '../command.js';
-import { READ_OPTIONS, readConversationPage } from './channels.js';
+import {
+    READ_OPTIONS,
+    readConversationPage,
+    SEND_OPTIONS,
+    sendConversationMessage,
+} from './channels.js';
 import { requireLoginScopes } from './deploys.js';
 import { queryWorkspaceTool } from './workspace.js';
 
@@ -52,4 +57,23 @@ const read: Command = {
     },
 };
 
-export const messageCommands: readonly Command[] = [list, read];
+const send: Command = {
+    arguments: '<conversation_id> <text>',
+    options: SEND_OPTIONS,
+    path: ['messages', 'send'],
+    summary:
+        'Send this exact text (or - for stdin) to one of your direct conversations. Dexto checks blocks and membership before sending. Example: dexto messages send "$CONVERSATION_ID" "On it." --yes',
+    async run(context, input) {
+        const conversationId = argument(input, 0, 'conversation_id');
+        await sendConversationMessage(
+            context,
+            input,
+            'dexto_direct_message_send',
+            { conversationId },
+            `direct conversation ${conversationId}`,
+            `Send this message to direct conversation ${conversationId}?`
+        );
+    },
+};
+
+export const messageCommands: readonly Command[] = [list, read, send];
