@@ -148,6 +148,9 @@ describe('dexto cloud', () => {
         expect(stdout).toContain('sites:write');
         expect(stdout).toContain('cloud:write');
         expect(stdout).toContain('dexto publish ./dist --yes');
+        expect(JSON.parse(stdout).examples).toContain(
+            'dexto publish ./dist --visibility private --yes --json'
+        );
     });
 
     it('shows the scope needed to start a chat', async () => {

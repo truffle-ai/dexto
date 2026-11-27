@@ -1222,7 +1222,7 @@
     "json": true,
     "dryRun": true,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "review",
