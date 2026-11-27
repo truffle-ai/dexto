@@ -34,7 +34,6 @@ const META_SCHEMA: JSONSchema7 = {
             additionalProperties: false,
         },
     },
-    additionalProperties: true,
 };
 
 const META_KEY = '__meta';
