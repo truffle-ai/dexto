@@ -48,6 +48,49 @@ describe('workspace functions plan', () => {
 });
 
 describe('workspace functions deploy', () => {
+    it.each([
+        [{ access: 'public' }, 'public'],
+        [{}, 'private'],
+    ])(
+        'identifies access and production promotion in the approval for %s',
+        async (values, access) => {
+            const file = path.join(
+                await mkdtemp(path.join(os.tmpdir(), 'function-package-')),
+                'deploy.json'
+            );
+            await writeFile(file, '{}');
+            const prompt = vi.fn().mockResolvedValue('yes');
+            const context = {
+                connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
+                output: { record: vi.fn() },
+                invocation: ['dexto'],
+                runtime: { prompt },
+            } as unknown as CommandContext;
+            listTools.mockResolvedValueOnce([
+                {
+                    name: 'dexto_function_deploy',
+                    _meta: { 'dexto/level': 'approve' },
+                    inputSchema: { properties: {} },
+                },
+            ]);
+            query
+                .mockResolvedValueOnce({
+                    path: 'uploads/pkg',
+                    method: 'PUT',
+                    url: 'https://dexto.example/upload',
+                    headers: {},
+                })
+                .mockResolvedValueOnce({ status: 'deployed' });
+            const command = managedFunctionCommands.find(
+                (c) => c.path.join(' ') === 'workspace functions deploy'
+            );
+            await command?.run(context, { positionals: [file], values });
+            expect(prompt).toHaveBeenCalledWith(expect.stringContaining(access), { secret: false });
+            expect(prompt).toHaveBeenCalledWith(expect.stringContaining('production'), {
+                secret: false,
+            });
+        }
+    );
     it('uploads the package after approval and deploys it with the chosen access', async () => {
         const file = path.join(
             await mkdtemp(path.join(os.tmpdir(), 'function-package-')),
@@ -130,6 +173,39 @@ describe('workspace functions deploy', () => {
 });
 
 describe('workspace functions credential configure', () => {
+    it.each([
+        [{ kind: 'declared-secret', name: 'API_KEY' }, 'declared secret API_KEY'],
+        [{ kind: 'dexto-api-key' }, 'Dexto API key'],
+    ])(
+        'identifies the credential and deployment in the approval for %s',
+        async (values, credential) => {
+            const prompt = vi.fn().mockResolvedValue('yes');
+            const context = {
+                connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
+                output: { record: vi.fn() },
+                invocation: ['dexto'],
+                runtime: { prompt },
+            } as unknown as CommandContext;
+            listTools.mockResolvedValueOnce([
+                {
+                    name: 'dexto_function_credential_configure',
+                    _meta: { 'dexto/level': 'approve' },
+                    inputSchema: { properties: {} },
+                },
+            ]);
+            query.mockResolvedValueOnce({ status: 'configured' });
+            const command = managedFunctionCommands.find(
+                (c) => c.path.join(' ') === 'workspace functions credential configure'
+            );
+            await command?.run(context, { positionals: ['project', 'deployment'], values });
+            expect(prompt).toHaveBeenCalledWith(expect.stringContaining('deployment'), {
+                secret: false,
+            });
+            expect(prompt).toHaveBeenCalledWith(expect.stringContaining(credential), {
+                secret: false,
+            });
+        }
+    );
     it('returns the secure URL for a declared secret without taking its value', async () => {
         const output = { record: vi.fn() };
         const context = {

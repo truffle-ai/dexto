@@ -69,6 +69,20 @@ beforeEach(async () => {
                     },
                 });
             calls.push({ name: message.params.name, arguments: message.params.arguments });
+            if (
+                message.params.name === 'dexto_function_credential_configure' &&
+                message.params.arguments.credential.kind === 'dexto-api-key'
+            )
+                return Response.json({
+                    jsonrpc: '2.0',
+                    id: message.id,
+                    error: {
+                        code: -32602,
+                        message:
+                            "Reconnect Dexto MCP with the deployment's required scopes: sites:read, chats:write.",
+                        data: { kind: 'invalid_arguments' },
+                    },
+                });
             if (message.params.arguments.provider === 'aws-lambda')
                 return Response.json({
                     jsonrpc: '2.0',
@@ -204,5 +218,28 @@ it('reports a missing scope refused by the server as a permission error', async 
     ).toBe(3);
     expect(JSON.parse(stderr)).toMatchObject({
         error: { code: 'needs_permission', message: expect.stringContaining('functions:read') },
+    });
+});
+
+it('reports missing deployment-key scopes with a command to grant all of them', async () => {
+    expect(
+        await runCloud(host, [
+            'workspace',
+            'functions',
+            'credential',
+            'configure',
+            'project',
+            'deployment',
+            '--kind',
+            'dexto-api-key',
+            '--yes',
+            '--json',
+        ])
+    ).toBe(3);
+    expect(JSON.parse(stderr)).toMatchObject({
+        error: {
+            code: 'needs_permission',
+            fix: expect.stringContaining('--scope sites:read --scope chats:write'),
+        },
     });
 });

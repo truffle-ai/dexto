@@ -4,6 +4,7 @@ import {
     argument,
     choiceOption,
     flag,
+    MissingScopeFailure,
     stringOption,
     UsageError,
     YES_OPTION,
@@ -93,7 +94,7 @@ const deploy: Command = {
             {
                 level: toolCallLevel(tool, call),
                 schema: tool.inputSchema,
-                title: `Deploy Function package ${file}`,
+                title: `Deploy Function package ${file} to production with ${access === 'public' ? 'public internet access' : 'private access'}`,
             },
             flag(input, 'yes')
         );
@@ -137,13 +138,32 @@ const credential: Command = {
         if (kind === 'dexto-api-key' && name !== undefined)
             throw new UsageError('--name applies only to a declared secret.');
         const credential = kind === 'declared-secret' ? { kind, name } : { kind };
-        await write(
-            context,
-            input,
-            'dexto_function_credential_configure',
-            { projectId, deploymentId, credential },
-            `Configure credential for Function ${projectId}`
-        );
+        try {
+            await write(
+                context,
+                input,
+                'dexto_function_credential_configure',
+                { projectId, deploymentId, credential },
+                `Configure ${kind === 'dexto-api-key' ? 'a Dexto API key' : `declared secret ${name}`} for deployment ${deploymentId} of Function ${projectId}`
+            );
+        } catch (error) {
+            // This operation's existing refusal names the missing deployment-key scopes in text.
+            const match =
+                error instanceof CommandFailure && kind === 'dexto-api-key'
+                    ? /^Reconnect Dexto MCP with the deployment's required scopes: ([\w:.-]+(?:, [\w:.-]+)*)\.$/u.exec(
+                          error.message
+                      )
+                    : null;
+            if (match?.[1] !== undefined) {
+                const scopes = match[1].split(', ');
+                throw new MissingScopeFailure(
+                    context,
+                    scopes,
+                    `This deployment needs the ${scopes.join(', ')} permissions, which your sign-in lacks.`
+                );
+            }
+            throw error;
+        }
     },
 };
 
