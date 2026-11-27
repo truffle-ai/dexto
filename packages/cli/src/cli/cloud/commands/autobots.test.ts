@@ -127,6 +127,39 @@ describe('AutoBots over the Dexto MCP', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it('provides copyable JSON examples for AutoBot commands', async () => {
+        const commands = host.commands.filter((command) => command.path[0] === 'autobots');
+        expect(commands.length).toBeGreaterThanOrEqual(7);
+        for (const command of commands) {
+            stdout = '';
+            expect(await cli(...command.path, '--help')).toBe(0);
+            const help = JSON.parse(stdout) as { examples?: string[] };
+            expect(help.examples, command.path.join(' ')).toEqual(
+                expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+            );
+            for (const example of help.examples ?? []) {
+                expect(example, command.path.join(' ')).not.toMatch(/<\w+>/u);
+            }
+        }
+    });
+
+    it('sends the minimal profile body shown in the save example', async () => {
+        replies = [{ autobot, status: 'saved' }];
+        expect(
+            await cli(
+                'autobots',
+                'save',
+                '--data',
+                JSON.stringify({ profile: autobot.profile }),
+                '--yes'
+            ),
+            stderr
+        ).toBe(0);
+        expect(calls).toEqual([
+            { name: 'dexto_autobot_save', arguments: { profile: autobot.profile } },
+        ]);
+    });
+
     it('lists the AutoBots you can use, with the limit given', async () => {
         replies = [{ autobots: [autobot] }];
         expect(await cli('autobots', 'list', '--limit', '5'), stderr).toBe(0);
