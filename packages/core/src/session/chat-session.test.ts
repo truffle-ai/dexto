@@ -1366,6 +1366,57 @@ describe('ChatSession', () => {
             expect(runCompletes).toEqual([expect.objectContaining({ finishReason: 'cancelled' })]);
         });
 
+        test('does not start a stream while a cancelled stream is still unwinding', async () => {
+            const entered = createDeferred<void>();
+            const release = createDeferred<void>();
+            const runCompletes: SessionEventMap['run:complete'][] = [];
+            chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
+            mockLLMService.stream.mockImplementationOnce(async () => {
+                entered.resolve();
+                await release.promise;
+                chatSession.eventBus.emit('run:complete', {
+                    finishReason: 'cancelled',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                throw abortError();
+            });
+            const prior = chatSession.stream('first');
+            await entered.promise;
+            expect(chatSession.cancel()).toBe(true);
+
+            expect(chatSession.isBusy()).toBe(true);
+            await expect(chatSession.stream('second')).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_BUSY,
+            });
+
+            release.resolve();
+            await prior;
+            expect(chatSession.isBusy()).toBe(false);
+            mockLLMService.stream.mockImplementationOnce(async () => {
+                chatSession.eventBus.emit('run:complete', {
+                    finishReason: 'stop',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                return { text: 'second' };
+            });
+            await expect(chatSession.stream('second')).resolves.toEqual({ text: 'second' });
+
+            expect(mockLLMService.stream).toHaveBeenCalledTimes(2);
+            expect(runCompletes).toEqual([
+                expect.objectContaining({ finishReason: 'cancelled' }),
+                expect.objectContaining({ finishReason: 'stop' }),
+            ]);
+            const forwardedCompletes = mockServices.agentEventBus.emit.mock.calls.filter(
+                ([name]: [string]) => name === 'run:complete'
+            );
+            expect(forwardedCompletes).toEqual([
+                ['run:complete', expect.objectContaining({ sessionId, finishReason: 'cancelled' })],
+                ['run:complete', expect.objectContaining({ sessionId, finishReason: 'stop' })],
+            ]);
+        });
+
         test('does not duplicate a completion emitted during turn driver setup', async () => {
             const runCompletes: SessionEventMap['run:complete'][] = [];
             chatSession.eventBus.on('run:complete', (payload) => runCompletes.push(payload));
