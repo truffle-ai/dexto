@@ -1914,6 +1914,112 @@ describe('filterCompacted', () => {
         expect(result[1]?.content).toBe('Recent message');
         expect(result[2]?.content).toBe('Recent response');
     });
+
+    describe('summaries that record their first preserved message', () => {
+        const message = (id: string, metadata?: Record<string, unknown>) =>
+            ({
+                id,
+                role: 'user',
+                content: id,
+                ...(metadata && { metadata }),
+            }) as unknown as InternalMessage;
+
+        it('cuts at the recorded message, not at a count taken over the model history', () => {
+            // An overflow re-compaction summarized [S1, q1, a1, q2, a2] of its model history
+            // (count 5) and kept [q3, a3]. Over the full history, index 5 would be q2.
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('a1'),
+                message('s1', {
+                    isSummary: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'q1',
+                }),
+                message('q2'),
+                message('a2'),
+                message('q3'),
+                message('a3'),
+                message('s2', {
+                    isSummary: true,
+                    isRecompaction: true,
+                    originalMessageCount: 5,
+                    firstPreservedMessageId: 'q3',
+                }),
+                message('q4'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual(['s2', 'q3', 'a3', 'q4']);
+        });
+
+        it('drops an earlier summary between the recorded message and the summary', () => {
+            // The re-compaction kept a1, which the first summary had preserved before itself.
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('a1'),
+                message('s1', {
+                    isSummary: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'q1',
+                }),
+                message('q2'),
+                message('a2'),
+                message('s2', {
+                    isSummary: true,
+                    isRecompaction: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'a1',
+                }),
+                message('q3'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual([
+                's2',
+                'a1',
+                'q2',
+                'a2',
+                'q3',
+            ]);
+        });
+
+        it('keeps the count reading for a legacy summary chain without recorded messages', () => {
+            // Summaries written before firstPreservedMessageId existed keep the old reading.
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('a1'),
+                message('s1', { isSummary: true, originalMessageCount: 2 }),
+                message('q2'),
+                message('a2'),
+                message('q3'),
+                message('a3'),
+                message('s2', { isSummary: true, isRecompaction: true, originalMessageCount: 7 }),
+                message('q4'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual(['s2', 'q3', 'a3', 'q4']);
+        });
+
+        it('falls back to the count when the recorded message is not before the summary', () => {
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('s1', {
+                    isSummary: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'missing',
+                }),
+                message('q2'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual(['s1', 'q1', 'q2']);
+        });
+    });
 });
 
 describe('sanitizeToolResultToContentWithBlobs', () => {

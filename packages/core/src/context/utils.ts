@@ -2197,9 +2197,11 @@ export function pickToolResults(
  * - DextoAgent.getContextStats() for accurate token/message counts
  *
  * When a summary message exists (with metadata.isSummary === true or
- * metadata.isSessionSummary === true), this function returns only the
- * summary message and everything after it. This effectively hides old
- * messages from the LLM while preserving them in storage.
+ * metadata.isSessionSummary === true), this function returns the summary,
+ * the messages it preserved, then everything after it. A summary that records
+ * `firstPreservedMessageId` preserves from that message; a legacy summary
+ * preserves from index `originalMessageCount`. This hides old messages from
+ * the LLM while keeping them in storage.
  *
  * @param history The full conversation history
  * @returns Filtered history starting from the most recent summary (or full history if no summary)
@@ -2223,8 +2225,27 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
 
     // Get the summary message (we know it exists since we found the index)
     const summaryMessage = history[summaryIndex]!;
+    const messagesAfterSummary = history.slice(summaryIndex + 1);
 
-    // Get the count of messages that were summarized (stored in metadata)
+    // A summary that records its first preserved message keeps the rows from that message up to
+    // the summary, wherever they sit in the history; earlier summaries between them are dropped.
+    // The compaction input may be the full history or the model history, so a count can't place it.
+    const firstPreservedId = summaryMessage.metadata?.firstPreservedMessageId;
+    const firstPreservedIndex =
+        typeof firstPreservedId === 'string'
+            ? history.findIndex((msg, index) => index < summaryIndex && msg.id === firstPreservedId)
+            : -1;
+    if (firstPreservedIndex !== -1) {
+        const preservedMessages = history
+            .slice(firstPreservedIndex, summaryIndex)
+            .filter(
+                (msg) => msg.metadata?.isSummary !== true && msg.metadata?.isSessionSummary !== true
+            );
+        return [summaryMessage, ...preservedMessages, ...messagesAfterSummary];
+    }
+
+    // Legacy summaries (and ones whose first preserved message is gone): the count of messages
+    // that were summarized, stored in metadata
     // The preserved messages are between the summarized portion and the summary
     // Clamp to valid range: 0 <= originalMessageCount <= summaryIndex
     // For legacy summaries without metadata, default to summaryIndex (no preserved messages)
@@ -2243,9 +2264,6 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
 
     // Get preserved messages (messages between summarized portion and summary)
     const preservedMessages = history.slice(originalMessageCount, summaryIndex);
-
-    // Get any messages added after the summary (rare but possible)
-    const messagesAfterSummary = history.slice(summaryIndex + 1);
 
     // Return: summary + preserved + afterSummary
     return [summaryMessage, ...preservedMessages, ...messagesAfterSummary];
