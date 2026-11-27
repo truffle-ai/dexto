@@ -159,6 +159,7 @@ describe('dexto cloud', () => {
         expect(await runCloud(host, ['models', 'list', '--help', '--json'])).toBe(0);
         expect(stdout).toContain('dexto chat models');
         expect(stdout).toContain('account');
+        expect(JSON.parse(stdout).examples).toContain('dexto models list --json');
     });
 
     it('explains where model outputs are saved and how to download them', async () => {

@@ -146,6 +146,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
 
     const modelsList: Command = {
         path: ['models', 'list'],
+        examples: ['dexto models list --json'],
         summary:
             'List the Dexto gateway catalog as dexto/<model>. For chat models available to your account, run dexto chat models.',
         async run(context) {
