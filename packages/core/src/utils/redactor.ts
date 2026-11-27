@@ -338,6 +338,17 @@ function describeBinary(value: ArrayBuffer | ArrayBufferView): string {
     return `[${name} ${value.byteLength} bytes]`;
 }
 
+function redactStringValue(input: string, walk: Walk, mode: Mode, insideSecret: boolean): string {
+    if (insideSecret) return REDACTED;
+    const redact = mode === 'log' || mode === 'stringify-error' ? redactLogString : redactString;
+    const keep = Math.max(0, walk.budget);
+    const read = keep + STRING_CONTEXT;
+    if (input.length <= read) return redact(input);
+    // The read never ends inside a token, so every secret in it is whole and redacted, and
+    // keeping only the first `keep` characters of the result cannot keep part of one.
+    return `${redact(input.slice(0, tokenSafeEnd(input, read))).slice(0, keep)}…`;
+}
+
 function redactValue(
     input: unknown,
     walk: Walk,
@@ -347,17 +358,7 @@ function redactValue(
 ): unknown {
     // JSON.stringify can invoke toJSON on functions as well as on objects.
     if (typeof input === 'function') return undefined;
-    if (typeof input === 'string') {
-        if (insideSecret) return REDACTED;
-        const redact =
-            mode === 'log' || mode === 'stringify-error' ? redactLogString : redactString;
-        const keep = Math.max(0, walk.budget);
-        const read = keep + STRING_CONTEXT;
-        if (input.length <= read) return redact(input);
-        // The read never ends inside a token, so every secret in it is whole and redacted, and
-        // keeping only the first `keep` characters of the result cannot keep part of one.
-        return `${redact(input.slice(0, tokenSafeEnd(input, read))).slice(0, keep)}…`;
-    }
+    if (typeof input === 'string') return redactStringValue(input, walk, mode, insideSecret);
     if (typeof input !== 'object' || input === null) return input;
 
     if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) return describeBinary(input);
@@ -365,16 +366,14 @@ function redactValue(
     // redacted like any other string.
     if (input instanceof Date) {
         if (Number.isNaN(input.getTime())) return 'Invalid Date';
-        return redactValue(String(input.toISOString()), walk, mode, insideSecret, depth);
+        return redactStringValue(String(input.toISOString()), walk, mode, insideSecret);
     }
-    if (input instanceof RegExp) {
-        return redactValue(String(input), walk, mode, insideSecret, depth);
-    }
+    if (input instanceof RegExp) return redactStringValue(String(input), walk, mode, insideSecret);
     if (input instanceof URL) {
         const withoutCredentials = new URL(input.href);
         withoutCredentials.username = '';
         withoutCredentials.password = '';
-        return redactValue(withoutCredentials.href, walk, mode, insideSecret, depth);
+        return redactStringValue(withoutCredentials.href, walk, mode, insideSecret);
     }
 
     if (walk.ancestors.has(input)) return REDACTED_CIRCULAR;
