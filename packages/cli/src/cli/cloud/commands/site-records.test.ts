@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { resolveConnection } from '../connection.js';
 import { cloudCommands, CLOUD_GROUPS } from '../host.js';
 import { runCloud, type CloudHost } from '../run.js';
@@ -29,6 +31,7 @@ const STORED = {
     siteId: SITE,
     updatedAt: '2026-11-18T00:00:00.000Z',
     value: { email: 'a@example.com' },
+    version: 2,
 };
 
 const unusedSignIn = async (): Promise<never> => {
@@ -62,9 +65,20 @@ describe('dexto workspace sites records', () => {
 
     /**
      * The JSON-RPC body the cloud answers with: the tool's result verbatim, or for a missing record
-     * the refusal the Site record tools declare, `unavailable` with code -32004.
+     * the refusal the Site record tools declare, `unavailable` with code -32004, and for a stale
+     * `expectedVersion` the `conflict` refusal that names the record as it is now.
      */
     const answer = (id: number, name: string, args: Record<string, unknown>): unknown => {
+        if (args.expectedVersion !== undefined && args.expectedVersion !== STORED.version)
+            return {
+                jsonrpc: '2.0',
+                id,
+                error: {
+                    code: -32009,
+                    message: `The record changed since you read it. Current record: ${JSON.stringify(STORED)}`,
+                    data: { kind: 'conflict', retryable: false, resume: null },
+                },
+            };
         if (args.recordId !== undefined && args.recordId !== RECORD)
             return {
                 jsonrpc: '2.0',
@@ -261,6 +275,59 @@ describe('dexto workspace sites records', () => {
             },
         ]);
         expect(stdout).toBe(`Updated record ${RECORD}.\n`);
+    });
+
+    it('sends --expected-version, and fails a stale one as a conflict that says how to retry', async () => {
+        const args = ['update', SITE, 'signups', RECORD, '--data', '{"email":"d@example.com"}'];
+
+        expect(await records(...args, '--expected-version', '2', '--yes', '--json')).toBe(0);
+        expect(calls[0]?.arguments).toEqual({
+            collection: 'signups',
+            expectedVersion: 2,
+            recordId: RECORD,
+            siteId: SITE,
+            value: { email: 'd@example.com' },
+        });
+
+        expect(await records(...args, '--expected-version', '1', '--yes', '--json')).toBe(1);
+        const { error } = JSON.parse(stderr);
+        expect(error).toMatchObject({
+            code: 'conflict',
+            message: expect.stringContaining('"version":2'),
+        });
+        expect(error.fix).toBe(
+            `dexto workspace sites records get ${SITE} signups ${RECORD} --json`
+        );
+
+        // Every argument sent is one the cloud's tool declares, as vendored from dexto-cloudflare.
+        const catalog = z
+            .object({
+                tools: z.array(
+                    z.object({
+                        name: z.string(),
+                        inputSchema: z.object({
+                            properties: z.record(z.string(), z.unknown()).default({}),
+                        }),
+                    })
+                ),
+            })
+            .parse(
+                JSON.parse(
+                    readFileSync(new URL('../__parity__/mcp-tools.txt', import.meta.url), 'utf8')
+                )
+            );
+        const tool = catalog.tools.find((each) => each.name === 'dexto_site_record_update');
+        expect(Object.keys(tool?.inputSchema.properties ?? {})).toEqual(
+            Object.keys(calls[0]?.arguments ?? {}).sort()
+        );
+    });
+
+    it('refuses an --expected-version that is not a whole number from 1, before any call', async () => {
+        const args = ['update', SITE, 'signups', RECORD, '--data', '{}', '--yes'];
+
+        expect(await records(...args, '--expected-version', '0')).toBe(2);
+        expect(await records(...args, '--expected-version', '1.5')).toBe(2);
+        expect(calls).toHaveLength(0);
     });
 
     it('deletes a record once agreed, and shows a dry run without calling', async () => {
