@@ -316,10 +316,10 @@
   },
   {
     "command": "chat delete",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "chat follow",

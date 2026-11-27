@@ -43,6 +43,7 @@
         "notifications list": ["dexto_notifications_list"],
         "notifications mark-read": ["dexto_notifications_mark_read"],
         "chat share": ["dexto_chat_share"],
+        "chat delete": ["dexto_chat_delete"],
         "marketplace search": ["dexto_marketplace_search"],
         "marketplace get": ["dexto_marketplace_get"],
         "marketplace install": ["dexto_marketplace_install"],
@@ -634,11 +635,6 @@
             "tool": "dexto_computer_port_link",
             "issue": "DEXTO-3103",
             "reason": "The computer url command follows upstream."
-        },
-        {
-            "tool": "dexto_chat_delete",
-            "issue": "DEXTO-3182",
-            "reason": "The computer command group follows upstream."
         },
         {
             "tool": "dexto_chat_queue_cancel",
