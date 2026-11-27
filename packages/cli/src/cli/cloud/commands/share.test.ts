@@ -64,6 +64,7 @@ describe('sharing reads over the Dexto MCP', () => {
     let calls: { name: string; arguments: unknown }[];
     let replies: Reply[];
     let terminal: boolean;
+    let prompt: CloudRuntime['prompt'];
     let host: CloudHost;
 
     async function cli(...args: string[]): Promise<number> {
@@ -79,6 +80,7 @@ describe('sharing reads over the Dexto MCP', () => {
         calls = [];
         replies = [];
         terminal = false;
+        prompt = null;
         await dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
             accessToken: 'access-1',
@@ -116,7 +118,9 @@ describe('sharing reads over the Dexto MCP', () => {
                           }
                 );
             },
-            prompt: null,
+            get prompt() {
+                return prompt;
+            },
             readStdin: async () => '',
             runProcess: async () => ({ exitCode: 0, output: '' }),
             signal: new AbortController().signal,
@@ -150,6 +154,394 @@ describe('sharing reads over the Dexto MCP', () => {
 
     afterEach(async () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
+    });
+
+    it('shares a Project with the organization after explicit consent', async () => {
+        const result = { created: true, organizationId: 'org-1', title: 'Plan' };
+        replies = [{ result }];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'organization',
+                'project',
+                'project-1',
+                '--role',
+                'editor',
+                '--yes',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(calls).toEqual([
+            {
+                name: 'dexto_share',
+                arguments: {
+                    action: 'organization',
+                    kind: 'project',
+                    id: 'project-1',
+                    role: 'editor',
+                    confirm: true,
+                },
+            },
+        ]);
+        expect(output()).toEqual(result);
+    });
+
+    it('shares an App record with multiple people with the requested role and notification setting', async () => {
+        const result = {
+            added: ['5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c', '6c1f8d9b-2e3f-4a4b-8c5d-6e7f8a9b0c1d'],
+            title: 'Artifact',
+        };
+        replies = [{ result }];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'people',
+                'app',
+                'artifact-1',
+                '--app',
+                'artifacts',
+                '--collection',
+                'artifacts',
+                '--user-id',
+                '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                '--user-id',
+                '6c1f8d9b-2e3f-4a4b-8c5d-6e7f8a9b0c1d',
+                '--role',
+                'viewer',
+                '--no-notify',
+                '--yes',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(calls).toEqual([
+            {
+                name: 'dexto_share',
+                arguments: {
+                    action: 'people',
+                    kind: 'app',
+                    id: 'artifact-1',
+                    app: 'artifacts',
+                    collection: 'artifacts',
+                    userIds: [
+                        '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                        '6c1f8d9b-2e3f-4a4b-8c5d-6e7f8a9b0c1d',
+                    ],
+                    role: 'viewer',
+                    notify: false,
+                    confirm: true,
+                },
+            },
+        ]);
+        expect(output()).toEqual(result);
+    });
+
+    it('passes editor access for a chat shared with a person', async () => {
+        replies = [{ result: { added: ['5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c'], title: 'Chat' } }];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'people',
+                'chat',
+                'chat-1',
+                '--user-id',
+                '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                '--role',
+                'editor',
+                '--yes',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(calls[0]?.arguments).toEqual({
+            action: 'people',
+            kind: 'chat',
+            id: 'chat-1',
+            userIds: ['5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c'],
+            role: 'editor',
+            confirm: true,
+        });
+    });
+
+    it('explains chat editor access and credit use before asking for consent', async () => {
+        let question = '';
+        prompt = async (text) => {
+            question = text;
+            return 'yes';
+        };
+        replies = [{ result: { added: [], title: 'Chat' } }];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'people',
+                'chat',
+                'chat-1',
+                '--user-id',
+                '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                '--role',
+                'editor',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(question).toContain('send messages');
+        expect(question).toContain("organization's credits");
+    });
+
+    it('revokes organization and person access as act calls without an approval field', async () => {
+        replies = [
+            { result: { organizationId: 'org-1' } },
+            { result: { userId: '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c' } },
+        ];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'unshare-organization',
+                'drive',
+                'file-1',
+                '--yes',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(output()).toEqual({ organizationId: 'org-1' });
+        stdout = '';
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'unshare-person',
+                'chat',
+                'chat-1',
+                '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                '--yes',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(output()).toEqual({ userId: '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c' });
+        expect(calls).toEqual([
+            {
+                name: 'dexto_share',
+                arguments: { action: 'unshare_organization', kind: 'drive', id: 'file-1' },
+            },
+            {
+                name: 'dexto_share',
+                arguments: {
+                    action: 'unshare_person',
+                    kind: 'chat',
+                    id: 'chat-1',
+                    userId: '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                },
+            },
+        ]);
+    });
+
+    it('shows a dry run without consent or an MCP call', async () => {
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'people',
+                'project',
+                'project-1',
+                '--user-id',
+                '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                '--dry-run',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(output()).toEqual({
+            dryRun: true,
+            tool: 'dexto_share',
+            arguments: {
+                action: 'people',
+                kind: 'project',
+                id: 'project-1',
+                userIds: ['5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c'],
+            },
+        });
+        expect(calls).toEqual([]);
+    });
+
+    it('requires consent for grants and act-level revocations in a headless session', async () => {
+        for (const args of [
+            ['organization', 'drive', 'file-1'],
+            ['people', 'drive', 'file-1', '--user-id', '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c'],
+            ['unshare-organization', 'drive', 'file-1'],
+            ['unshare-person', 'drive', 'file-1', '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c'],
+        ]) {
+            stderr = '';
+            expect(await cli('workspace', 'share', ...args, '--json')).toBe(4);
+            expect(stderr).toContain('--yes');
+        }
+        expect(calls).toEqual([]);
+    });
+
+    it('passes every sharing kind and leaves target and role restrictions to the server', async () => {
+        const kinds = ['app', 'drive', 'skill', 'project', 'loop', 'chat', 'site'];
+        for (const kind of kinds) {
+            replies = [{ result: { added: [], title: 'Thing' } }];
+            expect(
+                await cli(
+                    'workspace',
+                    'share',
+                    'people',
+                    kind,
+                    'thing-1',
+                    '--user-id',
+                    '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                    '--role',
+                    'viewer',
+                    '--yes',
+                    '--json'
+                ),
+                stderr
+            ).toBe(0);
+        }
+        expect(calls.map((call) => call.arguments)).toEqual(
+            kinds.map((kind) => ({
+                action: 'people',
+                kind,
+                id: 'thing-1',
+                userIds: ['5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c'],
+                role: 'viewer',
+                confirm: true,
+            }))
+        );
+    });
+
+    it('passes organization role, app target and notification choices', async () => {
+        replies = [{ result: { created: true, organizationId: 'org-1', title: 'Thing' } }];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'organization',
+                'app',
+                'record-1',
+                '--app',
+                'artifacts',
+                '--collection',
+                'artifacts',
+                '--role',
+                'viewer',
+                '--no-notify',
+                '--yes',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(calls[0]?.arguments).toEqual({
+            action: 'organization',
+            kind: 'app',
+            id: 'record-1',
+            app: 'artifacts',
+            collection: 'artifacts',
+            role: 'viewer',
+            notify: false,
+            confirm: true,
+        });
+    });
+
+    it('rejects missing recipients and unknown roles before making a call', async () => {
+        expect(
+            await cli('workspace', 'share', 'people', 'drive', 'file-1', '--yes', '--json')
+        ).toBe(2);
+        expect(stderr).toContain('--user-id');
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'organization',
+                'drive',
+                'file-1',
+                '--role',
+                'admin',
+                '--yes',
+                '--json'
+            )
+        ).toBe(2);
+        expect(calls).toEqual([]);
+    });
+
+    it('preserves server refusal messages and missing-scope guidance', async () => {
+        replies = [
+            {
+                error: {
+                    code: -32003,
+                    message: 'Missing required scope: projects:write',
+                    data: { kind: 'forbidden', scope: 'projects:write' },
+                },
+            },
+        ];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'organization',
+                'project',
+                'project-1',
+                '--yes',
+                '--json'
+            )
+        ).toBe(3);
+        expect(stderr).toContain('projects:write');
+        expect(stderr).toContain('--scope projects:write');
+        stderr = '';
+        replies = [
+            {
+                error: {
+                    code: -32004,
+                    message: 'It is not shared with that person.',
+                    data: { kind: 'not_found' },
+                },
+            },
+        ];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'unshare-person',
+                'drive',
+                'file-1',
+                '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                '--yes',
+                '--json'
+            )
+        ).toBe(5);
+        expect(stderr).toContain('It is not shared with that person.');
+        stderr = '';
+        replies = [
+            {
+                error: {
+                    code: -32602,
+                    message: 'Only a Project can be shared for editing.',
+                    data: { kind: 'invalid_arguments' },
+                },
+            },
+        ];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'organization',
+                'drive',
+                'file-1',
+                '--role',
+                'editor',
+                '--yes',
+                '--json'
+            )
+        ).toBe(2);
+        expect(stderr).toContain('Only a Project can be shared for editing.');
     });
 
     describe('workspace share access', () => {

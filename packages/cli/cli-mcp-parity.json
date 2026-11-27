@@ -212,6 +212,13 @@
         "projects install-recipe": ["dexto_automation_recipe_install"]
     },
     "actionCommands": {
+        "workspace share organization": { "tool": "dexto_share", "actions": ["organization"] },
+        "workspace share people": { "tool": "dexto_share", "actions": ["people"] },
+        "workspace share unshare-organization": {
+            "tool": "dexto_share",
+            "actions": ["unshare_organization"]
+        },
+        "workspace share unshare-person": { "tool": "dexto_share", "actions": ["unshare_person"] },
         "workspace gigs publish": { "tool": "dexto_gigs_posting", "actions": ["publish_gig"] }
     },
     "localOnly": [
@@ -552,7 +559,7 @@
         },
         {
             "tool": "dexto_share",
-            "reason": "workspace share public and unshare-public cover two actions (actionCommands); the organization and people actions have no command yet."
+            "reason": "The organization and person actions have commands; public link actions and all their supported target kinds still need named coverage."
         }
     ],
     "pendingCli": [
