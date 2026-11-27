@@ -1,5 +1,6 @@
 // Managed Function operations on the account MCP, distinct from Cloud project deployments.
 import { CommandFailure } from '../../failure.js';
+import { z } from 'zod';
 import {
     argument,
     choiceOption,
@@ -29,6 +30,23 @@ const DRY_RUN = {
         description: 'Show the action without uploading or making the call.',
     },
 } as const satisfies Record<string, OptionSpec>;
+
+const PackageRoutesSchema = z.object({
+    routes: z.array(z.object({ access: z.literal('public'), pathPrefix: z.string() })),
+});
+
+function publicPathsInPackage(bytes: Uint8Array): string[] {
+    let value: unknown;
+    try {
+        value = JSON.parse(new globalThis.TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+        throw new UsageError('The Function package must be valid UTF-8 JSON with a routes list.');
+    }
+    const routes = PackageRoutesSchema.safeParse(value);
+    if (!routes.success)
+        throw new UsageError('The Function package must have a valid public routes list.');
+    return routes.data.routes.map((route) => route.pathPrefix);
+}
 
 const plan: Command = {
     path: ['workspace', 'functions', 'plan'],
@@ -73,19 +91,23 @@ const deploy: Command = {
         const file = argument(input, 0, 'package');
         const access = choiceOption(input, 'access', ['private', 'public']);
         const call = { ...(access === undefined ? {} : { access }) };
-        if (flag(input, 'dry-run')) {
-            await readPackage(file, PACKAGE);
+        const dryRun = flag(input, 'dry-run');
+        if (!dryRun) {
+            await context.connection({ pin: true });
+            await requireLoginScopes(context, ['functions:write']);
+        }
+        const bytes = await readPackage(file, PACKAGE);
+        const publicPaths = publicPathsInPackage(bytes);
+        if (dryRun) {
             context.output.record({
                 dryRun: true,
                 tool: 'dexto_function_deploy',
                 package: file,
                 arguments: call,
+                publicPaths,
             });
             return;
         }
-        await context.connection({ pin: true });
-        await requireLoginScopes(context, ['functions:write']);
-        const bytes = await readPackage(file, PACKAGE);
         const tool = (await listWorkspaceTools(context)).find(
             (each) => each.name === 'dexto_function_deploy'
         );
@@ -96,7 +118,7 @@ const deploy: Command = {
             {
                 level: toolCallLevel(tool, call),
                 schema: tool.inputSchema,
-                title: `Deploy Function package ${file} to production with ${access === 'public' ? 'public internet access' : 'private access'}`,
+                title: `Deploy Function package ${file} to production with ${access === 'public' ? 'public internet access' : 'private default access'}; public routes: ${JSON.stringify(publicPaths)}`,
             },
             flag(input, 'yes')
         );

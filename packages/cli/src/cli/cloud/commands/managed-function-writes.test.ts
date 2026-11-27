@@ -48,6 +48,71 @@ describe('workspace functions plan', () => {
 });
 
 describe('workspace functions deploy', () => {
+    it('shows the public route prefixes in both approval and dry run', async () => {
+        const file = path.join(
+            await mkdtemp(path.join(os.tmpdir(), 'function-package-')),
+            'deploy.json'
+        );
+        await writeFile(
+            file,
+            JSON.stringify({ routes: [{ access: 'public', pathPrefix: '/webhooks' }] })
+        );
+        const prompt = vi.fn().mockResolvedValue('yes');
+        const output = { record: vi.fn() };
+        const context = {
+            connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
+            output,
+            invocation: ['dexto'],
+            runtime: { prompt },
+        } as unknown as CommandContext;
+        listTools.mockResolvedValueOnce([
+            {
+                name: 'dexto_function_deploy',
+                _meta: { 'dexto/level': 'approve' },
+                inputSchema: { properties: {} },
+            },
+        ]);
+        query
+            .mockResolvedValueOnce({
+                path: 'uploads/pkg',
+                method: 'PUT',
+                url: 'https://dexto.example/upload',
+                headers: {},
+            })
+            .mockResolvedValueOnce({ status: 'deployed' });
+        const command = managedFunctionCommands.find(
+            (c) => c.path.join(' ') === 'workspace functions deploy'
+        );
+        await command?.run(context, { positionals: [file], values: { 'dry-run': true } });
+        expect(output.record).toHaveBeenCalledWith(
+            expect.objectContaining({ publicPaths: ['/webhooks'] })
+        );
+        await command?.run(context, { positionals: [file], values: {} });
+        expect(prompt).toHaveBeenCalledWith(expect.stringContaining('/webhooks'), {
+            secret: false,
+        });
+    });
+
+    it('refuses an unreadable route list before approval or upload', async () => {
+        const file = path.join(
+            await mkdtemp(path.join(os.tmpdir(), 'function-package-')),
+            'deploy.json'
+        );
+        await writeFile(file, '{"routes":"invalid"}');
+        const prompt = vi.fn();
+        const context = {
+            connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
+            runtime: { prompt },
+        } as unknown as CommandContext;
+        const command = managedFunctionCommands.find(
+            (c) => c.path.join(' ') === 'workspace functions deploy'
+        );
+        await expect(command?.run(context, { positionals: [file], values: {} })).rejects.toThrow(
+            'routes'
+        );
+        expect(prompt).not.toHaveBeenCalled();
+        expect(query).not.toHaveBeenCalled();
+    });
     it.each([
         [{ access: 'public' }, 'public'],
         [{}, 'private'],
@@ -58,7 +123,7 @@ describe('workspace functions deploy', () => {
                 await mkdtemp(path.join(os.tmpdir(), 'function-package-')),
                 'deploy.json'
             );
-            await writeFile(file, '{}');
+            await writeFile(file, '{"routes":[]}');
             const prompt = vi.fn().mockResolvedValue('yes');
             const context = {
                 connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
@@ -96,7 +161,7 @@ describe('workspace functions deploy', () => {
             await mkdtemp(path.join(os.tmpdir(), 'function-package-')),
             'deploy.json'
         );
-        await writeFile(file, '{"slug":"demo"}');
+        await writeFile(file, '{"slug":"demo","routes":[]}');
         const output = { record: vi.fn() };
         const context = {
             connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
@@ -131,8 +196,8 @@ describe('workspace functions deploy', () => {
             filename: 'deploy-request.json',
             mimeType: 'application/json',
             purpose: 'function-package',
-            sha256: createHash('sha256').update('{"slug":"demo"}').digest('hex'),
-            sizeBytes: 15,
+            sha256: createHash('sha256').update('{"slug":"demo","routes":[]}').digest('hex'),
+            sizeBytes: 27,
         });
         expect(send).toHaveBeenCalledOnce();
         expect(query).toHaveBeenNthCalledWith(2, context, 'dexto_function_deploy', {
@@ -148,7 +213,7 @@ describe('workspace functions deploy', () => {
             await mkdtemp(path.join(os.tmpdir(), 'function-package-')),
             'deploy.json'
         );
-        await writeFile(file, '{}');
+        await writeFile(file, '{"routes":[]}');
         const context = {
             connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
             invocation: ['dexto', 'workspace', 'functions', 'deploy'],

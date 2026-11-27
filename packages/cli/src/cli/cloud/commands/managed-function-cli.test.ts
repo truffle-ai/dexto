@@ -265,7 +265,7 @@ it('does not upload a package if the account changes during deploy approval', as
         },
     };
     const file = path.join(path.dirname(dir), 'deploy-request.json');
-    await writeFile(file, '{}');
+    await writeFile(file, '{"routes":[]}');
     expect(await runCloud(host, ['workspace', 'functions', 'deploy', file])).toBe(1);
     expect(calls).toHaveLength(0);
     expect(stderr).toContain('account');
