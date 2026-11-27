@@ -57,6 +57,7 @@ import {
     LLM_PROVIDERS,
     getAllSupportedModels,
     getProviderFromModel,
+    LlmCatalogError,
     type LLMProvider,
 } from '@dexto/llm';
 import {
@@ -96,6 +97,7 @@ import {
     getPermissionsModeDeprecationWarning,
     applyStartupLLMFallback,
     applyUserPreferences,
+    hasUsableCredentials,
 } from './config/cli-overrides.js';
 import { CommandFailure } from './cli/failure.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
@@ -336,19 +338,57 @@ async function bootstrapAgentFromGlobalOpts(options: {
     await ensureImageImporterConfigured();
     const globalOpts = program.opts();
     const effectiveModel = modelOverride ?? globalOpts.model;
+    const dextoModel = effectiveModel?.startsWith('dexto/')
+        ? effectiveModel.slice('dexto/'.length)
+        : undefined;
     let inferredProvider: LLMProvider | undefined;
     let inferredApiKey: string | undefined;
 
     // Non-interactive subcommands bypass the main mode action, so replicate
     // model -> provider/apiKey inference here.
-    if (effectiveModel) {
+    if (dextoModel !== undefined) {
+        if (!dextoModel) {
+            throw new CommandFailure('invalid_input', 'Choose a Dexto model.', 'dexto models list');
+        }
+        const access = await dextoGateway.dextoModelAccess(
+            dextoGateway.defaultDextoGatewayOptions()
+        );
+        if (access.status === 'signed_out') {
+            throw new CommandFailure(
+                'needs_sign_in',
+                'Dexto models need a sign-in or API key.',
+                'dexto login'
+            );
+        }
+        if (access.status === 'needs_scope') {
+            throw new CommandFailure(
+                'needs_permission',
+                'This sign-in needs permission to spend credits on Dexto models.',
+                'dexto login --scope cloud:write'
+            );
+        }
+        if (access.status === 'needs_project') {
+            throw new CommandFailure(
+                'needs_permission',
+                'This sign-in needs a Cloud project to bill for Dexto models.',
+                null
+            );
+        }
+    } else if (effectiveModel) {
         if (effectiveModel.includes('/')) {
             throw new Error(
                 `Model '${effectiveModel}' looks like an OpenRouter-format ID (provider/model). Please set provider/model explicitly in agent config for this command.`
             );
         }
 
-        inferredProvider = getProviderFromModel(effectiveModel);
+        try {
+            inferredProvider = getProviderFromModel(effectiveModel);
+        } catch (error) {
+            if (error instanceof LlmCatalogError && error.code === 'MODEL_UNKNOWN') {
+                throw new CommandFailure('invalid_input', error.message, 'dexto models list');
+            }
+            throw error;
+        }
         const apiKey = resolveApiKeyForProvider(inferredProvider);
         if (!apiKey) {
             throw new CommandFailure(
@@ -373,8 +413,31 @@ async function bootstrapAgentFromGlobalOpts(options: {
     if (mode === 'acp' && !effectiveModel) {
         mergedConfig = await withSavedModel(mergedConfig);
     }
+    // A fresh default run can use the Dexto credential just like first-run interactive chat.
+    // Explicit agents, saved choices, project configuration, and provider keys keep their model.
+    const useDextoDefault =
+        mode === 'headless-run' &&
+        !effectiveModel &&
+        !globalOpts.agent &&
+        isDextoAuthEnabled() &&
+        (await (await import('./cli/utils/setup-utils.js')).requiresSetup()) &&
+        !hasUsableCredentials(mergedConfig.llm.provider, mergedConfig.llm) &&
+        !LLM_PROVIDERS.some(
+            (provider) => provider !== 'dexto-nova' && resolveApiKeyForProvider(provider)
+        ) &&
+        (await dextoGateway.dextoModelAccess(dextoGateway.defaultDextoGatewayOptions())).status ===
+            'ready';
     printPermissionsModeDeprecation(mergedConfig);
-    if (effectiveModel) {
+    if (dextoModel !== undefined || useDextoDefault) {
+        const selectedModel = dextoModel ?? FIRST_RUN_DEXTO_MODEL;
+        if (rawConfig.llm.provider !== 'dexto-nova' || rawConfig.llm.model !== selectedModel) {
+            delete mergedConfig.llm.reasoning;
+        }
+        mergedConfig.llm.provider = 'dexto-nova';
+        mergedConfig.llm.model = selectedModel;
+        delete mergedConfig.llm.apiKey;
+        delete mergedConfig.llm.baseURL;
+    } else if (effectiveModel) {
         mergedConfig.llm.model = effectiveModel;
     }
     if (inferredProvider && inferredApiKey) {
