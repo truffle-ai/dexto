@@ -202,6 +202,8 @@
         "projects get": ["dexto_project_get"],
         "projects create": ["dexto_project_create"],
         "projects update": ["dexto_project_update"],
+        "projects archive": ["dexto_project_archive"],
+        "projects restore": ["dexto_project_restore"],
         "projects delete": ["dexto_project_delete"],
         "projects move": ["dexto_project_chat_move"],
         "projects start": ["dexto_project_chat_start"],
@@ -552,6 +554,76 @@
         }
     ],
     "pendingCli": [
+        {
+            "tool": "dexto_application_source_get",
+            "issue": "DEXTO-1112",
+            "reason": "Cloud slice lands first; `dexto applications source` follows in truffle-ai/dexto."
+        },
+        {
+            "tool": "dexto_automation_slack_destinations",
+            "issue": "DEXTO-3692",
+            "reason": "The Loops Slack destinations command follows upstream."
+        },
+        {
+            "tool": "dexto_chat_approval_answer",
+            "issue": "DEXTO-3690",
+            "reason": "The approvals commands follow upstream."
+        },
+        {
+            "tool": "dexto_chat_approvals_list",
+            "issue": "DEXTO-3690",
+            "reason": "The approvals commands follow upstream."
+        },
+        {
+            "tool": "dexto_contract_verify",
+            "issue": "DEXTO-4086",
+            "reason": "Cloud slice lands first; a `dexto skills verify` command for contract deliverables follows in truffle-ai/dexto."
+        },
+        {
+            "tool": "dexto_function_logs",
+            "issue": "DEXTO-3814",
+            "reason": "The Site and Function logs commands follow upstream."
+        },
+        {
+            "tool": "dexto_project_handoff",
+            "issue": "DEXTO-3567",
+            "reason": "Cloud slice lands first; `dexto projects handoff` follows in truffle-ai/dexto."
+        },
+        {
+            "tool": "dexto_site_logs",
+            "issue": "DEXTO-3814",
+            "reason": "The Site and Function logs commands follow upstream."
+        },
+        {
+            "tool": "dexto_site_visitor_describe",
+            "issue": "DEXTO-3798",
+            "reason": "The Site visitor commands follow upstream: acting on a Site as the person's own visitor."
+        },
+        {
+            "tool": "dexto_site_visitor_record_create",
+            "issue": "DEXTO-3798",
+            "reason": "The Site visitor commands follow upstream: acting on a Site as the person's own visitor."
+        },
+        {
+            "tool": "dexto_site_visitor_record_delete",
+            "issue": "DEXTO-3798",
+            "reason": "The Site visitor commands follow upstream: acting on a Site as the person's own visitor."
+        },
+        {
+            "tool": "dexto_site_visitor_record_update",
+            "issue": "DEXTO-3798",
+            "reason": "The Site visitor commands follow upstream: acting on a Site as the person's own visitor."
+        },
+        {
+            "tool": "dexto_site_visitor_records_list",
+            "issue": "DEXTO-3798",
+            "reason": "The Site visitor commands follow upstream: acting on a Site as the person's own visitor."
+        },
+        {
+            "tool": "dexto_site_visitor_tool_call",
+            "issue": "DEXTO-3798",
+            "reason": "The Site visitor commands follow upstream: acting on a Site as the person's own visitor."
+        },
         {
             "tool": "dexto_computer_port_link",
             "issue": "DEXTO-3103",

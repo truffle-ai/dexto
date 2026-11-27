@@ -215,6 +215,14 @@
     {
       "inputSchema": {
         "properties": {
+          "deploymentId": {}
+        }
+      },
+      "name": "dexto_application_source_get"
+    },
+    {
+      "inputSchema": {
+        "properties": {
           "applicationId": {},
           "confirm": {},
           "operationId": {}
@@ -412,7 +420,8 @@
           "schedule": {},
           "scope": {},
           "startupConfig": {},
-          "trigger": {}
+          "trigger": {},
+          "triggers": {}
         }
       },
       "name": "dexto_automation_create"
@@ -457,6 +466,14 @@
     {
       "inputSchema": {
         "properties": {
+          "channel": {}
+        }
+      },
+      "name": "dexto_automation_slack_destinations"
+    },
+    {
+      "inputSchema": {
+        "properties": {
           "automationId": {}
         }
       },
@@ -476,6 +493,7 @@
           "scope": {},
           "startupConfig": {},
           "trigger": {},
+          "triggers": {},
           "visibility": {}
         }
       },
@@ -554,6 +572,26 @@
         "properties": {}
       },
       "name": "dexto_channels_list"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "approvalId": {},
+          "confirm": {},
+          "decision": {},
+          "message": {},
+          "sessionId": {}
+        }
+      },
+      "name": "dexto_chat_approval_answer"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "sessionId": {}
+        }
+      },
+      "name": "dexto_chat_approvals_list"
     },
     {
       "inputSchema": {
@@ -1520,6 +1558,16 @@
     {
       "inputSchema": {
         "properties": {
+          "confirm": {},
+          "deliverable": {},
+          "options": {}
+        }
+      },
+      "name": "dexto_contract_verify"
+    },
+    {
+      "inputSchema": {
+        "properties": {
           "summary": {},
           "urgent": {}
         }
@@ -1660,6 +1708,14 @@
         }
       },
       "name": "dexto_function_invoke"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "projectId": {}
+        }
+      },
+      "name": "dexto_function_logs"
     },
     {
       "inputSchema": {
@@ -1981,6 +2037,14 @@
     {
       "inputSchema": {
         "properties": {
+          "project": {}
+        }
+      },
+      "name": "dexto_project_archive"
+    },
+    {
+      "inputSchema": {
+        "properties": {
           "chat": {},
           "project": {}
         }
@@ -2008,6 +2072,7 @@
           "color": {},
           "confirm": {},
           "description": {},
+          "handoff": {},
           "icon": {},
           "name": {},
           "repository": {},
@@ -2036,6 +2101,16 @@
     {
       "inputSchema": {
         "properties": {
+          "brief": {},
+          "materials": {},
+          "project": {}
+        }
+      },
+      "name": "dexto_project_handoff"
+    },
+    {
+      "inputSchema": {
+        "properties": {
           "importerVersion": {},
           "instructions": {},
           "memories": {},
@@ -2051,6 +2126,14 @@
         }
       },
       "name": "dexto_project_import"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "project": {}
+        }
+      },
+      "name": "dexto_project_restore"
     },
     {
       "inputSchema": {
@@ -2072,6 +2155,7 @@
     {
       "inputSchema": {
         "properties": {
+          "archived": {},
           "importedFrom": {},
           "query": {}
         }
@@ -2162,6 +2246,14 @@
     {
       "inputSchema": {
         "properties": {
+          "siteId": {}
+        }
+      },
+      "name": "dexto_site_logs"
+    },
+    {
+      "inputSchema": {
+        "properties": {
           "confirm": {},
           "deploymentId": {},
           "siteId": {}
@@ -2235,6 +2327,66 @@
         }
       },
       "name": "dexto_site_records_list"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "site": {}
+        }
+      },
+      "name": "dexto_site_visitor_describe"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "collection": {},
+          "site": {},
+          "value": {}
+        }
+      },
+      "name": "dexto_site_visitor_record_create"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "collection": {},
+          "recordId": {},
+          "site": {}
+        }
+      },
+      "name": "dexto_site_visitor_record_delete"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "collection": {},
+          "recordId": {},
+          "site": {},
+          "value": {}
+        }
+      },
+      "name": "dexto_site_visitor_record_update"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "collection": {},
+          "limit": {},
+          "offset": {},
+          "site": {}
+        }
+      },
+      "name": "dexto_site_visitor_records_list"
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "arguments": {},
+          "name": {},
+          "site": {}
+        }
+      },
+      "name": "dexto_site_visitor_tool_call"
     },
     {
       "inputSchema": {
