@@ -1,15 +1,13 @@
 import * as handlers from './in-built-prompts.js';
 import { DynamicContributorContext } from './types.js';
+import type { PromptGeneratorSource } from './sources.js';
+
+export { PROMPT_GENERATOR_SOURCES, type PromptGeneratorSource } from './sources.js';
 
 /**
  * This file contains the registry of all the functions that can generate dynamic prompt pieces at runtime.
  */
 export type DynamicPromptGenerator = (context: DynamicContributorContext) => Promise<string>;
-
-// Available dynamic prompt generator sources
-export const PROMPT_GENERATOR_SOURCES = ['date', 'env', 'resources'] as const;
-
-export type PromptGeneratorSource = (typeof PROMPT_GENERATOR_SOURCES)[number];
 
 // Registry mapping sources to their generator functions
 export const PROMPT_GENERATOR_REGISTRY: Record<PromptGeneratorSource, DynamicPromptGenerator> = {
