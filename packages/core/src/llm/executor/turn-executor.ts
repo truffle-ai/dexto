@@ -1115,7 +1115,8 @@ export class TurnExecutor {
 
     private async failTurn(error: unknown, stepCount: number, startTime: number): Promise<Error> {
         const mappedError = this.mapProviderError(error);
-        this.logger.error('TurnExecutor failed', { error: mappedError });
+        // The host owns the run's failure level; core logs the terminal failure once.
+        this.logger.warn('TurnExecutor failed', { error: mappedError });
 
         this.eventBus.emit('llm:error', {
             error: mappedError,
@@ -1838,9 +1839,10 @@ export class TurnExecutor {
                         ...(request.providerOptions !== undefined && {
                             providerOptions: request.providerOptions,
                         }),
-                        // Log stream-level errors (tool errors, API errors during streaming)
+                        // The stream's error part carries the same failure to the stream
+                        // processor; the turn logs it once if it ends the run.
                         onError: (error) => {
-                            this.logger.error('Stream error', { error });
+                            this.logger.debug('Stream error', { error });
                         },
                     })
                 ),
