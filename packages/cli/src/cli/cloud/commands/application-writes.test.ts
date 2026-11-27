@@ -42,7 +42,7 @@ function contextWith(scopes: readonly string[], prompt: (() => Promise<string>) 
         connection: async () => ({ kind: 'oauth', login: { scopes } }),
         invocation: ['dexto', 'applications'],
         output,
-        overrides: { profile: null },
+        overrides: { cloudProject: null, profile: null },
         runtime: { environment: {}, prompt },
     } as unknown as CommandContext;
     return { context, output };
@@ -71,9 +71,9 @@ const WRITES: ReadonlyArray<{
     {
         name: 'applications create',
         positionals: ['orders', 'Orders'],
-        values: { 'application-id': applicationId, project: operationId },
+        values: { 'application-id': applicationId },
         tool: 'dexto_application_create',
-        args: { applicationId, slug: 'orders', title: 'Orders', cloudProjectId: operationId },
+        args: { applicationId, slug: 'orders', title: 'Orders' },
     },
     {
         name: 'applications rollback',
@@ -250,7 +250,6 @@ describe('dexto applications writes', () => {
             { 'application-id': 'x' },
             '--application-id',
         ],
-        ['applications create', ['orders', 'Orders'], { project: 'default' }, '--project'],
         [
             'applications purge',
             [applicationId],
@@ -359,6 +358,23 @@ describe('dexto applications deploy', () => {
         expect(query).not.toHaveBeenCalled();
         expect(send).not.toHaveBeenCalled();
     });
+
+    // The server matches app-<uuid> case-insensitively, prefix included.
+    it.each([`APP-${applicationId}`, `App-${applicationId}`, `app-${applicationId.toUpperCase()}`])(
+        'takes the connection id %s in any case, as the server does',
+        async (given) => {
+            const file = await packageFile();
+            const { context, output } = contextWith([]);
+            await deploy().run(context, {
+                positionals: [given, file],
+                values: { 'deployment-id': deploymentId, 'dry-run': true },
+            });
+            expect(output.result).toHaveBeenCalledWith(
+                expect.objectContaining({ arguments: { connectionId: given, deploymentId } }),
+                expect.any(String)
+            );
+        }
+    );
 
     it.each([
         [applicationId, `If ${applicationId} is the Application's id, pass app-${applicationId}.`],

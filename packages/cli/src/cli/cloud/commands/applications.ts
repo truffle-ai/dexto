@@ -343,7 +343,10 @@ const WRITE_OPTIONS = {
     ...YES_OPTION,
 } as const satisfies Record<string, OptionSpec>;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const UUID = new RegExp(`^${UUID_PATTERN}$`, 'iu');
+/** The server's connection id shape: `app-` in any case, then the Application's id. */
+const CONNECTION_ID = new RegExp(`^app-${UUID_PATTERN}$`, 'iu');
 
 /** An id the tools take as a UUID, checked here so a wrong one says what it should be. */
 function checkedUuid(value: string, name: string): string {
@@ -362,7 +365,7 @@ function idArgument(input: CommandInput, index: number, name: string): string {
 /** A deploy's target: `app-<application id>`, the connectionId applications get shows. */
 function connectionIdArgument(input: CommandInput): string {
     const value = argument(input, 0, 'connection_id');
-    if (value.startsWith('app-') && UUID.test(value.slice('app-'.length))) return value;
+    if (CONNECTION_ID.test(value)) return value;
     throw new CommandFailure(
         'invalid_input',
         UUID.test(value)
@@ -479,9 +482,9 @@ const create: Command = {
         const slug = argument(input, 0, 'slug');
         const title = argument(input, 1, 'title');
         const applicationId = newId(input, 'application');
-        const project = stringOption(input, 'project');
-        const cloudProjectId =
-            project === undefined ? undefined : checkedUuid(project, '--project');
+        // The global --project is parsed before the command's own options, so read it there.
+        const project = context.overrides.cloudProject;
+        const cloudProjectId = project === null ? undefined : checkedUuid(project, '--project');
         await writeApplication(context, input, {
             args: {
                 applicationId,

@@ -258,6 +258,30 @@ describe('dexto cloud', () => {
         );
     });
 
+    // --project is a global option, so applications create reads it after runCloud takes it.
+    it('applications create sends the global --project as its cloudProjectId', async () => {
+        const project = '6f1c2f2e-4c2d-4f8e-9b8a-0d7c5e3a2b1f';
+        const argv = ['applications', 'create', 'orders', 'Orders', '--project', project];
+
+        expect(await runCloud(host, [...argv, '--dry-run', '--json'])).toBe(0);
+        expect(JSON.parse(stdout)).toMatchObject({
+            arguments: { slug: 'orders', title: 'Orders', cloudProjectId: project },
+            dryRun: true,
+            tool: 'dexto_application_create',
+        });
+        expect(requests).toHaveLength(0);
+    });
+
+    it('applications create refuses a --project that is not a UUID: exit 2, nothing sent', async () => {
+        const argv = ['applications', 'create', 'orders', 'Orders', '--project', 'not-a-uuid'];
+
+        expect(await runCloud(host, [...argv, '--dry-run', '--json'])).toBe(2);
+        expect(stdout).toBe('');
+        expect(stderr).toContain('invalid_input');
+        expect(stderr).toContain('--project must be a UUID');
+        expect(requests).toHaveLength(0);
+    });
+
     it('needs a sign-in: exit 3 with the command that fixes it', async () => {
         const code = await runCloud(host, ['cloud', 'projects', 'list']);
 
