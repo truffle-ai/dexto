@@ -615,6 +615,12 @@ describe('dexto cloud', () => {
             });
         });
 
+        it('shows a JSON example for logout', async () => {
+            expect(await runCloud(host, ['logout', '--help', '--json'])).toBe(0);
+            expect(JSON.parse(stdout).examples).toContain('dexto logout --json');
+            expect(requests).toHaveLength(0);
+        });
+
         it('asks before removing a sign-in: exit 4 with the command that goes ahead', async () => {
             await dextoAccounts.writeLogin(dir, 'work', signedIn());
 
