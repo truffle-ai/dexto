@@ -115,6 +115,11 @@
         "workspace contacts unblock": ["dexto_contacts_unblock"],
         "workspace describe": [],
         "workspace drive put": ["dexto_upload_prepare", "dexto_drive"],
+        "workspace functions credential configure": ["dexto_function_credential_configure"],
+        "workspace functions deploy": ["dexto_upload_prepare", "dexto_function_deploy"],
+        "workspace functions plan": ["dexto_function_plan"],
+        "workspace functions promote": ["dexto_function_promote"],
+        "workspace functions secret delete": ["dexto_function_secret_delete"],
         "workspace network list": ["dexto_network_threads_list"],
         "workspace network mark-read": ["dexto_network_thread_mark_read"],
         "workspace network read": ["dexto_network_thread_get"],
@@ -663,16 +668,6 @@
             "reason": "The feedback submit command follows upstream."
         },
         {
-            "tool": "dexto_function_credential_configure",
-            "issue": "DEXTO-4078",
-            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
-        },
-        {
-            "tool": "dexto_function_deploy",
-            "issue": "DEXTO-4078",
-            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
-        },
-        {
             "tool": "dexto_function_get",
             "issue": "DEXTO-3487",
             "reason": "The Functions list, get and invoke commands follow upstream."
@@ -681,21 +676,6 @@
             "tool": "dexto_function_invoke",
             "issue": "DEXTO-3487",
             "reason": "The Functions list, get and invoke commands follow upstream."
-        },
-        {
-            "tool": "dexto_function_plan",
-            "issue": "DEXTO-4078",
-            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
-        },
-        {
-            "tool": "dexto_function_promote",
-            "issue": "DEXTO-4078",
-            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
-        },
-        {
-            "tool": "dexto_function_secret_delete",
-            "issue": "DEXTO-4078",
-            "reason": "The Function deploy, plan, promote and credential commands follow upstream."
         },
         {
             "tool": "dexto_functions_list",

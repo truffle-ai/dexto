@@ -30,7 +30,7 @@ const SCOPES = ['apps:read'] as const;
 export interface PackageKind {
     readonly label: string;
     readonly maxBytes: number;
-    readonly purpose: 'app-package' | 'application-package';
+    readonly purpose: 'app-package' | 'application-package' | 'function-package';
 }
 const APP_PACKAGE: PackageKind = {
     label: 'a Dexto App package',
@@ -221,7 +221,12 @@ export async function readPackage(
         throw new UsageError(
             `${file} is ${formatBytes(found.size)}; ${kind.label} can be up to ${formatBytes(kind.maxBytes)}.`
         );
-    return new Uint8Array(await readFile(file));
+    const bytes = new Uint8Array(await readFile(file));
+    if (bytes.byteLength > kind.maxBytes)
+        throw new UsageError(
+            `${file} is ${formatBytes(bytes.byteLength)}; ${kind.label} can be up to ${formatBytes(kind.maxBytes)}.`
+        );
+    return bytes;
 }
 
 /** Uploads a package for its purpose and returns the path the deploy tools take. */
