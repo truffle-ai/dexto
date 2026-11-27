@@ -6,7 +6,8 @@ export const ENGINE_WORDS = {
     apps: 'Inspect the Dexto Apps available to you and the data kept for uninstalled Apps',
     applications: 'Inspect your managed Applications, their releases and release logs',
     artifacts: 'Publish, list and open organization Artifacts',
-    autobots: 'List your AutoBots, see their status, and save, publish and talk to them',
+    autobots:
+        'List and hire AutoBots, the specialists that run their own work with you, and message them',
     import: 'Import local Claude Code and Codex chats',
     connect: 'Sign in to a Claude or Codex subscription in Dexto Cloud',
     channels: 'List and read your Dexto channels, and send messages to them',

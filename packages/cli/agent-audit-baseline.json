@@ -227,50 +227,29 @@
     "command": "autobots chat",
     "json": true,
     "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "autobots get",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
-    "command": "autobots input",
+    "command": "autobots hire",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "autobots list",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "autobots publish",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": true,
-    "examples": false
-  },
-  {
-    "command": "autobots save",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": true,
-    "examples": false
-  },
-  {
-    "command": "autobots status",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "billing",

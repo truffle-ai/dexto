@@ -340,17 +340,6 @@
     {
       "inputSchema": {
         "properties": {
-          "autobotId": {},
-          "message": {},
-          "title": {},
-          "uploads": {}
-        }
-      },
-      "name": "dexto_autobot_chat_start"
-    },
-    {
-      "inputSchema": {
-        "properties": {
           "autobotId": {}
         }
       },
@@ -359,51 +348,15 @@
     {
       "inputSchema": {
         "properties": {
-          "approvalId": {},
-          "confirm": {},
-          "formData": {}
+          "publisherHandle": {},
+          "templateSlug": {}
         }
       },
-      "name": "dexto_autobot_input_submit"
+      "name": "dexto_autobot_hire"
     },
     {
       "inputSchema": {
-        "properties": {
-          "autobotId": {},
-          "confirm": {},
-          "distribution": {},
-          "publishSelectedSkills": {}
-        }
-      },
-      "name": "dexto_autobot_publish"
-    },
-    {
-      "inputSchema": {
-        "properties": {
-          "autobotId": {},
-          "model": {},
-          "profile": {},
-          "skills": {},
-          "starters": {}
-        }
-      },
-      "name": "dexto_autobot_save"
-    },
-    {
-      "inputSchema": {
-        "properties": {
-          "autobotId": {},
-          "cursor": {},
-          "limit": {}
-        }
-      },
-      "name": "dexto_autobot_status"
-    },
-    {
-      "inputSchema": {
-        "properties": {
-          "limit": {}
-        }
+        "properties": {}
       },
       "name": "dexto_autobots_list"
     },
