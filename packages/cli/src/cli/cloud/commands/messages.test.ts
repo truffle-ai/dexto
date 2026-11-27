@@ -55,6 +55,7 @@ describe('dexto messages over the Dexto MCP', () => {
     let calls: { name: string; arguments: Record<string, unknown> }[];
     let replies: Reply[];
     let terminal: boolean;
+    let stdin: string;
     let host: CloudHost;
 
     async function signIn(scopes: string[]) {
@@ -86,6 +87,7 @@ describe('dexto messages over the Dexto MCP', () => {
         stdout = '';
         stderr = '';
         terminal = false;
+        stdin = '';
         calls = [];
         replies = [];
         await signIn(['messages:read']);
@@ -112,7 +114,7 @@ describe('dexto messages over the Dexto MCP', () => {
                 );
             },
             prompt: null,
-            readStdin: async () => '',
+            readStdin: async () => stdin,
             runProcess: async () => ({ exitCode: 0, output: '' }),
             signal: new AbortController().signal,
             sleep: async () => undefined,
@@ -249,6 +251,114 @@ describe('dexto messages over the Dexto MCP', () => {
         stderr = '';
         expect(await cli('messages', 'read', CONVERSATION_ID)).toBe(3);
         expect(stderr).toContain('messages:read');
+        expect(calls).toEqual([]);
+    });
+
+    it('asks before sending, then sends the exact text once agreed with one request key', async () => {
+        await signIn(['messages:read', 'messages:write']);
+        expect(await cli('messages', 'send', CONVERSATION_ID, 'On it.')).toBe(4);
+        expect(calls).toEqual([]);
+        replies = [{ value: { accepted: true, conversationId: CONVERSATION_ID, messageId: 'm1' } }];
+        expect(
+            await cli(
+                'messages',
+                'send',
+                CONVERSATION_ID,
+                '  On it.  ',
+                '--thread',
+                ROOT_ID,
+                '--as',
+                'user',
+                '--yes'
+            ),
+            stderr
+        ).toBe(0);
+        const [sent] = calls;
+        const requestKey = sent?.arguments.requestKey;
+        expect(typeof requestKey).toBe('string');
+        expect(sent).toEqual({
+            name: 'dexto_direct_message_send',
+            arguments: {
+                conversationId: CONVERSATION_ID,
+                text: '  On it.  ',
+                requestKey,
+                sendAs: 'user',
+                threadRootMessageId: ROOT_ID,
+                confirm: true,
+            },
+        });
+        expect(output()).toEqual({
+            accepted: true,
+            conversationId: CONVERSATION_ID,
+            messageId: 'm1',
+            requestKey,
+        });
+        expect(stderr).toContain(`Request key: ${String(requestKey)}`);
+    });
+
+    it('retries a lost send with the same request key, so Dexto returns the first message', async () => {
+        await signIn(['messages:write']);
+        const send = [
+            'messages',
+            'send',
+            CONVERSATION_ID,
+            'On it.',
+            '--request-key',
+            'k1',
+            '--yes',
+        ];
+        const accepted = { accepted: true, conversationId: CONVERSATION_ID, messageId: 'm1' };
+        replies = [{ value: accepted }, { value: accepted }];
+        expect(await cli(...send), stderr).toBe(0);
+        stdout = '';
+        expect(await cli(...send), stderr).toBe(0);
+        expect(calls.map((call) => call.arguments.requestKey)).toEqual(['k1', 'k1']);
+        expect(output().messageId).toBe('m1');
+    });
+
+    it('sends stdin for -, and shows the call without sending on --dry-run', async () => {
+        stdin = 'From a pipe\n';
+        expect(
+            await cli('messages', 'send', CONVERSATION_ID, '-', '--request-key', 'k2', '--dry-run')
+        ).toBe(0);
+        expect(calls).toEqual([]);
+        expect(output()).toEqual({
+            dryRun: true,
+            tool: 'dexto_direct_message_send',
+            arguments: { conversationId: CONVERSATION_ID, text: 'From a pipe\n', requestKey: 'k2' },
+        });
+    });
+
+    it('reports a blocked or left conversation as Dexto refuses it', async () => {
+        await signIn(['messages:write']);
+        replies = [
+            {
+                error: {
+                    code: -32004,
+                    message: 'You cannot message this person.',
+                    data: { kind: 'unavailable' },
+                },
+            },
+        ];
+        expect(await cli('messages', 'send', CONVERSATION_ID, 'Hi', '--yes')).not.toBe(0);
+        expect(calls).toHaveLength(1);
+        // The request key note comes first, so a refused send can still be retried.
+        const note = `Request key: ${String(calls[0]?.arguments.requestKey)}\n`;
+        expect(stderr.startsWith(note)).toBe(true);
+        expect(JSON.parse(stderr.slice(note.length)).error).toMatchObject({
+            code: 'failed',
+            message: 'You cannot message this person.',
+        });
+    });
+
+    it('checks the text, sender and permission before calling', async () => {
+        const send = ['messages', 'send', CONVERSATION_ID];
+        await signIn(['messages:write']);
+        expect(await cli(...send, '   ', '--yes')).toBe(2);
+        expect(await cli(...send, 'Hi', '--as', 'project', '--yes')).toBe(2);
+        await signIn(['messages:read']);
+        expect(await cli(...send, 'Hi', '--yes')).toBe(3);
+        expect(stderr).toContain('messages:write');
         expect(calls).toEqual([]);
     });
 });

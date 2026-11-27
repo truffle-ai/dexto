@@ -1120,6 +1120,13 @@
     "examples": false
   },
   {
+    "command": "messages send",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
     "command": "models list",
     "json": true,
     "dryRun": false,

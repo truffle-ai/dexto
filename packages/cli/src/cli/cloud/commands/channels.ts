@@ -135,62 +135,81 @@ const read: Command = {
     },
 };
 
+/** What sending to a conversation takes: a reply thread, a sender, a request key, a dry run. */
+export const SEND_OPTIONS = {
+    ...THREAD_OPTION,
+    as: {
+        description:
+            'origin (the default: your verified Project identity where there is one, else you) or user (you, with Dexto attribution).',
+        type: 'string',
+    },
+    'request-key': {
+        description:
+            'A key for this exact send. Running again with the same key after a lost response never sends twice. One is made when you leave it out, and printed.',
+        type: 'string',
+        valueName: 'KEY',
+    },
+    'dry-run': { description: 'Show the call without sending it.', type: 'boolean' },
+    ...YES_OPTION,
+} as const;
+
+/**
+ * Sends the text argument (`-` reads stdin) to a channel or direct conversation (`target` holds
+ * its id, `named` says which for people) with `tool`, once the person agrees to `question`.
+ */
+export async function sendConversationMessage(
+    context: CommandContext,
+    input: CommandInput,
+    tool: string,
+    target: Record<string, string>,
+    named: string,
+    question: string
+): Promise<void> {
+    const given = argument(input, 1, 'text');
+    const text = given === '-' ? await context.runtime.readStdin() : given;
+    if (text.trim().length === 0) throw new UsageError('The message is empty.');
+    const sendAs = choiceOption(input, 'as', SEND_AS);
+    const thread = stringOption(input, 'thread');
+    const call = {
+        ...target,
+        text,
+        requestKey: stringOption(input, 'request-key') ?? randomUUID(),
+        ...(sendAs === undefined ? {} : { sendAs }),
+        ...(thread === undefined ? {} : { threadRootMessageId: thread }),
+    };
+    if (flag(input, 'dry-run'))
+        return context.output.result(
+            { dryRun: true, tool, arguments: call },
+            `Would send ${text.length} characters to ${named}.`
+        );
+    await requireLoginScopes(context, ['messages:write']);
+    await requireConsent(context, flag(input, 'yes'), question);
+    // Said before the call, so a lost response can still be retried without sending twice.
+    context.output.note(`Request key: ${call.requestKey}`);
+    const sent = SentSchema.parse(
+        await queryWorkspaceTool(context, tool, { ...call, confirm: true })
+    );
+    context.output.result(
+        { ...sent, requestKey: call.requestKey },
+        `Sent message ${sent.messageId}. To retry without sending twice: --request-key ${call.requestKey}`
+    );
+}
+
 const send: Command = {
     arguments: '<channel_id> <text>',
-    options: {
-        ...THREAD_OPTION,
-        as: {
-            description:
-                'origin (the default: your verified Project identity where there is one, else you) or user (you, with Dexto attribution).',
-            type: 'string',
-        },
-        'request-key': {
-            description:
-                'A key for this exact send. Running again with the same key after a lost response never sends twice. One is made when you leave it out, and printed.',
-            type: 'string',
-            valueName: 'KEY',
-        },
-        'dry-run': { description: 'Show the call without sending it.', type: 'boolean' },
-        ...YES_OPTION,
-    },
+    options: SEND_OPTIONS,
     path: ['channels', 'send'],
     summary:
         'Send this exact text (or - for stdin) to a channel you are in. Everyone in it sees it. Example: dexto channels send "$CHANNEL_ID" "Shipped." --yes',
     async run(context, input) {
         const channelId = argument(input, 0, 'channel_id');
-        const given = argument(input, 1, 'text');
-        const text = given === '-' ? await context.runtime.readStdin() : given;
-        if (text.trim().length === 0) throw new UsageError('The message is empty.');
-        const sendAs = choiceOption(input, 'as', SEND_AS);
-        const thread = stringOption(input, 'thread');
-        const call = {
-            channelId,
-            text,
-            requestKey: stringOption(input, 'request-key') ?? randomUUID(),
-            ...(sendAs === undefined ? {} : { sendAs }),
-            ...(thread === undefined ? {} : { threadRootMessageId: thread }),
-        };
-        if (flag(input, 'dry-run'))
-            return context.output.result(
-                { dryRun: true, tool: 'dexto_channel_send', arguments: call },
-                `Would send ${text.length} characters to channel ${channelId}.`
-            );
-        await requireLoginScopes(context, ['messages:write']);
-        await requireConsent(
+        await sendConversationMessage(
             context,
-            flag(input, 'yes'),
+            input,
+            'dexto_channel_send',
+            { channelId },
+            `channel ${channelId}`,
             `Send this message to channel ${channelId}? Everyone in it sees it.`
-        );
-        // Said before the call, so a lost response can still be retried without sending twice.
-        context.output.note(`Request key: ${call.requestKey}`);
-        const value = await queryWorkspaceTool(context, 'dexto_channel_send', {
-            ...call,
-            confirm: true,
-        });
-        const sent = SentSchema.parse(value);
-        context.output.result(
-            { ...sent, requestKey: call.requestKey },
-            `Sent message ${sent.messageId}. To retry without sending twice: --request-key ${call.requestKey}`
         );
     },
 };
