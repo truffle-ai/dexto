@@ -125,7 +125,7 @@ const organization: Command = {
             context,
             input,
             { action: 'organization', ...target, ...grant },
-            `Share ${target.kind} ${target.id} with your organization as ${grant.role ?? 'viewer'}.`
+            `Share ${target.kind} ${target.id} with its organization as ${grant.role ?? 'viewer'}.`
         );
     },
 };

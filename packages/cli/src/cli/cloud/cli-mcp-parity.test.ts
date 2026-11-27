@@ -140,17 +140,19 @@ describe('CLI and MCP capability parity', () => {
         );
     });
 
-    it('maps partial action commands only to passthrough-only tools', () => {
+    it('maps action commands to passthrough-only tools in the catalog', () => {
         const mapped = z
             .record(z.string(), z.object({ tool: z.string(), actions: z.array(z.string()).min(1) }))
             .parse(inventory.actionCommands);
         for (const [command, { tool }] of Object.entries(mapped)) {
+            // A tool every action of which has a command moves to commands, not here. The catalog
+            // keeps only top-level input keys: dexto-cloudflare's parity test checks the actions.
             expect(passthroughOnly, command).toContain(tool);
+            expect(Object.keys(inventory.commands), command).not.toContain(command);
             expect(
-                catalog.tools.map((item) => item.name),
+                catalog.tools.map((each) => each.name),
                 command
             ).toContain(tool);
-            expect(Object.keys(inventory.commands), command).not.toContain(command);
         }
     });
 

@@ -1575,6 +1575,13 @@
     "examples": true
   },
   {
+    "command": "workspace gigs publish",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "workspace network list",
     "json": true,
     "dryRun": false,
