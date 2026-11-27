@@ -80,14 +80,14 @@ export async function callV1(
 /** A failed call as the contract's failure, by its status and the error's message. */
 export function v1Failure(context: SignInContext, status: number, text: string): CommandFailure {
     let message = `HTTP ${status}`;
+    let code: unknown = null;
     try {
         const body: unknown = JSON.parse(text);
-        if (
-            isJsonObject(body) &&
-            isJsonObject(body.error) &&
-            typeof body.error.message === 'string'
-        )
-            message = `HTTP ${status}: ${body.error.message}`;
+        if (isJsonObject(body) && isJsonObject(body.error)) {
+            code = body.error.code;
+            if (typeof body.error.message === 'string')
+                message = `HTTP ${status}: ${body.error.message}`;
+        }
     } catch {
         // Not JSON: the status says enough.
     }
@@ -95,7 +95,10 @@ export function v1Failure(context: SignInContext, status: number, text: string):
         return new CommandFailure('needs_sign_in', message, signInCommand(context, []));
     return new CommandFailure(
         status === 403
-            ? 'needs_permission'
+            ? // The account doesn't have the feature yet; a new sign-in won't help.
+              code === 'feature_flag_denied'
+                ? 'not_available'
+                : 'needs_permission'
             : status === 404
               ? 'not_found'
               : status === 400 || status === 413 || status === 422

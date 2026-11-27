@@ -6,16 +6,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandFailure } from '../../failure.js';
 import { MissingScopeFailure, UsageError, type Command, type CommandContext } from '../command.js';
 import { applicationCommands } from './applications.js';
+import { WorkspaceToolFailure } from './workspace.js';
 
 const query = vi.hoisted(() => vi.fn());
 const send = vi.hoisted(() => vi.fn());
-vi.mock('./workspace.js', () => ({ queryWorkspaceTool: query }));
+vi.mock('./workspace.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('./workspace.js')>()),
+    queryWorkspaceTool: query,
+}));
 vi.mock('../transfer.js', () => ({ sendBytes: send }));
 
 const applicationId = '6f1f3c55-1e7a-4b8e-9d2b-3a1f5a6c7d80';
 const deploymentId = '0b0e6a52-2c55-4c1d-8a43-2f3f7a9e1c11';
 const operationId = '9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d';
 const connectionId = `app-${applicationId}`;
+const DRY_RUN_TEXT =
+    "Nothing was sent, so Dexto checked nothing: not your access, the Application's owner or whether its ids exist.";
 const PACKAGE = '{"schemaVersion":1,"slug":"orders"}';
 const prepared = {
     headers: { 'content-type': 'application/json' },
@@ -36,7 +42,7 @@ function contextWith(scopes: readonly string[], prompt: (() => Promise<string>) 
         connection: async () => ({ kind: 'oauth', login: { scopes } }),
         invocation: ['dexto', 'applications'],
         output,
-        overrides: { profile: null },
+        overrides: { cloudProject: null, profile: null },
         runtime: { environment: {}, prompt },
     } as unknown as CommandContext;
     return { context, output };
@@ -65,9 +71,9 @@ const WRITES: ReadonlyArray<{
     {
         name: 'applications create',
         positionals: ['orders', 'Orders'],
-        values: { 'application-id': applicationId, project: operationId },
+        values: { 'application-id': applicationId },
         tool: 'dexto_application_create',
-        args: { applicationId, slug: 'orders', title: 'Orders', cloudProjectId: operationId },
+        args: { applicationId, slug: 'orders', title: 'Orders' },
     },
     {
         name: 'applications rollback',
@@ -155,8 +161,8 @@ describe('dexto applications writes', () => {
             values: { ...write.values, 'dry-run': true },
         });
         expect(output.result).toHaveBeenCalledWith(
-            { arguments: write.args, dryRun: true, tool: write.tool },
-            `Would call ${write.tool}.`
+            { arguments: write.args, checkedByDexto: false, dryRun: true, tool: write.tool },
+            `Would call ${write.tool}. ${DRY_RUN_TEXT}`
         );
         expect(query).not.toHaveBeenCalled();
     });
@@ -186,10 +192,84 @@ describe('dexto applications writes', () => {
         });
         const made = query.mock.calls[0]?.[2]?.operationId;
         expect(made).toMatch(/^[0-9a-f-]{36}$/);
-        expect(output.note).toHaveBeenCalledWith(
-            `New operation id: ${made}. To retry: --operation-id ${made}`
-        );
+        expect(output.note.mock.calls).toEqual([[`New operation id: ${made}.`]]);
     });
+
+    it.each([
+        ['a refusal the CLI reports', new CommandFailure('failed', 'Slug taken.', null)],
+        [
+            'a refusal that is not retryable',
+            new WorkspaceToolFailure(
+                new CommandFailure('not_available', 'Applications are in early access.', null),
+                { retryable: false, resume: null }
+            ),
+        ],
+    ])('prints no retry hint after %s', async (_label, refusal) => {
+        const { context, output } = contextWith(['applications:write']);
+        query.mockRejectedValueOnce(refusal);
+        await expect(
+            command('applications create').run(context, {
+                positionals: ['orders', 'Orders'],
+                values: { 'application-id': applicationId, yes: true },
+            })
+        ).rejects.toBe(refusal);
+        expect(output.note.mock.calls).toEqual([[`New application id: ${applicationId}.`]]);
+    });
+
+    it.each([
+        ['a lost response', new TypeError('fetch failed')],
+        [
+            'a refusal the server says a retry can get past',
+            new WorkspaceToolFailure(new CommandFailure('failed', 'Try again.', null), {
+                retryable: true,
+                resume: null,
+            }),
+        ],
+    ])('prints how to retry with the same id after %s', async (_label, failure) => {
+        const { context, output } = contextWith(['applications:write']);
+        query.mockRejectedValueOnce(failure);
+        await expect(
+            command('applications create').run(context, {
+                positionals: ['orders', 'Orders'],
+                values: { 'application-id': applicationId, yes: true },
+            })
+        ).rejects.toBe(failure);
+        expect(output.note.mock.calls).toEqual([
+            [`New application id: ${applicationId}.`],
+            [`To retry: --application-id ${applicationId}`],
+        ]);
+    });
+
+    it.each([
+        ['applications get', ['not-a-uuid'], {}, 'application_id'],
+        ['applications release delete', ['42'], { yes: true }, 'deployment_id'],
+        ['applications rollback', [applicationId, 'latest'], { yes: true }, 'release_id'],
+        [
+            'applications create',
+            ['orders', 'Orders'],
+            { 'application-id': 'x' },
+            '--application-id',
+        ],
+        [
+            'applications purge',
+            [applicationId],
+            { 'confirm-application-id': 'yes', 'dry-run': true },
+            '--confirm-application-id',
+        ],
+    ])(
+        '%s checks %j is a UUID before sending anything, even with --dry-run',
+        async (name, positionals, values, label) => {
+            const { context, output } = contextWith(['applications:read', 'applications:write']);
+            await expect(
+                command(name).run(context, { positionals, values: { ...values, 'dry-run': true } })
+            ).rejects.toMatchObject({
+                kind: 'invalid_input',
+                message: expect.stringContaining(`${label} must be a UUID`),
+            });
+            expect(output.result).not.toHaveBeenCalled();
+            expect(query).not.toHaveBeenCalled();
+        }
+    );
 
     it('purge requires --confirm-application-id', async () => {
         const { context } = contextWith(['applications:write']);
@@ -269,11 +349,45 @@ describe('dexto applications deploy', () => {
         expect(output.result).toHaveBeenCalledWith(
             {
                 arguments: { connectionId, deploymentId },
+                checkedByDexto: false,
                 dryRun: true,
                 tool: 'dexto_application_deploy',
             },
-            'Would call dexto_application_deploy.'
+            `Would call dexto_application_deploy. ${DRY_RUN_TEXT}`
         );
+        expect(query).not.toHaveBeenCalled();
+        expect(send).not.toHaveBeenCalled();
+    });
+
+    // The server matches app-<uuid> case-insensitively, prefix included.
+    it.each([`APP-${applicationId}`, `App-${applicationId}`, `app-${applicationId.toUpperCase()}`])(
+        'takes the connection id %s in any case, as the server does',
+        async (given) => {
+            const file = await packageFile();
+            const { context, output } = contextWith([]);
+            await deploy().run(context, {
+                positionals: [given, file],
+                values: { 'deployment-id': deploymentId, 'dry-run': true },
+            });
+            expect(output.result).toHaveBeenCalledWith(
+                expect.objectContaining({ arguments: { connectionId: given, deploymentId } }),
+                expect.any(String)
+            );
+        }
+    );
+
+    it.each([
+        [applicationId, `If ${applicationId} is the Application's id, pass app-${applicationId}.`],
+        [
+            'orders',
+            'connection_id must be app-<application id>, the connectionId applications get shows',
+        ],
+    ])('checks the connection id %s locally and says what it expects', async (given, says) => {
+        const file = await packageFile();
+        const { context } = contextWith(['applications:write']);
+        await expect(
+            deploy().run(context, { positionals: [given, file], values: { 'dry-run': true } })
+        ).rejects.toMatchObject({ kind: 'invalid_input', message: expect.stringContaining(says) });
         expect(query).not.toHaveBeenCalled();
         expect(send).not.toHaveBeenCalled();
     });
