@@ -28,6 +28,92 @@ describe('redact', () => {
         expect(JSON.stringify(redact(value))).toBe(JSON.stringify(value));
     });
 
+    test('redacts and preserves an API response nested 5,000 levels deep', () => {
+        let value: unknown = { message: 'keep', password: 'secret' };
+        for (let level = 0; level < 5000; level += 1) {
+            value = level % 2 === 0 ? { nested: value, level } : [value];
+        }
+
+        let result = redact(value);
+        for (let level = 4999; level >= 0; level -= 1) {
+            if (level % 2 === 0) {
+                expect(result).toHaveProperty('level', level);
+                result = Reflect.get(Object(result), 'nested');
+            } else {
+                expect(Array.isArray(result)).toBe(true);
+                result = Reflect.get(Object(result), '0');
+            }
+        }
+        expect(result).toEqual({ message: 'keep', password: '[REDACTED]' });
+    });
+
+    test('preserves ordinary response redaction behavior for shared and circular values', () => {
+        const shared = { message: 'hello', token: 'secret' };
+        const cycle: Record<string, unknown> = { label: 'cycle' };
+        cycle.self = cycle;
+        const result = redact({
+            shared,
+            again: shared,
+            cycle,
+            items: new Set(['plain', { password: 'secret' }]),
+            map: new Map([
+                ['apiKey', 'secret'],
+                ['name', 'visible'],
+            ]),
+            nextPageToken: 'page-2',
+        });
+        expect(result).toEqual({
+            shared: { message: 'hello', token: '[REDACTED]' },
+            again: { message: 'hello', token: '[REDACTED]' },
+            cycle: { label: 'cycle', self: '[REDACTED_CIRCULAR]' },
+            items: ['plain', { password: '[REDACTED]' }],
+            map: [
+                ['apiKey', 'secret'],
+                ['name', 'visible'],
+            ],
+            nextPageToken: 'page-2',
+        });
+        expect(Reflect.get(Object(result), 'shared')).toBe(Reflect.get(Object(result), 'again'));
+    });
+
+    test('clears the supplied ancestor set when a nested getter throws', () => {
+        const prior = {};
+        const child = {
+            get value(): never {
+                throw new Error('cannot read');
+            },
+        };
+        const root = { child };
+        const seen = new WeakSet<object>([prior]);
+        expect(() => redact(root, seen)).toThrow('cannot read');
+        expect(seen.has(prior)).toBe(true);
+        expect(seen.has(root)).toBe(false);
+        expect(seen.has(child)).toBe(false);
+    });
+
+    test('clears all ancestors even if an iterator throws while closing', () => {
+        const child = {
+            get value(): never {
+                throw new Error('cannot read');
+            },
+        };
+        const items = [child];
+        Object.defineProperty(items, Symbol.iterator, {
+            value: () => ({
+                next: () => ({ value: child, done: false }),
+                return: () => {
+                    throw new Error('cannot close');
+                },
+            }),
+        });
+        const root = { items };
+        const seen = new WeakSet<object>();
+        expect(() => redact(root, seen)).toThrow('cannot read');
+        expect(seen.has(root)).toBe(false);
+        expect(seen.has(items)).toBe(false);
+        expect(seen.has(child)).toBe(false);
+    });
+
     // Basic field redaction
     test('should redact a single sensitive field', () => {
         expect(redact({ apiKey: 'secret' })).toEqual({ apiKey: '[REDACTED]' });

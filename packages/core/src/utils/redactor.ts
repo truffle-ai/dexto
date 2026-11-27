@@ -3,7 +3,7 @@
  * - Redacts by field name (e.g., apiKey, token, password, etc.)
  * - Redacts by value pattern (e.g., OpenAI keys, Bearer tokens, emails)
  * - Handles deeply nested structures and circular references
- * - Recursive and preserves structure
+ * - Preserves structure
  * - Easy to extend
  */
 
@@ -338,6 +338,14 @@ function describeBinary(value: ArrayBuffer | ArrayBufferView): string {
     return `[${name} ${value.byteLength} bytes]`;
 }
 
+interface Visit {
+    input: unknown;
+    mode: Mode;
+    insideSecret: boolean;
+    depth: number;
+}
+
+/** Run the depth-first walk without consuming the JavaScript call stack. */
 function redactValue(
     input: unknown,
     walk: Walk,
@@ -345,6 +353,39 @@ function redactValue(
     insideSecret: boolean,
     depth = 0
 ): unknown {
+    const stack = [visitValue({ input, mode, insideSecret, depth }, walk)];
+    let result: unknown;
+    try {
+        while (stack.length > 0) {
+            const frame = stack[stack.length - 1];
+            if (!frame) break;
+            const next = frame.next(result);
+            if (next.done) {
+                stack.pop();
+                result = next.value;
+            } else {
+                stack.push(visitValue(next.value, walk));
+                result = undefined;
+            }
+        }
+        return result;
+    } catch (error) {
+        // A getter or iterator can throw; unwind suspended frames to clear their ancestors.
+        for (let index = stack.length - 1; index >= 0; index -= 1) {
+            try {
+                stack[index]?.return(undefined);
+            } catch {
+                // Keep unwinding even if an iterator's return method throws.
+            }
+        }
+        throw error;
+    }
+}
+
+function* visitValue(
+    { input, mode, insideSecret, depth }: Visit,
+    walk: Walk
+): Generator<Visit, unknown, unknown> {
     // JSON.stringify can invoke toJSON on functions as well as on objects.
     if (typeof input === 'function') return undefined;
     if (typeof input === 'string') {
@@ -369,7 +410,7 @@ function redactValue(
         const withoutCredentials = new URL(input.href);
         withoutCredentials.username = '';
         withoutCredentials.password = '';
-        return redactValue(withoutCredentials.href, walk, mode, insideSecret, depth);
+        return yield { input: withoutCredentials.href, mode, insideSecret, depth };
     }
 
     if (walk.ancestors.has(input)) return REDACTED_CIRCULAR;
@@ -387,7 +428,7 @@ function redactValue(
 
     walk.ancestors.add(input);
     try {
-        const result = redactContainer(input, walk, mode, insideSecret, depth + 1);
+        const result = yield* redactContainer(input, walk, mode, insideSecret, depth + 1);
         if (walk.memo) {
             let results = walk.memo.get(input);
             if (!results) {
@@ -419,13 +460,13 @@ function errorFields(error: Error): Record<string, unknown> {
     };
 }
 
-function redactContainer(
+function* redactContainer(
     input: object,
     walk: Walk,
     mode: Mode,
     insideSecret: boolean,
     depth: number
-): unknown {
+): Generator<Visit, unknown, unknown> {
     // Each loop stops once the walk's budget is spent, leaving a TRUNCATED mark.
     if (Array.isArray(input) || input instanceof Set) {
         const items: unknown[] = [];
@@ -437,7 +478,7 @@ function redactContainer(
             items.push(
                 spendArrayItem(
                     walk,
-                    redactValue(item, walk, mode, insideSecret, depth),
+                    yield { input: item, mode, insideSecret, depth },
                     items.length > 0
                 )
             );
@@ -452,8 +493,11 @@ function redactContainer(
                 break;
             }
             entries.push([
-                spend(walk, redactValue(key, walk, mode, insideSecret, depth), 2),
-                spend(walk, redactEntry(String(key), value, walk, mode, insideSecret, depth)),
+                spend(walk, yield { input: key, mode, insideSecret, depth }, 2),
+                spend(
+                    walk,
+                    yield* redactEntry(String(key), value, walk, mode, insideSecret, depth)
+                ),
             ]);
         }
         return entries;
@@ -494,7 +538,7 @@ function redactContainer(
             const truncatedValue = truncateFileData(value, key, fields);
             const redacted = spend(
                 walk,
-                redactEntry(
+                yield* redactEntry(
                     key,
                     truncatedValue,
                     walk,
@@ -523,17 +567,17 @@ function redactContainer(
  * secret-named key masks its own string value (or the strings in its array); an object under
  * such a name is read by its own key names.
  */
-function redactEntry(
+function* redactEntry(
     key: string,
     value: unknown,
     walk: Walk,
     mode: Mode,
     insideSecret: boolean,
     depth: number
-): unknown {
+): Generator<Visit, unknown, unknown> {
     if ((mode === 'log' || mode === 'stringify-error') && !insideSecret) {
         if (isSecretMapKey(key) && isPlainObject(value)) {
-            return redactValue(value, walk, mode, true, depth);
+            return yield { input: value, mode, insideSecret: true, depth };
         }
         if (isSensitiveLogKey(key)) {
             if (typeof value === 'string') return REDACTED;
@@ -549,7 +593,7 @@ function redactEntry(
                             walk,
                             typeof item === 'string'
                                 ? REDACTED
-                                : redactValue(item, walk, mode, false, depth),
+                                : yield { input: item, mode, insideSecret: false, depth },
                             items.length > 0
                         )
                     );
@@ -558,7 +602,7 @@ function redactEntry(
             }
         }
     }
-    return redactValue(value, walk, mode, insideSecret, depth);
+    return yield { input: value, mode, insideSecret, depth };
 }
 
 function isPlainObject(value: unknown): boolean {
