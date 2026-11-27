@@ -338,6 +338,17 @@ function describeBinary(value: ArrayBuffer | ArrayBufferView): string {
     return `[${name} ${value.byteLength} bytes]`;
 }
 
+/**
+ * The primitive inside a String, Number or Boolean wrapper object, which JSON writes as that
+ * primitive; any other value as it is. A boxed string is then redacted as one whole string.
+ */
+function unbox(value: unknown): unknown {
+    if (value instanceof String) return String.prototype.valueOf.call(value);
+    if (value instanceof Number) return Number.prototype.valueOf.call(value);
+    if (value instanceof Boolean) return Boolean.prototype.valueOf.call(value);
+    return value;
+}
+
 function redactValue(
     input: unknown,
     walk: Walk,
@@ -360,6 +371,9 @@ function redactValue(
     }
     if (typeof input !== 'object' || input === null) return input;
 
+    const primitive = unbox(input);
+    if (!Object.is(primitive, input))
+        return redactValue(primitive, walk, mode, insideSecret, depth);
     if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) return describeBinary(input);
     if (input instanceof Date) {
         return Number.isNaN(input.getTime()) ? 'Invalid Date' : input.toISOString();
@@ -531,6 +545,9 @@ function redactEntry(
     insideSecret: boolean,
     depth: number
 ): unknown {
+    const primitive = unbox(value);
+    if (!Object.is(primitive, value))
+        return redactEntry(key, primitive, walk, mode, insideSecret, depth);
     if ((mode === 'log' || mode === 'stringify-error') && !insideSecret) {
         if (isSecretMapKey(key) && isPlainObject(value)) {
             return redactValue(value, walk, mode, true, depth);
@@ -547,7 +564,7 @@ function redactEntry(
                     items.push(
                         spendArrayItem(
                             walk,
-                            typeof item === 'string'
+                            typeof unbox(item) === 'string'
                                 ? REDACTED
                                 : redactValue(item, walk, mode, false, depth),
                             items.length > 0

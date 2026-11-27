@@ -33,6 +33,16 @@ describe('safeStringify', () => {
         expect(safeStringify({ nested: value }, CAP)).toBe('{"nested":{"visible":"kept"}}');
     });
 
+    it('redacts a boxed string and writes boxed values as JSON does', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+
+        expect(safeStringify({ text: new String(secret) })).toBe('{"text":"[REDACTED]"}');
+        expect(safeStringify(new String(`key ${secret}`))).toBe('"key [REDACTED]"');
+        expect(safeStringify({ count: new Number(3), flag: new Boolean(true) })).toBe(
+            JSON.stringify({ count: new Number(3), flag: new Boolean(true) })
+        );
+    });
+
     it('does not invoke toJSON on function values or install them as a prototype', () => {
         const secret = `sk-proj-${'a1'.repeat(20)}`;
         const inherited = Object.assign(() => {}, { toJSON: () => secret });
