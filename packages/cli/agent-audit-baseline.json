@@ -305,14 +305,14 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat browser-profiles",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat cancel",
@@ -326,7 +326,7 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat delete",
@@ -340,7 +340,7 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat fork",
@@ -368,7 +368,7 @@
     "json": true,
     "dryRun": true,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat list",
@@ -382,7 +382,7 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat models",
@@ -396,7 +396,7 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat send",
@@ -417,14 +417,14 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "chat watch",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "cloud agents approve",

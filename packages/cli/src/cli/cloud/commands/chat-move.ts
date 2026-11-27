@@ -548,6 +548,7 @@ async function watchChat(context: CommandContext, cloudId: string): Promise<void
 
 const watch: Command = {
     path: ['chat', 'watch'],
+    examples: ['dexto chat watch "$LOCAL_CHAT_ID" --json'],
     arguments: '<id>',
     summary: 'Attach to the cloud view of a synced local chat; Ctrl-C detaches.',
     async run(context, input) {

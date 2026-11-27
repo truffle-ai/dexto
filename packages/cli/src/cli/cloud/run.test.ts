@@ -155,6 +155,26 @@ describe('dexto cloud', () => {
         expect(stdout).toContain('sessions:write');
     });
 
+    it.each([
+        'agents',
+        'browser-profiles',
+        'computers',
+        'follow',
+        'import',
+        'local',
+        'outputs',
+        'start',
+        'watch',
+    ])('shows a shell-ready JSON example for chat %s', async (command) => {
+        expect(await runCloud(host, ['chat', command, '--help', '--json'])).toBe(0);
+        const help: { examples: string[] } = JSON.parse(stdout);
+        expect(help.examples.some((example) => example.startsWith(`dexto chat ${command} `))).toBe(
+            true
+        );
+        expect(help.examples.some((example) => example.endsWith(' --json'))).toBe(true);
+        expect(help.examples.join('\n')).not.toMatch(/<[a-z_]+>/i);
+    });
+
     it('distinguishes the model catalog from account-available chat models', async () => {
         expect(await runCloud(host, ['models', 'list', '--help', '--json'])).toBe(0);
         expect(stdout).toContain('dexto chat models');
