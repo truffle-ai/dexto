@@ -211,6 +211,14 @@ describe('dexto skills library commands', () => {
         title: 'Voice',
     };
 
+    it.each([
+        ['push', 'dexto skills push ./my-skill --yes --json'],
+        ['sync', 'dexto skills sync --json'],
+    ])('shows a JSON example for skills %s', async (command, example) => {
+        expect(await runCloud(host, ['skills', command, '--help', '--json'])).toBe(0);
+        expect(JSON.parse(stdout).examples).toContain(example);
+    });
+
     it('names the missing skills scope for reads and writes, before any call', async () => {
         await writeLogin(['apps:read']);
 
