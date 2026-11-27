@@ -276,6 +276,89 @@ describe('MemoryManager', () => {
             expect(memories[0]!.id).toBe('mem-3');
             expect(memories[1]!.id).toBe('mem-2');
         });
+
+        describe('query', () => {
+            const now = Date.now();
+            const searchMemories = [
+                {
+                    id: 'mem-deploy',
+                    content: 'Deploy to staging every Friday before 5pm',
+                    createdAt: now - 3000,
+                    updatedAt: now - 3000,
+                    tags: ['ops'],
+                },
+                {
+                    id: 'mem-style',
+                    content: 'User prefers concise answers',
+                    createdAt: now - 2000,
+                    updatedAt: now - 2000,
+                    tags: ['preferences'],
+                    metadata: { pinned: true },
+                },
+                {
+                    id: 'mem-db',
+                    content: 'Staging database is Postgres 16',
+                    createdAt: now - 1000,
+                    updatedAt: now - 1000,
+                    tags: ['infra'],
+                },
+            ];
+
+            beforeEach(() => {
+                vi.mocked(mockMemoryStore.list).mockResolvedValue(searchMemories);
+            });
+
+            it('should match keywords in content case-insensitively', async () => {
+                const memories = await memoryManager.list({ query: 'STAGING' });
+
+                // Sorted by updatedAt descending
+                expect(memories.map((m) => m.id)).toEqual(['mem-db', 'mem-deploy']);
+            });
+
+            it('should match keywords in tags', async () => {
+                const memories = await memoryManager.list({ query: 'preferences' });
+
+                expect(memories.map((m) => m.id)).toEqual(['mem-style']);
+            });
+
+            it('should require every term to match', async () => {
+                const memories = await memoryManager.list({ query: '  staging   friday ' });
+
+                expect(memories.map((m) => m.id)).toEqual(['mem-deploy']);
+            });
+
+            it('should match terms across content and tags', async () => {
+                const memories = await memoryManager.list({ query: 'postgres infra' });
+
+                expect(memories.map((m) => m.id)).toEqual(['mem-db']);
+            });
+
+            it('should return an empty list when nothing matches', async () => {
+                const memories = await memoryManager.list({ query: 'kubernetes' });
+
+                expect(memories).toEqual([]);
+            });
+
+            it('should combine with other filters and pagination', async () => {
+                const byTag = await memoryManager.list({ query: 'staging', tags: ['ops'] });
+                expect(byTag.map((m) => m.id)).toEqual(['mem-deploy']);
+
+                const byPinned = await memoryManager.list({ query: 'staging', pinned: true });
+                expect(byPinned).toEqual([]);
+
+                const paged = await memoryManager.list({ query: 'staging', limit: 1, offset: 1 });
+                expect(paged.map((m) => m.id)).toEqual(['mem-deploy']);
+            });
+
+            it('should reject an empty or whitespace-only query', async () => {
+                await expect(memoryManager.list({ query: '' })).rejects.toThrow();
+                await expect(memoryManager.list({ query: '   ' })).rejects.toThrow();
+            });
+
+            it('should count matches with the same filters', async () => {
+                await expect(memoryManager.count({ query: 'staging' })).resolves.toBe(2);
+            });
+        });
     });
 
     describe('has', () => {
