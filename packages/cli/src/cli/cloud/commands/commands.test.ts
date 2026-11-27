@@ -335,6 +335,19 @@ describe('cloud secrets, web and data-deletions', () => {
         expect(requests).toHaveLength(0);
     });
 
+    it('provides copyable JSON examples for profile commands', async () => {
+        const commands = host.commands.filter((command) => command.path[0] === 'profile');
+        expect(commands.length).toBeGreaterThanOrEqual(2);
+        for (const command of commands) {
+            stdout = '';
+            expect(await runCloud(host, [...command.path, '--help', '--json'])).toBe(0);
+            const help = JSON.parse(stdout) as { examples?: string[] };
+            expect(help.examples, command.path.join(' ')).toEqual(
+                expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+            );
+        }
+    });
+
     describe('models', () => {
         const textModel = {
             id: 'openai/gpt-5',

@@ -21,6 +21,7 @@ type Profile = z.output<typeof ProfileSchema>;
 
 const get: Command = {
     path: ['profile', 'get'],
+    examples: ['dexto profile get --json'],
     summary: 'Show your Dexto profile: handle, name, bio, links, work and whether it is public.',
     async run(context) {
         const profile = await readProfile(context, 'dexto_profile_get', {});
@@ -66,6 +67,7 @@ const update: Command = {
         },
     },
     path: ['profile', 'update'],
+    examples: ['dexto profile update --display-name "Alex" --json'],
     summary:
         'Change your Dexto profile: only the fields you pass change, such as --handle shaun --visibility public.',
     async run(context, input) {
