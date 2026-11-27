@@ -86,6 +86,7 @@ const DEPLOY_OPTIONS = {
 const deploySite: Command = {
     arguments: '[dir]',
     options: DEPLOY_OPTIONS,
+    examples: ['dexto cloud sites deploy ./site --no-promote --json'],
     path: ['cloud', 'sites', 'deploy'],
     summary:
         'Pack the Site in dir (default: here) with its packer, or as static pages from dexto.json when it has none, and deploy it to the Cloud project; it goes live unless --no-promote.',
@@ -115,6 +116,7 @@ const deployFunction: Command = {
             type: 'boolean',
         },
     },
+    examples: ['dexto cloud functions deploy ./function --no-promote --json'],
     path: ['cloud', 'functions', 'deploy'],
     summary:
         'Pack the Function in dir (default: here) with its packer and deploy it to the Cloud project; it goes live unless --no-promote.',
@@ -157,6 +159,7 @@ const FUNCTION_COLUMNS: readonly Column<z.output<typeof FunctionSchema>>[] = [
 ];
 
 const listSites: Command = {
+    examples: ['dexto cloud sites list --json'],
     path: ['cloud', 'sites', 'list'],
     summary: "List the Cloud project's Sites.",
     async run(context) {
@@ -171,6 +174,7 @@ const listSites: Command = {
 const deleteSite: Command = {
     arguments: '<site>',
     options: YES_OPTION,
+    examples: ['dexto cloud sites delete "$SITE_ID" --yes --json'],
     path: ['cloud', 'sites', 'delete'],
     summary:
         'Delete a Site of the Cloud project, by id or slug, with its deployments and data; its slug is free again. Asks first.',
@@ -202,6 +206,7 @@ const deleteSite: Command = {
 };
 
 const listFunctions: Command = {
+    examples: ['dexto cloud functions list --json'],
     path: ['cloud', 'functions', 'list'],
     summary: "List the Cloud project's Functions.",
     async run(context) {

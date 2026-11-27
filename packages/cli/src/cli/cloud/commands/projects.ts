@@ -9,6 +9,7 @@ async function listProjects(context: CommandContext) {
 }
 
 const list: Command = {
+    examples: ['dexto cloud projects list --json'],
     path: ['cloud', 'projects', 'list'],
     summary: 'List the Cloud projects you can act in; * marks the current one.',
     async run(context) {
@@ -33,6 +34,7 @@ const list: Command = {
 
 const create: Command = {
     arguments: '<name>',
+    examples: ['dexto cloud projects create "Research" --json'],
     path: ['cloud', 'projects', 'create'],
     summary: 'Create a Cloud project. Owners and Admins create projects.',
     async run(context, input) {
@@ -52,6 +54,7 @@ const create: Command = {
 export function projectsUse(accountsDir: string): Command {
     return {
         arguments: '<project>',
+        examples: ['dexto cloud projects use "$PROJECT_ID" --json'],
         path: ['cloud', 'projects', 'use'],
         summary: 'Act in this Cloud project, by id or name, from now on. Dexto models bill it too.',
         async run(context, input) {

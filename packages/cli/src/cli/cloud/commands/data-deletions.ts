@@ -30,6 +30,7 @@ const create: Command = {
         user: { description: 'The end-user label whose sessions to delete.', type: 'string' },
         ...YES_OPTION,
     },
+    examples: ['dexto cloud data-deletions create --user customer-123 --yes --json'],
     path: ['cloud', 'data-deletions', 'create'],
     summary:
         "Delete an end user's sessions (--user, optionally of one --agent), or all of an agent's data (--agent).",
@@ -58,6 +59,7 @@ const create: Command = {
 
 const list: Command = {
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud data-deletions list --json'],
     path: ['cloud', 'data-deletions', 'list'],
     summary: 'List data deletions.',
     async run(context, input) {
@@ -76,6 +78,7 @@ const list: Command = {
 
 const get: Command = {
     arguments: '<data_deletion_id>',
+    examples: ['dexto cloud data-deletions get "$DELETION_ID" --json'],
     path: ['cloud', 'data-deletions', 'get'],
     summary: 'Show a data deletion and what it deleted.',
     async run(context, input) {

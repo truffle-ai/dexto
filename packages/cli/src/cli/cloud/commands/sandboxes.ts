@@ -42,6 +42,7 @@ const COLUMNS: readonly Column<Sandbox>[] = [
 
 const list: Command = {
     options: PAGE_OPTIONS,
+    examples: ['dexto cloud sandboxes list --json'],
     path: ['cloud', 'sandboxes', 'list'],
     summary: "List the project's sandboxes.",
     async run(context, input) {
@@ -66,6 +67,7 @@ const create: Command = {
             type: 'string',
         },
     },
+    examples: ['dexto cloud sandboxes create research --json'],
     path: ['cloud', 'sandboxes', 'create'],
     summary: 'Create a sandbox. Start it before running commands in it.',
     async run(context, input) {
@@ -88,6 +90,7 @@ const create: Command = {
 
 const get: Command = {
     arguments: '<sandbox_id>',
+    examples: ['dexto cloud sandboxes get "$SANDBOX_ID" --json'],
     path: ['cloud', 'sandboxes', 'get'],
     summary: 'Show a sandbox.',
     async run(context, input) {
@@ -104,6 +107,9 @@ const get: Command = {
 function lifecycle(action: 'delete' | 'pause' | 'start', summary: string): Command {
     return {
         arguments: '<sandbox_id>',
+        examples: [
+            `dexto cloud sandboxes ${action} "$SANDBOX_ID"${action === 'delete' ? ' --yes' : ''} --json`,
+        ],
         ...(action === 'delete' ? { options: YES_OPTION } : {}),
         path: ['cloud', 'sandboxes', action],
         summary,
@@ -144,6 +150,10 @@ const exec: Command = {
             valueName: 'MS',
         },
     },
+    examples: [
+        'dexto cloud sandboxes exec "$SANDBOX_ID" pwd --json',
+        'dexto cloud sandboxes exec "$SANDBOX_ID" --json -- ls -la',
+    ],
     path: ['cloud', 'sandboxes', 'exec'],
     summary:
         'Run a shell command and print its output; exits with its exit code. Put -- before a command with options.',
@@ -179,6 +189,7 @@ const ls: Command = {
     options: {
         depth: { description: 'Levels to list (default 1).', type: 'string', valueName: 'N' },
     },
+    examples: ['dexto cloud sandboxes ls "$SANDBOX_ID" /workspace --json'],
     path: ['cloud', 'sandboxes', 'ls'],
     summary: 'List a sandbox directory (default /workspace).',
     async run(context, input) {
@@ -212,6 +223,7 @@ const ls: Command = {
 
 const cat: Command = {
     arguments: '<sandbox_id> <path>',
+    examples: ['dexto cloud sandboxes cat "$SANDBOX_ID" /workspace/report.txt --json'],
     path: ['cloud', 'sandboxes', 'cat'],
     summary: 'Print a UTF-8 sandbox file of up to 1 MiB.',
     async run(context, input) {
@@ -238,6 +250,9 @@ const write: Command = {
         },
         parents: { description: 'Create missing directories.', short: 'p', type: 'boolean' },
     },
+    examples: [
+        'dexto cloud sandboxes write "$SANDBOX_ID" /workspace/report.txt --from ./report.txt --json',
+    ],
     path: ['cloud', 'sandboxes', 'write'],
     summary: 'Write a UTF-8 sandbox file of up to 1 MiB from stdin or --from.',
     async run(context, input) {
@@ -266,6 +281,7 @@ const write: Command = {
 const rm: Command = {
     arguments: '<sandbox_id> <path>',
     options: YES_OPTION,
+    examples: ['dexto cloud sandboxes rm "$SANDBOX_ID" /workspace/report.txt --yes --json'],
     path: ['cloud', 'sandboxes', 'rm'],
     summary: 'Delete a sandbox file.',
     async run(context, input) {
@@ -291,6 +307,7 @@ const importFiles: Command = {
             type: 'string',
         },
     },
+    examples: ['dexto cloud sandboxes import "$SANDBOX_ID" "$FILE_ID" --json'],
     path: ['cloud', 'sandboxes', 'import'],
     summary: 'Copy project files into a sandbox.',
     async run(context, input) {
@@ -319,6 +336,9 @@ const exportFile: Command = {
     options: {
         overwrite: { description: 'Replace a project file at file_path.', type: 'boolean' },
     },
+    examples: [
+        'dexto cloud sandboxes export "$SANDBOX_ID" /workspace/report.txt reports/report.txt --json',
+    ],
     path: ['cloud', 'sandboxes', 'export'],
     summary: 'Save a sandbox file as a project file.',
     async run(context, input) {

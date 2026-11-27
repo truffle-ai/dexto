@@ -8,6 +8,7 @@ const search: Command = {
     options: {
         num: { description: 'How many results (default 10).', type: 'string', valueName: 'N' },
     },
+    examples: ['dexto cloud search "Cloudflare Workers" --json'],
     path: ['cloud', 'search'],
     summary: 'Search the web.',
     async run(context, input) {
@@ -39,6 +40,7 @@ const fetchPages: Command = {
             valueName: 'N',
         },
     },
+    examples: ['dexto cloud fetch https://example.com --json'],
     path: ['cloud', 'fetch'],
     summary: 'Read up to 10 web pages as text.',
     async run(context, input) {
