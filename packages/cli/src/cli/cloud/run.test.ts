@@ -604,6 +604,12 @@ describe('dexto cloud', () => {
             });
         });
 
+        it('shows a JSON example for whoami', async () => {
+            expect(await runCloud(host, ['whoami', '--help', '--json'])).toBe(0);
+            expect(JSON.parse(stdout).examples).toContain('dexto whoami --json');
+            expect(requests).toHaveLength(0);
+        });
+
         it('is signed out with exit 3 and the command that signs in', async () => {
             expect(await runCloud(host, ['whoami'])).toBe(3);
             expect(JSON.parse(stderr)).toEqual({

@@ -98,6 +98,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
 
     const whoami: Command = {
         path: ['whoami'],
+        examples: ['dexto whoami --json'],
         summary: 'Show who Dexto commands act as: the profile, account, organization and project.',
         async run(context) {
             await (
