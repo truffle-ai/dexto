@@ -1,5 +1,23 @@
 # dexto
 
+## 2.7.2
+
+### Patch Changes
+
+- Updated dependencies [9c42c9c]
+    - @dexto/core@1.21.1
+    - @dexto/agent-config@1.21.1
+    - @dexto/agent-management@1.21.1
+    - @dexto/analytics@1.21.1
+    - @dexto/client-sdk@1.21.1
+    - @dexto/image-local@1.21.1
+    - @dexto/image-logger-agent@1.21.1
+    - @dexto/storage@1.21.1
+    - @dexto/tui@1.21.1
+    - @dexto/llm@1.21.1
+    - @dexto/cloud-client@1.21.1
+    - @dexto/registry@1.21.1
+
 ## 2.7.1
 
 ### Patch Changes

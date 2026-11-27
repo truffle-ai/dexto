@@ -1,5 +1,13 @@
 # @dexto/tools-lifecycle
 
+## 1.21.1
+
+### Patch Changes
+
+- Updated dependencies [9c42c9c]
+    - @dexto/core@1.21.1
+    - @dexto/agent-config@1.21.1
+
 ## 1.21.0
 
 ### Patch Changes
