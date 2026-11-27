@@ -21,7 +21,7 @@ jobs:
       - name: Determine changed files
         id: diff
         run: |
-          git fetch origin ${{ github.base_ref }} --depth=1 || true
+          git fetch origin ${{ github.base_ref }} || true
           git diff --name-only origin/${{ github.base_ref }}... > changed.txt
           echo "Changed files:" && cat changed.txt
       - name: Require changeset for publishable changes
