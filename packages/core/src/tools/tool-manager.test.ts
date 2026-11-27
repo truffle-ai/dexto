@@ -10,6 +10,7 @@ import { createApprovalRequest } from '../approval/factory.js';
 import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
+import { ToolError } from './errors.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
@@ -1640,6 +1641,141 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     error: 'disk full',
                 })
             );
+        });
+
+        it('logs a failure thrown by the tool itself as a warning, not an error', async () => {
+            const logger = createMockLogger();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'full-access',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'read_file',
+                        description: 'Read file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi
+                            .fn()
+                            .mockRejectedValue(ToolError.executionFailed('read_file', 'missing')),
+                    }),
+                ],
+                logger
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'read_file',
+                input: { path: 'missing.txt' },
+                toolCallId: 'call-tool-throws',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            await expect(
+                toolManager.executePreparedToolCall(prepared.call, { sessionId: 'session-1' })
+            ).resolves.toEqual(expect.objectContaining({ result: { error: expect.any(String) } }));
+
+            expect(logger.error).not.toHaveBeenCalled();
+            expect(logger.warn).toHaveBeenCalledWith('Prepared tool execution failed', {
+                toolName: 'read_file',
+                code: ToolErrorCode.EXECUTION_FAILED,
+                durationMs: expect.any(Number),
+                sessionId: 'session-1',
+            });
+        });
+
+        it('logs invalid tool arguments as a warning, not an error', async () => {
+            const logger = createMockLogger();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'full-access',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'typed',
+                        description: 'Typed tool',
+                        inputSchema: z.object({ count: z.number() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                logger
+            );
+
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'typed',
+                input: { count: 'wrong' },
+                toolCallId: 'call-invalid-args',
+                sessionId: 'session-1',
+            });
+
+            expect(prepared.kind).toBe('terminal');
+            expect(logger.error).not.toHaveBeenCalled();
+            expect(logger.warn).toHaveBeenCalledWith('Invalid arguments for tool', {
+                toolName: 'typed',
+                code: ToolErrorCode.VALIDATION_FAILED,
+            });
+        });
+
+        it('logs a failure outside the tool itself as an error', async () => {
+            const logger = createMockLogger();
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'full-access',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                logger
+            );
+            toolManager.setHookSupport(
+                {
+                    executeHooks: vi.fn().mockImplementation(async (hookName, payload) => {
+                        if (hookName === 'beforeToolCall') {
+                            throw new Error('hook crashed');
+                        }
+                        return payload;
+                    }),
+                } as any,
+                {} as any,
+                {} as any
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'a.txt' },
+                toolCallId: 'call-hook-throws',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            await toolManager.executePreparedToolCall(prepared.call, { sessionId: 'session-1' });
+
+            expect(execute).not.toHaveBeenCalled();
+            expect(logger.warn).not.toHaveBeenCalledWith(
+                'Prepared tool execution failed',
+                expect.anything()
+            );
+            expect(logger.error).toHaveBeenCalledWith('Prepared tool execution failed', {
+                toolName: 'write_file',
+                durationMs: expect.any(Number),
+                sessionId: 'session-1',
+            });
         });
 
         it('runs before and after hooks around prepared local execution', async () => {
