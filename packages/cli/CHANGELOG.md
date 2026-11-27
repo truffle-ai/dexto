@@ -1,5 +1,11 @@
 # dexto
 
+## 2.8.1
+
+### Patch Changes
+
+- cd803bd: Accept Dexto catalog model IDs and use Dexto credentials for a fresh default `dexto run`.
+
 ## 2.8.0
 
 ### Minor Changes
