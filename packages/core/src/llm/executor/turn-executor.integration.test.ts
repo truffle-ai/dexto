@@ -29,6 +29,7 @@ import type { LLMContext } from '@dexto/llm';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
+import { ReactiveOverflowCompactionStrategy } from '../../context/compaction/strategies/reactive-overflow-compaction.js';
 import type { BeforeTurnEndDecision, LLMExecutionControl } from '../services/types.js';
 import type { InternalMessage } from '../../context/types.js';
 import { InMemoryDextoStores, InMemoryToolOutputStore } from '../../storage/stores/in-memory.js';
@@ -6314,6 +6315,76 @@ describe('TurnExecutor Integration Tests', () => {
             expect(rawHistorySpy).not.toHaveBeenCalled();
             expect(modelHistorySpy).toHaveBeenCalled();
             expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps exactly the turns an overflow re-compaction preserved', async () => {
+            // The real strategy, compacting on every step: the second compaction reads the model
+            // history, which starts at the first summary, so its count can't index the full one.
+            const reactive = new ReactiveOverflowCompactionStrategy({});
+            const compactionStrategy: CompactionStrategy = {
+                name: reactive.name,
+                getSettings: () => reactive.getSettings(),
+                getModelLimits: (contextWindow) => reactive.getModelLimits(contextWindow),
+                shouldCompact: (tokens) => tokens > 10,
+                compact: (history, context) => reactive.compact(history, context),
+            };
+            vi.mocked(generateText).mockResolvedValue({
+                text: '<session_compaction>Overflow summary</session_compaction>',
+            } as Awaited<ReturnType<typeof generateText>>);
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        finishReason: 'stop',
+                        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+            const compactingExecutor = createExecutorWithCompaction(compactionStrategy);
+            async function addTurns(from: number, to: number) {
+                for (let i = from; i < to; i++) {
+                    await contextManager.addUserMessage([{ type: 'text', text: `Question ${i}` }]);
+                    await contextManager.addAssistantMessage(`Answer ${i}`, []);
+                }
+            }
+            async function modelHistoryTexts() {
+                const { messages } = await contextManager.loadModelHistory();
+                return messages.map((message) =>
+                    message.metadata?.isSummary === true
+                        ? 'summary'
+                        : Array.isArray(message.content)
+                          ? message.content
+                                .map((part) => ('text' in part ? part.text : ''))
+                                .join('')
+                          : String(message.content)
+                );
+            }
+
+            await addTurns(0, 10);
+            await compactingExecutor.execute({ mcpManager }, true);
+            expect(await modelHistoryTexts()).toEqual([
+                'summary',
+                'Question 8',
+                'Answer 8',
+                'Question 9',
+                'Answer 9',
+                'Response',
+            ]);
+
+            await addTurns(10, 20);
+            await compactingExecutor.execute({ mcpManager }, true);
+
+            const history = await contextManager.getHistory();
+            const summaries = history.filter((message) => message.metadata?.isSummary === true);
+            expect(summaries).toHaveLength(2);
+            expect(summaries[1]?.metadata?.isRecompaction).toBe(true);
+            expect(await modelHistoryTexts()).toEqual([
+                'summary',
+                'Question 18',
+                'Answer 18',
+                'Question 19',
+                'Answer 19',
+                'Response',
+            ]);
         });
 
         describe('history reads per step', () => {

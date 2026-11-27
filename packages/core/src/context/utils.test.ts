@@ -1914,6 +1914,171 @@ describe('filterCompacted', () => {
         expect(result[1]?.content).toBe('Recent message');
         expect(result[2]?.content).toBe('Recent response');
     });
+
+    describe('summaries that record their first preserved message', () => {
+        const message = (id: string, metadata?: Record<string, unknown>) =>
+            ({
+                id,
+                role: 'user',
+                content: id,
+                ...(metadata && { metadata }),
+            }) as unknown as InternalMessage;
+
+        it('cuts at the recorded message, not at a count taken over the model history', () => {
+            // An overflow re-compaction summarized [S1, q1, a1, q2, a2] of its model history
+            // (count 5) and kept [q3, a3]. Over the full history, index 5 would be q2.
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('a1'),
+                message('s1', {
+                    isSummary: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'q1',
+                }),
+                message('q2'),
+                message('a2'),
+                message('q3'),
+                message('a3'),
+                message('s2', {
+                    isSummary: true,
+                    isRecompaction: true,
+                    originalMessageCount: 5,
+                    firstPreservedMessageId: 'q3',
+                }),
+                message('q4'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual(['s2', 'q3', 'a3', 'q4']);
+        });
+
+        it('drops an earlier summary between the recorded message and the summary', () => {
+            // The re-compaction kept a1, which the first summary had preserved before itself.
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('a1'),
+                message('s1', {
+                    isSummary: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'q1',
+                }),
+                message('q2'),
+                message('a2'),
+                message('s2', {
+                    isSummary: true,
+                    isRecompaction: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'a1',
+                }),
+                message('q3'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual([
+                's2',
+                'a1',
+                'q2',
+                'a2',
+                'q3',
+            ]);
+        });
+
+        it('keeps the count reading for a legacy summary chain without recorded messages', () => {
+            // Summaries written before firstPreservedMessageId existed keep the old reading.
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('a1'),
+                message('s1', { isSummary: true, originalMessageCount: 2 }),
+                message('q2'),
+                message('a2'),
+                message('q3'),
+                message('a3'),
+                message('s2', { isSummary: true, isRecompaction: true, originalMessageCount: 7 }),
+                message('q4'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual(['s2', 'q3', 'a3', 'q4']);
+        });
+
+        it('keeps every remaining row when the recorded message is not before the summary', () => {
+            // The count would keep only q1; with its anchor gone, it can't be trusted.
+            const history = [
+                message('q0'),
+                message('a0'),
+                message('q1'),
+                message('s0', { isSummary: true, firstPreservedMessageId: 'q0' }),
+                message('s1', {
+                    isSummary: true,
+                    originalMessageCount: 2,
+                    firstPreservedMessageId: 'missing',
+                }),
+                message('q2'),
+            ];
+
+            expect(filterCompacted(history).map((m) => m.id)).toEqual([
+                's1',
+                'q0',
+                'a0',
+                'q1',
+                'q2',
+            ]);
+        });
+
+        it('keeps tool calls with their results when the recorded message is gone', () => {
+            // Three user / tool call / tool result / answer turns, compacted with count 4 and
+            // anchor q1. Without q0 and q1 the count would keep result1 but drop call1.
+            const turn = (i: number) => [
+                { id: `q${i}`, role: 'user', content: `q${i}` },
+                {
+                    id: `call${i}`,
+                    role: 'assistant',
+                    content: null,
+                    toolCalls: [
+                        {
+                            id: `tc${i}`,
+                            type: 'function',
+                            function: { name: 'tool', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    id: `result${i}`,
+                    role: 'tool',
+                    toolCallId: `tc${i}`,
+                    name: 'tool',
+                    content: 'ok',
+                },
+                { id: `answer${i}`, role: 'assistant', content: `answer${i}` },
+            ];
+            const history = [
+                ...turn(0),
+                ...turn(1),
+                ...turn(2),
+                {
+                    id: 's1',
+                    role: 'assistant',
+                    content: 'summary',
+                    metadata: {
+                        isSummary: true,
+                        originalMessageCount: 4,
+                        firstPreservedMessageId: 'q1',
+                    },
+                },
+            ].filter((m) => m.id !== 'q0' && m.id !== 'q1') as unknown as InternalMessage[];
+
+            const kept = filterCompacted(history);
+            const keptCallIds = kept.flatMap((m) =>
+                m.role === 'assistant' ? (m.toolCalls ?? []).map((call) => call.id) : []
+            );
+            const keptResultIds = kept.flatMap((m) => (m.role === 'tool' ? [m.toolCallId] : []));
+            expect(keptResultIds).toEqual(['tc0', 'tc1', 'tc2']);
+            expect(keptCallIds).toEqual(keptResultIds);
+        });
+    });
 });
 
 describe('sanitizeToolResultToContentWithBlobs', () => {

@@ -33,8 +33,17 @@ vi.mock('../session/title-generator.js', async (importOriginal) => {
     };
 });
 
+// Only the compaction summary call; the rest of the AI SDK is real.
+vi.mock('ai', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('ai')>();
+    return { ...actual, generateText: vi.fn() };
+});
+
+import { generateText, type LanguageModel } from 'ai';
 import { createAgentServices } from '../utils/service-initializer.js';
 import { generateSessionTitle } from '../session/title-generator.js';
+import { ReactiveOverflowCompactionStrategy } from '../context/compaction/strategies/reactive-overflow-compaction.js';
+import type { InternalMessage } from '../context/types.js';
 const mockCreateAgentServices = vi.mocked(createAgentServices);
 const mockGenerateSessionTitle = vi.mocked(generateSessionTitle);
 
@@ -221,6 +230,103 @@ describe('DextoAgent Lifecycle Management', () => {
                 expect(contextManager.getHistory).not.toHaveBeenCalled();
             }
         );
+    });
+
+    describe('Manual Compaction', () => {
+        test('a manual re-compaction keeps exactly the turns it preserved', async () => {
+            // Manual compaction reads the full history, so its count indexes that history,
+            // while overflow compaction counts over the model history. Both record the first
+            // preserved message, and the model history cuts there.
+            const agent = createTestAgent(mockValidatedConfig);
+            const sessionId = 'test-session';
+            const conversation = new InMemoryDextoStores().getStore('conversation');
+            vi.mocked(generateText).mockResolvedValue({
+                text: '<session_compaction>Manual summary</session_compaction>',
+            } as Awaited<ReturnType<typeof generateText>>);
+            let nextId = 0;
+            const contextManager = {
+                getHistory: vi.fn(() => conversation.listMessages({ sessionId })),
+                addMessage: (message: InternalMessage) =>
+                    conversation.saveMessage({
+                        sessionId,
+                        message: { ...message, id: message.id ?? `summary-${nextId++}` },
+                    }),
+                resetActualTokenTracking: vi.fn(),
+                getContextTokenEstimate: vi.fn().mockResolvedValue({
+                    estimated: 10,
+                    stats: { filteredMessageCount: 0 },
+                }),
+            };
+            const logger = createLogger({
+                config: LoggerConfigSchema.parse({
+                    level: 'error',
+                    transports: [{ type: 'silent' }],
+                }),
+                agentId: 'test-agent',
+            });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                logger,
+                getContextManager: () => contextManager,
+                getLLMService: () => ({
+                    getCompactionStrategy: () => new ReactiveOverflowCompactionStrategy({}),
+                    getEnabledTools: vi.fn().mockResolvedValue({}),
+                    getLanguageModel: () => ({ modelId: 'test-model' }) as unknown as LanguageModel,
+                }),
+            });
+            async function addTurns(from: number, to: number) {
+                for (let i = from; i < to; i++) {
+                    for (const [role, text] of [
+                        ['user', `Question ${i}`],
+                        ['assistant', `Answer ${i}`],
+                    ] as const) {
+                        await conversation.saveMessage({
+                            sessionId,
+                            message: {
+                                id: text,
+                                role,
+                                content: [{ type: 'text', text }],
+                                ...(role === 'assistant' && {
+                                    assistantOutput: { status: 'complete' },
+                                }),
+                            } as InternalMessage,
+                        });
+                    }
+                }
+            }
+            async function modelHistoryIds() {
+                const { messages } = await conversation.loadModelHistory({ sessionId });
+                return messages.map((message) => message.id);
+            }
+
+            await agent.start();
+            await addTurns(0, 10);
+            await agent.compactContext(sessionId);
+            expect(await modelHistoryIds()).toEqual([
+                'summary-0',
+                'Question 8',
+                'Answer 8',
+                'Question 9',
+                'Answer 9',
+            ]);
+
+            await addTurns(10, 20);
+            await agent.compactContext(sessionId);
+
+            const history = await conversation.listMessages({ sessionId });
+            const summary = history.find((message) => message.id === 'summary-1');
+            expect(summary?.metadata).toMatchObject({
+                isRecompaction: true,
+                firstPreservedMessageId: 'Question 18',
+            });
+            expect(contextManager.getHistory).toHaveBeenCalledTimes(2);
+            expect(await modelHistoryIds()).toEqual([
+                'summary-1',
+                'Question 18',
+                'Answer 18',
+                'Question 19',
+                'Answer 19',
+            ]);
+        });
     });
 
     describe('Prompt Inspection', () => {

@@ -59,6 +59,9 @@ export type CompactionStrategy = {
      *   (used by filterCompacted to determine which messages to exclude)
      *
      * Optional metadata:
+     * - `firstPreservedMessageId: string` - Id of the first message the summary preserves.
+     *   filterCompacted cuts at this message when it is present, since the count's base
+     *   differs between full-history and model-history inputs
      * - `isRecompaction: true` - Set when re-compacting after a previous summary
      * - `isSessionSummary: true` - Alternative to isSummary for session-level summaries
      *

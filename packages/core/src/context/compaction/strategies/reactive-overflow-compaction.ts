@@ -73,6 +73,16 @@ Conversation to summarize:
 };
 
 /**
+ * Records the first message a summary preserves, so filterCompacted() cuts at that message. The
+ * compaction input is the full history (manual) or the model history (overflow), so the summary's
+ * `originalMessageCount` alone can't place the cut. Messages without an id keep the count.
+ */
+function firstPreservedMetadata(toKeep: readonly InternalMessage[]) {
+    const id = toKeep[0]?.id;
+    return id === undefined ? {} : { firstPreservedMessageId: id };
+}
+
+/**
  * ReactiveOverflowCompactionStrategy implements reactive compaction.
  *
  * Key behaviors:
@@ -218,6 +228,7 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
                 isSummary: true,
                 summarizedAt: Date.now(),
                 originalMessageCount: toSummarize.length,
+                ...firstPreservedMetadata(toKeep),
                 originalFirstTimestamp: toSummarize[0]?.timestamp,
                 originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,
             },
@@ -259,7 +270,9 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
         const summary = await this.generateSummary(toSummarize, currentTaskMessage, model, logger);
 
         // Create summary message
-        // originalMessageCount must be an ABSOLUTE index for filterCompacted() to work correctly.
+        // originalMessageCount is an index into this compaction's input: the full history for a
+        // manual compaction, the model history for an overflow one. Readers that haven't upgraded
+        // still use it; filterCompacted() cuts at firstPreservedMessageId instead.
         const absoluteOriginalMessageCount = existingSummaryIndex + 1 + toSummarize.length;
 
         const summaryMessage: InternalMessage = {
@@ -272,6 +285,7 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
                 summarizedAt: Date.now(),
                 originalMessageCount: absoluteOriginalMessageCount,
                 isRecompaction: true,
+                ...firstPreservedMetadata(toKeep),
                 originalFirstTimestamp: toSummarize[0]?.timestamp,
                 originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,
             },
