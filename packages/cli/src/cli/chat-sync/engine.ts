@@ -351,7 +351,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                 );
                 noteOnce(
                     'chat_limit',
-                    `Dexto Cloud keeps up to ${SYNCED_CHAT_LIMIT.toLocaleString('en-US')} synced chats for you, and you have reached that. New chats stay on this machine only; chats already synced keep syncing. Deleting a synced chat makes room: delete it in Dexto Cloud, or delete the local chat with dexto chat delete.`
+                    `Dexto Cloud keeps up to ${SYNCED_CHAT_LIMIT.toLocaleString('en-US')} synced chats for you, and you have reached that. New chats stay on this machine only; chats already synced keep syncing. Deleting a synced chat makes room: delete it in Dexto Cloud, or delete the local chat with dexto chat delete --local.`
                 );
                 return { kind: 'done', state: null };
             }

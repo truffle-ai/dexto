@@ -37,6 +37,29 @@ it.each([
     ]);
 });
 
+it.each([
+    ['history', 'chat-1', '--json'],
+    ['delete', 'chat-1', '--yes', '--json'],
+])(
+    'forwards chat %s to the cloud engine, which opens the local agent only for --local',
+    async (...args) => {
+        const bootstrap = vi.fn();
+        const program = new Command().name('dexto').enablePositionalOptions().exitOverride();
+        registerSessionCommand({
+            program,
+            cliVersion: '2.0.0',
+            bootstrapAgentFromGlobalOpts: bootstrap,
+        });
+        await program.parseAsync(['chat', ...args], { from: 'user' });
+        expect(runCloud).toHaveBeenCalledWith(
+            expect.objectContaining({ openLocalAgent: expect.any(Function) }),
+            ['chat', ...args]
+        );
+        // The engine is mocked, so nothing asked for the local agent: no Skills sync, no boot.
+        expect(bootstrap).not.toHaveBeenCalled();
+    }
+);
+
 it('forwards every public cloud chat command, so none is unreachable from dexto chat', async () => {
     const { cloudCommands } =
         await vi.importActual<typeof import('../../cloud/host.js')>('../../cloud/host.js');

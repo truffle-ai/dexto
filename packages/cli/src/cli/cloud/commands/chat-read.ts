@@ -1,7 +1,11 @@
 // Read your cloud chats: list or search them, read one's messages, and see the models a chat can use.
+// list and history also read this machine's chats with --local.
 
 import { z } from 'zod';
+import type { DextoAgent } from '@dexto/core';
+import { formatHistoryMessage } from '../../commands/helpers/formatters.js';
 import { CommandFailure } from '../../failure.js';
+import { shellWord } from '../../interaction.js';
 import {
     argument,
     choiceOption,
@@ -77,6 +81,31 @@ function parsed<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
     return result.data;
 }
 
+/** The agent that holds this machine's chats; only dexto itself can open it. */
+export async function openLocalChats(context: CommandContext): Promise<DextoAgent> {
+    if (context.openLocalAgent === undefined)
+        throw new CommandFailure(
+            'failed',
+            "This machine's chats are read only by dexto itself.",
+            null
+        );
+    return context.openLocalAgent();
+}
+
+/**
+ * A chat id the side it was looked up on doesn't have, pointing to the other side: a cloud miss to
+ * --local, a --local miss to the cloud chat.
+ */
+export function chatNotFound(verb: 'history' | 'delete', sessionId: string, local: boolean) {
+    const where = local ? 'on this machine' : 'in Dexto Cloud';
+    const other = `dexto chat ${verb} ${shellWord(sessionId)}${local ? '' : ' --local'}`;
+    return new CommandFailure(
+        'not_found',
+        `You have no chat ${sessionId} ${where}. For a chat ${local ? 'in Dexto Cloud' : 'on this machine'}, run: ${other}`,
+        other
+    );
+}
+
 /** This machine's chats, from the local agent's session store, most recently active first. */
 async function listLocalChats(context: CommandContext, input: CommandInput): Promise<void> {
     const cloudOption = Object.keys(list.options ?? {}).find(
@@ -84,13 +113,7 @@ async function listLocalChats(context: CommandContext, input: CommandInput): Pro
     );
     if (cloudOption !== undefined)
         throw new UsageError(`--local lists every chat on this machine; drop --${cloudOption}.`);
-    if (context.openLocalAgent === undefined)
-        throw new CommandFailure(
-            'failed',
-            "This machine's chats are listed only by dexto itself.",
-            null
-        );
-    const agent = await context.openLocalAgent();
+    const agent = await openLocalChats(context);
     const chats = (
         await Promise.all(
             (await agent.listSessions()).map(async (id) => {
@@ -227,28 +250,96 @@ const get: Command = {
         const sessionId = argument(input, 0, 'chat_id');
         const args = { sessionId, ...pageArgs(input) };
         await requireLoginScopes(context, ['sessions:read']);
-        const page = parsed(
-            ChatPageSchema,
-            await queryWorkspaceTool(context, 'dexto_chat_get', args),
-            'chat'
-        );
-        const { session, messages, pagination } = page;
-        const lines = [
-            session.title ?? session.id,
-            session.url,
-            `Status: ${session.status}${session.lastRun === null ? '' : `; last run ${session.lastRun.status}`}`,
-            ...messages.flatMap((message) => [
-                '',
-                `${message.role}, ${message.createdAt}`,
-                message.text,
-            ]),
-        ];
-        if (pagination.nextCursor !== null)
+        const page = await readChatPage(context, args);
+        const lines = chatLines(page);
+        if (page.pagination.nextCursor !== null)
             lines.push(
                 '',
-                `Older messages: dexto chat get ${sessionId} --after ${pagination.nextCursor}`
+                `Older messages: dexto chat get ${sessionId} --after ${page.pagination.nextCursor}`
             );
         context.output.result(page, lines.join('\n'));
+    },
+};
+
+async function readChatPage(
+    context: CommandContext,
+    args: { sessionId: string; limit?: number; cursor?: string }
+): Promise<z.output<typeof ChatPageSchema>> {
+    return parsed(
+        ChatPageSchema,
+        await queryWorkspaceTool(context, 'dexto_chat_get', args),
+        'chat'
+    );
+}
+
+/** A chat's title, link, status and messages, as a person reads them. */
+function chatLines({
+    session,
+    messages,
+}: Pick<z.output<typeof ChatPageSchema>, 'session' | 'messages'>): string[] {
+    return [
+        session.title ?? session.id,
+        session.url,
+        `Status: ${session.status}${session.lastRun === null ? '' : `; last run ${session.lastRun.status}`}`,
+        ...messages.flatMap((message) => [
+            '',
+            `${message.role}, ${message.createdAt}`,
+            message.text,
+        ]),
+    ];
+}
+
+/** Every message of a chat on this machine, read from the local agent's session store. */
+async function localHistory(context: CommandContext, sessionId: string): Promise<void> {
+    const agent = await openLocalChats(context);
+    if ((await agent.getSessionMetadata(sessionId)) === undefined)
+        throw chatNotFound('history', sessionId, true);
+    const messages = await agent.getSessionHistory(sessionId);
+    context.output.result(
+        { sessionId, messages },
+        messages.length === 0
+            ? `Chat ${sessionId} has no messages yet.`
+            : messages.map(formatHistoryMessage).join('\n')
+    );
+}
+
+const history: Command = {
+    path: ['chat', 'history'],
+    arguments: '<chat_id>',
+    summary:
+        "Read every message of a cloud chat, oldest first (sessions:read); --local reads a chat on this machine. dexto chat get reads one page with the chat's status.",
+    options: {
+        local: {
+            type: 'boolean',
+            description: 'Read a chat on this machine instead, from dexto chat list --local.',
+        },
+    },
+    examples: [
+        'dexto chat history "$CHAT_ID"',
+        'dexto chat history "$CHAT_ID" --json',
+        'dexto chat history "$CHAT_ID" --local --json',
+    ],
+    async run(context, input) {
+        const sessionId = argument(input, 0, 'chat_id');
+        if (flag(input, 'local')) return localHistory(context, sessionId);
+        await requireLoginScopes(context, ['sessions:read']);
+        // Each page is in order and pages go back in time, so older pages go in front.
+        let page = await readChatPage(context, { sessionId, limit: 50 }).catch((error: unknown) => {
+            if (error instanceof CommandFailure && error.kind === 'not_found')
+                throw chatNotFound('history', sessionId, false);
+            throw error;
+        });
+        const session = page.session;
+        let messages = page.messages;
+        while (page.pagination.nextCursor !== null) {
+            page = await readChatPage(context, {
+                sessionId,
+                limit: 50,
+                cursor: page.pagination.nextCursor,
+            });
+            messages = [...page.messages, ...messages];
+        }
+        context.output.result({ session, messages }, chatLines({ session, messages }).join('\n'));
     },
 };
 
@@ -273,4 +364,4 @@ const models: Command = {
     },
 };
 
-export const chatReadCommands: readonly Command[] = [list, get, models];
+export const chatReadCommands: readonly Command[] = [list, get, history, models];
