@@ -151,7 +151,7 @@ const install: Command = {
     },
     path: ['marketplace', 'install'],
     summary:
-        'Install a Marketplace listing: a Skill into your library, a Dexto App into your workspace, or an AutoBot template as a new AutoBot.',
+        'Install a Marketplace listing: a Skill into your library or a Dexto App into your workspace. AutoBot templates are hired with dexto autobots hire.',
     examples: [
         'dexto marketplace install "$LISTING_ID" --kind skill --yes --json',
         'dexto marketplace install "$LISTING_ID" --kind dexto-app --release "$RELEASE_ID" --yes',

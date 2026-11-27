@@ -499,19 +499,16 @@ List and get read only and need `automations:read`; create, update, run and dele
 
 ## Work with your AutoBots
 
-List the AutoBots you can use, see what they are doing, and change or message them:
+AutoBots are specialists you hire in Dexto. List the ones you hired, hire one from a template, and message one:
 
 ```bash
 dexto autobots list --json
 dexto autobots get "$AUTOBOT_ID" --json
-dexto autobots status --limit 10 --json
-dexto autobots save --name Scout --role "Watches competitors" --yes --json
-dexto autobots publish "$AUTOBOT_ID" --distribution unlisted --yes --json
-dexto autobots input "$APPROVAL_ID" --data '{"city":"Paris"}' --yes --json
-dexto autobots chat "$AUTOBOT_ID" "What changed this week?" --json
+dexto autobots hire dexto/release-manager --yes --json
+dexto autobots chat "$AUTOBOT_ID" "What changed this week?" --yes --json
 ```
 
-Reading needs `autobots:read`; saving, publishing, answering and chatting need `autobots:write`, and `publish --publish-skills` also needs `skills:write`. `status` without an id pages with `--limit` (at most 20) and `--after`, the `next_after` cursor of the previous page; its pending input shows the `approvalId` that `input` answers. `save` without an id creates a private AutoBot from `--name` and `--role`; with an id it changes only what you pass. Starters, model and skills go in `--data` or `--file` as the save JSON. `save`, `publish` and `input` ask first, so pass `--yes` once your person has agreed. When publishing would also publish Skills that are not public yet, `publish` stops and exits 4; run it again with `--publish-skills` to publish them too. An AutoBot that is neither yours nor shared with your organization is not found (exit 5).
+Reading needs `autobots:read`, `hire` needs `autobots:write` and `chat` needs `sessions:write`. `list` shows each AutoBot's role and whether it waits on you; `get`, and `list --json`, add the goal it agreed with you and its address (`agent:autobots:<id>`). `hire` takes a template as `publisher/slug` (Dexto's own start with `dexto/`); it installs the template's Skills into your library and opens a first meeting in Dexto. `chat` sends to the AutoBot's own conversation and steers its current turn unless `--follow-up`. `hire` and `chat` ask first, so pass `--yes` once your person has agreed. An AutoBot you didn't hire is not found (exit 5).
 
 ## The Marketplace
 
