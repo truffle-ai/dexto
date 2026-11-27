@@ -97,6 +97,7 @@ import {
     getPermissionsModeDeprecationWarning,
     applyStartupLLMFallback,
     applyUserPreferences,
+    hasUsableCredentials,
 } from './config/cli-overrides.js';
 import { CommandFailure } from './cli/failure.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
@@ -419,16 +420,21 @@ async function bootstrapAgentFromGlobalOpts(options: {
         !effectiveModel &&
         !globalOpts.agent &&
         isDextoAuthEnabled() &&
+        (await (await import('./cli/utils/setup-utils.js')).requiresSetup()) &&
+        !hasUsableCredentials(mergedConfig.llm.provider, mergedConfig.llm) &&
         !LLM_PROVIDERS.some(
             (provider) => provider !== 'dexto-nova' && resolveApiKeyForProvider(provider)
         ) &&
-        (await (await import('./cli/utils/setup-utils.js')).requiresSetup()) &&
         (await dextoGateway.dextoModelAccess(dextoGateway.defaultDextoGatewayOptions())).status ===
             'ready';
     printPermissionsModeDeprecation(mergedConfig);
     if (dextoModel !== undefined || useDextoDefault) {
+        const selectedModel = dextoModel ?? FIRST_RUN_DEXTO_MODEL;
+        if (rawConfig.llm.provider !== 'dexto-nova' || rawConfig.llm.model !== selectedModel) {
+            delete mergedConfig.llm.reasoning;
+        }
         mergedConfig.llm.provider = 'dexto-nova';
-        mergedConfig.llm.model = dextoModel ?? FIRST_RUN_DEXTO_MODEL;
+        mergedConfig.llm.model = selectedModel;
         delete mergedConfig.llm.apiKey;
         delete mergedConfig.llm.baseURL;
     } else if (effectiveModel) {

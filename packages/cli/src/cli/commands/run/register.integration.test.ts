@@ -330,6 +330,63 @@ ${ordinaryConfig}    requiresApproval: false
         ).toBe(true);
     });
 
+    it('does not inherit incompatible reasoning from an agent when selecting a catalog model', async () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+        const reasoningAgent = join(directory, 'reasoning-agent.yml');
+        await writeFile(
+            reasoningAgent,
+            (await readFile(configPath, 'utf8')).replace(
+                '  maxInputTokens:',
+                '  reasoning:\n    variant: incompatible-variant\n  maxInputTokens:'
+            )
+        );
+        const { stdout } = await run(
+            ['run', 'say hello', '--json', '-m', 'dexto/xai/grok-4.7'],
+            {
+                DEXTO_FEATURE_AUTH: 'true',
+                DEXTO_API_KEY: 'test-dexto-key',
+                DEXTO_PUBLIC_API_URL: `http://127.0.0.1:${address.port}`,
+            },
+            reasoningAgent
+        );
+        expect(JSON.parse(stdout)).toMatchObject({
+            status: 'completed',
+            content: 'audit complete',
+        });
+        expect(modelRequests[0]).toMatchObject({ model: 'xai/grok-4.7', authorized: true });
+    });
+
+    it('keeps an installed default agent with its own provider key', async () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+        const customHome = join(directory, 'custom-home');
+        const agentsDir = join(customHome, '.dexto', 'agents');
+        await mkdir(agentsDir, { recursive: true });
+        await writeFile(
+            join(agentsDir, 'registry.json'),
+            JSON.stringify({
+                agents: [{ id: 'coding-agent', name: 'Custom', description: '', configPath }],
+            })
+        );
+        const { stdout } = await run(
+            ['run', 'say hello', '--json'],
+            {
+                HOME: customHome,
+                USERPROFILE: customHome,
+                DEXTO_FEATURE_AUTH: 'true',
+                DEXTO_API_KEY: 'test-dexto-key',
+                DEXTO_PUBLIC_API_URL: `http://127.0.0.1:${address.port}`,
+            },
+            null
+        );
+        expect(JSON.parse(stdout)).toMatchObject({
+            status: 'completed',
+            content: 'audit complete',
+        });
+        expect(modelRequests[0]).toMatchObject({ model: 'audit-model', authorized: false });
+    });
+
     it('starts a fresh default run on Dexto models with an API key', async () => {
         const address = server.address();
         if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
