@@ -1,5 +1,5 @@
 // Managed Function operations on the account MCP, distinct from Cloud project deployments.
-import { CommandFailure } from '../../failure.js';
+import { CommandFailure, EXIT_CODES } from '../../failure.js';
 import { z } from 'zod';
 import {
     argument,
@@ -27,7 +27,7 @@ const PACKAGE: PackageKind = {
 const DRY_RUN = {
     'dry-run': {
         type: 'boolean',
-        description: 'Show the action without uploading or making the call.',
+        description: 'Preview locally without sending anything to Dexto.',
     },
 } as const satisfies Record<string, OptionSpec>;
 
@@ -45,7 +45,10 @@ function publicPathsInPackage(bytes: Uint8Array): string[] {
     const routes = PackageRoutesSchema.safeParse(value);
     if (!routes.success)
         throw new UsageError('The Function package must have a valid public routes list.');
-    return routes.data.routes.map((route) => route.pathPrefix);
+    return routes.data.routes.map((route) => {
+        const path = route.pathPrefix.trim();
+        return path === '/' ? path : path.replace(/\/+$/u, '');
+    });
 }
 
 const plan: Command = {
@@ -99,13 +102,20 @@ const deploy: Command = {
         const bytes = await readPackage(file, PACKAGE);
         const publicPaths = publicPathsInPackage(bytes);
         if (dryRun) {
-            context.output.record({
-                dryRun: true,
-                tool: 'dexto_function_deploy',
-                package: file,
-                arguments: call,
-                publicPaths,
-            });
+            const message =
+                'Nothing was sent, so Dexto checked nothing. The CLI read only the routes list for this preview.';
+            context.output.result(
+                {
+                    dryRun: true,
+                    checkedByDexto: false,
+                    tool: 'dexto_function_deploy',
+                    package: file,
+                    arguments: call,
+                    publicPaths,
+                    message,
+                },
+                `Would deploy ${file} to production with ${access === 'public' ? 'public internet access' : 'private default access'}; public routes: ${JSON.stringify(publicPaths)}. ${message}`
+            );
             return;
         }
         const tool = (await listWorkspaceTools(context)).find(
@@ -170,7 +180,8 @@ const credential: Command = {
                 { projectId, deploymentId, credential },
                 `Configure ${kind === 'dexto-api-key' ? 'a Dexto API key' : `declared secret ${name}`} for deployment ${deploymentId} of Function ${projectId}`
             );
-            if (isJsonObject(result) && result.status === 'input_required') return 6;
+            if (isJsonObject(result) && result.status === 'input_required')
+                return EXIT_CODES.waiting_on_person;
         } catch (error) {
             // This operation's existing refusal names the missing deployment-key scopes in text.
             const match =
@@ -249,7 +260,11 @@ async function write(
     title: string
 ): Promise<unknown> {
     if (flag(input, 'dry-run')) {
-        context.output.record({ dryRun: true, tool: name, arguments: call });
+        const message = 'Nothing was sent, so Dexto checked nothing.';
+        context.output.result(
+            { dryRun: true, checkedByDexto: false, tool: name, arguments: call, message },
+            `Would call ${name} with ${JSON.stringify(call)}. ${message}`
+        );
         return null;
     }
     await context.connection({ pin: true });

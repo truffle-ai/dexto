@@ -221,7 +221,12 @@ export async function readPackage(
         throw new UsageError(
             `${file} is ${formatBytes(found.size)}; ${kind.label} can be up to ${formatBytes(kind.maxBytes)}.`
         );
-    return new Uint8Array(await readFile(file));
+    const bytes = new Uint8Array(await readFile(file));
+    if (bytes.byteLength > kind.maxBytes)
+        throw new UsageError(
+            `${file} is ${formatBytes(bytes.byteLength)}; ${kind.label} can be up to ${formatBytes(kind.maxBytes)}.`
+        );
+    return bytes;
 }
 
 /** Uploads a package for its purpose and returns the path the deploy tools take. */

@@ -55,10 +55,10 @@ describe('workspace functions deploy', () => {
         );
         await writeFile(
             file,
-            JSON.stringify({ routes: [{ access: 'public', pathPrefix: '/webhooks' }] })
+            JSON.stringify({ routes: [{ access: 'public', pathPrefix: ' /webhooks/ ' }] })
         );
         const prompt = vi.fn().mockResolvedValue('yes');
-        const output = { record: vi.fn() };
+        const output = { record: vi.fn(), result: vi.fn() };
         const context = {
             connection: async () => ({ kind: 'oauth', login: { scopes: ['functions:write'] } }),
             output,
@@ -84,8 +84,9 @@ describe('workspace functions deploy', () => {
             (c) => c.path.join(' ') === 'workspace functions deploy'
         );
         await command?.run(context, { positionals: [file], values: { 'dry-run': true } });
-        expect(output.record).toHaveBeenCalledWith(
-            expect.objectContaining({ publicPaths: ['/webhooks'] })
+        expect(output.result).toHaveBeenCalledWith(
+            expect.objectContaining({ publicPaths: ['/webhooks'], checkedByDexto: false }),
+            expect.stringContaining('Nothing was sent, so Dexto checked nothing.')
         );
         await command?.run(context, { positionals: [file], values: {} });
         expect(prompt).toHaveBeenCalledWith(expect.stringContaining('/webhooks'), {
@@ -397,7 +398,7 @@ it('passes a server refusal through without replacing it', async () => {
 });
 
 it('shows a dry run without signing in or sending a write', async () => {
-    const output = { record: vi.fn() };
+    const output = { result: vi.fn() };
     const context = { output } as unknown as CommandContext;
     const command = managedFunctionCommands.find(
         (c) => c.path.join(' ') === 'workspace functions promote'
@@ -406,11 +407,16 @@ it('shows a dry run without signing in or sending a write', async () => {
         positionals: ['project', 'deployment'],
         values: { 'dry-run': true },
     });
-    expect(output.record).toHaveBeenCalledWith({
-        dryRun: true,
-        tool: 'dexto_function_promote',
-        arguments: { projectId: 'project', deploymentId: 'deployment' },
-    });
+    expect(output.result).toHaveBeenCalledWith(
+        {
+            dryRun: true,
+            checkedByDexto: false,
+            tool: 'dexto_function_promote',
+            arguments: { projectId: 'project', deploymentId: 'deployment' },
+            message: 'Nothing was sent, so Dexto checked nothing.',
+        },
+        expect.stringContaining('Nothing was sent, so Dexto checked nothing.')
+    );
     expect(query).not.toHaveBeenCalled();
 });
 

@@ -159,6 +159,78 @@ it('dispatches plan through the CLI and emits the tool result as JSON', async ()
     expect(JSON.parse(stdout)).toEqual({ default: 'local', providers: ['local'] });
 });
 
+it('says a deploy dry run did not validate a rejected package', async () => {
+    const file = path.join(path.dirname(dir), 'deploy-request.json');
+    await writeFile(
+        file,
+        JSON.stringify({ routes: [{ access: 'public', pathPrefix: '/_dexto' }] })
+    );
+    expect(
+        await runCloud(host, ['workspace', 'functions', 'deploy', file, '--dry-run', '--json'])
+    ).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+        dryRun: true,
+        checkedByDexto: false,
+        publicPaths: ['/_dexto'],
+        message: expect.stringContaining('Nothing was sent, so Dexto checked nothing.'),
+    });
+    expect(JSON.parse(stdout).message).toContain('only the routes list');
+    expect(calls).toHaveLength(0);
+});
+
+it('says a write dry run was not checked by Dexto', async () => {
+    expect(
+        await runCloud(host, [
+            'workspace',
+            'functions',
+            'promote',
+            'project',
+            'deployment',
+            '--dry-run',
+            '--json',
+        ])
+    ).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+        dryRun: true,
+        checkedByDexto: false,
+        message: expect.stringContaining('Nothing was sent, so Dexto checked nothing.'),
+    });
+    expect(calls).toHaveLength(0);
+});
+
+it('shows the honest dry-run message at a terminal', async () => {
+    host = { ...host, runtime: { ...host.runtime, stdoutIsTerminal: true } };
+    expect(
+        await runCloud(host, [
+            'workspace',
+            'functions',
+            'promote',
+            'project',
+            'deployment',
+            '--dry-run',
+        ])
+    ).toBe(0);
+    expect(stdout).toContain('Nothing was sent, so Dexto checked nothing.');
+    expect(stdout).toContain('project');
+    expect(stdout).toContain('deployment');
+    expect(calls).toHaveLength(0);
+});
+
+it('explains the deploy dry run read only routes at a terminal', async () => {
+    const file = path.join(path.dirname(dir), 'deploy-request.json');
+    await writeFile(
+        file,
+        JSON.stringify({ routes: [{ access: 'public', pathPrefix: '/_dexto' }] })
+    );
+    host = { ...host, runtime: { ...host.runtime, stdoutIsTerminal: true } };
+    expect(await runCloud(host, ['workspace', 'functions', 'deploy', file, '--dry-run'])).toBe(0);
+    expect(stdout).toContain('Nothing was sent, so Dexto checked nothing.');
+    expect(stdout).toContain('only the routes list');
+    expect(stdout).toContain('private default access');
+    expect(stdout).toContain('/_dexto');
+    expect(calls).toHaveLength(0);
+});
+
 it('prints the secure credential URL as JSON', async () => {
     expect(
         await runCloud(host, [
