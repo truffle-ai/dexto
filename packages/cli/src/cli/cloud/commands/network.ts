@@ -64,6 +64,7 @@ const COLUMNS: readonly Column<Thread>[] = [
 ];
 
 const list: Command = {
+    examples: ['dexto workspace network list --json'],
     path: ['workspace', 'network', 'list'],
     summary: 'List your Network conversations in this organization, newest first, unread marked.',
     async run(context) {
@@ -103,9 +104,9 @@ const read: Command = {
     summary:
         'Read a Network conversation, newest page first, by thread id or --contact. Reading never marks it read.',
     examples: [
-        'dexto workspace network read <thread_id>',
-        'dexto workspace network read --contact <contact_id> --before 21',
-        'dexto workspace network read <thread_id> --message 7 --offset 4000',
+        'dexto workspace network read "$THREAD_ID" --json',
+        'dexto workspace network read --contact "$CONTACT_ID" --before 21 --json',
+        'dexto workspace network read "$THREAD_ID" --message 7 --offset 4000 --json',
     ],
     async run(context, input) {
         await requireLoginScopes(context, ['network:read']);
@@ -143,7 +144,7 @@ const markRead: Command = {
     path: ['workspace', 'network', 'mark-read'],
     summary:
         'Mark a Network conversation read through a message sequence, once its messages have been told to you.',
-    examples: ['dexto workspace network mark-read <thread_id> --through 21'],
+    examples: ['dexto workspace network mark-read "$THREAD_ID" --through 21 --json'],
     async run(context, input) {
         await requireLoginScopes(context, ['network:write']);
         const threadId = argument(input, 0, 'thread_id');
@@ -176,7 +177,7 @@ const send: Command = {
     summary:
         'Send this exact text (or - for stdin) to one of your accepted connections, by contact id, as your message.',
     examples: [
-        'dexto workspace network send <contact_id> "See you at 3." --idempotency-key reply-1 --yes',
+        'dexto workspace network send "$CONTACT_ID" "See you at 3." --idempotency-key reply-1 --yes --json',
     ],
     async run(context, input) {
         await requireLoginScopes(context, ['network:write']);

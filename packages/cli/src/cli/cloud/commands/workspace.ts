@@ -100,6 +100,7 @@ const tools: Command = {
             type: 'string',
         },
     },
+    examples: ['dexto workspace tools --search search --json'],
     path: ['workspace', 'tools'],
     summary: 'List the workspace tools your sign-in can call.',
     async run(context, input) {
@@ -122,6 +123,7 @@ const tools: Command = {
 
 const describe: Command = {
     arguments: '<tool>',
+    examples: ['dexto workspace describe dexto_search --json'],
     path: ['workspace', 'describe'],
     summary: "Show a workspace tool's description and the input it takes.",
     async run(context, input) {
@@ -156,6 +158,7 @@ const describe: Command = {
 const call: Command = {
     arguments: '<tool>',
     options: { ...BODY_OPTIONS, ...YES_OPTION },
+    examples: ['dexto workspace call dexto_search --data \'{"query":"invoices"}\' --json'],
     path: ['workspace', 'call'],
     summary:
         'Call a workspace tool with its input as JSON, such as: dexto workspace call dexto_search --data \'{"query":"invoices"}\'',

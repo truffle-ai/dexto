@@ -66,6 +66,7 @@ const list: Command = {
         blocked: { description: 'List the people you blocked instead.', type: 'boolean' },
         query: { description: 'Only people whose name or @handle has this text.', type: 'string' },
     },
+    examples: ['dexto workspace contacts list --json'],
     path: ['workspace', 'contacts', 'list'],
     summary: 'List your Contacts in this organization, or with --blocked the people you blocked.',
     async run(context, input) {
@@ -83,6 +84,7 @@ const list: Command = {
 
 const search: Command = {
     arguments: '<query>',
+    examples: ['dexto workspace contacts search "Alex" --json'],
     path: ['workspace', 'contacts', 'search'],
     summary:
         'Find Dexto people not in your Contacts yet by name or @handle, with what contacts connect needs.',
@@ -99,6 +101,7 @@ const search: Command = {
 };
 
 const requests: Command = {
+    examples: ['dexto workspace contacts requests --json'],
     path: ['workspace', 'contacts', 'requests'],
     summary: 'List connection requests: incoming ones waiting for you, and ones you sent.',
     async run(context) {
@@ -111,6 +114,7 @@ const requests: Command = {
 };
 
 const inviteLink: Command = {
+    examples: ['dexto workspace contacts invite-link --json'],
     path: ['workspace', 'contacts', 'invite-link'],
     summary: 'Show your invite link, for people not on Dexto yet.',
     async run(context) {
@@ -135,6 +139,9 @@ const connect: Command = {
         },
         ...YES_OPTION,
     },
+    examples: [
+        'dexto workspace contacts connect @alex --user "$USER_ID" --organization "$ORGANIZATION_ID" --yes --json',
+    ],
     path: ['workspace', 'contacts', 'connect'],
     summary:
         'Ask someone from contacts search to connect, by handle, --user and --organization. Asks first.',
@@ -167,6 +174,7 @@ function contactChange(
 ): Command {
     return {
         arguments: '<contact_id>',
+        examples: [`dexto workspace contacts ${word} "$CONTACT_ID" --yes --json`],
         options: YES_OPTION,
         path: ['workspace', 'contacts', word],
         summary,

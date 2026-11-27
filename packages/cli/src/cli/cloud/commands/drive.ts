@@ -93,6 +93,7 @@ const put: Command = {
             valueName: 'FOLDER_ID',
         },
     },
+    examples: ['dexto workspace drive put ./report.txt --json'],
     path: ['workspace', 'drive', 'put'],
     summary:
         'Upload local files and folders (dotfiles left out) to your Drive; a file already there by name gets a new version, unless its bytes are the same.',
