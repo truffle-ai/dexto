@@ -146,17 +146,18 @@ const DEXTO_SIGN_IN =
     'Dexto models need a sign-in that may spend credits. Run dexto login --scope cloud:write, or pick another model.';
 
 /**
- * A model that can't run for want of its provider's key, as ACP's auth_required error saying what
- * to set; any other error unchanged.
+ * A model that can't run for want of its provider's key, as an error saying what to set; any other
+ * error unchanged. Only a Dexto model gets auth_required, since apps answer that with the offered
+ * Dexto sign-in, which can't supply another provider's key.
  */
 export function keyRequired(error: unknown): unknown {
     const provider = providerMissingKey(error);
     if (provider === null) return error;
-    return acp.RequestError.authRequired(
+    if (provider === 'dexto-nova')
+        return acp.RequestError.authRequired({ provider }, DEXTO_SIGN_IN);
+    return acp.RequestError.invalidRequest(
         { provider },
-        provider === 'dexto-nova'
-            ? DEXTO_SIGN_IN
-            : `Set ${getPrimaryApiKeyEnvVar(provider)} to use ${provider} models, or pick another model.`
+        `Set ${getPrimaryApiKeyEnvVar(provider)} to use ${provider} models, or pick another model.`
     );
 }
 
