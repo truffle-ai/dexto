@@ -592,6 +592,19 @@ describe('dexto cloud', () => {
     });
 
     describe('who you are, your models and credits, under the same contract', () => {
+        it('provides copyable JSON examples for account profile commands', async () => {
+            const commands = host.commands.filter((command) => command.path[0] === 'accounts');
+            expect(commands.length).toBeGreaterThanOrEqual(3);
+            for (const command of commands) {
+                stdout = '';
+                expect(await runCloud(host, [...command.path, '--help', '--json'])).toBe(0);
+                const help = JSON.parse(stdout) as { examples?: string[] };
+                expect(help.examples, command.path.join(' ')).toEqual(
+                    expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+                );
+            }
+        });
+
         it('says who commands act as, as JSON', async () => {
             await dextoAccounts.writeLogin(dir, 'default', signedIn());
 

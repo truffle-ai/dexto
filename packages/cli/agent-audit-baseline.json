@@ -4,21 +4,21 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "accounts remove",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": true,
-    "examples": false
+    "examples": true
   },
   {
     "command": "accounts use",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "acp",
