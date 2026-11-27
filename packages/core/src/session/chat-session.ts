@@ -156,9 +156,9 @@ export class ChatSession {
     /**
      * AbortController for the currently running turn, if any.
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
+     * It stays set until the run has unwound, so a cancelled run keeps the session busy.
      */
     private currentRunController: AbortController | null = null;
-    private turnDriverActive = false;
 
     public readonly logger: Logger;
 
@@ -670,12 +670,11 @@ export class ChatSession {
     }
 
     public async createTurnDriver(input: ChatSessionTurnDriverInput): Promise<TurnDriver> {
-        if (this.currentRunController !== null) {
+        if (this.isBusy()) {
             throw SessionError.busy(this.id);
         }
 
         this.currentRunController = new AbortController();
-        this.turnDriverActive = true;
         const startedAt = input.kind === 'resume' ? input.state.startedAtMs : Date.now();
         let runCompleted = false;
         const markRunCompleted = () => {
@@ -812,7 +811,6 @@ export class ChatSession {
             if (!driverCreated) {
                 detachForwarders?.();
                 this.currentRunController = null;
-                this.turnDriverActive = false;
             }
         }
     }
@@ -831,7 +829,6 @@ export class ChatSession {
             closed = true;
             detachForwarders();
             this.currentRunController = null;
-            this.turnDriverActive = false;
         };
 
         return {
@@ -1067,13 +1064,11 @@ export class ChatSession {
 
     /**
      * Check if this session is currently processing a message.
-     * An aborted turn driver remains busy until it closes and releases its event forwarding.
+     * A cancelled run stays busy until it unwinds: it still shares this session's event bus, so a
+     * newer run could otherwise receive its late run:complete, or lose its own to it.
      */
     public isBusy(): boolean {
-        return (
-            this.turnDriverActive ||
-            (this.currentRunController !== null && !this.currentRunController.signal.aborted)
-        );
+        return this.currentRunController !== null;
     }
 
     /**
