@@ -322,6 +322,40 @@ describe('Context Compaction Integration Tests', () => {
         });
     });
 
+    describe('Recorded first preserved message', () => {
+        const textOf = (message: InternalMessage) =>
+            message.metadata?.isSummary === true
+                ? 'summary'
+                : Array.isArray(message.content)
+                  ? message.content.map((part) => ('text' in part ? part.text : '')).join('')
+                  : String(message.content);
+
+        it('keeps the rows still there when the recorded message is gone', async () => {
+            await addMessages(10);
+            const summary = await runCompaction();
+            const history = await contextManager.getHistory();
+            const anchor = history.find((m) => m.id === summary?.metadata?.firstPreservedMessageId);
+            expect(summary?.metadata?.originalMessageCount).toBe(16);
+            expect(anchor && textOf(anchor)).toBe('Question 8');
+
+            // Read the history without its first two rows and the anchor. The count (16) would
+            // now land on Answer 9 and drop Answer 8 and Question 9, which no summary covered.
+            const removed = new Set(['Question 0', 'Answer 0', 'Question 8']);
+            const filtered = filterCompacted(history.filter((m) => !removed.has(textOf(m))));
+
+            expect(filtered.map(textOf)).toEqual([
+                'summary',
+                ...Array.from({ length: 7 }, (_, i) => [
+                    `Question ${i + 1}`,
+                    `Answer ${i + 1}`,
+                ]).flat(),
+                'Answer 8',
+                'Question 9',
+                'Answer 9',
+            ]);
+        });
+    });
+
     describe('Edge Cases', () => {
         it('should not compact if history is too short', async () => {
             await addMessages(1); // Only 2 messages
