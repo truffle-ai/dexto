@@ -114,9 +114,10 @@ Use `@` to reference files and resources:
 - **Start and follow**: `dexto chat start "message" --wait`, `dexto chat follow "$CHAT_ID"`
 - **Continue one**: `dexto chat send "$CHAT_ID" "message" [--follow-up] [--model ID] [--wait] --yes` steers its current turn, or with `--follow-up` queues the message for after it; an idle chat starts its next turn. `--wait` prints only what follows your message
 - **Stop its run**: `dexto chat cancel "$CHAT_ID" --yes`; the chat stays, and an idle one returns `cancelled: false`
+- **Delete one**: `dexto chat delete "$CHAT_ID" --yes` deletes one of your own cloud chats, with its computer and stored outputs; it can't be undone. `--local` deletes a chat on this machine (and its synced copy) instead
 - **Fork one**: `dexto chat fork "$CHAT_ID" [--message "$MESSAGE_ID"] --yes` creates a new chat through the chosen message, or the latest when omitted. Use `--dry-run` to preview the call without sending it.
 
-Each takes `--json`. They read your chats with the `sessions:read` permission of `dexto login`; `send`, `cancel` and `fork` need `sessions:write`.
+Each takes `--json`. They read your chats with the `sessions:read` permission of `dexto login`; `send`, `cancel`, `fork` and `delete` need `sessions:write`.
 
 ### Model Switching
 

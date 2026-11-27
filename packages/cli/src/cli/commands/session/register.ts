@@ -5,6 +5,7 @@ import { HELD_COMMANDS } from '../../cloud/held-commands.js';
 const LOCAL_AGENT_MODES: Readonly<Record<string, BootstrapAgentMode>> = {
     move: 'non-interactive',
     list: 'headless-run',
+    delete: 'headless-run',
 };
 
 export function registerSessionCommand({
@@ -38,31 +39,6 @@ export function registerSessionCommand({
             })
         );
 
-    chatCommand
-        .command('delete')
-        .description('Delete a chat')
-        .argument('<sessionId>', 'The chat to delete')
-        .action(
-            withAnalytics('chat delete', async (sessionId: string) => {
-                let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
-                try {
-                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
-
-                    const { handleSessionDeleteCommand } = await import('../session-commands.js');
-                    await handleSessionDeleteCommand(agent, sessionId);
-                    safeExit('chat delete', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto chat delete command failed: ${err}`);
-                    safeExit('chat delete', 1, 'error');
-                } finally {
-                    if (agent) {
-                        await agent.stop().catch(() => {});
-                    }
-                }
-            })
-        );
-
     // The cloud command engine owns these verbs and their options; analytics records only names.
     for (const [word, description] of Object.entries({
         local: 'List Claude Code and Codex chats on this machine that Dexto can import',
@@ -81,6 +57,7 @@ export function registerSessionCommand({
         agents: 'List the agent profiles you can chat with in the cloud',
         'browser-profiles': 'List your browser profiles for a cloud chat',
         share: 'Set who in your organization can open one of your cloud chats',
+        delete: "Delete one of your cloud chats, or this machine's with --local",
         move: 'Move a synced chat and its working tree to cloud or local',
         watch: 'Stay attached to a chat on its cloud computer',
     }).filter(([word]) => !HELD_COMMANDS.has(`chat ${word}`)))

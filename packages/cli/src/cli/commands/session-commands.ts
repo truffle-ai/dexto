@@ -95,33 +95,3 @@ export async function handleSessionHistoryCommand(
         throw error;
     }
 }
-
-/**
- * Delete a session
- */
-export async function handleSessionDeleteCommand(
-    agent: DextoAgent,
-    sessionId: string
-): Promise<void> {
-    try {
-        // Note: For non-interactive CLI, there's no concept of "current session"
-        // We just delete the requested session without restrictions
-        await agent.deleteSession(sessionId);
-        console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
-        // Its copy in Dexto Cloud goes too, now or the next time this account can reach it.
-        const { nodeChatSync } = await import('../chat-sync/node.js');
-        const { deletedCopyText } = await import('../chat-sync/notices.js');
-        const copy = await nodeChatSync(() => undefined)
-            .deleteLocalChat(sessionId)
-            .catch(() => 'pending' as const);
-        const said = deletedCopyText(copy);
-        if (said !== null) console.log(chalk.yellow(said));
-    } catch (error) {
-        logger.error(
-            `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
-            null,
-            'red'
-        );
-        throw error;
-    }
-}

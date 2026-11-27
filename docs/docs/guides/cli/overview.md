@@ -217,10 +217,12 @@ dexto chat history my-session-id
 
 #### `chat delete`
 
-Delete a specific session.
+Delete one of your own cloud chats, with its computer and stored outputs. It can't be undone, so it asks first; agents pass `--yes` once the person agreed. `--local` deletes a chat stored on this machine (see `dexto chat list --local`) and its synced copy instead.
 
 ```bash
-dexto chat delete old-session-id
+dexto chat delete "$CHAT_ID" --yes --json
+dexto chat delete "$CHAT_ID" --profile work --yes
+dexto chat delete "$CHAT_ID" --local --yes
 ```
 
 #### `chat local` and `chat import`

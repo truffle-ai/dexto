@@ -22,6 +22,7 @@ import { importCommands } from './commands/import.js';
 import { creditCommands } from './commands/credits.js';
 import { chatOutputsCommand } from './commands/chat-outputs.js';
 import { chatReadCommands } from './commands/chat-read.js';
+import { chatDeleteCommand } from './commands/chat-delete.js';
 import { chatShareCommand } from './commands/chat-share.js';
 import { chatProjectCommands } from './commands/chat-projects.js';
 import { computerKeyCommands } from './commands/computer-keys.js';
@@ -125,6 +126,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...chatReadCommands,
         ...importCommands,
         chatOutputsCommand,
+        chatDeleteCommand,
         chatShareCommand,
         ...chatProjectCommands,
         ...connectionCommands,
