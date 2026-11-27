@@ -1,5 +1,11 @@
 # dexto
 
+## 2.11.0
+
+### Minor Changes
+
+- 758fc8d: Add workspace sharing commands to grant and revoke organization and person access.
+
 ## 2.10.0
 
 ### Minor Changes
