@@ -1360,8 +1360,10 @@ tools:
                         JSON.stringify(['anthropic', 'claude-sonnet-4-5-20250929', null])
                     )
                 ).rejects.toMatchObject({
-                    code: -32000,
+                    // Not auth_required: Dexto sign-in can't supply an Anthropic key.
+                    code: -32600,
                     message: expect.stringContaining('ANTHROPIC_API_KEY'),
+                    data: { provider: 'anthropic' },
                 });
                 await expect(
                     setOption(
@@ -1373,6 +1375,7 @@ tools:
                 ).rejects.toMatchObject({
                     code: -32000,
                     message: expect.stringContaining('dexto login'),
+                    data: { provider: 'dexto-nova' },
                 });
                 // The session keeps its model and still answers.
                 await expect(prompt(cx, sessionId, 'say hello')).resolves.toEqual({
@@ -1425,7 +1428,7 @@ setup:
                 await expect(
                     cx.request(acp.methods.agent.session.new, { cwd: directory, mcpServers: [] })
                 ).rejects.toMatchObject({
-                    code: -32000,
+                    code: -32600,
                     message: expect.stringContaining('ANTHROPIC_API_KEY'),
                 });
             },
