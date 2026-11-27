@@ -89,7 +89,7 @@ const publish: Command = {
     options: {
         name: {
             description:
-                "What it's called: the page's title and, with your handle, its address (default: the file or folder's name). Publishing the same name again updates the same link.",
+                "What it's called: the page's title and, with your handle, its address (default: the file or folder's name; an index file takes its folder's name). Publishing the same name again updates the same link.",
             type: 'string',
         },
         slug: {
@@ -157,11 +157,7 @@ const publish: Command = {
         if (found === null || !(found.isFile() || found.isDirectory()))
             throw new UsageError(`${target} isn't a file or folder.`);
         const isZip = found.isFile() && /\.zip$/iu.test(target);
-        const name =
-            stringOption(input, 'name') ??
-            (found.isDirectory()
-                ? path.basename(target)
-                : path.basename(target, path.extname(target)));
+        const name = stringOption(input, 'name') ?? defaultName(target, found.isDirectory());
         const slug = stringOption(input, 'slug');
         const title = stringOption(input, 'title');
 
@@ -359,6 +355,13 @@ const publish: Command = {
         );
     },
 };
+
+/** The file or folder's name without its extension; an `index` file is named after its folder. */
+function defaultName(target: string, isDirectory: boolean): string {
+    if (isDirectory) return path.basename(target);
+    const name = path.basename(target, path.extname(target));
+    return name.toLowerCase() === 'index' ? path.basename(path.dirname(target)) : name;
+}
 
 /** The folder's files, by path, leaving out names that start with a dot and links. */
 async function readFolder(folder: string): Promise<ZipFile[]> {
