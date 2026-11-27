@@ -130,6 +130,8 @@ MCP is a key part of what makes Dexto flexible, extensible, and able to automate
 
 ## Next Steps
 
+- [Read shared memory from Loom](./loom.md) - Connect to an existing deployment and read a saved memory without an LLM
+
 - **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration)** - Comprehensive YAML configuration
 - [MCP Resources](./resources) - Expose data and context from MCP servers
 - [MCP Prompts](./prompts) - Discover and use templated prompts
