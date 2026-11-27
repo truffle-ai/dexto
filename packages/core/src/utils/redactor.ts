@@ -361,10 +361,15 @@ function redactValue(
     if (typeof input !== 'object' || input === null) return input;
 
     if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) return describeBinary(input);
+    // A Date's or RegExp's own text can be replaced (an own toISOString or toString), so it is
+    // redacted like any other string.
     if (input instanceof Date) {
-        return Number.isNaN(input.getTime()) ? 'Invalid Date' : input.toISOString();
+        if (Number.isNaN(input.getTime())) return 'Invalid Date';
+        return redactValue(String(input.toISOString()), walk, mode, insideSecret, depth);
     }
-    if (input instanceof RegExp) return String(input);
+    if (input instanceof RegExp) {
+        return redactValue(String(input), walk, mode, insideSecret, depth);
+    }
     if (input instanceof URL) {
         const withoutCredentials = new URL(input.href);
         withoutCredentials.username = '';

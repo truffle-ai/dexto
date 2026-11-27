@@ -33,6 +33,32 @@ describe('safeStringify', () => {
         expect(safeStringify({ nested: value }, CAP)).toBe('{"nested":{"visible":"kept"}}');
     });
 
+    it('redacts a top-level symbol description and keeps an ordinary one', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+
+        expect(safeStringify(Symbol(`key ${secret}`))).toBe('Symbol(key [REDACTED])');
+        expect(safeStringify(Symbol('plain'))).toBe('Symbol(plain)');
+        expect(safeStringify(undefined)).toBe('undefined');
+    });
+
+    it('redacts the text of a Date or RegExp whose own conversion was replaced', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        const date = Object.assign(new Date('2026-01-02T03:04:05.000Z'), {
+            toISOString: () => secret,
+        });
+        const pattern = Object.assign(/a+b/g, { toString: () => secret });
+
+        expect(safeStringify({ date, pattern })).toBe(
+            '{"date":"[REDACTED]","pattern":"[REDACTED]"}'
+        );
+        expect(safeStringify(date)).toBe('"[REDACTED]"');
+        expect(safeStringify(pattern)).toBe('"[REDACTED]"');
+
+        const selfReturning = new Date('2026-01-02T03:04:05.000Z');
+        Object.assign(selfReturning, { toISOString: () => selfReturning });
+        expect(safeStringify(selfReturning)).toBe(JSON.stringify(String(selfReturning)));
+    });
+
     it('does not invoke toJSON on function values or install them as a prototype', () => {
         const secret = `sk-proj-${'a1'.repeat(20)}`;
         const inherited = Object.assign(() => {}, { toJSON: () => secret });
