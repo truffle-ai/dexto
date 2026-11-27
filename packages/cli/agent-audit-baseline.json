@@ -1610,10 +1610,38 @@
     "examples": true
   },
   {
+    "command": "workspace share organization",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "workspace share people",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "workspace share received",
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": true
+  },
+  {
+    "command": "workspace share unshare-organization",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "workspace share unshare-person",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
     "examples": true
   },
   {

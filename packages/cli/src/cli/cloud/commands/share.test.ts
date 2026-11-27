@@ -64,6 +64,7 @@ describe('sharing reads over the Dexto MCP', () => {
     let calls: { name: string; arguments: unknown }[];
     let replies: Reply[];
     let terminal: boolean;
+    let prompt: CloudRuntime['prompt'];
     let host: CloudHost;
 
     async function cli(...args: string[]): Promise<number> {
@@ -79,6 +80,7 @@ describe('sharing reads over the Dexto MCP', () => {
         calls = [];
         replies = [];
         terminal = false;
+        prompt = null;
         await dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
             accessToken: 'access-1',
@@ -116,7 +118,9 @@ describe('sharing reads over the Dexto MCP', () => {
                           }
                 );
             },
-            prompt: null,
+            get prompt() {
+                return prompt;
+            },
             readStdin: async () => '',
             runProcess: async () => ({ exitCode: 0, output: '' }),
             signal: new AbortController().signal,
@@ -261,6 +265,32 @@ describe('sharing reads over the Dexto MCP', () => {
             role: 'editor',
             confirm: true,
         });
+    });
+
+    it('explains chat editor access and credit use before asking for consent', async () => {
+        let question = '';
+        prompt = async (text) => {
+            question = text;
+            return 'yes';
+        };
+        replies = [{ result: { added: [], title: 'Chat' } }];
+        expect(
+            await cli(
+                'workspace',
+                'share',
+                'people',
+                'chat',
+                'chat-1',
+                '--user-id',
+                '5b0e7c8a-1d2e-4f3a-9b4c-5d6e7f8a9b0c',
+                '--role',
+                'editor',
+                '--json'
+            ),
+            stderr
+        ).toBe(0);
+        expect(question).toContain('send messages');
+        expect(question).toContain("organization's credits");
     });
 
     it('revokes organization and person access as act calls without an approval field', async () => {

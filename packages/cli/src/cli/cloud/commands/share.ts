@@ -133,7 +133,7 @@ const organization: Command = {
 const people: Command = {
     path: ['workspace', 'share', 'people'],
     arguments: '<kind> <id>',
-    summary: `Share something you own with people in its organization. Kind is ${KIND_HELP}.`,
+    summary: `Share something you own with people in its organization. Kind is ${KIND_HELP}. Chat editors can send messages using your organization's credits, counted as your usage.`,
     examples: ['dexto workspace share people drive "$FILE_ID" --user-id "$USER_ID" --yes --json'],
     jsonOutput: outputSchema(z.object({ added: z.array(z.string()), title: z.string() })),
     options: {
@@ -154,7 +154,7 @@ const people: Command = {
             context,
             input,
             { action: 'people', ...target, userIds, ...grant },
-            `Share ${target.kind} ${target.id} with ${userIds.join(', ')} as ${grant.role ?? 'viewer'}.`
+            `Share ${target.kind} ${target.id} with ${userIds.join(', ')} as ${grant.role ?? 'viewer'}.${target.kind === 'chat' && grant.role === 'editor' ? " They can send messages using your organization's credits, counted as your usage." : ''}`
         );
     },
 };
