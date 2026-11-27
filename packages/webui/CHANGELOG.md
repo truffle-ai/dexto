@@ -1,5 +1,17 @@
 # @dexto/webui
 
+## 1.21.3
+
+### Patch Changes
+
+- @dexto/analytics@1.21.3
+- @dexto/client-sdk@1.21.3
+- @dexto/core@1.21.3
+- @dexto/storage@1.21.3
+- @dexto/llm@1.21.3
+- @dexto/agent-config@1.21.3
+- @dexto/registry@1.21.3
+
 ## 1.21.2
 
 ### Patch Changes
