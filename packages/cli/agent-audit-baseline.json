@@ -1155,6 +1155,13 @@
     "examples": false
   },
   {
+    "command": "projects archive",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "projects create",
     "json": true,
     "dryRun": false,
@@ -1187,7 +1194,7 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
-    "examples": false
+    "examples": true
   },
   {
     "command": "projects move",
@@ -1202,6 +1209,13 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
+  },
+  {
+    "command": "projects restore",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": true
   },
   {
     "command": "projects run",

@@ -38,10 +38,19 @@ const ProjectSchema = z
             })
             .passthrough(),
         pinnedAt: z.string().nullable(),
+        archivedAt: z.string().nullable().optional(),
         updatedAt: z.string(),
     })
     .passthrough();
 const ProjectResultSchema = z.object({ project: ProjectSchema }).passthrough();
+const ArchiveOutputSchema = z.union([
+    ProjectResultSchema,
+    z.object({
+        dryRun: z.literal(true),
+        tool: z.string(),
+        arguments: z.object({ project: z.string() }),
+    }),
+]);
 
 const ChatStartedSchema = z
     .object({
@@ -102,8 +111,14 @@ function projectLine(project: z.output<typeof ProjectSchema>): string {
 
 const list: Command = {
     path: ['projects', 'list'],
-    summary: 'List your Projects, optionally only those matching words or imported from a tool.',
+    summary: 'List your active Projects, or archived Projects with --archived.',
+    examples: ['dexto projects list --archived --json'],
+    jsonOutput: {
+        description: 'Matching Project records.',
+        schema: z.toJSONSchema(z.object({ data: z.array(ProjectSchema) })),
+    },
     options: {
+        archived: { type: 'boolean', description: 'List only archived Projects.' },
         query: {
             type: 'string',
             valueName: 'TEXT',
@@ -124,6 +139,7 @@ const list: Command = {
             await queryWorkspaceTool(context, 'dexto_projects_list', {
                 ...(query === undefined ? {} : { query }),
                 ...(importedFrom === undefined ? {} : { importedFrom }),
+                ...(flag(input, 'archived') ? { archived: true } : {}),
             }),
             'Project list'
         );
@@ -151,6 +167,83 @@ const get: Command = {
                 'Project'
             )
         );
+    },
+};
+
+async function changeArchiveState(
+    context: CommandContext,
+    input: CommandInput,
+    action: 'archive' | 'restore'
+): Promise<void> {
+    const project = argument(input, 0, 'project');
+    const tool = action === 'archive' ? 'dexto_project_archive' : 'dexto_project_restore';
+    await requireLoginScopes(context, ['projects:write', 'automations:write']);
+    if (flag(input, 'dry-run')) {
+        context.output.result(
+            { dryRun: true, tool, arguments: { project } },
+            `Would ${action} Project ${project}.`
+        );
+        return;
+    }
+    const effect =
+        action === 'archive'
+            ? 'Its active Loops will pause.'
+            : 'Loops paused by archiving may resume.';
+    await requireConsent(
+        context,
+        flag(input, 'yes'),
+        `${action === 'archive' ? 'Archive' : 'Restore'} Project ${project}? ${effect}`
+    );
+    const result = parsed(
+        ProjectResultSchema,
+        await queryWorkspaceTool(context, tool, { project }),
+        'Project'
+    );
+    context.output.result(
+        result,
+        `${action === 'archive' ? 'Archived' : 'Restored'} Project ${projectLine(result.project)}.`
+    );
+}
+
+const archive: Command = {
+    path: ['projects', 'archive'],
+    arguments: PROJECT_ARGUMENT,
+    summary: 'Archive a Project and pause its active Loops.',
+    examples: ['dexto projects archive "$PROJECT" --yes --json'],
+    jsonOutput: {
+        description: 'Project after archiving, or the proposed dry-run call.',
+        schema: z.toJSONSchema(ArchiveOutputSchema),
+    },
+    options: {
+        'dry-run': {
+            type: 'boolean',
+            description: 'Show the operation without changing the Project.',
+        },
+        ...YES_OPTION,
+    },
+    async run(context, input) {
+        await changeArchiveState(context, input, 'archive');
+    },
+};
+
+const restore: Command = {
+    path: ['projects', 'restore'],
+    arguments: PROJECT_ARGUMENT,
+    summary: 'Restore an archived Project and resume eligible Loops paused by its archiving.',
+    examples: ['dexto projects restore "$PROJECT" --yes --json'],
+    jsonOutput: {
+        description: 'Project after restoring, or the proposed dry-run call.',
+        schema: z.toJSONSchema(ArchiveOutputSchema),
+    },
+    options: {
+        'dry-run': {
+            type: 'boolean',
+            description: 'Show the operation without changing the Project.',
+        },
+        ...YES_OPTION,
+    },
+    async run(context, input) {
+        await changeArchiveState(context, input, 'restore');
     },
 };
 
@@ -555,6 +648,8 @@ const installRecipe: Command = {
 export const chatProjectCommands: readonly Command[] = [
     list,
     get,
+    archive,
+    restore,
     create,
     update,
     remove,

@@ -66,7 +66,7 @@ describe('projects over the Dexto MCP', () => {
         stderr = '';
         calls = [];
         replies = [];
-        await signIn(['projects:read', 'projects:write', 'sessions:write']);
+        await signIn(['projects:read', 'projects:write', 'automations:write', 'sessions:write']);
         const runtime: CloudRuntime = {
             color: false,
             environment: {},
@@ -133,6 +133,15 @@ describe('projects over the Dexto MCP', () => {
         expect(output()).toEqual({ data: [project] });
     });
 
+    it('lists archived Projects with the other filters', async () => {
+        replies = [{ projects: [project] }];
+        expect(await cli('projects', 'list', '--archived', '--query', 'road'), stderr).toBe(0);
+        expect(calls).toEqual([
+            { name: 'dexto_projects_list', arguments: { query: 'road', archived: true } },
+        ]);
+        expect(output()).toEqual({ data: [project] });
+    });
+
     it('checks filters and the sign-in permission before calling the server', async () => {
         expect(await cli('projects', 'list', '--imported-from', 'cursor')).toBe(2);
         await signIn(['sessions:read']);
@@ -147,6 +156,72 @@ describe('projects over the Dexto MCP', () => {
         expect(calls[0]).toEqual({ name: 'dexto_project_get', arguments: { project: PROJECT_ID } });
         expect(output().project.id).toBe(PROJECT_ID);
     });
+
+    it('archives a Project with consent, and previews without changing it', async () => {
+        expect(await cli('projects', 'archive', PROJECT_ID, '--dry-run'), stderr).toBe(0);
+        expect(output()).toEqual({
+            dryRun: true,
+            tool: 'dexto_project_archive',
+            arguments: { project: PROJECT_ID },
+        });
+        expect(await cli('projects', 'archive', PROJECT_ID)).toBe(4);
+        expect(calls).toEqual([]);
+        stdout = '';
+        replies = [{ project: { ...project, archivedAt: '2026-11-27T00:00:00.000Z' } }];
+        expect(await cli('projects', 'archive', PROJECT_ID, '--yes'), stderr).toBe(0);
+        expect(calls).toEqual([
+            { name: 'dexto_project_archive', arguments: { project: PROJECT_ID } },
+        ]);
+        expect(output()).toEqual({
+            project: { ...project, archivedAt: '2026-11-27T00:00:00.000Z' },
+        });
+    });
+
+    it('restores a Project by link after checking both write scopes', async () => {
+        const link = `https://app.dexto.ai/desktop/apps/chat/projects/${PROJECT_ID}`;
+        await signIn(['projects:write']);
+        expect(await cli('projects', 'restore', link, '--yes')).toBe(3);
+        expect(stderr).toContain('automations:write');
+        expect(calls).toEqual([]);
+        await signIn(['projects:write', 'automations:write']);
+        expect(await cli('projects', 'restore', link)).toBe(4);
+        expect(calls).toEqual([]);
+        stdout = '';
+        replies = [{ project: { ...project, archivedAt: null } }];
+        expect(await cli('projects', 'restore', link, '--yes'), stderr).toBe(0);
+        expect(calls).toEqual([{ name: 'dexto_project_restore', arguments: { project: link } }]);
+        expect(output()).toEqual({ project: { ...project, archivedAt: null } });
+    });
+
+    it.each(['archive', 'restore'])(
+        '%s requires both write scopes and supports dry-run',
+        async (action) => {
+            await signIn(['automations:write']);
+            expect(await cli('projects', action, PROJECT_ID, '--yes')).toBe(3);
+            expect(stderr).toContain('projects:write');
+            expect(calls).toEqual([]);
+            await signIn(['projects:write', 'automations:write']);
+            stdout = '';
+            expect(await cli('projects', action, PROJECT_ID, '--dry-run'), stderr).toBe(0);
+            expect(output()).toEqual({
+                dryRun: true,
+                tool: `dexto_project_${action}`,
+                arguments: { project: PROJECT_ID },
+            });
+            expect(calls).toEqual([]);
+        }
+    );
+
+    it.each(['list', 'archive', 'restore'])(
+        'documents %s output and examples in JSON help',
+        async (action) => {
+            expect(await runCloud(host, ['projects', action, '--help', '--json'])).toBe(0);
+            expect(output().examples).toContain(
+                `dexto projects ${action} ${action === 'list' ? '--archived' : '"$PROJECT" --yes'} --json`
+            );
+            expect(JSON.stringify(output().json_output.schema)).toContain('archivedAt');
+        }
+    );
 
     it('asks before creating a Project and creates it with --yes', async () => {
         expect(await cli('projects', 'create', 'Roadmap')).toBe(4);
