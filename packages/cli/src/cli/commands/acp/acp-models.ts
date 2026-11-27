@@ -114,7 +114,8 @@ async function chooseModel(agent: DextoAgent, sessionId: string, value: string):
             {
                 provider: model.provider,
                 model: model.model,
-                ...(model.baseURL ? { baseURL: model.baseURL } : {}),
+                // No endpoint on the chosen model means the provider's default, not the current one.
+                baseURL: model.baseURL ?? null,
             },
             sessionId
         );

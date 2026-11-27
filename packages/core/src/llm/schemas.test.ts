@@ -580,6 +580,11 @@ describe('LLMConfigSchema', () => {
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
 
+            it('should allow resetting the endpoint with a null baseURL', () => {
+                const updates = { model: 'llama3.2', baseURL: null } as const;
+                expect(LLMUpdatesSchema.parse(updates).baseURL).toBeNull();
+            });
+
             it('should still reject null reasoning in full config schema', () => {
                 const config = {
                     ...LLMTestHelpers.getValidConfigForProvider('openai'),

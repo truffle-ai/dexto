@@ -627,7 +627,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             provider,
                             model,
-                            baseURL,
+                            // No endpoint on the chosen model means the provider's default.
+                            baseURL: baseURL ?? null,
                             ...buildReasoningSwitchUpdate(provider, model, reasoningVariant),
                         },
                         session.id || undefined
@@ -779,7 +780,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 provider,
                                 model,
-                                ...(baseURL ? { baseURL } : {}),
+                                baseURL: baseURL ?? null,
                                 ...switchReasoningUpdate,
                             },
                             session.id || undefined
@@ -1046,7 +1047,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             provider: pending.provider,
                             model: pending.model,
-                            ...(pending.baseURL && { baseURL: pending.baseURL }),
+                            baseURL: pending.baseURL ?? null,
                             ...buildReasoningSwitchUpdate(
                                 pending.provider,
                                 pending.model,

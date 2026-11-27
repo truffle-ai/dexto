@@ -184,4 +184,48 @@ describe('resolveAndValidateLLMConfig', () => {
         expect(result.ok).toBe(true);
         if (result.ok) expect(result.data.baseURL).toBe('http://127.0.0.1:9999/v1');
     });
+
+    it("uses the provider's default endpoint when the update resets baseURL to null", async () => {
+        const remoteOllama = LLMConfigSchema.parse({
+            provider: 'ollama',
+            model: 'llama3.2',
+            baseURL: 'http://gpu-box.internal:11434',
+            maxInputTokens: 32768,
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            remoteOllama,
+            { provider: 'ollama', model: 'qwen3', baseURL: null, maxInputTokens: 32768 },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.model).toBe('qwen3');
+            expect(result.data.baseURL).toBeUndefined();
+        }
+    });
+
+    it('uses an explicit baseURL from the update over the previous one', async () => {
+        const remoteOllama = LLMConfigSchema.parse({
+            provider: 'ollama',
+            model: 'llama3.2',
+            baseURL: 'http://gpu-box.internal:11434',
+            maxInputTokens: 32768,
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            remoteOllama,
+            {
+                provider: 'ollama',
+                model: 'qwen3',
+                baseURL: 'http://other-box.internal:11434',
+                maxInputTokens: 32768,
+            },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.data.baseURL).toBe('http://other-box.internal:11434');
+    });
 });

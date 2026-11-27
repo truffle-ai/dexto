@@ -286,6 +286,8 @@ const LLMUpdatesBaseSchema = z
         // Special-case: allow `null` as an explicit "clear reasoning config" sentinel for switch flows.
         // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
         reasoning: LLMConfigFields.reasoning.nullable(),
+        // `null` means "the provider's default endpoint"; leaving baseURL out keeps the current one.
+        baseURL: LLMConfigFields.baseURL.nullable(),
     })
     .partial()
     .strict();

@@ -1301,6 +1301,34 @@ tools:
         return configOptions;
     }
 
+    it("uses the provider's default endpoint when the chosen model has none", async () => {
+        const remoteOllamaConfigPath = join(directory, 'agent-remote-ollama.yml');
+        await writeFile(
+            remoteOllamaConfigPath,
+            (await readFile(configPath, 'utf8')).replace(
+                /llm:\n(?: {2}.*\n)+/,
+                `llm:\n  provider: ollama\n  model: llama3.2\n  maxInputTokens: 32768\n  baseURL: ${serverUrl()}\n`
+            )
+        );
+        await withAgent(
+            allow,
+            async (cx) => {
+                const created = await cx.request(acp.methods.agent.session.new, {
+                    cwd: directory,
+                    mcpServers: [],
+                });
+                expect(configOption(created.configOptions, 'model').currentValue).toBe(
+                    JSON.stringify(['ollama', 'llama3.2', serverUrl()])
+                );
+                const local = JSON.stringify(['ollama', 'qwen3', null]);
+                const chosen = await setOption(cx, created.sessionId, 'model', local);
+                expect(configOption(chosen, 'model').currentValue).toBe(local);
+            },
+            undefined,
+            { config: remoteOllamaConfigPath }
+        );
+    }, 60000);
+
     it("offers the Dexto account's models and the chosen model's reasoning effort", async () => {
         await withAgent(
             allow,
