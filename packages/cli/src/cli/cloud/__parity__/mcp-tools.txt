@@ -2219,6 +2219,7 @@
       "inputSchema": {
         "properties": {
           "collection": {},
+          "expectedVersion": {},
           "recordId": {},
           "siteId": {},
           "value": {}

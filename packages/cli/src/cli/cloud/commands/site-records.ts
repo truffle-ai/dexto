@@ -1,12 +1,14 @@
 // `workspace sites records`: the records in a Site's data collections, over Dexto's Site record tools.
 
 import { CommandFailure } from '../../failure.js';
+import { shellWord } from '../../interaction.js';
 
 import { z } from 'zod';
 
 import {
     argument,
     BODY_OPTIONS,
+    boundedOption,
     flag,
     integerOption,
     readJsonBody,
@@ -20,10 +22,18 @@ import {
 } from '../command.js';
 import type { Column } from '../output.js';
 import { requireLoginScopes } from './deploys.js';
-import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
+import {
+    agreeToCall,
+    listWorkspaceTools,
+    queryWorkspaceTool,
+    toolCallLevel,
+    WorkspaceToolFailure,
+} from './workspace.js';
 
 /** The most records one list returns, as the Site records tool allows. */
 const MAX_LIMIT = 100;
+/** The largest record version the Site record tools take: a Postgres integer. */
+const MAX_VERSION = 2_147_483_647;
 
 const RecordSchema = z
     .object({
@@ -151,24 +161,73 @@ const update: Command = {
     arguments: '<site_id> <collection> <record_id>',
     examples: [
         'dexto workspace sites records update "$SITE_ID" signups "$RECORD_ID" --file record.json --yes --json',
+        'dexto workspace sites records update "$SITE_ID" signups "$RECORD_ID" --file record.json --expected-version 3 --yes --json',
     ],
-    options: { ...VALUE_OPTIONS, ...DRY_RUN_OPTION, ...YES_OPTION },
+    options: {
+        ...VALUE_OPTIONS,
+        'expected-version': {
+            description:
+                'The record version you read; a record changed since is refused as a conflict. Read it again and retry.',
+            type: 'string',
+            valueName: 'N',
+        },
+        ...DRY_RUN_OPTION,
+        ...YES_OPTION,
+    },
     path: ['workspace', 'sites', 'records', 'update'],
     summary: "Replace one record's value in a collection of a Site you created. Asks first.",
     async run(context, input) {
         const where = collectionOf(input);
         const recordId = idArgument(input, 2, 'record_id');
-        const call = { ...where, recordId, value: await readRecordValue(context, input) };
+        const expectedVersion = boundedOption(input, 'expected-version', 1, MAX_VERSION);
+        const call = {
+            ...where,
+            ...(expectedVersion === undefined ? {} : { expectedVersion }),
+            recordId,
+            value: await readRecordValue(context, input),
+        };
         const record = await write(
             context,
             input,
             'dexto_site_record_update',
             call,
             `Replace record ${recordId} in ${where.collection}`
-        );
+        ).catch((error: unknown) => {
+            // The record moved on since the version given: the message carries it as it is now.
+            if (error instanceof WorkspaceToolFailure && error.data.kind === 'conflict')
+                throw new CommandFailure(
+                    'conflict',
+                    error.message,
+                    readAgain(context, where, recordId)
+                );
+            throw error;
+        });
         if (record !== null) context.output.result(record.value, `Updated record ${record.id}.`);
     },
 };
+
+/** How to read the record again, with its current version, before retrying an update. */
+function readAgain(
+    context: CommandContext,
+    where: { collection: string; siteId: string },
+    recordId: string
+): string {
+    const profile = context.overrides.profile;
+    return [
+        'dexto',
+        'workspace',
+        'sites',
+        'records',
+        'get',
+        where.siteId,
+        where.collection,
+        recordId,
+        ...(profile === null ? [] : ['--profile', profile]),
+        '--json',
+    ]
+        .map(shellWord)
+        .join(' ');
+}
 
 const remove: Command = {
     arguments: '<site_id> <collection> <record_id>',
