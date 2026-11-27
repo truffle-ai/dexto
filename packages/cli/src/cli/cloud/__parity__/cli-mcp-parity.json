@@ -50,6 +50,8 @@
         "marketplace get": ["dexto_marketplace_get"],
         "marketplace install": ["dexto_marketplace_install"],
         "marketplace uninstall": ["dexto_marketplace_uninstall"],
+        "messages list": ["dexto_direct_conversations_list"],
+        "messages read": ["dexto_direct_conversation_get"],
         "marketplace preview": ["dexto_marketplace_preview"],
         "marketplace publish": ["dexto_marketplace_publish"],
         "marketplace unpublish": ["dexto_marketplace_unpublish"],
@@ -645,16 +647,6 @@
             "tool": "dexto_chat_continue",
             "issue": "DEXTO-4079",
             "reason": "The chat continue command follows upstream."
-        },
-        {
-            "tool": "dexto_direct_conversation_get",
-            "issue": "DEXTO-3777",
-            "reason": "The direct conversation list and read commands follow upstream."
-        },
-        {
-            "tool": "dexto_direct_conversations_list",
-            "issue": "DEXTO-3777",
-            "reason": "The direct conversation list and read commands follow upstream."
         },
         {
             "tool": "dexto_direct_message_send",
