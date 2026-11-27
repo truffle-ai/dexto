@@ -854,7 +854,7 @@ const continueChat: Command = {
         const what = result.replayed ? 'Already continued with this key' : 'Continued';
         context.output.result(
             result,
-            `${what} ${name}: run ${result.run.id}. Follow it: dexto chat follow ${shellWord(result.session.id)}\n${result.session.url}`
+            `${what} ${name}: run ${result.run.id}. Follow it: dexto chat follow ${shellWord(result.session.id)}\n${result.session.url}\nIdempotency key: ${idempotencyKey} (the same key and message never start a second turn)`
         );
         return 0;
     },

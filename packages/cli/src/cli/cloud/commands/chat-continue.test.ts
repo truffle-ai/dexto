@@ -97,6 +97,7 @@ describe('chat continue', () => {
         expect(query.mock.calls[0]?.[2]).not.toHaveProperty('model');
         expect(stdout()).toContain('Continued Fix the bug: run run-2.');
         expect(stdout()).toContain('dexto chat follow chat-1');
+        expect(stdout()).toContain(`Idempotency key: ${String(key)}`);
     });
 
     it('says when the key replayed a continuation that was already accepted', async () => {

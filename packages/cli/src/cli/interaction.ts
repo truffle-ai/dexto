@@ -42,12 +42,24 @@ export function requireInteractive(interactive: boolean, flag: string): void {
         );
 }
 
-/** The invocation with extra arguments, quoted for a shell. */
+/**
+ * The invocation with extra options, quoted for a shell. They go before a `--`, after which every
+ * word is an argument, so the rerun still reads them as options.
+ */
 export function rerunWith(
     context: Pick<InteractionContext, 'invocation'>,
     ...extra: string[]
 ): string {
-    return ['dexto', ...context.invocation, ...extra].map(shellWord).join(' ');
+    const separator = context.invocation.indexOf('--');
+    const words =
+        separator === -1
+            ? [...context.invocation, ...extra]
+            : [
+                  ...context.invocation.slice(0, separator),
+                  ...extra,
+                  ...context.invocation.slice(separator),
+              ];
+    return ['dexto', ...words].map(shellWord).join(' ');
 }
 
 export function shellWord(word: string): string {
