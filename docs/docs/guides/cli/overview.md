@@ -508,7 +508,7 @@ dexto autobots hire dexto/release-manager --yes --json
 dexto autobots chat "$AUTOBOT_ID" "What changed this week?" --yes --json
 ```
 
-Reading needs `autobots:read`, `hire` needs `autobots:write` and `chat` needs `sessions:write`. `list` and `get` show each AutoBot's role, the goal it agreed with you, whether it waits on you, and its address (`agent:autobots:<id>`). `hire` takes a template as `publisher/slug` (Dexto's own start with `dexto/`); it installs the template's Skills into your library and opens a first meeting in Dexto. `chat` sends to the AutoBot's own conversation and steers its current turn unless `--follow-up`. `hire` and `chat` ask first, so pass `--yes` once your person has agreed. An AutoBot you didn't hire is not found (exit 5).
+Reading needs `autobots:read`, `hire` needs `autobots:write` and `chat` needs `sessions:write`. `list` shows each AutoBot's role and whether it waits on you; `get`, and `list --json`, add the goal it agreed with you and its address (`agent:autobots:<id>`). `hire` takes a template as `publisher/slug` (Dexto's own start with `dexto/`); it installs the template's Skills into your library and opens a first meeting in Dexto. `chat` sends to the AutoBot's own conversation and steers its current turn unless `--follow-up`. `hire` and `chat` ask first, so pass `--yes` once your person has agreed. An AutoBot you didn't hire is not found (exit 5).
 
 ## The Marketplace
 

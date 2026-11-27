@@ -65,7 +65,7 @@ function templateAddress(value: string): { publisherHandle: string; templateSlug
 const list: Command = {
     path: ['autobots', 'list'],
     summary:
-        'List the AutoBots you hired: each one’s role, whether it waits on you, and the address that reaches it.',
+        'List the AutoBots you hired: each one’s role and whether it waits on you. --json adds its goal and the address that reaches it.',
     examples: ['dexto autobots list', 'dexto autobots list --json'],
     async run(context) {
         await requireLoginScopes(context, ['autobots:read']);
