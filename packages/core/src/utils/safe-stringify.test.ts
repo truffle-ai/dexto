@@ -94,6 +94,37 @@ describe('safeStringify', () => {
         expect(reads).toBeLessThan(100);
     });
 
+    it('does not read a sensitive error array past the length budget', () => {
+        let reads = 0;
+        const values = new Proxy(
+            Array.from({ length: 100_000 }, () => 'secret'),
+            {
+                get(target, key, receiver) {
+                    if (typeof key === 'string' && /^\d+$/.test(key)) reads += 1;
+                    return Reflect.get(target, key, receiver);
+                },
+            }
+        );
+        const error = Object.assign(new Error('failure'), { accessToken: values, stack: 'stack' });
+
+        safeStringify(error, 500);
+        expect(reads).toBeLessThan(100);
+    });
+
+    it('does not preserve an error array subclass with a toJSON method', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        class SensitiveArray extends Array<string> {
+            toJSON() {
+                return secret;
+            }
+        }
+        const error = Object.assign(new Error('failure'), {
+            clientSecret: new SensitiveArray('value'),
+        });
+
+        expect(safeStringify(error).includes(secret)).toBe(false);
+    });
+
     it('bounds deeply nested objects even without a length limit', () => {
         let value: Record<string, unknown> = { leaf: true };
         for (let level = 0; level < 5000; level += 1) value = { nested: value };

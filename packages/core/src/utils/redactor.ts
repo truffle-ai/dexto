@@ -526,11 +526,22 @@ function redactEntry(
         if (isSensitiveLogKey(key)) {
             if (typeof value === 'string') return REDACTED;
             if (Array.isArray(value)) {
-                return value.map((item) =>
-                    typeof item === 'string'
-                        ? REDACTED
-                        : redactValue(item, walk, mode, false, depth)
-                );
+                const items: unknown[] = [];
+                for (const item of value) {
+                    if (walk.budget <= 0) {
+                        items.push(TRUNCATED);
+                        break;
+                    }
+                    items.push(
+                        spend(
+                            walk,
+                            typeof item === 'string'
+                                ? REDACTED
+                                : redactValue(item, walk, mode, false, depth)
+                        )
+                    );
+                }
+                return items;
             }
         }
     }
