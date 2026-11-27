@@ -29,12 +29,18 @@ describe('headless CLI process output', () => {
     let noApprovalConfigPath: string;
     let home: string;
     const denialFeedback: string[] = [];
+    const modelRequests: { model: string; authorized: boolean; path: string | undefined }[] = [];
 
     beforeAll(async () => {
         server = createServer(async (request, response) => {
             let body = '';
             for await (const chunk of request) body += chunk;
             const input = JSON.parse(body);
+            modelRequests.push({
+                model: input.model,
+                authorized: request.headers.authorization === 'Bearer test-dexto-key',
+                path: request.url,
+            });
             const protectedTask = input.tools?.some(
                 (tool: { function: { name: string } }) =>
                     tool.function.name === 'protected_operation'
@@ -227,6 +233,7 @@ ${ordinaryConfig}    requiresApproval: false
 
     beforeEach(async () => {
         denialFeedback.length = 0;
+        modelRequests.length = 0;
         await rm(ordinaryEffectPath, { force: true });
     });
 
@@ -239,10 +246,14 @@ ${ordinaryConfig}    requiresApproval: false
         if (directory) await rm(directory, { recursive: true, force: true });
     });
 
-    function run(args: string[], env: Record<string, string> = {}) {
+    function run(
+        args: string[],
+        env: Record<string, string> = {},
+        agent: string | null = configPath
+    ) {
         return execute(
             process.execPath,
-            ['--import', tsx, entrypoint, '--agent', configPath, ...args],
+            ['--import', tsx, entrypoint, ...(agent === null ? [] : ['--agent', agent]), ...args],
             {
                 cwd: directory,
                 env: {
@@ -260,6 +271,89 @@ ${ordinaryConfig}    requiresApproval: false
             }
         );
     }
+
+    it.each([
+        ['run', 'say hello', '--json', '-m', 'dexto/xai/grok-4.7'],
+        ['-m', 'dexto/xai/grok-4.7', 'run', 'say hello', '--json'],
+    ])('runs a catalog model with a Dexto API key: %s', async (...args) => {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+        const { stdout } = await run(args, {
+            DEXTO_FEATURE_AUTH: 'true',
+            DEXTO_API_KEY: 'test-dexto-key',
+            DEXTO_PUBLIC_API_URL: `http://127.0.0.1:${address.port}`,
+        });
+        expect(JSON.parse(stdout)).toMatchObject({
+            status: 'completed',
+            content: 'audit complete',
+        });
+        expect(modelRequests).toEqual([
+            { model: 'xai/grok-4.7', authorized: true, path: '/v1/chat/completions' },
+        ]);
+    });
+
+    it('asks for sign-in when a catalog model is selected without credentials', async () => {
+        await expect(
+            run(['run', 'say hello', '--json', '-m', 'dexto/anthropic/claude-haiku-4.5'])
+        ).rejects.toMatchObject({
+            code: 3,
+            stderr: expect.stringContaining('"code":"needs_sign_in"'),
+            stdout: expect.stringContaining('"fix":"dexto login"'),
+        });
+        expect(modelRequests).toEqual([]);
+    });
+
+    it('points an unknown bare model to the catalog', async () => {
+        await expect(
+            run(['run', 'say hello', '--json', '-m', 'not-a-known-model'])
+        ).rejects.toMatchObject({
+            code: 2,
+            stdout: expect.stringContaining('"fix":"dexto models list"'),
+        });
+    });
+
+    it('keeps an explicit agent model when a Dexto API key is present', async () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+        const { stdout } = await run(['run', 'say hello', '--json'], {
+            DEXTO_FEATURE_AUTH: 'true',
+            DEXTO_API_KEY: 'test-dexto-key',
+            DEXTO_PUBLIC_API_URL: `http://127.0.0.1:${address.port}`,
+        });
+        expect(JSON.parse(stdout)).toMatchObject({
+            status: 'completed',
+            content: 'audit complete',
+        });
+        expect(modelRequests.length).toBeGreaterThan(0);
+        expect(
+            modelRequests.every((request) => request.model === 'audit-model' && !request.authorized)
+        ).toBe(true);
+    });
+
+    it('starts a fresh default run on Dexto models with an API key', async () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+        const { stdout } = await run(
+            ['run', 'say hello', '--json'],
+            {
+                DEXTO_FEATURE_AUTH: 'true',
+                DEXTO_API_KEY: 'test-dexto-key',
+                DEXTO_PUBLIC_API_URL: `http://127.0.0.1:${address.port}`,
+            },
+            null
+        );
+        expect(JSON.parse(stdout)).toMatchObject({
+            status: 'completed',
+            content: 'audit complete',
+        });
+        expect(modelRequests).toEqual([
+            {
+                model: 'anthropic/claude-haiku-4.5',
+                authorized: true,
+                path: '/v1/chat/completions',
+            },
+        ]);
+    });
 
     it.each(['json', 'jsonl', 'text'] as const)(
         'honors manual agent permissions with %s approval-required output and recovery',
