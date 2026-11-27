@@ -623,6 +623,12 @@ describe('dexto cloud', () => {
             expect(await dextoAccounts.readLogin(dir, 'work')).not.toBeNull();
         });
 
+        it('shows a JSON example for billing', async () => {
+            expect(await runCloud(host, ['billing', '--help', '--json'])).toBe(0);
+            expect(JSON.parse(stdout).examples).toContain('dexto billing --json');
+            expect(requests).toHaveLength(0);
+        });
+
         it('lists the models Dexto serves as dexto/<model>', async () => {
             await dextoAccounts.writeLogin(dir, 'default', signedIn());
             reply = () =>

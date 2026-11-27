@@ -166,6 +166,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
             buy: { description: 'Open the page to buy Dexto credits.', type: 'boolean' },
         },
         path: ['billing'],
+        examples: ['dexto billing --json'],
         summary: "Show the organization's credit balance and recent spending.",
         async run(context, input) {
             const summary = await unwrap(await (await context.client()).GET('/v1/billing/summary'));
