@@ -24,6 +24,7 @@ const find: Command = {
         },
     },
     path: ['find'],
+    examples: ['dexto find "share a file" --json'],
     summary:
         "Find what to run for something you want to do: Dexto's operations, apps, skills, agents and more, each as a command.",
     async run(context, input) {
