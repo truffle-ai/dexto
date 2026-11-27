@@ -211,7 +211,9 @@
         "projects recipes": ["dexto_automation_recipes_list"],
         "projects install-recipe": ["dexto_automation_recipe_install"]
     },
-    "actionCommands": {},
+    "actionCommands": {
+        "workspace gigs publish": { "tool": "dexto_gigs_posting", "actions": ["publish_gig"] }
+    },
     "localOnly": [
         {
             "command": "import list",
@@ -542,7 +544,7 @@
         },
         {
             "tool": "dexto_gigs_posting",
-            "reason": "DEXTO-3398 (in progress) adds commands for the read actions; the write actions have none yet, so the tool stays here until every action has one."
+            "reason": "workspace gigs publish covers publish_gig (actionCommands) and DEXTO-3398 (in progress) adds the read actions; its other write actions have none yet, so the tool stays here until every action has one."
         },
         {
             "tool": "dexto_open",

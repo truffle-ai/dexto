@@ -31,6 +31,7 @@ import { deployCommands } from './commands/deploys.js';
 import { docsCommands } from './commands/docs.js';
 import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
+import { gigPublishCommands } from './commands/gig-publish.js';
 import { loopCommands } from './commands/loops.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
@@ -97,6 +98,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...apiCommands,
         ...workspaceCommands,
         ...managedFunctionCommands,
+        ...gigPublishCommands,
         ...computerKeyCommands,
         ...shareCommands,
         ...driveCommands,
