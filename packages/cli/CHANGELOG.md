@@ -1,5 +1,11 @@
 # dexto
 
+## 2.7.1
+
+### Patch Changes
+
+- 4f3db24: `dexto applications`: a refusal because the organization doesn't have Applications yet (they are in early access) now fails as `not_available` instead of `needs_permission`, still exit 3, since no sign-in or permission lifts it. Any 403 `feature_flag_denied` from Dexto's API is reported the same way. Ids are checked before anything is sent: a malformed `<application_id>`, `<deployment_id>`, `<release_id>`, `--*-id`, `--project` or `--confirm-application-id` fails with `invalid_input` naming the UUID it expects, and deploy's `<connection_id>` says it is `app-<application id>` (and, for a bare id, which value to pass) instead of printing the server's schema. Like the server, it takes the `app-` prefix in any case. `applications create --project` now sends the project: the global option used to swallow it before the command read it. `--dry-run` now says that Dexto checked nothing and adds `checkedByDexto: false` to its JSON. A write prints `To retry: --<kind>-id <id>` only after a failure a retry can get past, such as a lost response, not after a refusal; the new id itself is still printed before the call.
+
 ## 2.7.0
 
 ### Minor Changes
