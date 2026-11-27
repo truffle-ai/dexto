@@ -1,5 +1,11 @@
 # dexto
 
+## 2.8.0
+
+### Minor Changes
+
+- fa0ab39: Add workspace Function commands to deploy a package, plan placement, promote a deployment, configure credentials and delete secrets.
+
 ## 2.7.3
 
 ### Patch Changes
