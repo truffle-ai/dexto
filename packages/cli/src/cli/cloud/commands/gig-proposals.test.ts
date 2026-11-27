@@ -12,11 +12,15 @@ const MCP = 'https://app.dexto.ai/mcp';
 const GIG = '11111111-1111-4111-8111-111111111111';
 const BID = '22222222-2222-4222-8222-222222222222';
 
-// What the cloud lists for the finding tool: reads ask nothing, every change is approve, and the
-// strict input takes no confirm field.
+// What the cloud lists for the finding tool: reads ask nothing, every change is approve, and each
+// input variant takes the confirm an approve call must carry.
+const variant = (action: string) => ({
+    type: 'object',
+    properties: { action: { const: action }, confirm: { type: 'boolean' } },
+});
 const FINDING_TOOL = {
     name: 'dexto_gigs_finding',
-    inputSchema: { anyOf: [{ type: 'object', properties: { action: { const: 'submit_bid' } } }] },
+    inputSchema: { anyOf: [variant('submit_bid'), variant('withdraw_bid')] },
     _meta: {
         'dexto/app': 'store',
         'dexto/level': 'approve',
@@ -172,6 +176,7 @@ describe('dexto workspace gigs propose and withdraw', () => {
                     approach: 'Audit, then fix',
                     deliveryEstimate: '3 days',
                     gigId: GIG,
+                    confirm: true,
                 },
             },
         ]);
@@ -186,6 +191,7 @@ describe('dexto workspace gigs propose and withdraw', () => {
 
         expect(calls[0]?.arguments).toMatchObject({
             price: { amountMinor: 50000, currency: 'USD' },
+            confirm: true,
         });
         expect(JSON.parse(stdout).bid.status).toBe('submitted');
     });
@@ -217,7 +223,10 @@ describe('dexto workspace gigs propose and withdraw', () => {
         expect(await run('withdraw', BID, '--yes')).toBe(0);
 
         expect(calls).toEqual([
-            { name: 'dexto_gigs_finding', arguments: { action: 'withdraw_bid', bidId: BID } },
+            {
+                name: 'dexto_gigs_finding',
+                arguments: { action: 'withdraw_bid', bidId: BID, confirm: true },
+            },
         ]);
         expect(stdout).toContain(`Proposal ${BID} on "Fix the flaky test" is withdrawn.`);
     });
