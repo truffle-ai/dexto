@@ -46,6 +46,7 @@ import { secretCommands } from './commands/secrets.js';
 import { siteRecordCommands } from './commands/site-records.js';
 import { webCommands } from './commands/web.js';
 import { workspaceCommands } from './commands/workspace.js';
+import { managedFunctionCommands } from './commands/managed-function-writes.js';
 import { resolveConnection } from './connection.js';
 import { isHeld } from './held-commands.js';
 import type { CloudHost, Group } from './run.js';
@@ -95,6 +96,7 @@ export function builtCloudCommands(dir: string, signIn: SignInFor): readonly Com
         ...dataDeletionCommands,
         ...apiCommands,
         ...workspaceCommands,
+        ...managedFunctionCommands,
         ...computerKeyCommands,
         ...shareCommands,
         ...driveCommands,

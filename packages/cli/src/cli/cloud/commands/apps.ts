@@ -30,7 +30,7 @@ const SCOPES = ['apps:read'] as const;
 export interface PackageKind {
     readonly label: string;
     readonly maxBytes: number;
-    readonly purpose: 'app-package' | 'application-package';
+    readonly purpose: 'app-package' | 'application-package' | 'function-package';
 }
 const APP_PACKAGE: PackageKind = {
     label: 'a Dexto App package',
