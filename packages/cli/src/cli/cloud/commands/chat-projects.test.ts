@@ -121,6 +121,22 @@ describe('projects over the Dexto MCP', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it('provides copyable JSON examples for Project commands', async () => {
+        const commands = host.commands.filter((command) => command.path[0] === 'projects');
+        expect(commands.length).toBeGreaterThanOrEqual(10);
+        for (const command of commands) {
+            stdout = '';
+            expect(await cli(...command.path, '--help')).toBe(0);
+            const help = JSON.parse(stdout) as { examples?: string[] };
+            expect(help.examples, command.path.join(' ')).toEqual(
+                expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+            );
+            for (const example of help.examples ?? []) {
+                expect(example, command.path.join(' ')).not.toMatch(/<\w+>/u);
+            }
+        }
+    });
+
     it('lists Projects with the filters it was given', async () => {
         replies = [{ projects: [project] }];
         expect(
