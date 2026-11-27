@@ -1575,6 +1575,20 @@
     "examples": true
   },
   {
+    "command": "workspace gigs propose",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
+    "command": "workspace gigs withdraw",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": true,
+    "examples": true
+  },
+  {
     "command": "workspace network list",
     "json": true,
     "dryRun": false,

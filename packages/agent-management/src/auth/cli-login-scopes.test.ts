@@ -27,6 +27,7 @@ describe('CLI_LOGIN_SCOPES', () => {
             'drive:write',
             'functions:read',
             'functions:write',
+            'gigs:write',
             'marketplace:read',
             'marketplace:write',
             'messages:read',
