@@ -264,6 +264,10 @@ program
     .description('Upgrade dexto, or install a given version')
     .option('--dry-run', 'Print commands without executing them')
     .option('--force', 'Force reinstall during upgrade')
+    .addHelpText(
+        'after',
+        '\nExamples:\n  dexto upgrade --dry-run\n  dexto upgrade 2.5.2 --dry-run\n'
+    )
     .action(
         withAnalytics(
             'upgrade',
