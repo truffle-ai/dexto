@@ -84,6 +84,19 @@ describe('cloud secrets, web and data-deletions', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it('provides copyable JSON examples for published Artifact commands', async () => {
+        const commands = host.commands.filter((command) => command.path[0] === 'artifacts');
+        expect(commands.length).toBeGreaterThanOrEqual(3);
+        for (const command of commands) {
+            stdout = '';
+            expect(await runCloud(host, [...command.path, '--help', '--json'])).toBe(0);
+            const help = JSON.parse(stdout) as { examples?: string[] };
+            expect(help.examples, command.path.join(' ')).toEqual(
+                expect.arrayContaining([expect.stringMatching(/^dexto .+ --json$/u)])
+            );
+        }
+    });
+
     it('publishes an HTML file as an organization Artifact', async () => {
         const file = path.join(path.dirname(dir), 'report.html');
         await writeFile(file, '<h1>Report</h1>');

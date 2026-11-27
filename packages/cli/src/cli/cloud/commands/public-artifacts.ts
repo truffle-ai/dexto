@@ -39,8 +39,8 @@ const publish: Command = {
         'dry-run': { description: 'Check the file without publishing.', type: 'boolean' },
     },
     path: ['artifacts', 'publish'],
-    summary:
-        'Publish HTML to your organization. Example: dexto artifacts publish report.html --title "Report"',
+    examples: ['dexto artifacts publish report.html --title "Report" --dry-run --json'],
+    summary: 'Publish HTML to your organization.',
     async run(context, input) {
         const file = argument(input, 0, 'file');
         const title = requiredOption(input, 'title');
@@ -87,7 +87,8 @@ const publish: Command = {
 const list: Command = {
     options: PAGE_OPTIONS,
     path: ['artifacts', 'list'],
-    summary: 'List your Artifacts. Example: dexto artifacts list --json',
+    examples: ['dexto artifacts list --json'],
+    summary: 'List your Artifacts.',
     async run(context, input) {
         await requireLoginScopes(context, ['artifacts:read']);
         const page = await unwrap(
@@ -101,7 +102,8 @@ const list: Command = {
 const open: Command = {
     arguments: '<id>',
     path: ['artifacts', 'open'],
-    summary: 'Print an Artifact link. Example: dexto artifacts open "$ARTIFACT_ID"',
+    examples: ['dexto artifacts open "$ARTIFACT_ID" --json'],
+    summary: 'Print an Artifact link.',
     async run(context, input) {
         await requireLoginScopes(context, ['artifacts:read']);
         const artifact = await unwrap(
