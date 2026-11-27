@@ -326,6 +326,12 @@ function spend(walk: Walk, value: unknown, extra = 0): unknown {
     return value;
 }
 
+/** JSON writes otherwise omitted array values as null. */
+function spendArrayItem(walk: Walk, value: unknown, hasPrevious: boolean): unknown {
+    const nullSlot = value === undefined || typeof value === 'symbol';
+    return spend(walk, value, (nullSlot ? 4 : 0) + (hasPrevious ? 1 : 0));
+}
+
 /** Values that hold no keys to look at: how many bytes, not the bytes. */
 function describeBinary(value: ArrayBuffer | ArrayBufferView): string {
     const name = value instanceof ArrayBuffer ? 'ArrayBuffer' : value.constructor.name;
@@ -428,7 +434,13 @@ function redactContainer(
                 items.push(TRUNCATED);
                 break;
             }
-            items.push(spend(walk, redactValue(item, walk, mode, insideSecret, depth)));
+            items.push(
+                spendArrayItem(
+                    walk,
+                    redactValue(item, walk, mode, insideSecret, depth),
+                    items.length > 0
+                )
+            );
         }
         return items;
     }
@@ -533,11 +545,12 @@ function redactEntry(
                         break;
                     }
                     items.push(
-                        spend(
+                        spendArrayItem(
                             walk,
                             typeof item === 'string'
                                 ? REDACTED
-                                : redactValue(item, walk, mode, false, depth)
+                                : redactValue(item, walk, mode, false, depth),
+                            items.length > 0
                         )
                     );
                 }
