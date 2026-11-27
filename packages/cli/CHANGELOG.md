@@ -1,5 +1,11 @@
 # dexto
 
+## 2.9.0
+
+### Minor Changes
+
+- 2fc2cbe: Add Project archive and restore commands and an archived Project list filter.
+
 ## 2.8.1
 
 ### Patch Changes
