@@ -37,12 +37,8 @@ export function safeStringify(value: unknown, maxLen?: number): string {
             }
             return str;
         }
-        return String(value);
+        return String(redacted);
     } catch {
-        try {
-            return String(value);
-        } catch {
-            return '[Unserializable value]';
-        }
+        return '[Unserializable value]';
     }
 }

@@ -17,6 +17,10 @@ const sigV4Hex = 'a1'.repeat(32);
 const sigV2Base64 = 'dGhpc2lzYXNpZ25hdHVyZQ%3D%3D';
 
 describe('redact', () => {
+    test('does not add non-enumerable error details to API response data', () => {
+        expect(redact({ error: new Error('private detail') })).toEqual({ error: {} });
+    });
+
     // Basic field redaction
     test('should redact a single sensitive field', () => {
         expect(redact({ apiKey: 'secret' })).toEqual({ apiKey: '[REDACTED]' });

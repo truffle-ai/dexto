@@ -253,13 +253,15 @@ function redactString(input: string): string {
  * also masks by broader key names and by "name=value" text, which would corrupt API payloads
  * (for example a `nextPageToken` or a public `posthogKey`).
  */
-type Mode = 'response' | 'log';
+type Mode = 'response' | 'stringify' | 'log';
 
 const MAX_LOG_DEPTH = 20;
+const MAX_RESPONSE_DEPTH = 100;
 // A log entry is read for at most this many objects, so a densely linked graph (every node
 // pointing at every other) cannot be walked once per path.
 const MAX_LOG_NODES = 5000;
 const TRUNCATED = '[Truncated]';
+const TOO_DEEP = '[Too deep]';
 const SHARED = '[Shared]';
 // A string longer than the characters left is read only this far past them, so a secret that
 // runs past the limit is still recognised and redacted; that context is then dropped.
@@ -293,8 +295,8 @@ export const UNREDACTABLE_LOG_DATA = '[unredactable log data]';
 interface Walk {
     /** Objects on the path being read, to mark a real cycle. */
     ancestors: WeakSet<object>;
-    /** Results already made, so a value reached twice is read once (API responses). */
-    memo: WeakMap<object, unknown> | undefined;
+    /** Results already made at each depth (API responses). */
+    memo: WeakMap<object, Map<number, unknown>> | undefined;
     /** Objects already written out once; a later reference is marked, not written again (logs). */
     shared: WeakSet<object> | undefined;
     /** Objects this call may still read (logs). */
@@ -335,6 +337,8 @@ function redactValue(
     insideSecret: boolean,
     depth = 0
 ): unknown {
+    // JSON.stringify can invoke toJSON on functions as well as on objects.
+    if (typeof input === 'function') return undefined;
     if (typeof input === 'string') {
         if (insideSecret) return REDACTED;
         const redact = mode === 'log' ? redactLogString : redactString;
@@ -361,16 +365,24 @@ function redactValue(
 
     if (walk.ancestors.has(input)) return REDACTED_CIRCULAR;
     if (walk.shared?.has(input)) return insideSecret ? REDACTED : SHARED;
-    const memoized = walk.memo?.get(input);
-    if (memoized !== undefined) return memoized;
     if (mode === 'log' && depth >= MAX_LOG_DEPTH) return TRUNCATED;
+    if (mode !== 'log' && depth >= MAX_RESPONSE_DEPTH) return TOO_DEEP;
+    const memoized = walk.memo?.get(input)?.get(depth);
+    if (memoized !== undefined) return memoized;
     if (walk.remaining <= 0) return TRUNCATED;
     walk.remaining -= 1;
 
     walk.ancestors.add(input);
     try {
         const result = redactContainer(input, walk, mode, insideSecret, depth + 1);
-        walk.memo?.set(input, result);
+        if (walk.memo) {
+            let results = walk.memo.get(input);
+            if (!results) {
+                results = new Map();
+                walk.memo.set(input, results);
+            }
+            results.set(depth, result);
+        }
         walk.shared?.add(input);
         return result;
     } finally {
@@ -429,26 +441,53 @@ function redactContainer(
     }
     // Keys are read one at a time (no copy of the object), so a wide object costs the budget,
     // not its width: only enumerating its keys is proportional to how many there are.
-    const fields: object = mode === 'log' && input instanceof Error ? errorFields(input) : input;
+    const details =
+        mode === 'stringify' && input instanceof Error
+            ? {
+                  name: input.name,
+                  message: input.message,
+                  stack: input.stack,
+                  ...(input.cause !== undefined && { cause: input.cause }),
+              }
+            : undefined;
+    const sources = details
+        ? [details, input]
+        : [mode === 'log' && input instanceof Error ? errorFields(input) : input];
     const result: Record<string, unknown> = {};
-    for (const key in fields) {
-        if (!Object.hasOwn(fields, key)) continue;
-        if (walk.budget <= 0) {
-            result[TRUNCATED] = TRUNCATED;
-            break;
+    for (const fields of sources) {
+        for (const key in fields) {
+            if (!Object.hasOwn(fields, key)) continue;
+            if (fields === input && details && Object.hasOwn(details, key)) continue;
+            if (walk.budget <= 0) {
+                result[TRUNCATED] = TRUNCATED;
+                return result;
+            }
+            walk.budget -= key.length + 3;
+            if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
+                result[key] = REDACTED;
+                continue;
+            }
+            const value: unknown = Reflect.get(fields, key);
+            // A copied toJSON function would be called later by JSON.stringify on the redacted copy,
+            // bypassing the walk entirely.
+            if (key === 'toJSON' && typeof value === 'function') continue;
+            // First truncate file data (with parent context), then recursively redact
+            const truncatedValue = truncateFileData(value, key, fields);
+            const redacted = spend(
+                walk,
+                redactEntry(key, truncatedValue, walk, mode, insideSecret, depth)
+            );
+            if (key === '__proto__') {
+                Object.defineProperty(result, key, {
+                    value: redacted,
+                    enumerable: true,
+                    configurable: true,
+                    writable: true,
+                });
+            } else {
+                result[key] = redacted;
+            }
         }
-        walk.budget -= key.length + 3;
-        if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
-            result[key] = REDACTED;
-            continue;
-        }
-        const value: unknown = Reflect.get(fields, key);
-        // First truncate file data (with parent context), then recursively redact
-        const truncatedValue = truncateFileData(value, key, fields);
-        result[key] = spend(
-            walk,
-            redactEntry(key, truncatedValue, walk, mode, insideSecret, depth)
-        );
     }
     return result;
 }
@@ -522,7 +561,7 @@ export function redactForStringify(input: unknown, maxChars: number): unknown {
             remaining: Infinity,
             budget: maxChars,
         },
-        'response',
+        'stringify',
         false
     );
 }

@@ -25,6 +25,87 @@ describe('safeStringify', () => {
         vi.restoreAllMocks();
     });
 
+    it('does not allow toJSON to bypass redaction', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        const value = { visible: 'kept', toJSON: () => secret };
+
+        expect(safeStringify(value)).toBe('{"visible":"kept"}');
+        expect(safeStringify({ nested: value }, CAP)).toBe('{"nested":{"visible":"kept"}}');
+    });
+
+    it('does not invoke toJSON on function values or install them as a prototype', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        const inherited = Object.assign(() => {}, { toJSON: () => secret });
+        const value = Object.defineProperty({ visible: 'kept' }, '__proto__', {
+            value: inherited,
+            enumerable: true,
+        });
+
+        expect(safeStringify(value).includes(secret)).toBe(false);
+        expect(safeStringify({ fn: inherited }).includes(secret)).toBe(false);
+        expect(safeStringify([inherited]).includes(secret)).toBe(false);
+        expect(safeStringify(inherited).includes(secret)).toBe(false);
+    });
+
+    it('does not stringify the original value when redaction throws', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        const value = {
+            get broken(): unknown {
+                throw new Error('unreadable');
+            },
+            toString: () => secret,
+        };
+
+        expect(safeStringify(value)).toBe('[Unserializable value]');
+    });
+
+    it('keeps a nested error message while redacting its contents', () => {
+        const secret = `sk-proj-${'a1'.repeat(20)}`;
+        const result = safeStringify({ error: new Error(`failed with ${secret}`) });
+
+        expect(result).toContain('failed with [REDACTED]');
+        expect(result).not.toContain(secret);
+    });
+
+    it('does not read a wide error past the length budget', () => {
+        const error = new Error('failure');
+        let reads = 0;
+        for (let index = 0; index < 5000; index += 1) {
+            Object.defineProperty(error, `field${index}`, {
+                enumerable: true,
+                get() {
+                    reads += 1;
+                    if (index === 4999) throw new Error('should not be read');
+                    return 'value';
+                },
+            });
+        }
+
+        expect(safeStringify({ error }, 500)).toContain('failure');
+        expect(reads).toBeLessThan(100);
+    });
+
+    it('bounds deeply nested objects even without a length limit', () => {
+        let value: Record<string, unknown> = { leaf: true };
+        for (let level = 0; level < 5000; level += 1) value = { nested: value };
+
+        const uncapped = safeStringify(value);
+        expect(uncapped).toContain('[Too deep]');
+        expect(uncapped.length).toBeLessThan(5000);
+        expect(safeStringify(value, CAP)).toContain('[Too deep]');
+    });
+
+    it('bounds depth when earlier shared objects are reused at deeper levels', () => {
+        const nodes: Record<string, unknown>[] = [];
+        let node: Record<string, unknown> = { leaf: true };
+        for (let level = 0; level < 5000; level += 1) {
+            node = { previous: node };
+            nodes.push(node);
+        }
+
+        expect(safeStringify(nodes)).toContain('[Too deep]');
+    });
+
     it('encodes no more than about the cap of a 10 MB object', () => {
         const items = Array.from({ length: 100_000 }, (_, index) => ({
             id: index,
